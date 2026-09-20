@@ -105,6 +105,10 @@ For `ASK`, show the policy, tool identity, and sanitized proposed arguments. Inc
 
 Recheck the argument digest and session lifecycle before returning permission. Denial, cancellation, missing UI, reload, branching, or session replacement blocks the pending call. Uncertain execution results remain uncertain; retries are new invocations with new assessments and approvals.
 
+KVG-5095 sets a configurable 60-second approval deadline, including queue time, through `TENET_APPROVAL_TIMEOUT_MS`. Cancellation blocks the invocation and signals the native UI. The queue does not open another dialog until the previous UI promise settles, even if that UI ignores cancellation. Check queued invocations again before displaying their assessed details.
+
+Use a runtime lifecycle generation to invalidate pending assessments and approvals before session replacement, fork/tree navigation, reload or shutdown. Revoke permission before attempting audit writes. An independent invocation ID joins decision, approval, permission and outcome records. Host call IDs must remain unique within a session; detected duplicates invalidate pending work rather than associate a result with an ambiguous invocation. No permission is recovered from history.
+
 The supported host setup must run TENET after argument-mutating hooks and must not mutate assessed arguments afterward. Integration tests verify the final executor arguments in the configured Pi version. Dynamic file contents, browser state changes, and other unobserved changes between assessment and execution remain host concerns; the POC does not claim transactionally frozen external state.
 
 Human-entered shell commands are not agent calls and are outside this policy adapter. Tools that spawn their own internal actions are represented by the outer invocation unless their integration supplies further checkpoints.

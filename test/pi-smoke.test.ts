@@ -37,6 +37,12 @@ test('pinned Pi dispatch gates built-in, extension and dynamically registered to
     const loader = new DefaultResourceLoader({ cwd, agentDir: cwd, settingsManager,
       noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true,
       extensionFactories: [pi => {
+        // Supported ordering: an earlier extension finishes argument mutation first.
+        pi.on('tool_call', event => {
+          const payload = (event.input as Record<string, unknown>).payload as Record<string, unknown> | undefined;
+          if (payload?.mutateBeforeAssessment) payload.value = 'assessed-after-hook';
+        });
+      }, pi => {
         extensionAPI = pi;
         pi.registerTool({ name: 'dummy', label: 'Dummy', description: 'Offline dummy with arbitrary payload',
           parameters: Type.Object({ payload: Type.Unknown() }),
@@ -172,6 +178,14 @@ test('pinned Pi dispatch gates built-in, extension and dynamically registered to
       assert.ok(!records.some(r => r.stage === 'execution' && r.callId === callId));
     }
     assert.ok(!JSON.stringify(records).includes('hidden-credential'));
+
+    integrity = 'PASS'; outcome = 'APPROVAL_REQUIRED'; approved = true;
+    await invoke('dummy', { payload: { mutateBeforeAssessment: true, value: 'unassessed' } });
+    const expected = { payload: { mutateBeforeAssessment: true, value: 'assessed-after-hook' } };
+    assert.deepEqual(assessed.at(-1)?.arguments, expected, 'TENET sees the preceding extension mutation');
+    assert.deepEqual(executed.at(-1), expected, 'executor gets exactly the assessed post-hook arguments');
+    assert.equal(executed.length, 6);
+    assert.equal(confirmations, 5);
   } finally {
     session?.dispose();
     globalThis.fetch = realFetch;

@@ -1,22 +1,29 @@
+import { randomUUID } from 'node:crypto';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import type { Action, Judge, Policy, RuleDiagnostic } from '../decision/contracts.js';
 import { decide, QUESTION_VERSION } from '../decision/decide.js';
 import { argumentDigest, captureAction, display } from '../decision/evidence.js';
 import { createJevJudge } from '../decision/jev.js';
 import { loadPolicy, policyIsCurrent } from '../decision/policy.js';
-import { confirmRules } from './approval.js';
+import { ApprovalQueue } from './approval.js';
 import { readConfig, type GuardConfig } from './config.js';
 import { Observations, recoverObservations } from '../decision/trajectory.js';
 
-type Identity = Pick<Action, 'sessionId' | 'callId' | 'toolName' | 'argumentDigest'> & { policyDigest: string | null };
+type Identity = Pick<Action, 'sessionId' | 'callId' | 'toolName' | 'argumentDigest'> & { policyDigest: string | null; invocationId: string };
 
 export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; env?: Record<string, string | undefined> } = {}): void {
   const env = { ...(options.env ?? process.env) };
   const judge = options.judge ?? createJevJudge({ apiKey: env.TYPESAFE_API_KEY });
+  const approvals = new ApprovalQueue();
   let policy: Policy = { available: false, source: '', reason: 'policy-unavailable' };
   let config: GuardConfig | undefined;
   let unavailable: string | undefined = 'not-started';
   let observations: Observations | undefined;
+  let lifecycle = new AbortController();
+  let sessionId: string | undefined;
+  const pending = new Map<string, (reason: string) => unknown>();
+  // Host call IDs must be unique within a session. Retain tombstones, never grants.
+  const seen = new Set<string>();
   const released = new Map<string, Identity>();
   const key = (session: string, call: string) => JSON.stringify([session, call]);
   const record = (stage: string, data: Record<string, unknown>) => {
@@ -28,26 +35,45 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; env?: 
     }
   };
   const unknownOutcomes = () => {
-    for (const identity of released.values()) record('execution', { ...identity, outcome: 'unknown', origin: 'no-tool-result-observed' });
+    const unknown = [...released.values()];
     released.clear();
+    for (const identity of unknown) record('execution', { ...identity, outcome: 'unknown', origin: 'no-tool-result-observed' });
+  };
+  const invalidate = (reason: string) => {
+    // Revoke first. Audit failures must never keep an invocation valid.
+    lifecycle.abort();
+    lifecycle = new AbortController();
+    try {
+      // Record before the old runtime is torn down and abort continuations run.
+      for (const block of pending.values()) block(reason);
+    } finally {
+      unknownOutcomes();
+    }
   };
 
   pi.on('session_start', async (_event, ctx) => {
+    invalidate('session-start');
+    const starting = lifecycle;
     unavailable = 'starting';
+    sessionId = ctx.sessionManager.getSessionId();
     config = undefined;
-    unknownOutcomes();
     observations = undefined;
     try {
-      config = readConfig(ctx.cwd, env);
-      observations = recoverObservations(ctx.sessionManager.getSessionId(), ctx.sessionManager.getBranch?.(), config.evidence, config.sensitiveFields);
-      policy = await loadPolicy(config.policyPath);
+      const loadedConfig = readConfig(ctx.cwd, env);
+      const loadedPolicy = await loadPolicy(loadedConfig.policyPath);
+      if (starting !== lifecycle) return;
+      config = loadedConfig;
+      policy = loadedPolicy;
+      observations = recoverObservations(sessionId, ctx.sessionManager.getBranch?.(), config.evidence, config.sensitiveFields);
       unavailable = !policy.available ? policy.reason : !options.judge && !env.TYPESAFE_API_KEY?.trim() ? 'missing-credentials' : undefined;
     } catch {
+      if (starting !== lifecycle) return;
       unavailable = 'configuration';
     }
     const ruleCount = policy.available ? policy.rules.length : 0;
     record('status', { status: unavailable ? 'unavailable' : 'ready', reason: unavailable ?? null,
-      policy, ruleCount, questionVersion: QUESTION_VERSION, config: config?.decision ?? null, scope: 'configured-rules', evidence: config?.evidence ?? null });
+      policy, ruleCount, questionVersion: QUESTION_VERSION, config: config?.decision ?? null, scope: 'configured-rules',
+      evidence: config?.evidence ?? null, approvalTimeoutMs: config?.approvalTimeoutMs ?? null });
     if (ctx.hasUI) {
       ctx.ui.setStatus('tenet', `TENET ${unavailable ? `unavailable: ${unavailable}` : `ready: ${ruleCount} rules`} [${QUESTION_VERSION}]`);
       ctx.ui.notify(`TENET ${unavailable ? `unavailable (${unavailable}); intercepted calls BLOCK.` : `ready: ${ruleCount} rules plus policy integrity.`} Judge questions: ${QUESTION_VERSION}. ${policy.available ? `Policy ${display(policy.source)}, SHA-256 ${policy.digest}.` : 'Load a UTF-8 policy with nonempty Rule; declarations, then reload or restart.'} Rule text, selected tool evidence and bounded recent observations reach TypeSafe. No filesystem sandbox or subprocess observation.`, unavailable ? 'error' : 'info');
@@ -56,52 +82,74 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; env?: 
 
   pi.on('tool_call', async (event, ctx) => {
     const selectedPolicy = policy;
+    const selectedConfig = config;
+    const generation = lifecycle;
+    const signal = ctx.signal ? AbortSignal.any([ctx.signal, generation.signal]) : generation.signal;
     const identity: Identity = { sessionId: ctx.sessionManager.getSessionId(), callId: event.toolCallId,
-      toolName: event.toolName, argumentDigest: '', policyDigest: selectedPolicy.available ? selectedPolicy.digest : null };
+      toolName: event.toolName, argumentDigest: '', policyDigest: selectedPolicy.available ? selectedPolicy.digest : null, invocationId: randomUUID() };
     const location = (id: string) => {
       const rule = selectedPolicy.available && selectedPolicy.rules.find(r => r.id === id);
       return rule ? `line ${rule.line}` : 'built-in policy integrity';
     };
+    let permissionRecorded = false;
     const block = (reason: string, ruleIds: string[] = [], diagnostics: RuleDiagnostic[] = []) => {
-      record('permission', { ...identity, outcome: 'blocked', reason, ruleIds });
+      if (!permissionRecorded) {
+        permissionRecorded = true;
+        pending.delete(identity.invocationId);
+        record('permission', { ...identity, outcome: 'blocked', reason, ruleIds });
+      }
       const locations = selectedPolicy.available ? ruleIds.map(location) : [];
       const details = diagnostics.map(d => `${location(d.ruleId)}: ${d.gates.join(', ')}; `
         + `outcome=${d.outcome} p=${d.outcomeProbability} threshold=${d.effectThreshold}; `
         + `evidence=${d.evidence} p(SUFFICIENT)=${d.evidenceProbability} threshold=${d.evidenceThreshold}`).join('\n');
       return { block: true as const, reason: `TENET blocked: ${reason}.${locations.length ? ` Rules: ${locations.join(', ')}.` : ''}${reason === 'policy-stale' ? ' Reload or restart to load the changed policy.' : ''}${details ? `\n${details}` : ''}` };
     };
+    pending.set(identity.invocationId, block);
+    const current = () => !signal.aborted && generation === lifecycle && !unavailable
+      && policy === selectedPolicy && ctx.sessionManager.getSessionId() === identity.sessionId && sessionId === identity.sessionId;
     try {
-      if (unavailable || !config || !selectedPolicy.available) {
+      if (unavailable || !selectedConfig || !selectedPolicy.available) {
         const reason = unavailable ?? 'policy-unavailable';
         record('decision', { ...identity, decision: 'BLOCK', reason, assessment: null });
         return block(reason);
       }
+      if (!current()) return block('guard-state-changed');
+      const callKey = key(identity.sessionId, identity.callId);
+      if (seen.has(callKey)) {
+        invalidate('duplicate-call-identity');
+        return block('duplicate-call-identity');
+      }
+      seen.add(callKey);
       // Refresh the complete inventory at call time. No tool family dispatch or allowlist.
       const metadata = pi.getAllTools().find(tool => tool.name === event.toolName);
       let action: Action;
       try {
         action = captureAction({ sessionId: identity.sessionId, callId: identity.callId,
           toolName: event.toolName, arguments: event.input, description: metadata?.description,
-          parameters: metadata?.parameters }, config.sensitiveFields);
+          parameters: metadata?.parameters }, selectedConfig.sensitiveFields);
       } catch {
         observations?.add('pi-tool-call', identity.callId, identity.toolName, { limitation: 'unsupported-current-action' });
         record('decision', { ...identity, decision: 'BLOCK', reason: 'insufficient-evidence', outcome: 'UNKNOWN', limitation: 'unsupported-current-action' });
         return block('insufficient-evidence');
       }
       identity.argumentDigest = action.argumentDigest;
-      if (observations?.sessionId !== identity.sessionId) observations = new Observations(identity.sessionId, config.evidence, config.sensitiveFields, ['history-unavailable']);
+      if (observations?.sessionId !== identity.sessionId) observations = new Observations(identity.sessionId, selectedConfig.evidence, selectedConfig.sensitiveFields, ['history-unavailable']);
       const trajectory = observations.snapshot();
       observations.add('pi-tool-call', identity.callId, identity.toolName, action);
-      const result = await decide({ policy: selectedPolicy, action, trajectory, evidenceLimits: config.evidence, cwd: ctx.cwd, judge, config: config.decision, signal: ctx.signal });
+      const result = await decide({ policy: selectedPolicy, action, trajectory, evidenceLimits: selectedConfig.evidence, cwd: ctx.cwd, judge, config: selectedConfig.decision, signal });
+      if (!current()) return block('guard-state-changed');
       record('assessment', { ...identity, assessment: result.assessment, reason: result.reason,
         durationMs: result.durationMs, requestedModel: result.requestedModel, questionVersion: result.questionVersion,
-        config: result.config, evidenceLimits: config.evidence, redactedFields: action.redactedFields, limitations: action.limitations });
+        config: result.config, evidenceLimits: selectedConfig.evidence, redactedFields: action.redactedFields, limitations: action.limitations });
       record('decision', { ...identity, decision: result.decision, reason: result.reason, ruleIds: result.ruleIds,
         diagnostics: result.diagnostics, questionVersion: result.questionVersion });
       if (result.decision === 'BLOCK') return block(result.reason, result.ruleIds, result.diagnostics);
       const fresh = async () => {
-        if (await policyIsCurrent(selectedPolicy)) return true;
-        if (policy === selectedPolicy) unavailable = 'policy-stale';
+        const fresh = await policyIsCurrent(selectedPolicy);
+        if (!current()) return false;
+        if (fresh) return true;
+        unavailable = 'policy-stale';
+        invalidate('policy-stale');
         record('status', { status: 'unavailable', reason: 'policy-stale', policyDigest: selectedPolicy.digest });
         if (ctx.hasUI) {
           ctx.ui.setStatus('tenet', `TENET unavailable: policy-stale [${QUESTION_VERSION}]`);
@@ -114,16 +162,19 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; env?: 
         && argumentDigest(event.input) === action.argumentDigest;
       if (!unchanged()) return block('arguments-changed');
       if (result.decision === 'ASK') {
-        const approval = await confirmRules(ctx, selectedPolicy, action, result.ruleIds);
+        const approval = await approvals.confirm(ctx, selectedPolicy, action, result.ruleIds, selectedConfig.approvalTimeoutMs, signal,
+          async () => current() && unchanged() && await fresh() && current() && unchanged());
+        if (!current()) return block('guard-state-changed');
         record('approval', { ...identity, outcome: approval, ruleIds: result.ruleIds });
         if (approval !== 'approved') return block(`approval-${approval}`);
       }
       if (result.decision === 'ASK' && !await fresh()) return block('policy-stale');
-      if (ctx.signal?.aborted) return block('cancelled');
-      if (policy !== selectedPolicy || unavailable) return block('guard-state-changed');
+      if (!current()) return block('guard-state-changed');
       if (!unchanged()) return block('arguments-changed');
       // Permission is not evidence of execution. Only tool_result records an observed outcome.
       record('permission', { ...identity, outcome: 'released' });
+      permissionRecorded = true;
+      pending.delete(identity.invocationId);
       released.set(key(identity.sessionId, identity.callId), identity);
       return undefined;
     } catch {
@@ -139,10 +190,17 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; env?: 
     }
     const id = key(ctx.sessionManager.getSessionId(), event.toolCallId);
     const identity = released.get(id);
-    if (!identity) return;
+    if (!identity || identity.toolName !== event.toolName) return;
     record('execution', { ...identity, origin: 'pi-tool-result', outcome: event.isError ? 'failed' : 'executed' });
     released.delete(id);
   });
-  pi.on('agent_end', async () => { unknownOutcomes(); });
-  pi.on('session_shutdown', async () => { unavailable = 'session-shutdown'; unknownOutcomes(); });
+  pi.on('agent_end', async () => { invalidate('agent-end'); });
+  pi.on('session_before_switch', async () => { invalidate('session-switch'); });
+  pi.on('session_before_fork', async () => { invalidate('session-fork'); });
+  pi.on('session_before_tree', async () => { invalidate('session-tree'); });
+  pi.on('session_tree', async (_event, ctx) => {
+    invalidate('session-tree');
+    observations = config ? recoverObservations(ctx.sessionManager.getSessionId(), ctx.sessionManager.getBranch?.(), config.evidence, config.sensitiveFields) : undefined;
+  });
+  pi.on('session_shutdown', async () => { unavailable = 'session-shutdown'; invalidate('session-shutdown'); });
 }

@@ -23,9 +23,9 @@ Blocked by: slice 1. This slice makes the same generic guard use observed histor
 
 Blocked by: slice 1. This slice closes approval-reuse and lifecycle failures without depending on trajectory interpretation.
 
-- [ ] 3.1 Bind approval to session, policy digest, tool-call identity, and assessed argument digest; verify changed arguments, alternate tools, retries after uncertain execution, and task text claiming consent require fresh assessment and any necessary approval.
-- [ ] 3.2 Serialize approval dialogs and cancel pending decisions on denial, dismissal, abort, or timeout; verify concurrent calls cannot share an approval and a late UI response cannot release a canceled invocation.
-- [ ] 3.3 Invalidate pending approvals on reload, branching, and session replacement; verify no transcript entry revives permission and decision records distinguish allowed, approved, executed, failed, and unknown outcomes.
+- [x] 3.1 Bind approval to session, policy digest, tool-call identity, and assessed argument digest; verify changed arguments, alternate tools, retries after uncertain execution, and task text claiming consent require fresh assessment and any necessary approval.
+- [x] 3.2 Serialize approval dialogs and cancel pending decisions on denial, dismissal, abort, or timeout; verify concurrent calls cannot share an approval and a late UI response cannot release a canceled invocation.
+- [x] 3.3 Invalidate pending approvals on reload, branching, and session replacement; verify no transcript entry revives permission and decision records distinguish allowed, approved, executed, failed, and unknown outcomes.
 
 ## 4. Evaluate semantic consistency across tool shapes
 

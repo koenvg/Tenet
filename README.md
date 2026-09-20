@@ -2,7 +2,7 @@
 
 A TypeScript POC for Pi 0.85.1. Every exposed tool call follows the same rule-evaluation path through Jev using the official `@typesafe-ai/sdk` 0.6.0. No tool allowlists, tool-family mappings or replacement executors.
 
-The original KVG-5093 publication slice is extended by `add-configurable-policy-rules` and KVG-5094's bounded recent observations. No subprocess inspection, OS sandbox or hardened concurrent approval handling.
+The original KVG-5093 publication slice is extended by configurable policy rules, KVG-5094's bounded recent observations and KVG-5095's invocation-bound approval. No subprocess inspection or OS sandbox.
 
 ## Verify offline
 
@@ -15,7 +15,7 @@ bun run smoke
 bun run typecheck
 ```
 
-Tests use injected judges, clocks and scripted HTTP responses. The smoke tests exercise the real pinned Pi resource loader and tool dispatcher with scripted assistant output and dummy executors. They verify withholding execution, native approval, policy-integrity blocking and unchanged executor arguments. No credentials or live model calls are required.
+Tests use injected judges, clocks and scripted HTTP responses. Offline host tests assert executor calls for concurrent approvals, argument changes, lifecycle transitions, retries and forged consent. The smoke tests exercise the pinned Pi resource loader and tool dispatcher with scripted assistant output and dummy executors. They verify withholding execution, native approval, policy-integrity blocking and executor arguments after an earlier extension mutates them. No credentials or live model calls are required.
 
 These tests verify enforcement mechanics, not semantic accuracy. The saved publication-v3 reports are historical evidence for previous questions. A separate 33-request `policy-rules-v2` live run allowed both reported actions in all repetitions, but still found false blocks and invalid responses. See [eval/README.md](eval/README.md) for the results and limitations.
 
@@ -99,7 +99,11 @@ One bounded Jev request contains an outcome question and evidence-sufficiency qu
 
 No majority vote or averaging across rules. Model probabilities are experimental signals, not calibrated correctness guarantees.
 
-ASK shows one native confirmation listing all approval-requiring rules, their source lines, policy identity, tool/call identity and field-redacted arguments. Only an explicit positive response releases that unchanged invocation. Denial, dismissal, missing UI, UI failure and cancellation block. A statement in chat or tool arguments that something was approved is not native confirmation. Approval does not carry to a later invocation or override a failing rule.
+ASK shows one native confirmation listing all approval-requiring rules, their source lines, policy digest, session/tool/call identity, original-argument digest and field-redacted arguments. Only an explicit positive response releases that unchanged pending invocation. Denial, dismissal, missing UI, UI failure, cancellation and timeout block. Chat, task text and historical approval entries are never permission. Approval cannot authorize a later call, another tool, a retry or the entire session.
+
+TENET serializes its native dialogs. The approval timeout defaults to 60 seconds and includes time waiting in the queue. Queued calls are checked again before their dialog opens. Cancellation signals the native UI and blocks the invocation immediately. If the UI ignores cancellation, TENET keeps the dialog slot occupied until that UI promise settles; later calls can time out without opening a dialog. A late answer cannot approve another invocation.
+
+Session-start reload, session shutdown, switch/fork/tree lifecycle hooks and agent end invalidate pending work, including outstanding judge requests. Session and policy identity are checked again before release. A detected policy change invalidates all pending calls and latches the guard unavailable until reload. Even a cancelled branch or switch attempt discards existing approvals; a fresh call must be assessed again.
 
 ### Read a block diagnostic
 
@@ -122,6 +126,7 @@ Details contain bounded rule locations, validated labels and numeric scores, not
 | `TENET_EFFECT_THRESHOLD` | `0.90` | Minimum selected per-rule outcome probability; retained name |
 | `TENET_EVIDENCE_THRESHOLD` | `0.90` | Minimum sufficient-evidence probability for every rule |
 | `TENET_JUDGE_DEADLINE_MS` | `2500` | Overall judge deadline, not per-rule; human approval time is separate |
+| `TENET_APPROVAL_TIMEOUT_MS` | `60000` | Approval deadline including queue time; integer from 1 through 2147483647 |
 | `TENET_RECENT_EVENTS` | `12` | Maximum recent observations; nonnegative integer, zero omits all history |
 | `TENET_EVIDENCE_MAX_BYTES` | `24576` | Maximum UTF-8 bytes of serialized judge state; positive integer |
 | `TENET_SENSITIVE_FIELDS` | `[]` | JSON array of additional field names to remove recursively |
@@ -150,15 +155,19 @@ Version-2 `tenet` custom records distinguish:
 - `permission`: released or blocked.
 - `execution`: observed Pi tool result, executed or failed; unobserved outcomes remain unknown.
 
-Records omit raw arguments, tool schemas, payloads, results and unsolicited provider prose/errors. Policy declarations are part of startup records. Pi's own transcript and other extensions have separate logging behavior. Permission does not prove execution; a successful tool result does not independently verify remote effects.
+Each intercepted invocation receives an `invocationId`, separate from the host's call ID. Assessment, decision, approval, permission and execution records retain that identity with session, tool, call, policy digest and assessed original-argument digest. ALLOW is not human approval, and neither ALLOW nor positive approval is proof of execution. Released invocations without a result become `unknown` at agent end or lifecycle invalidation. A failed result does not prove the action had no remote effect. A retry requires a new host call ID, fresh assessment and any required approval. Duplicate host IDs invalidate pending work rather than ambiguously associating a result.
+
+Records omit raw arguments, tool schemas, payloads, results and unsolicited provider prose/errors. Policy declarations are part of startup records. Pi's own transcript and other extensions have separate logging behavior. A successful tool result does not independently verify remote effects. After a crash that prevents final logging, absence of a result still must not be interpreted as success.
 
 ## Host contract and remaining limits
 
-Pi must expose every agent tool call before execution, await and honor blocks, and execute the assessed arguments without later mutation. Run TENET after argument-mutating hooks. TENET rechecks arguments before release but cannot prevent a subsequent hook changing them. Metadata must describe the actual executor.
+Pi must expose every agent tool call before execution, await and honor blocks, and execute the assessed arguments without later mutation. Load TENET after all argument-mutating `tool_call` extensions and register its handler after mutators within the same extension. The pinned Pi smoke test checks this ordering with an earlier mutating extension and compares both the assessed snapshot and executor payload with the expected post-mutation arguments.
+
+TENET rechecks arguments, cancellation, session identity and policy before returning permission. The host must prevent subsequent mutation, honor cancellation before dispatch, supply unique tool-call IDs within each session and deliver lifecycle events before replacing or tearing down the runtime. Later hooks, retained argument references, tool preparation and executors must not change the assessed action after permission. Metadata must describe the actual executor. This is an integration contract, not a frozen-argument or protected-executor mechanism.
 
 TENET does not observe subprocess internals, user-entered `!` commands, extension-internal execution or background tool activity. It does not fetch script contents or browse target systems. Opaque actions can block. A confident but mistaken judge can still allow a prohibited action.
 
-Use a controlled, single-invocation POC session. Concurrent dialog serialization, full session/reload/branch invalidation, adversarial live evaluation and remote-state verification remain deferred. The integrity check is not a tamper-resistant production boundary. The trajectory questions have offline contract coverage, not live semantic validation.
+Concurrent approval and lifecycle behavior have offline contract coverage. Adversarial live evaluation and remote-state verification remain separate work. The integrity check is not a tamper-resistant production boundary. The trajectory questions have offline contract coverage, not live semantic validation.
 
 ## Independent decision entry
 
