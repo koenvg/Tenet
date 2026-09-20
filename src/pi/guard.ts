@@ -6,6 +6,7 @@ import { createJevJudge } from '../decision/jev.js';
 import { loadPolicy, policyIsCurrent } from '../decision/policy.js';
 import { confirmRules } from './approval.js';
 import { readConfig, type GuardConfig } from './config.js';
+import { Observations, recoverObservations } from '../decision/trajectory.js';
 
 type Identity = Pick<Action, 'sessionId' | 'callId' | 'toolName' | 'argumentDigest'> & { policyDigest: string | null };
 
@@ -15,9 +16,17 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; env?: 
   let policy: Policy = { available: false, source: '', reason: 'policy-unavailable' };
   let config: GuardConfig | undefined;
   let unavailable: string | undefined = 'not-started';
+  let observations: Observations | undefined;
   const released = new Map<string, Identity>();
   const key = (session: string, call: string) => JSON.stringify([session, call]);
-  const record = (stage: string, data: Record<string, unknown>) => pi.appendEntry('tenet', { version: 2, stage, time: Date.now(), ...data });
+  const record = (stage: string, data: Record<string, unknown>) => {
+    const time = Date.now();
+    pi.appendEntry('tenet', { version: 2, stage, time, ...data });
+    if (['decision', 'approval'].includes(stage) && observations && observations.sessionId === data.sessionId) {
+      observations.add(`tenet-${stage}`, typeof data.callId === 'string' ? data.callId : null,
+        typeof data.toolName === 'string' ? data.toolName : null, data, time);
+    }
+  };
   const unknownOutcomes = () => {
     for (const identity of released.values()) record('execution', { ...identity, outcome: 'unknown', origin: 'no-tool-result-observed' });
     released.clear();
@@ -27,8 +36,10 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; env?: 
     unavailable = 'starting';
     config = undefined;
     unknownOutcomes();
+    observations = undefined;
     try {
       config = readConfig(ctx.cwd, env);
+      observations = recoverObservations(ctx.sessionManager.getSessionId(), ctx.sessionManager.getBranch?.(), config.evidence, config.sensitiveFields);
       policy = await loadPolicy(config.policyPath);
       unavailable = !policy.available ? policy.reason : !options.judge && !env.TYPESAFE_API_KEY?.trim() ? 'missing-credentials' : undefined;
     } catch {
@@ -36,10 +47,10 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; env?: 
     }
     const ruleCount = policy.available ? policy.rules.length : 0;
     record('status', { status: unavailable ? 'unavailable' : 'ready', reason: unavailable ?? null,
-      policy, ruleCount, questionVersion: QUESTION_VERSION, config: config?.decision ?? null, scope: 'configured-rules', evidence: 'action-only' });
+      policy, ruleCount, questionVersion: QUESTION_VERSION, config: config?.decision ?? null, scope: 'configured-rules', evidence: config?.evidence ?? null });
     if (ctx.hasUI) {
       ctx.ui.setStatus('tenet', `TENET ${unavailable ? `unavailable: ${unavailable}` : `ready: ${ruleCount} rules`} [${QUESTION_VERSION}]`);
-      ctx.ui.notify(`TENET ${unavailable ? `unavailable (${unavailable}); intercepted calls BLOCK.` : `ready: ${ruleCount} rules plus policy integrity.`} Judge questions: ${QUESTION_VERSION}. ${policy.available ? `Policy ${display(policy.source)}, SHA-256 ${policy.digest}.` : 'Load a UTF-8 policy with nonempty Rule; declarations, then reload or restart.'} Rule text and selected tool evidence reach TypeSafe. No trajectory, filesystem sandbox or subprocess observation.`, unavailable ? 'error' : 'info');
+      ctx.ui.notify(`TENET ${unavailable ? `unavailable (${unavailable}); intercepted calls BLOCK.` : `ready: ${ruleCount} rules plus policy integrity.`} Judge questions: ${QUESTION_VERSION}. ${policy.available ? `Policy ${display(policy.source)}, SHA-256 ${policy.digest}.` : 'Load a UTF-8 policy with nonempty Rule; declarations, then reload or restart.'} Rule text, selected tool evidence and bounded recent observations reach TypeSafe. No filesystem sandbox or subprocess observation.`, unavailable ? 'error' : 'info');
     }
   });
 
@@ -67,14 +78,24 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; env?: 
       }
       // Refresh the complete inventory at call time. No tool family dispatch or allowlist.
       const metadata = pi.getAllTools().find(tool => tool.name === event.toolName);
-      const action = captureAction({ sessionId: identity.sessionId, callId: identity.callId,
-        toolName: event.toolName, arguments: event.input, description: metadata?.description,
-        parameters: metadata?.parameters }, config.sensitiveFields);
+      let action: Action;
+      try {
+        action = captureAction({ sessionId: identity.sessionId, callId: identity.callId,
+          toolName: event.toolName, arguments: event.input, description: metadata?.description,
+          parameters: metadata?.parameters }, config.sensitiveFields);
+      } catch {
+        observations?.add('pi-tool-call', identity.callId, identity.toolName, { limitation: 'unsupported-current-action' });
+        record('decision', { ...identity, decision: 'BLOCK', reason: 'insufficient-evidence', outcome: 'UNKNOWN', limitation: 'unsupported-current-action' });
+        return block('insufficient-evidence');
+      }
       identity.argumentDigest = action.argumentDigest;
-      const result = await decide({ policy: selectedPolicy, action, cwd: ctx.cwd, judge, config: config.decision, signal: ctx.signal });
+      if (observations?.sessionId !== identity.sessionId) observations = new Observations(identity.sessionId, config.evidence, config.sensitiveFields, ['history-unavailable']);
+      const trajectory = observations.snapshot();
+      observations.add('pi-tool-call', identity.callId, identity.toolName, action);
+      const result = await decide({ policy: selectedPolicy, action, trajectory, evidenceLimits: config.evidence, cwd: ctx.cwd, judge, config: config.decision, signal: ctx.signal });
       record('assessment', { ...identity, assessment: result.assessment, reason: result.reason,
         durationMs: result.durationMs, requestedModel: result.requestedModel, questionVersion: result.questionVersion,
-        config: result.config, redactedFields: action.redactedFields, limitations: action.limitations });
+        config: result.config, evidenceLimits: config.evidence, redactedFields: action.redactedFields, limitations: action.limitations });
       record('decision', { ...identity, decision: result.decision, reason: result.reason, ruleIds: result.ruleIds,
         diagnostics: result.diagnostics, questionVersion: result.questionVersion });
       if (result.decision === 'BLOCK') return block(result.reason, result.ruleIds, result.diagnostics);
@@ -112,6 +133,10 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; env?: 
   });
 
   pi.on('tool_result', async (event, ctx) => {
+    if (config && observations?.sessionId === ctx.sessionManager.getSessionId()) {
+      observations.add('pi-tool-result', event.toolCallId, event.toolName,
+        { content: event.content, details: event.details, isError: event.isError });
+    }
     const id = key(ctx.sessionManager.getSessionId(), event.toolCallId);
     const identity = released.get(id);
     if (!identity) return;

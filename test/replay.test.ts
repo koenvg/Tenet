@@ -32,7 +32,7 @@ test('replay reports repeated decisions, independent error counts, input identit
   assert.equal(rows[0]!.fixtureDigest, rows[1]!.fixtureDigest);
   assert.equal(rows[0]!.questionDigest, digest(rows[0]!.questions));
   assert.match(rows[0]!.fixtureDigest, /^[0-9a-f]{64}$/);
-  assert.equal(rows[0]!.result.questionVersion, 'policy-rules-v2');
+  assert.equal(rows[0]!.result.questionVersion, 'policy-rules-v3-trajectory');
   assert.equal(rows[0]!.result.requestedModel, 'jev-latest');
   assert.equal(rows[0]!.result.assessment?.model, 'jev-offline');
   assert.equal(rows[0]!.result.config.effectThreshold, 0.9);

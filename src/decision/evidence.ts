@@ -26,7 +26,7 @@ export function argumentDigest(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(jsonCopy(value))).digest('hex');
 }
 
-function freeze<T>(value: T): T {
+export function freeze<T>(value: T): T {
   if (value && typeof value === 'object') {
     Object.values(value).forEach(freeze);
     Object.freeze(value);
@@ -51,12 +51,13 @@ export function captureAction(input: ActionInput, sensitiveFields: string[] = []
   const parameters = input.parameters == null ? null : jsonCopy(input.parameters);
   const sanitizedArgs = redact(args);
   const sanitizedParameters = redact(parameters);
-  const limitations = ['action-only-no-trajectory', 'subprocess-internals-unobserved', 'external-state-not-frozen'];
+  const limitations = ['subprocess-internals-unobserved', 'external-state-not-frozen'];
   if (input.description == null) limitations.push('description-unavailable');
   if (parameters === null) limitations.push('parameters-unavailable');
   if (redactedFields) limitations.push('fields-redacted');
   return freeze({ sessionId: input.sessionId, callId: input.callId, toolName: input.toolName,
     description: input.description ?? null, parameters: sanitizedParameters, arguments: sanitizedArgs,
+    timestamp: Date.now(),
     argumentDigest: argumentDigest(args), redactedFields, limitations });
 }
 

@@ -27,6 +27,7 @@ export interface ActionInput {
   arguments: unknown;
 }
 export interface Action {
+  timestamp?: number;
   sessionId: string;
   callId: string;
   toolName: string;
@@ -37,6 +38,14 @@ export interface Action {
   redactedFields: number;
   limitations: string[];
 }
+export interface Observation {
+  sessionId: string; callId: string | null; toolName: string | null;
+  origin: string; timestamp: number | null; data: Json;
+}
+export interface Trajectory {
+  observations: readonly Observation[]; omitted: number; limitations: readonly string[];
+}
+export interface EvidenceLimits { recentEvents: number; maxBytes: number }
 export interface Config { effectThreshold: number; evidenceThreshold: number; deadlineMs: number }
 export interface JudgeRequest {
   policy: PolicySet;
@@ -44,6 +53,7 @@ export interface JudgeRequest {
   /** Host-supplied, never inferred from tool arguments. */
   cwd: string;
   deadlineMs: number;
+  trajectory?: Trajectory;
 }
 // Treat responses as untrusted, including responses from injected judges.
 export type Judge = (request: JudgeRequest, signal: AbortSignal) => Promise<unknown>;

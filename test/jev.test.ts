@@ -6,6 +6,7 @@ import { decide, DEFAULTS } from '../src/decision/decide.js';
 import { captureAction } from '../src/decision/evidence.js';
 import { INTEGRITY_ID, INTEGRITY_TEXT } from '../src/decision/policy.js';
 import { answer, policy } from './helpers.js';
+import { Observations } from '../src/decision/trajectory.js';
 
 const selected = { ...policy, rules: [...policy.rules, { id: 'second', line: 2, text: 'Never delete files outside the project directory.' }] };
 const action = captureAction({ sessionId: 's', callId: 'c', toolName: 'new-tool', arguments: { objects: ['code'], authorization: 'hidden' } });
@@ -25,7 +26,10 @@ test('one official SDK request assesses every rule with generic evidence and tru
   const judge = createJevJudge({ apiKey: 'offline-test', fetch: async (url, init) => {
     calls++; capturedUrl = url; capturedInit = init; return Response.json(response());
   } });
-  const result = await decide({ ...base, judge });
+  const history = new Observations('s');
+  history.add('pi-tool-result', 'earlier', 'unfamiliar', { arbitrary: 'identifier 7 uploads source' });
+  const trajectory = history.snapshot();
+  const result = await decide({ ...base, trajectory, judge });
   assert.equal(capturedUrl, 'https://api.typesafe.ai/v1/systemone'); assert.ok(capturedInit?.signal);
   const body = JSON.parse(capturedInit!.body as string);
   assert.deepEqual(body.questions, buildQuestions(selected));
@@ -35,6 +39,7 @@ test('one official SDK request assesses every rule with generic evidence and tru
   assert.ok(questionText.includes('edit followed by git commit'));
   assert.equal(Object.keys(body.questions).length, 6);
   assert.equal(body.model, 'jev-latest'); assert.deepEqual(body.state.action, action);
+  assert.deepEqual(body.state.trajectory, trajectory);
   assert.deepEqual(body.state.policy.rules, selected.rules);
   assert.equal(body.state.context.cwd, '/project'); assert.equal(body.state.policy.target, '/policy');
   assert.equal(body.state.integrity.id, INTEGRITY_ID); assert.equal(body.state.integrity.text, INTEGRITY_TEXT);

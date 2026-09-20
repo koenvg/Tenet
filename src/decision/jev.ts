@@ -1,9 +1,8 @@
 import { TypeSafeClient, APITimeoutError, APIUserAbortError, type Fetch } from '@typesafe-ai/sdk';
 import { JudgeFailure, type Judge } from './contracts.js';
 import { MODEL, probability, validateAssessment } from './decide.js';
-import { jsonCopy } from './evidence.js';
+import { judgeState } from './judge-evidence.js';
 import { assessmentEntries, buildQuestions } from './questions.js';
-import { INTEGRITY_ID, INTEGRITY_TEXT } from './policy.js';
 
 export function createJevJudge(options: { apiKey?: string; fetch?: Fetch }): Judge {
   let client: TypeSafeClient | undefined;
@@ -16,8 +15,7 @@ export function createJevJudge(options: { apiKey?: string; fetch?: Fetch }): Jud
       const entries = assessmentEntries(request.policy);
       const questions = buildQuestions(request.policy);
       const raw = await client.systemOne({ model: MODEL,
-        state: { policy: jsonCopy(request.policy), context: { cwd: request.cwd },
-          integrity: { id: INTEGRITY_ID, text: INTEGRITY_TEXT }, action: jsonCopy(request.action) },
+        state: judgeState(request),
         questions,
       }, { signal, timeout: request.deadlineMs, retry: { maxRetries: 0 } });
       if (!raw || typeof raw !== 'object' || !raw.answers || typeof raw.answers !== 'object' || Array.isArray(raw.answers)
