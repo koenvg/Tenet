@@ -1,8 +1,9 @@
 import { performance } from 'node:perf_hooks';
 import { JudgeFailure, type Assessment, type Action, type Clock, type Config, type Decision, type Judge, type Policy, type PolicySet, type Reason, type RuleAssessment } from './contracts.js';
 import { INTEGRITY_ID } from './policy.js';
+import { blockingDiagnostics } from './diagnostics.js';
 
-export const QUESTION_VERSION = 'policy-rules-v1';
+export const QUESTION_VERSION = 'policy-rules-v2';
 export const MODEL = 'jev-latest';
 export const DEFAULTS: Readonly<Config> = Object.freeze({ effectThreshold: 0.90, evidenceThreshold: 0.90, deadlineMs: 2500 });
 const clockDefault: Clock = {
@@ -50,8 +51,8 @@ export async function decide(options: {
   const clock = options.clock ?? clockDefault;
   const start = clock.now();
   const config = { ...DEFAULTS, ...options.config };
-  const result = (decision: Decision['decision'], reason: Reason, assessment: Assessment | null = null, ruleIds: string[] = []): Decision => ({
-    decision, reason, assessment, ruleIds, durationMs: Math.max(0, clock.now() - start), config,
+  const result = (decision: Decision['decision'], reason: Reason, assessment: Assessment | null = null, ruleIds: string[] = [], diagnostics: Decision['diagnostics'] = []): Decision => ({
+    decision, reason, assessment, ruleIds, diagnostics, durationMs: Math.max(0, clock.now() - start), config,
     questionVersion: QUESTION_VERSION, requestedModel: MODEL,
   });
   if (!policy.available) return result('BLOCK', policy.reason);
@@ -73,14 +74,11 @@ export async function decide(options: {
     if (signal?.aborted) return result('BLOCK', 'cancelled');
     if (clock.now() - start >= config.deadlineMs) { controller.abort(); return result('BLOCK', 'timeout'); }
     const assessment = validateAssessment(raw, policy);
-    const uncertain = (r: RuleAssessment) => r.outcome.choice === 'UNKNOWN'
-      || r.outcome.probabilities[r.outcome.choice] < config.effectThreshold
-      || r.evidence.choice !== 'SUFFICIENT' || r.evidence.probabilities.SUFFICIENT < config.evidenceThreshold;
-    const blocked = assessment.rules.filter(r => r.outcome.choice === 'FAIL' || uncertain(r));
+    const blocked = blockingDiagnostics(assessment, config);
     if (blocked.length) {
-      const reason = blocked.some(r => r.ruleId === INTEGRITY_ID && r.outcome.choice === 'FAIL') ? 'policy-integrity'
-        : blocked.some(r => r.outcome.choice === 'FAIL') ? 'rule-failed' : 'insufficient-evidence';
-      return result('BLOCK', reason, assessment, blocked.map(r => r.ruleId));
+      const reason = blocked.some(r => r.ruleId === INTEGRITY_ID && r.outcome === 'FAIL') ? 'policy-integrity'
+        : blocked.some(r => r.outcome === 'FAIL') ? 'rule-failed' : 'insufficient-evidence';
+      return result('BLOCK', reason, assessment, blocked.map(r => r.ruleId), blocked);
     }
     const approvals = assessment.rules.filter(r => r.outcome.choice === 'APPROVAL_REQUIRED').map(r => r.ruleId);
     return approvals.length ? result('ASK', 'rule-approval-required', assessment, approvals) : result('ALLOW', 'all-rules-pass', assessment);
