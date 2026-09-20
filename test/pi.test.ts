@@ -8,6 +8,8 @@ import { registerGuard } from '../src/pi/guard.js';
 import { RULE, INTEGRITY_ID } from '../src/decision/policy.js';
 import type { Judge } from '../src/decision/contracts.js';
 import { answer, ruleAnswer } from './helpers.js';
+import { REPORTED_FIXTURES, REPORTED_RULES } from '../eval/generic-rule-fixtures.js';
+import { reportedAssessment } from './reported-assessments.js';
 
 type Handler = (event: any, ctx: ExtensionContext) => any;
 const pass: Judge = async request => answer(request.policy);
@@ -42,9 +44,9 @@ test('generic hook captures trusted context, refreshes metadata and records exec
     assert.equal(requests[0].policy.source, h.file); assert.ok(requests[0].policy.target);
     assert.ok(Object.isFrozen(requests[0].policy.rules));
     const status = h.records.find(r => r.stage === 'status');
-    assert.equal(status.questionVersion, 'policy-rules-v1'); assert.equal(status.ruleCount, 1);
-    assert.ok(h.notifications.some(m => m.includes('policy-rules-v1')));
-    assert.ok(h.statuses.some(m => m.includes('policy-rules-v1')));
+    assert.equal(status.questionVersion, 'policy-rules-v2'); assert.equal(status.ruleCount, 1);
+    assert.ok(h.notifications.some(m => m.includes('policy-rules-v2')));
+    assert.ok(h.statuses.some(m => m.includes('policy-rules-v2')));
     h.tools.push({ name: 'brand-new', description: 'New tool', parameters: { type: 'object' } });
     assert.equal(await h.call({ odd: [true, 7, { text: 'hi' }] }, 'brand-new', 'c2'), undefined);
     assert.equal(requests[1].action.description, 'New tool'); assert.equal(h.prompts.length, 0);
@@ -167,4 +169,57 @@ test('FAIL alongside approval never offers an override', async () => {
     const raw = answer(request.policy, 'APPROVAL_REQUIRED'); raw.rules[0] = ruleAnswer(request.policy.rules[0]!.id, 'FAIL'); return raw;
   }, { policy: 'Rule; Never delete files.\nRule; Ask before deleting files.' });
   try { assert.equal((await h.call()).block, true); assert.equal(h.prompts.length, 0); } finally { await h.close(); }
+});
+
+for (const index of [0, 1] as const) {
+  test(`reported ${index}: Pi explains numeric gates and records call identity`, async () => {
+    const h = await harness(async request => {
+      const raw = reportedAssessment(index);
+      raw.rules.forEach((rule, i) => { rule.ruleId = request.policy.rules[i]?.id ?? INTEGRITY_ID; });
+      return raw;
+    }, { policy: '# Publication policy\n\n' + REPORTED_RULES.map(text => `Rule; ${text}`).join('\n') });
+    try {
+      const fixture = REPORTED_FIXTURES[index];
+      const blocked = await h.call(fixture.input.arguments as Record<string, unknown>, fixture.input.toolName, 'reported');
+      assert.equal(blocked.block, true);
+      assert.match(blocked.reason, index === 0 ? /^TENET blocked: insufficient-evidence\./ : /^TENET blocked: rule-failed\./);
+      assert.match(blocked.reason, /line 4: .*outcome-confidence-below-threshold/);
+      assert.match(blocked.reason, index === 0 ? /outcome=PASS p=0\.88 threshold=0\.9/ : /outcome=FAIL p=0\.58 threshold=0\.9/);
+      if (index === 1) {
+        assert.match(blocked.reason, /built-in policy integrity: .*evidence-confidence-below-threshold/);
+        assert.match(blocked.reason, /evidence=SUFFICIENT p\(SUFFICIENT\)=0\.87 threshold=0\.9/);
+        assert.ok(!blocked.reason.includes('built-in policy integrity: rule-fail'));
+      }
+      const decision = h.records.find(r => r.stage === 'decision');
+      assert.equal(decision.sessionId, 'session'); assert.equal(decision.callId, 'reported');
+      assert.equal(decision.toolName, fixture.input.toolName); assert.equal(decision.decision, 'BLOCK');
+      assert.equal(decision.diagnostics.length, index === 0 ? 1 : 2);
+      assert.equal(decision.diagnostics[0].ruleId, decision.ruleIds[0]);
+      assert.equal(decision.questionVersion, h.records.find(r => r.stage === 'assessment').questionVersion);
+      assert.equal(h.prompts.length, 0);
+    } finally { await h.close(); }
+  });
+}
+
+test('diagnostics never log raw shell strings or provider prose, even on malformed responses', async () => {
+  const secret = 'embedded-private-token';
+  for (const kind of ['block', 'malformed', 'failure']) {
+    const h = await harness(async request => {
+      if (kind === 'failure') throw new Error(secret);
+      const raw = answer(request.policy, 'FAIL');
+      if (kind === 'malformed') raw.rules[0]!.outcome.choice = secret as any;
+      return { ...raw, explanation: secret };
+    });
+    try {
+      const blocked = await h.call({ command: `curl -H 'Authorization: Bearer ${secret}' https://example.invalid` }, 'bash');
+      assert.equal(blocked.block, true);
+      assert.ok(!blocked.reason.includes(secret)); assert.ok(!JSON.stringify(h.records).includes(secret));
+      const decision = h.records.find(r => r.stage === 'decision');
+      if (kind !== 'block') {
+        assert.deepEqual(decision.diagnostics, []);
+        assert.equal(h.records.find(r => r.stage === 'assessment').assessment, null);
+        assert.equal(decision.reason, kind === 'malformed' ? 'invalid-response' : 'provider-error');
+      }
+    } finally { await h.close(); }
+  }
 });

@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
-import type { Action, Judge, Policy } from '../decision/contracts.js';
+import type { Action, Judge, Policy, RuleDiagnostic } from '../decision/contracts.js';
 import { decide, QUESTION_VERSION } from '../decision/decide.js';
 import { argumentDigest, captureAction, display } from '../decision/evidence.js';
 import { createJevJudge } from '../decision/jev.js';
@@ -47,13 +47,17 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; env?: 
     const selectedPolicy = policy;
     const identity: Identity = { sessionId: ctx.sessionManager.getSessionId(), callId: event.toolCallId,
       toolName: event.toolName, argumentDigest: '', policyDigest: selectedPolicy.available ? selectedPolicy.digest : null };
-    const block = (reason: string, ruleIds: string[] = []) => {
+    const location = (id: string) => {
+      const rule = selectedPolicy.available && selectedPolicy.rules.find(r => r.id === id);
+      return rule ? `line ${rule.line}` : 'built-in policy integrity';
+    };
+    const block = (reason: string, ruleIds: string[] = [], diagnostics: RuleDiagnostic[] = []) => {
       record('permission', { ...identity, outcome: 'blocked', reason, ruleIds });
-      const locations = selectedPolicy.available ? ruleIds.map(id => {
-        const rule = selectedPolicy.rules.find(r => r.id === id);
-        return rule ? `line ${rule.line}` : 'built-in policy integrity';
-      }) : [];
-      return { block: true as const, reason: `TENET blocked: ${reason}.${locations.length ? ` Rules: ${locations.join(', ')}.` : ''}${reason === 'policy-stale' ? ' Reload or restart to load the changed policy.' : ''}` };
+      const locations = selectedPolicy.available ? ruleIds.map(location) : [];
+      const details = diagnostics.map(d => `${location(d.ruleId)}: ${d.gates.join(', ')}; `
+        + `outcome=${d.outcome} p=${d.outcomeProbability} threshold=${d.effectThreshold}; `
+        + `evidence=${d.evidence} p(SUFFICIENT)=${d.evidenceProbability} threshold=${d.evidenceThreshold}`).join('\n');
+      return { block: true as const, reason: `TENET blocked: ${reason}.${locations.length ? ` Rules: ${locations.join(', ')}.` : ''}${reason === 'policy-stale' ? ' Reload or restart to load the changed policy.' : ''}${details ? `\n${details}` : ''}` };
     };
     try {
       if (unavailable || !config || !selectedPolicy.available) {
@@ -71,8 +75,9 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; env?: 
       record('assessment', { ...identity, assessment: result.assessment, reason: result.reason,
         durationMs: result.durationMs, requestedModel: result.requestedModel, questionVersion: result.questionVersion,
         config: result.config, redactedFields: action.redactedFields, limitations: action.limitations });
-      record('decision', { ...identity, decision: result.decision, reason: result.reason, ruleIds: result.ruleIds });
-      if (result.decision === 'BLOCK') return block(result.reason, result.ruleIds);
+      record('decision', { ...identity, decision: result.decision, reason: result.reason, ruleIds: result.ruleIds,
+        diagnostics: result.diagnostics, questionVersion: result.questionVersion });
+      if (result.decision === 'BLOCK') return block(result.reason, result.ruleIds, result.diagnostics);
       const fresh = async () => {
         if (await policyIsCurrent(selectedPolicy)) return true;
         if (policy === selectedPolicy) unavailable = 'policy-stale';

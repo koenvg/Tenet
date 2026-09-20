@@ -29,6 +29,10 @@ test('one official SDK request assesses every rule with generic evidence and tru
   assert.equal(capturedUrl, 'https://api.typesafe.ai/v1/systemone'); assert.ok(capturedInit?.signal);
   const body = JSON.parse(capturedInit!.body as string);
   assert.deepEqual(body.questions, buildQuestions(selected));
+  const questionText = JSON.stringify(body.questions);
+  assert.ok(questionText.includes('creating a Git commit'));
+  assert.ok(questionText.includes('reading, listing, editing or staging'));
+  assert.ok(questionText.includes('edit followed by git commit'));
   assert.equal(Object.keys(body.questions).length, 6);
   assert.equal(body.model, 'jev-latest'); assert.deepEqual(body.state.action, action);
   assert.deepEqual(body.state.policy.rules, selected.rules);

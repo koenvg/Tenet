@@ -54,11 +54,25 @@ export interface Clock {
 export type Reason = PolicyFailure | 'all-rules-pass' | 'rule-approval-required' | 'rule-failed' | 'policy-integrity'
   | 'insufficient-evidence' | 'configuration' | 'missing-credentials'
   | 'invalid-response' | 'provider-error' | 'timeout' | 'cancelled';
+export type BlockingGate = 'rule-fail' | 'outcome-unknown' | 'outcome-confidence-below-threshold'
+  | 'evidence-insufficient' | 'evidence-confidence-below-threshold';
+export interface RuleDiagnostic {
+  ruleId: string;
+  gates: BlockingGate[];
+  outcome: Outcome;
+  outcomeProbability: number;
+  evidence: Sufficiency;
+  /** Probability of SUFFICIENT, even when INSUFFICIENT is selected. */
+  evidenceProbability: number;
+  effectThreshold: number;
+  evidenceThreshold: number;
+}
 export interface Decision {
   decision: 'ALLOW' | 'ASK' | 'BLOCK';
   reason: Reason;
   ruleIds: string[];
   assessment: Assessment | null;
+  diagnostics: RuleDiagnostic[];
   durationMs: number;
   config: Config;
   questionVersion: string;

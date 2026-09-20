@@ -17,7 +17,7 @@ bun run typecheck
 
 Tests use injected judges, clocks and scripted HTTP responses. The smoke tests exercise the real pinned Pi resource loader and tool dispatcher with scripted assistant output and dummy executors. They verify withholding execution, native approval, policy-integrity blocking and unchanged executor arguments. No credentials or live model calls are required.
 
-These tests verify enforcement mechanics, not semantic accuracy. The saved publication-v3 live reports are historical evidence for the previous questions, not validation of `policy-rules-v1`. No live generic-rule evaluation has been performed. See [eval/README.md](eval/README.md).
+These tests verify enforcement mechanics, not semantic accuracy. The saved publication-v3 reports are historical evidence for previous questions. A separate 33-request `policy-rules-v2` live run allowed both reported actions in all repetitions, but still found false blocks and invalid responses. See [eval/README.md](eval/README.md) for the results and limitations.
 
 ## Write your policy
 
@@ -43,6 +43,8 @@ The parser is deliberately line-based, not Markdown-aware:
 A loaded sentence is not necessarily assessable. For example, “Always run tests before publishing” requires trusted execution history that this version does not supply; an attempted publication under that rule can block as UNKNOWN. Ambiguous rules and material redactions can also block.
 
 Publication under the example rule includes attempted uploads of source files or Git objects to any remote repository, including private repositories and intermediate uploads before commit creation or reference updates. Local commits and upload preparation without upload are not publication. This rule alone is not a general outbound-data policy.
+
+Under a Git commit prohibition, creating a commit is distinct from reading, editing or staging working-tree files. Saving a README edit is not a Git commit. A sequence that edits and then commits still attempts a commit; other rules and policy integrity apply independently. This is evaluator guidance, not a tool exemption or a guarantee that the judge will classify correctly.
 
 ### Owner-only policy management and migration
 
@@ -76,7 +78,7 @@ To roll back, restore both the previous extension version and its publication-on
 
    The package script adds `-e ./src/pi/extension.ts`. Explicit extensions still load with `--no-extensions`.
 
-4. Check the footer, for example `TENET ready: 1 rules [policy-rules-v1]`. Startup identifies the policy source, original-byte SHA-256, rule count and question version. A missing credential or invalid policy/configuration reports unavailable and blocks calls. An extension load error means the guard did not load; do not assume protection.
+4. Check the footer, for example `TENET ready: 1 rules [policy-rules-v2]`. Startup identifies the policy source, original-byte SHA-256, rule count and question version. A missing credential or invalid policy/configuration reports unavailable and blocks calls. An extension load error means the guard did not load; do not assume protection.
 5. You can try reading a local file. This makes a live judge request, unlike the offline tests.
 
 Code or environment changes require a **full Pi process restart**. Under Pi 0.85.1 and Bun 1.3.14, `/reload` and `/new` can retain old module imports. Policy-file-only changes can use the session-start reload path; check the new digest and count.
@@ -98,6 +100,19 @@ One bounded Jev request contains an outcome question and evidence-sufficiency qu
 No majority vote or averaging across rules. Model probabilities are experimental signals, not calibrated correctness guarantees.
 
 ASK shows one native confirmation listing all approval-requiring rules, their source lines, policy identity, tool/call identity and field-redacted arguments. Only an explicit positive response releases that unchanged invocation. Denial, dismissal, missing UI, UI failure and cancellation block. A statement in chat or tool arguments that something was approved is not native confirmation. Approval does not carry to a later invocation or override a failing rule.
+
+### Read a block diagnostic
+
+Both probability thresholds still default to 0.90. A selected FAIL always blocks, even below that threshold. A passing label can also block when its score is too low:
+
+```text
+TENET blocked: insufficient-evidence. Rules: line 4.
+line 4: outcome-confidence-below-threshold; outcome=PASS p=0.88 threshold=0.9; evidence=SUFFICIENT p(SUFFICIENT)=0.93 threshold=0.9
+```
+
+The aggregate reason is retained for compatibility. The detail identifies the actual gate: here evidence is sufficient and only outcome confidence is below threshold. Each blocking rule lists all triggered gates: `rule-fail`, `outcome-unknown`, `outcome-confidence-below-threshold`, `evidence-insufficient`, and `evidence-confidence-below-threshold`. Scores equal to the threshold pass that gate. Evidence probability always means P(SUFFICIENT), even when the selected label is INSUFFICIENT.
+
+Details contain bounded rule locations, validated labels and numeric scores, not action arguments or provider explanations. Failed or invalid assessments have no invented rule scores. A new debug flag or raw request log is not required.
 
 ## Configuration
 
@@ -124,7 +139,7 @@ Version-2 `tenet` custom records distinguish:
 
 - `status`: readiness, policy snapshot, rule count, version and configuration.
 - `assessment`: per-rule outcomes and probabilities, model, duration and limitations.
-- `decision`: ALLOW/ASK/BLOCK, reason and contributing rule IDs.
+- `decision`: ALLOW/ASK/BLOCK, reason, contributing rule IDs, question version and per-rule `diagnostics` with gates, labels, scores and thresholds. Older records can lack the added fields; their assessment and configuration remain available.
 - `approval`: native UI outcome and applicable rules.
 - `permission`: released or blocked.
 - `execution`: observed Pi tool result, executed or failed; unobserved outcomes remain unknown.
