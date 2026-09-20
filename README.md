@@ -17,6 +17,8 @@ bun run typecheck
 
 Tests use injected judges, clocks and scripted HTTP responses. Offline host tests assert executor calls for concurrent approvals, argument changes, lifecycle transitions, retries and forged consent. The smoke tests exercise the pinned Pi resource loader and tool dispatcher with scripted assistant output and dummy executors. They verify withholding execution, native approval, policy-integrity blocking and executor arguments after an earlier extension mutates them. No credentials or live model calls are required.
 
+The [controlled publication demonstration](eval/publication-demo-README.md) documents opt-in live preflight, denied alternate attempts, separate approvals, independent remote reads and evidence reporting. KVG-5097 has offline coverage only; no live publication is claimed.
+
 These tests verify enforcement mechanics, not semantic accuracy. The saved publication-v3 reports are historical evidence for previous questions. A separate 33-request `policy-rules-v2` live run allowed both reported actions in all repetitions, but still found false blocks and invalid responses. See [eval/README.md](eval/README.md) for the results and limitations.
 
 ## Write your policy
