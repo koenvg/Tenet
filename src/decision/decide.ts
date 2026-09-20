@@ -2,8 +2,10 @@ import { performance } from 'node:perf_hooks';
 import { JudgeFailure, type Assessment, type Action, type Clock, type Config, type Decision, type Judge, type Policy, type PolicySet, type Reason, type RuleAssessment } from './contracts.js';
 import { INTEGRITY_ID } from './policy.js';
 import { blockingDiagnostics } from './diagnostics.js';
+import { boundEvidence } from './judge-evidence.js';
+import type { Trajectory, EvidenceLimits } from './contracts.js';
 
-export const QUESTION_VERSION = 'policy-rules-v2';
+export const QUESTION_VERSION = 'policy-rules-v3-trajectory';
 export const MODEL = 'jev-latest';
 export const DEFAULTS: Readonly<Config> = Object.freeze({ effectThreshold: 0.90, evidenceThreshold: 0.90, deadlineMs: 2500 });
 const clockDefault: Clock = {
@@ -46,6 +48,7 @@ export function validateAssessment(value: unknown, policy: PolicySet): Assessmen
 
 export async function decide(options: {
   policy: Policy; action: Action; cwd: string; judge: Judge; config?: Partial<Config>; clock?: Clock; signal?: AbortSignal;
+  trajectory?: Trajectory; evidenceLimits?: EvidenceLimits;
 }): Promise<Decision> {
   const { policy, action, cwd, judge, signal } = options;
   const clock = options.clock ?? clockDefault;
@@ -58,6 +61,10 @@ export async function decide(options: {
   if (!policy.available) return result('BLOCK', policy.reason);
   if (!validConfig(config) || typeof cwd !== 'string' || !cwd.trim()) return result('BLOCK', 'configuration');
   if (signal?.aborted) return result('BLOCK', 'cancelled');
+  if (options.evidenceLimits && (!Number.isSafeInteger(options.evidenceLimits.recentEvents) || options.evidenceLimits.recentEvents < 0
+    || !Number.isSafeInteger(options.evidenceLimits.maxBytes) || options.evidenceLimits.maxBytes < 1)) return result('BLOCK', 'configuration');
+  const request = boundEvidence({ policy, action, cwd, deadlineMs: config.deadlineMs, trajectory: options.trajectory }, options.evidenceLimits);
+  if (!request) return result('BLOCK', 'insufficient-evidence');
   const controller = new AbortController();
   let stopTimer = () => {};
   let cancel = () => {};
@@ -69,7 +76,7 @@ export async function decide(options: {
     });
     const raw = await Promise.race([interrupted, Promise.resolve().then(() => {
       if (controller.signal.aborted) throw new JudgeFailure(signal?.aborted ? 'cancelled' : 'timeout');
-      return judge({ policy, action, cwd, deadlineMs: config.deadlineMs }, controller.signal);
+      return judge(request, controller.signal);
     })]);
     if (signal?.aborted) return result('BLOCK', 'cancelled');
     if (clock.now() - start >= config.deadlineMs) { controller.abort(); return result('BLOCK', 'timeout'); }

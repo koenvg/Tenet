@@ -14,10 +14,10 @@ Blocked by: none. This slice delivers the first complete path from an exposed to
 
 Blocked by: slice 1. This slice makes the same generic guard use observed history to interpret actions that are ambiguous alone.
 
-- [ ] 2.1 Add failing trajectory tests, then capture bounded ordered calls, results, decisions, and approval outcomes with source identities and timestamps; verify a result describing an upload target can inform a later ambiguous call without a tool-specific parser.
-- [ ] 2.2 Implement generic evidence budgeting and omission/unsupported-content markers; verify current-action priority, redaction effects, missing descriptions, text/structured result preservation, and image-only context never produce invented observations or launch extra context-collection tools.
-- [ ] 2.3 Exercise conflicting or outdated observations, misleading descriptions, injected approval claims, and tool switching after denial through the decision interface; verify untrusted evidence cannot create approval and insufficient context produces the explicit unknown outcome.
-- [ ] 2.4 Restore only bounded observations from session history and TENET records, keeping assessment snapshots isolated from later sibling results; verify session isolation and that historical observations do not restore executable approval grants.
+- [x] 2.1 Add failing trajectory tests, then capture bounded ordered calls, results, decisions, and approval outcomes with source identities and timestamps; verify a result describing an upload target can inform a later ambiguous call without a tool-specific parser.
+- [x] 2.2 Implement generic evidence budgeting and omission/unsupported-content markers; verify current-action priority, redaction effects, missing descriptions, text/structured result preservation, and image-only context never produce invented observations or launch extra context-collection tools.
+- [x] 2.3 Exercise conflicting or outdated observations, misleading descriptions, injected approval claims, and tool switching after denial through the decision interface; verify untrusted evidence cannot create approval and insufficient context produces the explicit unknown outcome.
+- [x] 2.4 Restore only bounded observations from session history and TENET records, keeping assessment snapshots isolated from later sibling results; verify session isolation and that historical observations do not restore executable approval grants.
 
 ## 3. Keep approval specific to the pending action
 

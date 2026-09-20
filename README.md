@@ -2,7 +2,7 @@
 
 A TypeScript POC for Pi 0.85.1. Every exposed tool call follows the same rule-evaluation path through Jev using the official `@typesafe-ai/sdk` 0.6.0. No tool allowlists, tool-family mappings or replacement executors.
 
-The original KVG-5093 publication slice is extended by `add-configurable-policy-rules`. Evaluation remains action-local: no execution history, subprocess inspection, OS sandbox or hardened concurrent approval handling.
+The original KVG-5093 publication slice is extended by `add-configurable-policy-rules` and KVG-5094's bounded recent observations. No subprocess inspection, OS sandbox or hardened concurrent approval handling.
 
 ## Verify offline
 
@@ -40,7 +40,7 @@ The parser is deliberately line-based, not Markdown-aware:
 - The file must be valid UTF-8, at most **64 KiB**, with **1–16 rules**, each at most **4096 UTF-8 bytes** after trimming.
 - Empty declarations, no declarations, invalid encoding, exceeded limits or an unavailable file make the entire policy unavailable. TENET never silently truncates the rule set.
 
-A loaded sentence is not necessarily assessable. For example, “Always run tests before publishing” requires trusted execution history that this version does not supply; an attempted publication under that rule can block as UNKNOWN. Ambiguous rules and material redactions can also block.
+A loaded sentence is not necessarily assessable. A rule requiring prior tests can still produce UNKNOWN when recent observed calls and results do not establish what ran. Ambiguous rules, omitted history and material redactions can also block.
 
 Publication under the example rule includes attempted uploads of source files or Git objects to any remote repository, including private repositories and intermediate uploads before commit creation or reference updates. Local commits and upload preparation without upload are not publication. This rule alone is not a general outbound-data policy.
 
@@ -78,7 +78,7 @@ To roll back, restore both the previous extension version and its publication-on
 
    The package script adds `-e ./src/pi/extension.ts`. Explicit extensions still load with `--no-extensions`.
 
-4. Check the footer, for example `TENET ready: 1 rules [policy-rules-v2]`. Startup identifies the policy source, original-byte SHA-256, rule count and question version. A missing credential or invalid policy/configuration reports unavailable and blocks calls. An extension load error means the guard did not load; do not assume protection.
+4. Check the footer, for example `TENET ready: 1 rules [policy-rules-v3-trajectory]`. Startup identifies the policy source, original-byte SHA-256, rule count and question version. A missing credential or invalid policy/configuration reports unavailable and blocks calls. An extension load error means the guard did not load; do not assume protection.
 5. You can try reading a local file. This makes a live judge request, unlike the offline tests.
 
 Code or environment changes require a **full Pi process restart**. Under Pi 0.85.1 and Bun 1.3.14, `/reload` and `/new` can retain old module imports. Policy-file-only changes can use the session-start reload path; check the new digest and count.
@@ -122,6 +122,8 @@ Details contain bounded rule locations, validated labels and numeric scores, not
 | `TENET_EFFECT_THRESHOLD` | `0.90` | Minimum selected per-rule outcome probability; retained name |
 | `TENET_EVIDENCE_THRESHOLD` | `0.90` | Minimum sufficient-evidence probability for every rule |
 | `TENET_JUDGE_DEADLINE_MS` | `2500` | Overall judge deadline, not per-rule; human approval time is separate |
+| `TENET_RECENT_EVENTS` | `12` | Maximum recent observations; nonnegative integer, zero omits all history |
+| `TENET_EVIDENCE_MAX_BYTES` | `24576` | Maximum UTF-8 bytes of serialized judge state; positive integer |
 | `TENET_SENSITIVE_FIELDS` | `[]` | JSON array of additional field names to remove recursively |
 | `TYPESAFE_API_KEY` | none | Required TypeSafe credential |
 
@@ -131,7 +133,11 @@ Retries are disabled. Cancellation reaches the SDK, and a late response cannot c
 
 ## Data disclosure and audit
 
-TypeSafe receives **declared rule text**, policy identity/paths, the host working directory, the built-in integrity constraint and a copied action snapshot: tool name, available description/schema, field-redacted arguments, identities, original-argument digest and limitations. Missing metadata is explicit. No previous tool results or conversation history are sent by TENET.
+TypeSafe receives declared rule text, policy identity/paths, the host working directory, the built-in integrity constraint and a copied action snapshot: tool name, available description/schema, field-redacted arguments, identities, timestamp, original-argument digest and limitations. Bounded chronological observations include earlier calls, text or structured results, decisions and native approval outcomes. Every observation carries session/call/tool identity, host origin and timestamp, with explicit missing-metadata markers.
+
+The pending action is kept intact. Older observations are omitted first to fit the event and byte budgets, with omission counts. If the action and required judge state cannot fit, TENET blocks for insufficient evidence without asking Jev. Image content is marked unsupported, never converted into invented text. Conflicting and outdated observations are retained within the budget for the judge to assess.
+
+At session start, TENET restores only bounded observations from the selected Pi session branch and its own decision/approval entries. Recovered history and all tool-supplied content remain untrusted evidence, never executable approval grants. Later sibling results cannot alter an in-flight assessment. TENET calls no tools to gather missing context.
 
 Recognized credential fields and configured sensitive fields are removed recursively from copied evidence. Executor arguments remain unchanged. Redaction cannot find all secrets embedded in shell commands, source text, URLs, metadata or encoded values. Rule text itself is not secret-scanned. Do not place credentials in your rules.
 
@@ -152,7 +158,7 @@ Pi must expose every agent tool call before execution, await and honor blocks, a
 
 TENET does not observe subprocess internals, user-entered `!` commands, extension-internal execution or background tool activity. It does not fetch script contents or browse target systems. Opaque actions can block. A confident but mistaken judge can still allow a prohibited action.
 
-Use a controlled, single-invocation POC session. Concurrent dialog serialization, full session/reload/branch invalidation, trajectory recovery, adversarial live evaluation and remote-state verification remain deferred. The integrity check is not a tamper-resistant production boundary.
+Use a controlled, single-invocation POC session. Concurrent dialog serialization, full session/reload/branch invalidation, adversarial live evaluation and remote-state verification remain deferred. The integrity check is not a tamper-resistant production boundary. The trajectory questions have offline contract coverage, not live semantic validation.
 
 ## Independent decision entry
 

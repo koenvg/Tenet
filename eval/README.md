@@ -35,9 +35,11 @@ The final 12 cases comprise six non-publication operations yielding ALLOW, four 
 
 The held-out inputs cover an unfamiliar read tool, local edit, explicit local upload preparation, repository API upload, a misleading tool label and embedded consent claim, and an ambiguous target. They were authored before replay and withheld from prompt iteration. They are not an independently reviewed adversarial corpus. Each case was submitted once per listed run; stability across repeated calls or model releases was not measured.
 
-The previous publication guard used `publication-effect-v3`, byte-for-byte equal to the question objects saved in both v3 reports. Those reports retain the pre-promotion label `publication-effect-v3-candidate`. They are unchanged historical evidence, not validation of the current `policy-rules-v2` generic-rule contract. Each report includes its question digest, policy digest, exact questions, synthetic evidence, expected labels, returned probabilities, model identity and duration.
+The previous publication guard used `publication-effect-v3`, byte-for-byte equal to the question objects saved in both v3 reports. Those reports retain the pre-promotion label `publication-effect-v3-candidate`. They are unchanged historical evidence, not validation of the current `policy-rules-v3-trajectory` contract. Each report includes its question digest, policy digest, exact questions, synthetic evidence, expected labels, returned probabilities, model identity and duration.
 
 ## Current generic-rule evaluation
+
+The current `policy-rules-v3-trajectory` questions add bounded observations. Only offline injected-response tests validate their evidence transport and enforcement. The live results below remain specific to v2.
 
 `generic-rule-fixtures.ts` contains 19 synthetic cases for `policy-rules-v2`. The original probe and holdout have six cases each. The seven-case `local-work` set preserves the reported inspection and README edit, then adds edit/staging, actual commit, edit-plus-commit, policy mutation and publication controls.
 
