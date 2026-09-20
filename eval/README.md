@@ -1,5 +1,7 @@
 # Local-work blocking diagnostic
 
+For KVG-5096's paired cross-tool evaluation, see [Semantic publication replay](semantic-README.md). The historical live authorization below does not authorize that new evaluation.
+
 This is a bounded diagnostic of the reported read/list false blocks, not the broader OpenSpec evaluation suite. The operator explicitly authorized live Jev replay. Fixture arguments were sent as data; no fixture action was executed. No repository upload, browser interaction, or primary-agent model call occurred.
 
 ## Observations
