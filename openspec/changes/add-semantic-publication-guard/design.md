@@ -41,7 +41,7 @@ Online references can change. Pin and verify the versions used for implementatio
 
 ### 1. A small TypeScript package with three working modules
 
-Use a single package with a decision module, a Pi adapter, and an evaluation module. Proposed source organization is `src/decision/`, `src/pi/`, and `eval/`, with a Pi extension entry point and tests alongside the behavior they exercise. Use TypeScript, a supported Node.js LTS runtime, and a lightweight test runner. Exact dependency versions are implementation-time pins, not floating runtime choices.
+Use a single package with a decision module, a Pi adapter, and an evaluation module. Proposed source organization is `src/decision/`, `src/pi/`, and `eval/`, with a Pi extension entry point and tests alongside the behavior they exercise. Use TypeScript and Bun for package management, scripts, and tests. Keep the extension compatible with Pi's supported Node.js LTS runtime. Exact dependency versions are implementation-time pins, not floating runtime choices.
 
 The decision module takes policy, an immutable action snapshot, bounded observations, configuration, and cancellation. It returns an assessment and policy decision. The Pi adapter owns host events and UI. The evaluation module calls the same decision interface and, where needed, the same adapter with a fake host.
 
