@@ -146,7 +146,7 @@ test('policy changes during assessment or approval latch stale until explicit re
       assert.match((await h.call()).reason, /policy-stale/);
       await writeFile(h.file, `Rule; ${RULE}`);
       assert.match((await h.call()).reason, /policy-stale/);
-      await h.restart(); assert.equal(await h.call(), undefined);
+      await h.restart(); assert.equal(await h.call({}, 'unknown-tool', 'after-reload'), undefined);
     } finally { await h.close(); }
   }
 });
