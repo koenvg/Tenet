@@ -1,6 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Detail from './Detail.svelte';
+  import { timestamp, type MobileView } from './presentation';
+  import PaneResizer from './PaneResizer.svelte';
+  import StatusChip from './StatusChip.svelte';
+  let mobileView: MobileView = 'calls';
+  let explorerWidth = 260, assessmentShare = 53;
+  $: currentSession = sessions.find(s => s.id === session);
   import type { CaptureHealth, InvocationView } from '../../src/inspector/view';
   import type { ArchiveIssue } from '../../src/recording/archive';
   import type { SessionSummary, InvocationSummary } from '../../src/inspector/archive-index';
@@ -57,14 +63,15 @@
   }
   async function selectSession(id: string, updateLink = true) {
     navigation++; detailRequest++;
-    session = id; invocation = ''; view = null; error = ''; detailBusy = false;
+    session = id; invocation = ''; view = null; error = ''; detailBusy = false; mobileView = 'calls';
     invocations = []; nextInvocation = null;
     if (updateLink) link();
     if (id) await loadTimeline();
   }
   async function selectInvocation(id: string, updateLink = true) {
+    if (id === invocation && view) { mobileView = 'assessment'; return; }
     const current = ++detailRequest, generation = navigation;
-    invocation = id; view = null; error = ''; detailBusy = true;
+    invocation = id; view = null; error = ''; detailBusy = true; mobileView = 'assessment';
     if (updateLink) link();
     try {
       const data = await api(`/api/sessions/${session}/invocations/${id}`);
@@ -139,59 +146,84 @@
   });
 </script>
 
-<header><h1>TENET <span>Decision inspector</span></h1><p>Local, read-only assessment history. No evaluator calls.</p></header>
-<main>
-  {#if error}<p role="alert">{error}</p>{/if}
-  {#if issues.length || health.length}
-    <section aria-label="Recording issues">
-      <p class="notice">Recording issues detected. Valid records remain browsable; capture may be incomplete.</p>
-      <details>
-        <summary>Recording issues: {issues.length} {issues.length === 1 ? 'file' : 'files'}, {health.length} {health.length === 1 ? 'writer' : 'writers'} reporting recording issues</summary>
-        {#if issues.length}
-          <p>Temporary files may be in progress or left by an interruption. Their contents are not read.</p>
+<header class="app-bar">
+  <h1>TENET <span>Decision debugger</span></h1>
+  <span class="local-label">Local archive · read-only</span>
+  <button class="header-button" disabled={busy || timelineBusy || detailBusy || polling} on:click={refreshLive}>Refresh archive</button>
+</header>
+<main class="workspace" data-mobile-view={mobileView} style:--explorer-width={`${explorerWidth}px`}>
+  <nav class="mobile-nav" aria-label="Workspace views">
+    <button aria-pressed={mobileView === 'calls'} on:click={() => mobileView = 'calls'}>Calls</button>
+    <button aria-pressed={mobileView === 'assessment'} disabled={!view} on:click={() => mobileView = 'assessment'}>Assessment</button>
+    <button aria-pressed={mobileView === 'evidence'} disabled={!view} on:click={() => mobileView = 'evidence'}>Evidence dock</button>
+  </nav>
+  <div class="archive-messages">
+    {#if error}<p class="archive-alert" role="alert">{error}</p>{/if}
+    {#if issues.length || health.length}
+      <section class="archive-alert" aria-label="Recording issues">
+        <details><summary>Recording issues: {issues.length} files, {health.length} writers reporting recording issues</summary>
+          <p>Valid records remain browsable; capture may be incomplete. Temporary files may be in progress or left by an interruption. Their contents are not read.</p>
           <ul>{#each issues as issue}<li><strong>{issue.reason}</strong>: {issue.file || 'Archive directory'}</li>{/each}</ul>
-        {/if}
-        {#if health.length}
-          <h2>Writer-wide capture health</h2>
-          <p>Cumulative counters per writer, not per call. They may include other sessions. Zero counters do not prove complete capture.</p>
-          <ul>{#each health as item}<li>{item.failed} failed writes or snapshots, {item.dropped} dropped stages, {item.drainTimeouts} drain timeouts. Writer {item.writerId}</li>{/each}</ul>
-        {/if}
-      </details>
-    </section>
-  {/if}
-  <div class="workspace">
-    <nav aria-label="Archive">
-      <h2>Sessions</h2>
-      <form on:submit|preventDefault={filterProjects}>
+          {#if health.length}<h2>Writer-wide capture health</h2><p>Cumulative counters per writer, not per call. They may include other sessions. Zero counters do not prove complete capture.</p>
+            <ul>{#each health as item}<li>{item.failed} failed writes or snapshots, {item.dropped} dropped stages, {item.drainTimeouts} drain timeouts. Writer {item.writerId}</li>{/each}</ul>
+          {/if}
+        </details>
+      </section>
+    {/if}
+  </div>
+  <aside id="call-explorer" class="explorer" aria-label="Call explorer">
+    <div class="pane-heading"><h2>Explorer</h2><span class="muted">{sessions.length} sessions loaded</span></div>
+    <details class="session-picker" open={!session}>
+      <summary>{currentSession ? `Session ${currentSession.sessionId}` : 'Choose a session'}</summary>
+      <form class="project-filter" on:submit|preventDefault={filterProjects}>
         <label for="project">Project directory</label>
         <input id="project" aria-label="Project directory" list="projects" bind:value={projectInput} placeholder="All projects" />
         <datalist id="projects">{#each projects as path}<option value={path}></option>{/each}</datalist>
         <button type="submit" disabled={busy}>Filter projects</button>
       </form>
       {#if project}<p>Showing {project}</p><button on:click={() => { projectInput = ''; filterProjects(); }}>All projects</button>{/if}
-      <button disabled={busy} on:click={() => loadSessions()}>Refresh sessions</button>
-      {#if busy}<p role="status">Loading sessions…</p>{:else if !sessions.length}<p>No recorded sessions{project ? ' for this project' : ''}.</p>{/if}
-      {#each sessions as item}<button class:chosen={session === item.id} aria-pressed={session === item.id} on:click={() => selectSession(item.id)}>
-        <strong>{item.sessionId}</strong><span>{item.projects.join(', ')}</span>
-        <span>{item.invocations} calls · {item.concerns} concerns · {item.unavailable} unavailable</span>
-        <span>Started {date(item.started)}</span><span>Updated {date(item.timestamp)}</span><span>Best-effort capture</span>
-      </button>{/each}
-      {#if nextSession !== null}<button disabled={busy} on:click={() => loadSessions(nextSession!)}>More sessions</button>{/if}
-      {#if session}<h2 class="timeline-heading">Invocations</h2>
-        <button disabled={timelineBusy} on:click={() => loadTimeline()}>Refresh timeline</button>
-        {#if timelineBusy}<p role="status">Loading calls…</p>{:else if !invocations.length}<p>No recorded invocations.</p>{/if}
-        {#each invocations as item}<button class:chosen={invocation === item.id} aria-pressed={invocation === item.id} on:click={() => selectInvocation(item.id)}>
-          {item.toolName} · {item.decision}<span data-call-id>{item.callId}</span><span>{date(item.timestamp)}</span>
-          <small>{item.failure ?? (item.assessmentStatus === 'incomplete' ? 'Assessment incomplete' : 'Assessment validated')}</small>
-          {#if item.missing.length}<span>Incomplete capture · {item.missing.length} missing stages</span>{/if}
-        </button>{/each}
-        {#if nextInvocation !== null}<button disabled={timelineBusy} on:click={() => loadTimeline(nextInvocation!)}>More invocations</button>{/if}
-      {/if}
+      <nav aria-label="Sessions">
+        {#each sessions as item}
+          <button class="session-row" aria-pressed={session === item.id} on:click={() => selectSession(item.id)}>
+            <strong>{item.sessionId}</strong><span>{item.invocations} calls</span>
+            <small title={item.projects.join('\n')}>{item.projects.join(', ')}</small>
+            <small>{item.concerns} concerns · {item.unavailable} unavailable</small>
+            <small>Started {date(item.started)} · Updated {date(item.timestamp)} · Best-effort capture</small>
+          </button>
+        {/each}
+      </nav>
+      {#if nextSession !== null}<button class="text-button" disabled={busy} on:click={() => loadSessions(nextSession!)}>More sessions</button>{/if}
+      {#if busy}<p role="status">Reading archive…</p>{:else if !sessions.length}<p>No recorded sessions{project ? ' for this project' : ''}.</p>{/if}
+    </details>
+    {#if currentSession}<p class="project-path" title={currentSession.projects.join('\n')}>{currentSession.projects.join(', ')}</p>{/if}
+    <div class="pane-heading"><h2>Invocations</h2><span class="muted">{invocations.length} loaded</span></div>
+    <nav class="call-list" aria-label="Invocations">
+      {#each invocations as item}
+        <button class="call-row" aria-pressed={invocation === item.id} on:click={() => selectInvocation(item.id)}>
+          <span class="call-top"><strong>{item.toolName}</strong><time>{timestamp(item.timestamp)}</time></span>
+          <span class="call-id">{item.callId}</span>
+          <span class="call-state"><StatusChip value={item.decision} /><span>{item.permission}</span><span>{item.mode}</span></span>
+          <span class="call-execution">Execution: {item.execution}</span>
+          {#if item.failure || item.assessmentStatus === 'incomplete'}<small>{item.failure ?? 'Assessment incomplete'}</small>{/if}
+          {#if item.missing.length}<span class="call-execution">Incomplete capture · {item.missing.length} missing stages</span>{/if}
+        </button>
+      {/each}
+      {#if timelineBusy}<p role="status">Loading calls…</p>{:else if session && !invocations.length}<p class="empty-inline">No recorded invocations in this session.</p>{/if}
+      {#if nextInvocation !== null}<button class="text-button" disabled={timelineBusy} on:click={() => loadTimeline(nextInvocation!)}>More invocations</button>{/if}
     </nav>
-    <article>
-      {#if detailBusy}<p role="status">Loading invocation…</p>
-      {:else if view}<p>Session {view.identity?.sessionId}<br />Invocation {view.identity?.invocationId}</p><Detail {view} />
-      {:else}<h2>Select an invocation</h2><p>Choose a session, then a call to inspect its recorded rules, questions, evidence and decision.</p>{/if}
-    </article>
+    <div class="explorer-footer"><span>Recorded data only. No evaluator calls.</span></div>
+  </aside>
+  <PaneResizer bind:value={explorerWidth} min={220} max={460} label="Resize call explorer" controls="call-explorer" />
+  <div class="inspection">
+    {#if view}
+      {#key view.identity?.invocationId}<Detail {view} bind:mobileView bind:assessmentShare />{/key}
+    {:else}
+      <section class="empty-state" aria-live="polite">
+        <span class="empty-symbol" aria-hidden="true">[ ]</span>
+        <h2>{detailBusy ? 'Reading invocation…' : session ? 'Choose a call to investigate' : 'Start with a recorded session'}</h2>
+        <p>{detailBusy ? 'Loading its recorded assessment and evidence.' : 'See what TENET decided, which rules contributed, and the evidence the evaluator actually received.'}</p>
+        <p class="muted">Missing records stay unknown. This inspector never reruns an assessment.</p>
+      </section>
+    {/if}
   </div>
 </main>

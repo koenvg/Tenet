@@ -36,6 +36,10 @@ test('independent server reads retained and delayed lifecycle stages without aut
     assert.equal(index.sessions[0].sessionId, '../../s');
     const session = index.sessions[0].id;
     const invocations: any = await (await get(`/api/sessions/${session}`)).json();
+    const summary = invocations.invocations.find((item: any) => item.callId === 'c');
+    assert.equal(summary.mode, 'observe');
+    assert.equal(summary.permission, 'released');
+    assert.equal(summary.execution, 'unknown');
     const invocation = invocations.invocations.find((item: any) => item.callId === 'c').id;
     const lifecycle = async (callId: string) => {
       const row = invocations.invocations.find((item: any) => item.callId === callId);
@@ -64,6 +68,8 @@ test('independent server reads retained and delayed lifecycle stages without aut
     assert.equal(after.view.permission, 'released');
     assert.equal(after.view.execution, 'executed');
     assert.ok(!after.view.missing.includes('execution'));
+    const updated: any = await (await get(`/api/sessions/${session}`)).json();
+    assert.equal(updated.invocations.find((item: any) => item.callId === 'c').execution, 'executed');
     assert.equal((await get(`/api/sessions/${'a'.repeat(64)}/invocations/${invocation}`)).status, 404);
     await app.close(); appClosed = true;
     writer.bind({ sessionId: '../../s', invocationId: 'after-close', callId: 'after-close', toolName: 'edit', mode: 'observe', cwd: '/project' })('begin', {});

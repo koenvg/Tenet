@@ -19,7 +19,8 @@ export function invocationView(records: ArchiveRecord[]) {
   const decision = stage('decision'), permission = stage('permission');
   const payload = object(request.payload), state = object(payload.state);
   const policy = object(request.policy ?? begin.policy);
-  const integrity = object(state.integrity);
+  const integrity = object(state.integrity ?? begin.integrity);
+  const config = object(stage('assessment').config ?? begin.config);
   const rules = [...list(policy.rules), ...(typeof integrity.id === 'string' ? [{ ...integrity, enforcement: 'BLOCK', line: null }] : [])];
   const validation = stage('validation');
   // The decision deadline can cancel transport afterward. Preserve the recorded decision cause.
@@ -37,7 +38,7 @@ export function invocationView(records: ArchiveRecord[]) {
     approval: text(stage('approval').outcome, decision.decision === 'ASK'
       ? records[0]?.mode === 'observe' ? 'not requested (observe mode)' : 'unknown'
       : typeof decision.decision === 'string' ? 'not required' : 'unknown'),
-    config: begin.config ?? stage('assessment').config ?? null,
+    config, questionVersion: request.questionVersion ?? begin.questionVersion ?? null,
     failure: failure ?? (validation.valid === false ? 'validation-failed' : null), assessmentStatus,
     requestStatus: request.payload ? 'submitted application payload' : submitted ? 'submitted; payload unavailable'
       : notSubmitted ? 'not submitted' : 'payload unavailable; capture incomplete',
@@ -50,9 +51,16 @@ export function invocationView(records: ArchiveRecord[]) {
       const result = list(assessment.rules).find(r => r.ruleId === rule.id);
       const mapping = list(request.mapping).find(m => m.id === rule.id);
       const questions = object(payload.questions);
+      const diagnostic = list(decision.diagnostics).find(r => r.ruleId === rule.id);
+      const contribution = list(decision.contributions).find(r => r.ruleId === rule.id);
+      const recorded = contribution ?? diagnostic;
       return { id: text(rule.id), text: text(rule.text), line: rule.line ?? null, enforcement: text(rule.enforcement),
         builtin: rule.id === integrity.id, result: result ?? null,
-        gates: list(decision.diagnostics).find(r => r.ruleId === rule.id) ?? null,
+        gates: diagnostic ?? null, gateIds: Array.isArray(recorded?.gates) ? recorded.gates.filter((g: unknown): g is string => typeof g === 'string') : null,
+        contribution: text(contribution?.contribution),
+        thresholds: { effectThreshold: recorded?.effectThreshold ?? config.effectThreshold ?? null,
+          evidenceThreshold: recorded?.evidenceThreshold ?? config.evidenceThreshold ?? null },
+        mapping: mapping ?? null,
         questions: mapping ? { outcome: questions[mapping.outcomeKey] ?? null, evidence: questions[mapping.evidenceKey] ?? null } : null };
     }),
   };

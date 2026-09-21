@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { ArchiveIndex } from './archive-index.js';
 import { invocationView } from './view.js';
 
-export async function startInspector(options: { directory: string; assets?: string; port?: number }) {
+export async function startInspector(options: { directory: string; assets?: string; port?: number; strictPort?: boolean }) {
   const index = new ArchiveIndex(options.directory);
   const assets = new Map<string, { content: Buffer; type: string }>();
   if (options.assets) {
@@ -54,7 +54,22 @@ export async function startInspector(options: { directory: string; assets?: stri
       return reply(200, { view: invocationView(detail.records), issues: detail.issues, captureHealth: health });
     })().catch(() => { if (!res.headersSent) reply(503, { error: 'archive-unavailable' }); else res.end(); });
   });
-  await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(options.port ?? 0, '127.0.0.1', resolve); });
+  let port = options.port ?? 0;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const cleanup = () => { server.off('error', failed); server.off('listening', ready); };
+        const failed = (error: Error) => { cleanup(); reject(error); };
+        const ready = () => { cleanup(); resolve(); };
+        server.once('error', failed); server.once('listening', ready);
+        try { server.listen(port, '127.0.0.1'); } catch (error) { cleanup(); reject(error); }
+      });
+      break;
+    } catch (error) {
+      if (options.strictPort !== false || (error as NodeJS.ErrnoException).code !== 'EADDRINUSE' || port === 0 || port >= 65535 || attempt >= 20) throw error;
+      port++;
+    }
+  }
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('no-local-address');
   origin = `http://127.0.0.1:${address.port}`;
