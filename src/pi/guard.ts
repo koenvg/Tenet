@@ -4,7 +4,8 @@ import type { Action, Judge, Policy, RuleDiagnostic } from '../decision/contract
 import { decide, QUESTION_VERSION } from '../decision/decide.js';
 import { argumentDigest, captureAction, display } from '../decision/evidence.js';
 import { createJevJudge } from '../decision/jev.js';
-import { loadPolicy, policyIsCurrent } from '../decision/policy.js';
+import { loadPolicy, policyIsCurrent, INTEGRITY_ID, INTEGRITY_TEXT } from '../decision/policy.js';
+import { ruleContributions } from '../recording/rules.js';
 import { ApprovalQueue } from './approval.js';
 import { readConfig, readMode, type GuardConfig } from './config.js';
 import { Observations, recoverObservations } from '../decision/trajectory.js';
@@ -48,10 +49,10 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
   const resultCallIds = new Set<string>();
   const ambiguousResults = new Set<string>();
   const key = (session: string, call: string) => JSON.stringify([session, call]);
-  const record = (stage: string, data: Record<string, unknown>) => {
+  const record = (stage: string, data: Record<string, unknown>, archiveData: Record<string, unknown> = {}) => {
     const time = Date.now();
     if (typeof data.invocationId === 'string' && STAGES.includes(stage as Stage)) {
-      capture(recordings.get(data.invocationId), stage as Stage, () => data);
+      capture(recordings.get(data.invocationId), stage as Stage, () => ({ ...data, ...archiveData }));
       if (stage === 'execution' || (stage === 'permission' && data.outcome !== 'released')) recordings.delete(data.invocationId);
     }
     boundary.attempt(() => pi.appendEntry('tenet', { version: 3, stage, time, ...data, mode }));
@@ -132,6 +133,7 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
     };
     recordings.set(identity.invocationId, recording);
     capture(recording, 'begin', () => ({ policy: selectedPolicy, config: selectedConfig?.decision ?? null,
+      integrity: { id: INTEGRITY_ID, text: INTEGRITY_TEXT },
       evidenceLimits: selectedConfig?.evidence ?? null, questionVersion: QUESTION_VERSION, request: 'not-yet-submitted' }));
     const consequences = new Consequences(mode, selectedPolicy);
     let permissionRecorded = false;
@@ -189,7 +191,8 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
         durationMs: result.durationMs, requestedModel: result.requestedModel, questionVersion: result.questionVersion,
         config: result.config, evidenceLimits: selectedConfig.evidence, redactedFields: action.redactedFields, limitations: action.limitations });
       record('decision', { ...identity, decision: result.decision, reason: result.reason, ruleIds: result.ruleIds,
-        diagnostics: result.diagnostics, questionVersion: result.questionVersion });
+        diagnostics: result.diagnostics, questionVersion: result.questionVersion },
+        { contributions: ruleContributions(result, selectedPolicy) });
       const fresh = async () => {
         const fresh = await policyIsCurrent(selectedPolicy);
         if (!current()) return false;

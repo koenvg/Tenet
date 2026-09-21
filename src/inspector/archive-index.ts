@@ -10,12 +10,13 @@ export interface InvocationSummary {
   id: string; invocationId: string; callId: string; toolName: string;
   timestamp: number; updated: number; decision: string; missing: string[];
   failure: string | null; assessmentStatus: string;
+  mode: string; permission: string; execution: string;
 }
 export interface SessionSummary {
   id: string; sessionId: string; projects: string[]; timestamp: number; started: number;
   invocations: number; concerns: number; unavailable: number; coverage: string;
 }
-type Metadata = Omit<ArchiveRecord, 'data'> & { decision?: string; failure: string | null; assessmentStatus: string; health?: CaptureHealth[number] };
+type Metadata = Omit<ArchiveRecord, 'data'> & { decision?: string; outcome?: string; failure: string | null; assessmentStatus: string; health?: CaptureHealth[number] };
 type Entry = { fingerprint: string; bytes: number; metadata?: Metadata; issue?: ArchiveIssue };
 const compare = (a: { timestamp: number; id: string }, b: { timestamp: number; id: string }) => b.timestamp - a.timestamp || a.id.localeCompare(b.id);
 
@@ -88,6 +89,7 @@ export class ArchiveIndex {
                 const summary = invocationView([record]);
                 entry.metadata = { ...metadata, decision: record.stage === 'decision' ? String(data.decision) : undefined,
                   failure: summary.failure, assessmentStatus: summary.assessmentStatus, health: captureHealth([record])[0] };
+                if ((record.stage === 'permission' || record.stage === 'execution') && typeof record.data.outcome === 'string') entry.metadata.outcome = record.data.outcome;
               } catch { entry.issue = { session, file, reason }; }
               found.set(path, entry);
             } catch { this.scanIssues.push({ session, file, reason: 'record-unavailable' }); }
@@ -154,6 +156,9 @@ export class ArchiveIndex {
         timestamp: first.timestamp, updated: records.reduce((latest, r) => Math.max(latest, r.timestamp), first.timestamp),
         decision: records.find(r => r.decision)?.decision ?? 'unavailable',
         failure, assessmentStatus,
+        mode: first.mode,
+        permission: records.findLast(r => r.stage === 'permission')?.outcome ?? 'unknown',
+        execution: records.findLast(r => r.stage === 'execution')?.outcome ?? 'unknown',
         missing: ['begin', 'request', 'response', 'validation', 'assessment', 'decision', 'permission', 'execution'].filter(s => !records.some(r => r.stage === s)) });
     }
     return page(rows, options, `invocations:${session}`);

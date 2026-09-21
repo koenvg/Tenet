@@ -1,58 +1,57 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import type { InvocationView } from '../../src/inspector/view';
+  import RuleDetail from './RuleDetail.svelte';
+  import EvidenceDock from './EvidenceDock.svelte';
+  import { explainDecision, orderedRules, hasFinding, ruleName, gateLabels, type DockTab, type MobileView } from './presentation';
+  import PaneResizer from './PaneResizer.svelte';
+  import StatusChip from './StatusChip.svelte';
   export let view: InvocationView;
-  let selected = '';
-  $: rule = view.rules.find(r => r.id === selected) ?? view.rules[0];
-  const pretty = (value: unknown) => value == null ? 'Unavailable: not recorded.' : JSON.stringify(value, null, 2);
+  export let mobileView: MobileView = 'assessment';
+  export let assessmentShare = 53;
+  let selected = '', activeTab: DockTab = view.assessmentStatus === 'failed' ? 'Response' : 'Evidence';
+  let dock: EvidenceDock;
+  $: rules = orderedRules(view.rules);
+  $: rule = rules.find(r => r.id === selected) ?? rules[0];
+  $: findingCount = rules.filter(hasFinding).length;
+  async function openDock(tab: DockTab) {
+    activeTab = tab; mobileView = 'evidence';
+    await tick(); dock.focusHeading();
+  }
 </script>
 
-<section aria-label="Invocation detail">
-  <h2>{view.identity?.toolName} <small>{view.identity?.callId}</small></h2>
-  <p class="notice">{view.coverage}</p>
-  <dl class="outcomes">
-    <div><dt>Mode</dt><dd>{view.identity?.mode}</dd></div>
-    <div><dt>Counterfactual decision</dt><dd>{view.decision}</dd></div>
-    <div><dt>Actual permission</dt><dd>{view.permission}</dd></div>
-    <div><dt>Observed execution</dt><dd>{view.execution}</dd></div>
-    <div><dt>Native approval</dt><dd>{view.approval}</dd></div>
-  </dl>
-  <p>{view.reason}</p>
-  <p class="notice">
-    {#if view.assessmentStatus === 'failed'}Assessment failed: {view.failure}.
-    {:else if view.assessmentStatus === 'incomplete'}Assessment incomplete. No validated result was recorded; the call may still be in progress or recording may have stopped.
-    {:else}Assessment validated.{/if}
-  </p>
-  <p>Capture: {view.requestStatus}. Missing stages: {view.missing.join(', ') || 'none observed'}.</p>
-  <h3>Rules</h3>
-  {#if !view.rules.length}<p>No rule snapshot recorded.</p>{/if}
-  <div class="rules">
-    {#each view.rules as item}
-      <button class:chosen={item.id === rule?.id} aria-pressed={item.id === rule?.id} on:click={() => selected = item.id}>
-        <strong>{item.result?.outcome?.choice ?? 'Unavailable'}</strong>
-        {item.builtin ? 'Built-in integrity' : `Line ${item.line} · ${item.enforcement}`}
-        <span>{item.text}</span>
-      </button>
-    {/each}
+<section class="invocation" aria-label="Invocation detail">
+  <header class="decision-header">
+    <div class="decision-title"><h2>{view.identity?.toolName ?? 'Invocation'} <span>{view.identity?.callId}</span></h2><StatusChip value={view.decision} label={view.decision === 'unavailable' ? 'Decision unavailable' : `Would ${view.decision}`} /></div>
+    <p class="decision-explanation" aria-label="Decision explanation">{explainDecision(view)}</p>
+    <p class="assessment-status">{#if view.assessmentStatus === 'failed'}Assessment failed: {view.failure}.
+      {:else if view.assessmentStatus === 'incomplete'}Assessment incomplete. No validated result was recorded; the call may still be in progress or recording may have stopped.
+      {:else}Assessment validated.{/if}</p>
+    <dl class="lifecycle">
+      <div><dt>Mode</dt><dd>{view.identity?.mode ?? 'unknown'}</dd></div>
+      <div><dt>Permission</dt><dd>{view.permission}</dd></div>
+      <div><dt>Execution</dt><dd>{view.execution}</dd></div>
+      <div><dt>Approval</dt><dd>{view.approval}</dd></div>
+    </dl>
+    <details class="capture-details"><summary>{view.missing.length ? `${view.missing.length} missing stages` : 'Capture details'} · {view.requestStatus}</summary><p>{view.coverage}</p><p>Missing stages: {view.missing.join(', ') || 'none observed'}. Recorded reason: {view.reason}.</p></details>
+    <details class="capture-details"><summary>Recording identity</summary><p>Session {view.identity?.sessionId}<br />Invocation {view.identity?.invocationId}</p></details>
+  </header>
+  <div class="debugger-panes" style:--assessment-share={`${assessmentShare}%`}>
+    <section id="assessment-pane" class="assessment-pane" aria-label="Assessment pane">
+      <div class="pane-heading"><h3>Rules <span class="count">{rules.length}</span></h3><span class="muted">Findings: {findingCount} · shown first</span></div>
+      <nav class="rule-list" aria-label="Rules">
+        {#each rules as item}
+          <button class="rule-row" aria-pressed={item.id === rule?.id} on:click={() => selected = item.id}>
+            <span class="rule-row-top"><strong>{ruleName(item)}</strong><span>{item.enforcement}</span><StatusChip value={item.result?.outcome?.choice ?? 'Unavailable'} /></span>
+            <span class="rule-text">{item.text}</span>
+            <span class="rule-finding">{item.gateIds?.length ? item.gateIds.map((g: string) => gateLabels[g] ?? g).join(' · ') : item.contribution.includes('approval') ? 'Approval requirement' : item.gateIds === null ? 'Gates not recorded' : 'No triggered gates'}</span>
+          </button>
+        {/each}
+        {#if !rules.length}<p class="empty-inline">No rule snapshot recorded. Inspect the response and capture details for available information.</p>{/if}
+      </nav>
+      {#if rule}<RuleDetail {rule} showQuestions={() => openDock('Questions')} showEvidence={() => openDock('Evidence')} />{/if}
+    </section>
+    <PaneResizer bind:value={assessmentShare} min={35} max={70} unit="percent" label="Resize assessment pane" controls="assessment-pane" />
+    <EvidenceDock bind:this={dock} {view} {rule} bind:activeTab />
   </div>
-  {#if rule}
-    <h3>{rule.builtin ? 'Built-in integrity' : `Rule at line ${rule.line}`}</h3>
-    <p>{rule.text}</p>
-    <h4>Decision and model probabilities</h4>
-    <p>Probabilities are not calibrated safety guarantees. A confidence gate is not a reported FAIL. No hidden model reasoning is recorded.</p>
-    <pre>{pretty(rule.result)}</pre>
-    <h4>Recorded gates</h4>
-    <pre>{rule.gates ? pretty(rule.gates) : rule.result ? 'No blocking gates recorded for this rule.' : 'Assessment unavailable.'}</pre>
-    <h4>Effective thresholds</h4><pre>{pretty(view.config)}</pre>
-    <details open><summary>Submitted questions and choices</summary><pre>{pretty(rule.questions)}</pre></details>
-  {/if}
-  <details><summary>Submitted evidence shared by all rules</summary><p>Field redactions and omitted history remain as submitted. Strings may still contain secrets.</p><pre>{pretty(view.evidence)}</pre></details>
-  <details open={view.assessmentStatus === 'failed'}>
-    <summary>Application response and validation</summary>
-    <p>Untrusted response content, not a validated assessment. Credential and header fields are omitted; strings may still contain secrets.</p>
-    {#if view.response?.unavailable}<p>Response snapshot unavailable. The response could not be safely serialized within capture limits.</p>
-    {:else if view.response?.truncated}<p>Response truncated. Preview limited to 1 MiB; serialized size after field omissions: {view.response.bytes} bytes.</p>
-    {:else if !view.response}<p>No application response recorded. This does not prove the provider returned nothing.</p>{/if}
-    <pre>{pretty(view.response)}</pre><pre>{pretty(view.validation)}</pre>
-  </details>
-  <details><summary>Recorded policy snapshot</summary><pre>{pretty(view.policy)}</pre></details>
 </section>

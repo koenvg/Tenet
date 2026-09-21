@@ -9,5 +9,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "eval/**/*.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts", "eval/**/*.ts", "inspector/tests/**/*.ts", "inspector/vitest.config.ts"]
 }
