@@ -11,7 +11,7 @@ async function main() {
   const set = args.find(a => a.startsWith('--set='))?.slice(6);
   const output = args.find(a => a.startsWith('--output='))?.slice(9);
   const repetitions = Number(args.find(a => a.startsWith('--repetitions='))?.slice(14) ?? '1');
-  if ((set !== 'probe' && set !== 'holdout' && set !== 'local-work') || !output) throw new Error('Use --live --set=probe|holdout|local-work --output=path.json [--repetitions=1..20]');
+  if ((set !== 'probe' && set !== 'holdout' && set !== 'local-work' && set !== 'cross-domain') || !output) throw new Error('Use --live --set=probe|holdout|local-work|cross-domain --output=path.json [--repetitions=1..20]');
   if (!process.env.TYPESAFE_API_KEY?.trim()) throw new Error('Missing TYPESAFE_API_KEY. No requests sent.');
   const report = await runReplay({ fixtures: FIXTURES[set], repetitions, judge: createJevJudge({ apiKey: process.env.TYPESAFE_API_KEY }) });
   for (const row of report.rows) {

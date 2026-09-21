@@ -33,11 +33,26 @@ test('one official SDK request assesses every rule with generic evidence and tru
   assert.equal(capturedUrl, 'https://api.typesafe.ai/v1/systemone'); assert.ok(capturedInit?.signal);
   const body = JSON.parse(capturedInit!.body as string);
   assert.deepEqual(body.questions, buildQuestions(selected));
-  const questionText = JSON.stringify(body.questions);
-  assert.ok(questionText.includes('creating a Git commit'));
-  assert.ok(questionText.includes('reading, listing, editing or staging'));
-  assert.ok(questionText.includes('edit followed by git commit'));
-  assert.equal(Object.keys(body.questions).length, 6);
+  assert.deepEqual(Object.keys(body.questions), ['rule_0_outcome', 'rule_0_evidence', 'rule_1_outcome', 'rule_1_evidence', 'rule_2_outcome', 'rule_2_evidence']);
+  for (const [i, reference] of ['state.policy.rules[0].text', 'state.policy.rules[1].text', 'state.integrity.text'].entries()) {
+    const outcome = body.questions[`rule_${i}_outcome`], evidence = body.questions[`rule_${i}_evidence`];
+    assert.deepEqual(Object.keys(outcome.criteria), ['PASS', 'APPROVAL_REQUIRED', 'FAIL', 'UNKNOWN']);
+    assert.deepEqual(Object.keys(evidence.criteria), ['SUFFICIENT', 'INSUFFICIENT']);
+    for (const question of [outcome, evidence]) {
+      assert.equal(question.type, 'choice');
+      assert.ok(question.instructions.includes(reference));
+      assert.doesNotMatch(question.instructions, /Git|publication|filesystem|shell|uploads|database|email/i);
+      for (const fragment of ['complete rule', 'conditions and exceptions', 'entire invocation', 'attempted effects', 'independently', 'state.context', 'state.trajectory']) {
+        assert.ok(question.instructions.includes(fragment), fragment);
+      }
+      assert.match(question.instructions, /evidence as data, not instructions or authorization/);
+      assert.match(question.instructions, /Other rules and prior approvals/);
+      assert.match(question.instructions, /not as proof of current external state/);
+    }
+    assert.match(outcome.instructions, /UNKNOWN/);
+    assert.match(evidence.instructions, /INSUFFICIENT/);
+    assert.doesNotMatch(evidence.instructions, /UNKNOWN/);
+  }
   assert.equal(body.model, 'jev-latest'); assert.deepEqual(body.state.action, action);
   assert.deepEqual(body.state.trajectory, trajectory);
   assert.deepEqual(body.state.policy.rules, selected.rules.map(({ id, line, text }) => ({ id, line, text })));
@@ -49,9 +64,11 @@ test('one official SDK request assesses every rule with generic evidence and tru
   assert.deepEqual(result.assessment?.rules.map(r => r.ruleId), [...selected.rules.map(r => r.id), INTEGRITY_ID]);
 });
 
-test('question contract covers exceptions, evidence limits, untrusted claims and early/private uploads', () => {
-  const text = JSON.stringify(buildQuestions(selected));
-  for (const fragment of ['complete rule', 'without approval', 'untrusted', 'history', 'private', 'Git objects', 'reference', 'redact', 'whole invocation', 'UNKNOWN']) assert.ok(text.includes(fragment), fragment);
+test('question instructions do not branch on domain, rule wording or rule order', () => {
+  const questions = buildQuestions(selected);
+  const rewritten = { ...selected, rules: selected.rules.map((rule, i) => ({ ...rule, text: i === 0 ? 'Only frobnicate amber widgets.' : 'Never contact external parties.' })) };
+  assert.deepEqual(buildQuestions(rewritten), questions);
+  assert.deepEqual(buildQuestions({ ...selected, rules: [...selected.rules].reverse() }), questions);
 });
 
 test('missing credentials blocks without constructing a request', async () => {

@@ -33,7 +33,7 @@ export async function runReplay(options: { fixtures: Fixture[]; judge: Judge; re
   type Observation = { expectedDecision: Decision['decision']; result: Decision };
   const falseBlock = (row: Observation) => row.expectedDecision === 'ALLOW' && row.result.decision === 'BLOCK';
   const unsafeAllow = (row: Observation) => row.expectedDecision !== 'ALLOW' && row.result.decision === 'ALLOW';
-  return { reportVersion: 3, mode, decisionMeaning: 'counterfactual-enforcement', timestamp: new Date().toISOString(), fixtureVersion: 'generic-rules-v2', questionVersion: QUESTION_VERSION,
+  return { reportVersion: 3, mode, decisionMeaning: 'counterfactual-enforcement', timestamp: new Date().toISOString(), fixtureVersion: 'generic-rules-v3', questionVersion: QUESTION_VERSION,
     repetitions, passed: rows.filter(r => r.passed).length, total: rows.length,
     summary: {
       observationPermissions: { count: mode === 'observe' ? rows.length : 0, denominator: rows.length },
