@@ -33,7 +33,7 @@
   </div>
   <div id="panel-Evidence" role="tabpanel" aria-labelledby="tab-Evidence" aria-label="Submitted evidence" class="dock-panel" tabindex="0" hidden={activeTab !== 'Evidence'}>
     <h4>Shared submitted evidence</h4>
-    <p class="muted">The same evidence was submitted for all rules. Field redactions and omitted history remain as recorded. Strings may contain secrets.</p>
+    <p class="muted">Shared by all rules. Redactions and omitted history remain as recorded. Strings may contain secrets.</p>
     {#if view.evidence === null}<p class="missing-data">Submitted evidence unavailable. No historical payload is reconstructed.</p>
     {:else}
       {#each evidenceEntries as [key, value]}
@@ -43,7 +43,7 @@
   </div>
   <div id="panel-Questions" role="tabpanel" aria-labelledby="tab-Questions" aria-label="Questions" class="dock-panel" tabindex="0" hidden={activeTab !== 'Questions'}>
     <h4>Questions for {rule ? ruleName(rule) : 'unavailable rule'}</h4>
-    <p class="muted">These are the exact submitted questions and choices, not current templates.</p>
+    <p class="muted">Submitted questions and choices—not current templates.</p>
     <div class="format-toggle" role="group" aria-label="Question display format">
       <button aria-pressed={questionFormat === 'rich'} on:click={() => questionFormat = 'rich'}>Rich</button>
       <button aria-pressed={questionFormat === 'json'} on:click={() => questionFormat = 'json'}>JSON</button>

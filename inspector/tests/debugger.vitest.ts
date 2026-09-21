@@ -36,6 +36,8 @@ beforeEach(async () => {
   pageErrors = []; externalRequests = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   await page.route('**/*', route => {
+    // Local extension injection is not an inspector network request; still block it in this test tab.
+    if (new URL(route.request().url()).protocol === 'chrome-extension:') return route.abort();
     if (new URL(route.request().url()).origin === app!.origin) return route.continue();
     externalRequests.push(route.request().url()); return route.abort();
   });

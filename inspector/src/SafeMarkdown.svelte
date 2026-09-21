@@ -28,6 +28,8 @@
     <table><thead><tr>{#each token.header as cell}<th scope="col"><svelte:self tokens={cell.tokens} /></th>{/each}</tr></thead><tbody>{#each token.rows as row}<tr>{#each row as cell}<td><svelte:self tokens={cell.tokens} /></td>{/each}</tr>{/each}</tbody></table>
   {:else if token.type === 'link'}
     <span class="inert-link"><svelte:self tokens={token.tokens} /> <code>({token.href})</code></span>
+  {:else if token.type === 'html'}
+    {#if token.block}<pre class="markdown-literal"><code>{token.raw}</code></pre>{:else}<code>{token.raw}</code>{/if}
   {:else}
     {token.raw}
   {/if}

@@ -41,7 +41,7 @@
   </header>
   <div class="debugger-panes" style:--assessment-share={`${assessmentShare}%`}>
     <section id="assessment-pane" class="assessment-pane" aria-label="Assessment pane">
-      <div class="pane-heading"><h3>Rules <span class="count">{rules.length}</span></h3><span class="muted">Findings: {findingCount} · shown first</span></div>
+      <div class="pane-heading"><h3>Rules <span class="count">{rules.length}</span></h3><span class="muted">{findingCount ? `${findingCount} ${findingCount === 1 ? 'finding' : 'findings'} · shown first` : 'No recorded findings'}</span></div>
       <nav class="rule-list" aria-label="Rules">
         {#each rules as item}
           <button class="rule-row" aria-pressed={item.id === rule?.id} on:click={() => selected = item.id}>
