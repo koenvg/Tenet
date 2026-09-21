@@ -4,6 +4,13 @@ import type { Config } from '../decision/contracts.js';
 import { EVIDENCE_DEFAULTS } from '../decision/trajectory.js';
 import type { EvidenceLimits } from '../decision/contracts.js';
 
+export type Mode = 'observe' | 'enforce';
+export function readMode(env: Record<string, string | undefined>): { mode: Mode; warning?: string } {
+  const value = env.TENET_MODE;
+  return { mode: value === 'enforce' ? 'enforce' : 'observe',
+    ...(value !== undefined && value !== 'observe' && value !== 'enforce' ? { warning: 'invalid-mode' } : {}) };
+}
+
 export interface GuardConfig { policyPath: string; decision: Config; sensitiveFields: string[]; evidence: EvidenceLimits; approvalTimeoutMs: number }
 export function readConfig(cwd: string, env: Record<string, string | undefined>): GuardConfig {
   function number(key: string, fallback: number) {

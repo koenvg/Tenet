@@ -81,14 +81,17 @@ export async function decide(options: {
     if (signal?.aborted) return result('BLOCK', 'cancelled');
     if (clock.now() - start >= config.deadlineMs) { controller.abort(); return result('BLOCK', 'timeout'); }
     const assessment = validateAssessment(raw, policy);
-    const blocked = blockingDiagnostics(assessment, config);
+    const diagnostics = blockingDiagnostics(assessment, config, policy);
+    const blocked = diagnostics.filter(r => r.enforcement === 'BLOCK');
     if (blocked.length) {
       const reason = blocked.some(r => r.ruleId === INTEGRITY_ID && r.outcome === 'FAIL') ? 'policy-integrity'
         : blocked.some(r => r.outcome === 'FAIL') ? 'rule-failed' : 'insufficient-evidence';
-      return result('BLOCK', reason, assessment, blocked.map(r => r.ruleId), blocked);
+      return result('BLOCK', reason, assessment, blocked.map(r => r.ruleId), diagnostics);
     }
-    const approvals = assessment.rules.filter(r => r.outcome.choice === 'APPROVAL_REQUIRED').map(r => r.ruleId);
-    return approvals.length ? result('ASK', 'rule-approval-required', assessment, approvals) : result('ALLOW', 'all-rules-pass', assessment);
+    const approvals = assessment.rules.filter(r => r.outcome.choice === 'APPROVAL_REQUIRED'
+      && policy.rules.find(rule => rule.id === r.ruleId)?.enforcement !== 'WARN').map(r => r.ruleId);
+    return approvals.length ? result('ASK', 'rule-approval-required', assessment, approvals, diagnostics)
+      : result('ALLOW', diagnostics.length || assessment.rules.some(r => r.outcome.choice === 'APPROVAL_REQUIRED') ? 'advisory-findings' : 'all-rules-pass', assessment, [], diagnostics);
   } catch (error) {
     return result('BLOCK', signal?.aborted ? 'cancelled' : error instanceof JudgeFailure ? error.reason : 'provider-error');
   } finally {

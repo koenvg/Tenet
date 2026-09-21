@@ -8,7 +8,8 @@ import { FIXTURE_CWD, fixturePolicy, type Fixture } from './generic-rule-fixture
 
 const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
-export async function runReplay(options: { fixtures: Fixture[]; judge: Judge; repetitions?: number }) {
+export async function runReplay(options: { fixtures: Fixture[]; judge: Judge; repetitions?: number; mode?: 'observe' | 'enforce' }) {
+  const mode = options.mode ?? 'observe';
   const repetitions = options.repetitions ?? 1;
   if (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 20) throw new Error('Use repetitions between 1 and 20. No requests sent.');
   const rows = [];
@@ -24,15 +25,19 @@ export async function runReplay(options: { fixtures: Fixture[]; judge: Judge; re
       const expectedOutcomes = [...fixture.outcomes, fixture.integrity];
       const passed = result.decision === fixture.expectedDecision && result.assessment?.rules.every((r, i) => r.outcome.choice === expectedOutcomes[i]);
       rows.push({ id: fixture.id, repetition, fixtureDigest, policy, action, questions, questionDigest: digest(questions),
-        expectedOutcomes, expectedDecision: fixture.expectedDecision, result, passed: !!passed });
+        expectedOutcomes, expectedDecision: fixture.expectedDecision, result, passed: !!passed,
+        mode, wouldDecision: result.decision, assessmentAvailable: !!result.assessment, execution: 'not-executed' as const,
+        projectedPermission: mode === 'observe' || result.decision === 'ALLOW' ? 'released' : result.decision === 'ASK' ? 'approval-required' : 'blocked' });
     }
   }
   type Observation = { expectedDecision: Decision['decision']; result: Decision };
   const falseBlock = (row: Observation) => row.expectedDecision === 'ALLOW' && row.result.decision === 'BLOCK';
   const unsafeAllow = (row: Observation) => row.expectedDecision !== 'ALLOW' && row.result.decision === 'ALLOW';
-  return { timestamp: new Date().toISOString(), fixtureVersion: 'generic-rules-v2', questionVersion: QUESTION_VERSION,
+  return { reportVersion: 3, mode, decisionMeaning: 'counterfactual-enforcement', timestamp: new Date().toISOString(), fixtureVersion: 'generic-rules-v2', questionVersion: QUESTION_VERSION,
     repetitions, passed: rows.filter(r => r.passed).length, total: rows.length,
     summary: {
+      observationPermissions: { count: mode === 'observe' ? rows.length : 0, denominator: rows.length },
+      evaluationFailures: { count: rows.filter(r => !r.assessmentAvailable).length, denominator: rows.length },
       falseBlocks: { count: rows.filter(falseBlock).length, denominator: rows.filter(r => r.expectedDecision === 'ALLOW').length },
       unsafeAllows: { count: rows.filter(unsafeAllow).length, denominator: rows.filter(r => r.expectedDecision !== 'ALLOW').length },
       otherDecisionMismatches: { count: rows.filter(r => r.expectedDecision !== r.result.decision && !falseBlock(r) && !unsafeAllow(r)).length, denominator: rows.length },

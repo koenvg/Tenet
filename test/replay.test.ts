@@ -23,6 +23,8 @@ test('replay reports repeated decisions, independent error counts, input identit
   assert.equal(calls, 14); assert.equal(report.total, 14); assert.equal(report.passed, 8);
   assert.equal(report.repetitions, 2);
   assert.deepEqual(report.summary, {
+    observationPermissions: { count: 14, denominator: 14 },
+    evaluationFailures: { count: 0, denominator: 14 },
     falseBlocks: { count: 2, denominator: 6 },
     unsafeAllows: { count: 2, denominator: 8 },
     otherDecisionMismatches: { count: 2, denominator: 14 },
@@ -56,4 +58,23 @@ test('replay rejects unbounded repetitions before invoking judge', async () => {
     await assert.rejects(runReplay({ fixtures: FIXTURES['local-work'], repetitions, judge: async () => { calls++; return {}; } }), /repetitions/);
     assert.equal(calls, 0);
   }
+});
+
+test('observation projections never dilute counterfactual error denominators', async () => {
+  const fixtures = FIXTURES['local-work'].slice(0, 2);
+  const report = await runReplay({ fixtures, judge: async request => {
+    if (request.action.callId.startsWith(`${fixtures[0]!.id}:`)) throw new Error('unavailable');
+    return answer(request.policy, 'FAIL');
+  } });
+  assert.equal(report.reportVersion, 3);
+  assert.equal(report.decisionMeaning, 'counterfactual-enforcement');
+  assert.deepEqual(report.summary.falseBlocks, { count: 2, denominator: 2 });
+  assert.deepEqual(report.summary.unsafeAllows, { count: 0, denominator: 0 });
+  assert.deepEqual(report.summary.observationPermissions, { count: 2, denominator: 2 });
+  assert.deepEqual(report.summary.evaluationFailures, { count: 1, denominator: 2 });
+  assert.ok(report.rows.every(row => row.wouldDecision === 'BLOCK' && row.projectedPermission === 'released' && row.execution === 'not-executed'));
+  assert.deepEqual(report.rows.map(row => row.assessmentAvailable), [false, true]);
+  const enforced = await runReplay({ fixtures, mode: 'enforce', judge: async request => answer(request.policy, 'APPROVAL_REQUIRED') });
+  assert.ok(enforced.rows.every(row => row.projectedPermission === 'approval-required'));
+  assert.deepEqual(enforced.summary.observationPermissions, { count: 0, denominator: 2 });
 });

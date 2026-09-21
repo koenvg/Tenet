@@ -36,8 +36,29 @@ for (const [outcome, decision] of [['PASS', 'ALLOW'], ['APPROVAL_REQUIRED', 'ASK
   });
 }
 
+test('WARN keeps all assessment gates visible without vetoing or requesting approval', async () => {
+  for (const enforcement of ['WARN', 'BLOCK'] as const) {
+    const selected = { ...policy, rules: [{ ...policy.rules[0]!, enforcement }] };
+    for (const outcome of ['PASS', 'FAIL', 'UNKNOWN', 'APPROVAL_REQUIRED'] as const) {
+      for (const gate of ['none', 'outcome', 'evidence-label', 'evidence-confidence']) {
+        const raw = answer(selected, outcome, gate === 'outcome' ? 0.63 : 0.97);
+        if (gate === 'evidence-label') raw.rules[0]!.evidence = { choice: 'INSUFFICIENT', probabilities: { SUFFICIENT: 0.1, INSUFFICIENT: 0.9 } };
+        if (gate === 'evidence-confidence') raw.rules[0]!.evidence.probabilities = { SUFFICIENT: 0.89, INSUFFICIENT: 0.11 };
+        const result = await decide({ ...base, policy: selected, judge: async () => raw });
+        const blocked = gate !== 'none' || outcome === 'FAIL' || outcome === 'UNKNOWN';
+        assert.equal(result.decision, enforcement === 'WARN' ? 'ALLOW' : blocked ? 'BLOCK' : outcome === 'APPROVAL_REQUIRED' ? 'ASK' : 'ALLOW');
+        assert.equal(result.diagnostics.length, blocked ? 1 : 0);
+        if (blocked) assert.equal(result.diagnostics[0]!.enforcement, enforcement);
+        assert.equal(result.assessment?.rules[0]!.outcome.choice, outcome);
+      }
+    }
+    const raw = answer(selected); raw.rules[1] = ruleAnswer(INTEGRITY_ID, 'FAIL');
+    assert.equal((await decide({ ...base, policy: selected, judge: async () => raw })).decision, 'BLOCK');
+  }
+});
+
 test('complete-set aggregation is permutation invariant; fail/unknown dominate approval', async () => {
-  const selected = { ...policy, rules: [...policy.rules, { id: 'second', line: 2, text: 'Ask before installing packages.' }] };
+  const selected = { ...policy, rules: [...policy.rules, { id: 'second', line: 2, text: 'Ask before installing packages.', enforcement: 'BLOCK' as const }] };
   const outcomes: Outcome[] = ['PASS', 'APPROVAL_REQUIRED', 'FAIL', 'UNKNOWN'];
   for (const a of outcomes) for (const b of outcomes) {
     const raw = { model: 'jev-test', rules: [ruleAnswer(selected.rules[0]!.id, a), ruleAnswer('second', b), ruleAnswer(INTEGRITY_ID)] };

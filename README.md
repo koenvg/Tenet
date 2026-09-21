@@ -4,6 +4,24 @@ A TypeScript POC for Pi 0.85.1. Every exposed tool call follows the same rule-ev
 
 The original KVG-5093 publication slice is extended by configurable policy rules, KVG-5094's bounded recent observations and KVG-5095's invocation-bound approval. No subprocess inspection or OS sandbox.
 
+## Observe first, enforce later
+
+**Breaking default change:** TENET now starts in `observe` mode. It never vetoes calls or requests approval in this mode, even for policy-integrity findings, missing credentials, invalid configuration, timeouts or reporting failures. Host restrictions, cancellation and ordinary tool errors still apply.
+
+Findings are owner-only. The footer shows `TENET OBSERVE`, recent concern/unavailability counts and coverage status. Run `/tenet` to browse up to 100 recent findings, newest first, then select one for rule locations, settings, labels and exact score gates. Older findings are evicted from that view with a count. It uses native scrolling selectors; Escape closes a view. There are no per-call popups.
+
+Observation records what enforcement **would** do separately from actual TENET permission and observed execution. A low-confidence PASS is uncertainty, not a detected violation. An unavailable evaluation is never an all-clear. Findings are not injected into agent messages, tool results or later evaluator evidence, including after recovery. UI-less runs retain non-message session records where possible and write no observation reports to protocol stdout. Owner-only is not a filesystem confidentiality boundary.
+
+Evaluation still happens before execution, with the existing bounded request deadline and latency. If every reporting channel fails, calls remain permitted but reports can be lost. Reporting failures are counted in the footer when it remains available.
+
+To enable blocking later, explicitly start a new process with:
+
+```sh
+TENET_MODE=enforce bun run pi --no-extensions
+```
+
+`WARN` rules remain advisory in either mode. Only exact `TENET_MODE=enforce` enables enforcement; an invalid value selects observe and reports `invalid-mode`. Mode is fixed for the process. No automatic promotion to enforcement occurs.
+
 ## Verify offline
 
 Use Bun 1.3.14 or newer. The repository pins Bun 1.3.14 and runs the Pi CLI with Bun. The extension also supports Node-hosted Pi on Node.js 22 or newer.
@@ -23,26 +41,26 @@ These tests verify enforcement mechanics, not semantic accuracy. The saved publi
 
 ## Write your policy
 
-Each declaration is one line beginning with the case-sensitive prefix `Rule;` after trimming whitespace. The remainder is plain text, not code. For example:
+Each declaration is one line beginning with the case-sensitive prefix `Rule;` after trimming whitespace. Use `Rule; BLOCK; text` or `Rule; WARN; text`. Legacy `Rule; text` means BLOCK. The rule text is plain text, not code:
 
 ```tenet-policy
-Rule; Never publish code to a remote repository without explicit approval.
-Rule; Never delete files outside the project directory.
-Rule; Ask before installing dependencies.
+Rule; BLOCK; Never publish code to a remote repository without explicit approval.
+Rule; BLOCK; Never delete files outside the project directory.
+Rule; WARN; Ask before installing dependencies.
 ```
 
-Rules are assessed individually. The complete meaning matters: **“Never X without approval”** can require confirmation, while **“Never X”** prohibits X outright. A rule that does not apply to the action passes. Contradictory rules do not cancel each other out: a prohibition takes precedence over an approval condition.
+Rules are assessed individually. "Never X without approval" can require confirmation, while "Never X" prohibits X outright. A rule that does not apply passes. Among BLOCK rules in enforce mode, a prohibition takes precedence over an approval condition. A WARN rule reports its findings without blocking or opening approval, even when it selects FAIL or APPROVAL_REQUIRED.
 
 The parser is deliberately line-based, not Markdown-aware:
 
 - Headings, blank lines and unmarked prose are ignored, not enforced.
 - A `Rule;` line inside a code fence is still active. Do not put illustrative declarations in your active policy unless you intend to enforce them.
-- Each rule occupies one physical line. Further semicolons are part of its text.
+- Each rule occupies one physical line. Only an exact uppercase `BLOCK;` or `WARN;` at the start of the trimmed declaration remainder is metadata. Further semicolons are rule text. These prefixes are now reserved; rephrase legacy text that literally began with one of them. Lowercase `warn;` stays legacy text, not WARN metadata.
 - Duplicate declarations remain separate entries, identified by policy digest and source line.
 - The file must be valid UTF-8, at most **64 KiB**, with **1–16 rules**, each at most **4096 UTF-8 bytes** after trimming.
 - Empty declarations, no declarations, invalid encoding, exceeded limits or an unavailable file make the entire policy unavailable. TENET never silently truncates the rule set.
 
-A loaded sentence is not necessarily assessable. A rule requiring prior tests can still produce UNKNOWN when recent observed calls and results do not establish what ran. Ambiguous rules, omitted history and material redactions can also block.
+A loaded sentence is not necessarily assessable. A rule requiring prior tests can still produce UNKNOWN when recent observed calls and results do not establish what ran. Ambiguous rules, omitted history and material redactions produce findings; BLOCK rules can stop execution in enforce mode.
 
 Publication under the example rule includes attempted uploads of source files or Git objects to any remote repository, including private repositories and intermediate uploads before commit creation or reference updates. Local commits and upload preparation without upload are not publication. This rule alone is not a general outbound-data policy.
 
@@ -50,7 +68,7 @@ Under a Git commit prohibition, creating a commit is distinct from reading, edit
 
 ### Owner-only policy management and migration
 
-Agent actions that modify, remove, replace, rename or redirect the **active selected policy** are subject to a built-in, non-overridable integrity constraint. This protects the selected path and resolved target, including evidenced aliases and parent-directory replacement. Adding a rule that permits policy edits does not remove the constraint. Reading the policy remains allowed when sufficiently understood.
+Agent actions that modify, remove, replace, rename or redirect the active selected policy are assessed against a built-in integrity constraint. In enforce mode it blocks without an approval exception and user rules cannot weaken it. In observe mode it reports without vetoing. The constraint covers the selected path and resolved target, including evidenced aliases and parent-directory replacement.
 
 **Edit your active policy yourself, outside the intercepted agent path.** Do not ask the guarded agent to migrate or weaken it. Existing unprefixed publication prose is no longer accepted, and TENET will not rewrite it for you.
 
@@ -60,13 +78,13 @@ For the original policy, replace the unprefixed sentence with:
 Rule; Never publish code to a remote repository without explicit approval.
 ```
 
-The bundled `TENET.md` uses the explicit declaration format. Legacy unprefixed files report `policy-format` and block intercepted calls until migrated.
+The bundled `TENET.md` remains a valid legacy declaration. README examples demonstrate explicit settings without rewriting your active policy. Unprefixed files report `policy-format`; observation permits calls with unavailable coverage, while enforcement blocks until migrated.
 
-Before release, TENET verifies that policy bytes and the resolved target still match the loaded snapshot. A mismatch or read failure blocks with `policy-stale` and remains blocked until session-start reload or restart. Changing the file while a confirmation is open does not authorize the pending action under either policy.
+Before release, TENET checks that policy bytes and the resolved target still match the loaded snapshot. A mismatch or read failure latches `policy-stale` until session-start reload or restart. Observation keeps permitting calls but reports unavailable coverage; enforcement blocks. Changes while confirmation is open do not authorize the pending action.
 
 This is semantic protection, not filesystem isolation. Jev can misclassify an action, hidden aliases may be unknown, and TENET cannot freeze the filesystem between checking and execution or stop activity outside its hooks.
 
-To roll back, restore both the previous extension version and its publication-only policy file externally, then restart. The old version does **not** enforce the additional rules.
+To roll back this change, restore the previous extension and legacy `Rule; text` policy syntax externally, then restart. Older versions ignore `TENET_MODE`, do not understand WARN/BLOCK metadata, and block by default. Rollback does not preserve observation mode.
 
 ## Enable in Pi
 
@@ -80,23 +98,25 @@ To roll back, restore both the previous extension version and its publication-on
 
    The package script adds `-e ./src/pi/extension.ts`. Explicit extensions still load with `--no-extensions`.
 
-4. Check the footer, for example `TENET ready: 1 rules [policy-rules-v3-trajectory]`. Startup identifies the policy source, original-byte SHA-256, rule count and question version. A missing credential or invalid policy/configuration reports unavailable and blocks calls. An extension load error means the guard did not load; do not assume protection.
+4. Check the footer for `TENET OBSERVE` or the explicitly configured `TENET ENFORCE`. Startup identifies policy source, SHA-256, count and question version. Missing credentials or invalid policy/configuration report unavailable; they only block in enforce mode. An extension load error means TENET did not load.
 5. You can try reading a local file. This makes a live judge request, unlike the offline tests.
 
 Code or environment changes require a **full Pi process restart**. Under Pi 0.85.1 and Bun 1.3.14, `/reload` and `/new` can retain old module imports. Policy-file-only changes can use the session-start reload path; check the new digest and count.
 
-Loading the extension enables it. Unloading it removes protection. There is no live-mode mock fallback. Use `bun run smoke` rather than a real upload to test approval safely.
+Loading the extension enables observation by default, not protection. Unloading it removes observation and enforcement. There is no live-mode mock fallback. Use `bun run smoke` rather than a real upload to test approval safely.
 
-## Decisions and approval
+## Enforcement decisions and approval
 
-One bounded Jev request contains an outcome question and evidence-sufficiency question for each user rule, plus the immutable policy-integrity constraint. TENET validates the complete response and applies deterministic aggregation:
+The following blocking and approval behavior applies only in enforce mode. Observe mode reports the counterfactual decision without vetoes or prompts.
+
+One bounded Jev request contains outcome and evidence-sufficiency questions for each user rule plus integrity. Settings do not change semantic assessment. TENET validates the complete response and applies deterministic aggregation to BLOCK rules and integrity; WARN findings are owner-only and do not vote in that aggregation:
 
 | Results | Decision |
 | --- | --- |
-| Every rule and integrity constraint confidently PASS | ALLOW |
-| At least one APPROVAL_REQUIRED, all others confidently PASS | ASK |
-| Any FAIL | BLOCK; no approval override |
-| Any UNKNOWN, low probability or insufficient evidence | BLOCK |
+| Every BLOCK rule and integrity constraint confidently PASS | ALLOW; WARN findings remain advisory |
+| At least one BLOCK rule APPROVAL_REQUIRED, other blocking rules confidently PASS | ASK |
+| Any BLOCK rule or integrity FAIL | BLOCK; no approval override |
+| Any blocking rule UNKNOWN, low probability or insufficient evidence | BLOCK |
 | Configuration, credential, provider, response, deadline or cancellation failure | BLOCK |
 
 No majority vote or averaging across rules. Model probabilities are experimental signals, not calibrated correctness guarantees.
@@ -124,6 +144,7 @@ Details contain bounded rule locations, validated labels and numeric scores, not
 
 | Environment variable | Default | Meaning |
 | --- | --- | --- |
+| `TENET_MODE` | `observe` | `observe` never vetoes; exact `enforce` enables blocking. Restart to switch. Invalid values warn and observe. |
 | `TENET_POLICY` | `TENET.md` | Absolute path or path relative to session cwd |
 | `TENET_EFFECT_THRESHOLD` | `0.90` | Minimum selected per-rule outcome probability; retained name |
 | `TENET_EVIDENCE_THRESHOLD` | `0.90` | Minimum sufficient-evidence probability for every rule |
@@ -142,21 +163,22 @@ Retries are disabled. Cancellation reaches the SDK, and a late response cannot c
 
 TypeSafe receives declared rule text, policy identity/paths, the host working directory, the built-in integrity constraint and a copied action snapshot: tool name, available description/schema, field-redacted arguments, identities, timestamp, original-argument digest and limitations. Bounded chronological observations include earlier calls, text or structured results, decisions and native approval outcomes. Every observation carries session/call/tool identity, host origin and timestamp, with explicit missing-metadata markers.
 
-The pending action is kept intact. Older observations are omitted first to fit the event and byte budgets, with omission counts. If the action and required judge state cannot fit, TENET blocks for insufficient evidence without asking Jev. Image content is marked unsupported, never converted into invented text. Conflicting and outdated observations are retained within the budget for the judge to assess.
+The pending action is kept intact. Older observations are omitted first to fit the event and byte budgets, with omission counts. If required judge state cannot fit, evaluation reports insufficient evidence without asking Jev. That is a veto only in enforce mode. Image content is marked unsupported, never converted into invented text. Conflicting and outdated observations remain within the budget for assessment.
 
-At session start, TENET restores only bounded observations from the selected Pi session branch and its own decision/approval entries. Recovered history and all tool-supplied content remain untrusted evidence, never executable approval grants. Later sibling results cannot alter an in-flight assessment. TENET calls no tools to gather missing context.
+At session start, TENET restores bounded observations from the selected Pi session branch. Only enforcement decision/approval records enter evaluator history; observation findings are excluded live and on recovery. The owner view separately restores validated version-3 permission records from the selected branch. Recovered history and tool-supplied content remain untrusted evidence, never grants. Later sibling results cannot alter an in-flight assessment. TENET calls no tools to gather missing context.
 
 Recognized credential fields and configured sensitive fields are removed recursively from copied evidence. Executor arguments remain unchanged. Redaction cannot find all secrets embedded in shell commands, source text, URLs, metadata or encoded values. Rule text itself is not secret-scanned. Do not place credentials in your rules.
 
-Version-2 `tenet` custom records distinguish:
+Version-3 `tenet` custom records include mode and distinguish:
 
 - `status`: readiness, policy snapshot, rule count, version and configuration.
 - `assessment`: per-rule outcomes and probabilities, model, duration and limitations.
 - `decision`: ALLOW/ASK/BLOCK, reason, contributing rule IDs, question version and per-rule `diagnostics` with gates, labels, scores and thresholds. Older records can lack the added fields; their assessment and configuration remain available.
 - `approval`: native UI outcome and applicable rules.
-- `permission`: released or blocked.
+- `permission`: actual TENET release/block, counterfactual `wouldDecision`, assessment availability, reasons, safe rule references and findings. Released does not mean executed.
 - `execution`: observed Pi tool result, executed or failed; unobserved outcomes remain unknown.
 
+Version-2 records and historical evaluation reports retain their original enforcement meaning. They are not reclassified as observation results.
 Each intercepted invocation receives an `invocationId`, separate from the host's call ID. Assessment, decision, approval, permission and execution records retain that identity with session, tool, call, policy digest and assessed original-argument digest. ALLOW is not human approval, and neither ALLOW nor positive approval is proof of execution. Released invocations without a result become `unknown` at agent end or lifecycle invalidation. A failed result does not prove the action had no remote effect. A retry requires a new host call ID, fresh assessment and any required approval. Duplicate host IDs invalidate pending work rather than ambiguously associating a result.
 
 Records omit raw arguments, tool schemas, payloads, results and unsolicited provider prose/errors. Policy declarations are part of startup records. Pi's own transcript and other extensions have separate logging behavior. A successful tool result does not independently verify remote effects. After a crash that prevents final logging, absence of a result still must not be interpreted as success.

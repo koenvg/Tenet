@@ -44,10 +44,13 @@ export async function loadPolicy(path: string): Promise<Policy> {
     for (const [index, raw] of text.split(/\r?\n/).entries()) {
       const line = raw.trim();
       if (!line.startsWith('Rule;')) continue;
-      const rule = line.slice(5).trim();
+      const declaration = line.slice(5).trim();
+      const prefix = /^(BLOCK|WARN);/.exec(declaration);
+      const enforcement = prefix?.[1] === 'WARN' ? 'WARN' : 'BLOCK';
+      const rule = prefix ? declaration.slice(prefix[0].length).trim() : declaration;
       if (!rule) throw new PolicyError('policy-format');
       if (Buffer.byteLength(rule, 'utf8') > POLICY_LIMITS.ruleBytes) throw new PolicyError('policy-rule-size-limit');
-      rules.push(Object.freeze({ id: `${digest}:${index + 1}`, line: index + 1, text: rule }));
+      rules.push(Object.freeze({ id: `${digest}:${index + 1}`, line: index + 1, text: rule, enforcement }));
       if (rules.length > POLICY_LIMITS.rules) throw new PolicyError('policy-rule-count-limit');
     }
     if (!rules.length) throw new PolicyError('policy-format');

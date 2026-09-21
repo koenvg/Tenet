@@ -16,7 +16,8 @@ async function main() {
   const report = await runReplay({ fixtures: FIXTURES[set], repetitions, judge: createJevJudge({ apiKey: process.env.TYPESAFE_API_KEY }) });
   for (const row of report.rows) {
     console.log(JSON.stringify({ id: row.id, repetition: row.repetition, expected: row.expectedDecision,
-      actual: row.result.decision, diagnostics: row.result.diagnostics, reason: row.result.reason, durationMs: row.result.durationMs }));
+      wouldDecision: row.wouldDecision, mode: row.mode, projectedPermission: row.projectedPermission, execution: row.execution,
+      assessmentAvailable: row.assessmentAvailable, diagnostics: row.result.diagnostics, reason: row.result.reason, durationMs: row.result.durationMs }));
   }
   await writeFile(output, JSON.stringify({ ...report, set }, null, 2) + '\n', { flag: 'wx' });
   console.log(JSON.stringify(report.summary));

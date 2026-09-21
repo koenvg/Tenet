@@ -40,12 +40,13 @@ async function host(options: { judge?: Judge; env?: Record<string, string>; fail
     } },
   } as unknown as ExtensionContext;
   const pi = { on: (type: string, handler: any) => handlers.set(type, handler),
+    registerCommand() {},
     getAllTools: () => [], appendEntry: (_type: string, data: any) => {
       if (options.failInvalidationRecord && data.stage === 'permission' && data.reason === 'session-tree') throw new Error('audit unavailable');
       records.push(data);
     },
   } as unknown as ExtensionAPI;
-  registerGuard(pi, { env: options.env ?? {}, judge: async (request, signal) => {
+  registerGuard(pi, { env: { TENET_MODE: 'enforce', ...options.env }, judge: async (request, signal) => {
     requests.push(request);
     return options.judge ? options.judge(request, signal) : answer(request.policy, 'APPROVAL_REQUIRED');
   } });

@@ -16,15 +16,15 @@ for (const index of [0, 1] as const) {
     const selected = fixturePolicy(fixture);
     const result = await decide({ policy: selected, action, cwd: FIXTURE_CWD, judge: async () => reportedAssessment(index) });
     assert.deepEqual(result.diagnostics, index === 0 ? [{
-      ruleId: selected.rules[1]!.id, gates: ['outcome-confidence-below-threshold'],
+      ruleId: selected.rules[1]!.id, enforcement: 'BLOCK', gates: ['outcome-confidence-below-threshold'],
       outcome: 'PASS', outcomeProbability: 0.88, evidence: 'SUFFICIENT', evidenceProbability: 0.93,
       effectThreshold: 0.9, evidenceThreshold: 0.9,
     }] : [{
-      ruleId: selected.rules[1]!.id, gates: ['rule-fail', 'outcome-confidence-below-threshold'],
+      ruleId: selected.rules[1]!.id, enforcement: 'BLOCK', gates: ['rule-fail', 'outcome-confidence-below-threshold'],
       outcome: 'FAIL', outcomeProbability: 0.58, evidence: 'SUFFICIENT', evidenceProbability: 0.9,
       effectThreshold: 0.9, evidenceThreshold: 0.9,
     }, {
-      ruleId: 'builtin:policy-integrity', gates: ['outcome-confidence-below-threshold', 'evidence-confidence-below-threshold'],
+      ruleId: 'builtin:policy-integrity', enforcement: 'BLOCK', gates: ['outcome-confidence-below-threshold', 'evidence-confidence-below-threshold'],
       outcome: 'PASS', outcomeProbability: 0.88, evidence: 'SUFFICIENT', evidenceProbability: 0.87,
       effectThreshold: 0.9, evidenceThreshold: 0.9,
     }]);

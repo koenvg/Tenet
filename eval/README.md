@@ -39,6 +39,14 @@ The held-out inputs cover an unfamiliar read tool, local edit, explicit local up
 
 The previous publication guard used `publication-effect-v3`, byte-for-byte equal to the question objects saved in both v3 reports. Those reports retain the pre-promotion label `publication-effect-v3-candidate`. They are unchanged historical evidence, not validation of the current `policy-rules-v3-trajectory` contract. Each report includes its question digest, policy digest, exact questions, synthetic evidence, expected labels, returned probabilities, model identity and duration.
 
+## Observation-mode replay reports
+
+Current `runReplay` reports use `reportVersion: 3`, default to an observation projection, and never execute fixture actions. `wouldDecision` and the retained `result.decision` mean the counterfactual enforcement result. `projectedPermission` is a projection, not an actual execution or native approval; `execution` is always `not-executed`. The offline API can project enforce mode too.
+
+False-block and unsafe-allow counts still compare enforcement decisions against fixture expectations. Their denominators remain expected-ALLOW and expected-non-ALLOW cases respectively: permitting everything in observation cannot improve those metrics. `observationPermissions` counts projected observation releases, while `evaluationFailures` counts missing valid assessments over all cases. Valid UNKNOWN or low-confidence assessments remain distinct from unavailable evaluation.
+
+Scripted tests verify these mechanics, not current Jev accuracy. Existing stored reports retain their original question-version and enforcement meaning; no historical result was relabeled or regenerated. No new live evaluation was run for observation mode.
+
 ## Current generic-rule evaluation
 
 The current `policy-rules-v3-trajectory` questions add bounded observations. Only offline injected-response tests validate their evidence transport and enforcement. The live results below remain specific to v2.

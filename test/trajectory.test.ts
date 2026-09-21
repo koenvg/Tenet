@@ -19,10 +19,11 @@ async function host(judge: Judge, env: Record<string, string> = {}) {
   const entries: any[] = [];
   let session = 'one', approvals = 0, executions = 0;
   const pi = { on: (name: string, handler: Function) => handlers.set(name, handler),
+    registerCommand() {},
     appendEntry: (_: string, data: unknown) => records.push(data), getAllTools: () => [] } as unknown as ExtensionAPI;
   const ctx = { cwd, hasUI: true, sessionManager: { getSessionId: () => session, getBranch: () => entries },
     ui: { notify() {}, setStatus() {}, confirm: async () => { approvals++; return false; } } } as unknown as ExtensionContext;
-  registerGuard(pi, { judge, env });
+  registerGuard(pi, { judge, env: { TENET_MODE: 'enforce', ...env } });
   const emit = (type: string, data: any = {}) => handlers.get(type)?.({ type, ...data }, ctx);
   await emit('session_start');
   return { records, entries, emit, counts: () => ({ approvals, executions }),
