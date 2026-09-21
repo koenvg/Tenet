@@ -43,6 +43,10 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
   // Host call IDs must be unique within a session. Retain tombstones, never grants.
   const seen = new Set<string>();
   const released = new Map<string, Identity>();
+  // tool_result has no invocation/session identity. Reused IDs are ambiguous,
+  // including after a switch; never guess which invocation produced a result.
+  const resultCallIds = new Set<string>();
+  const ambiguousResults = new Set<string>();
   const key = (session: string, call: string) => JSON.stringify([session, call]);
   const record = (stage: string, data: Record<string, unknown>) => {
     const time = Date.now();
@@ -112,6 +116,8 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
   });
 
   on('tool_call', async (event, ctx) => {
+    if (resultCallIds.has(event.toolCallId)) ambiguousResults.add(event.toolCallId);
+    resultCallIds.add(event.toolCallId);
     const selectedPolicy = policy;
     const selectedConfig = config;
     const generation = lifecycle;
@@ -224,12 +230,15 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
   on('tool_result', async (event, ctx) => {
     if (config && observations?.sessionId === ctx.sessionManager.getSessionId()) {
       observations.add('pi-tool-result', event.toolCallId, event.toolName,
-        { content: event.content, details: event.details, isError: event.isError });
+        ambiguousResults.has(event.toolCallId) ? { limitation: 'ambiguous-tool-result' }
+          : { content: event.content, details: event.details, isError: event.isError });
     }
     const id = key(ctx.sessionManager.getSessionId(), event.toolCallId);
     const identity = released.get(id);
     if (!identity || identity.toolName !== event.toolName) return;
-    record('execution', { ...identity, origin: 'pi-tool-result', outcome: event.isError ? 'failed' : 'executed' });
+    const ambiguous = ambiguousResults.has(event.toolCallId);
+    record('execution', { ...identity, origin: ambiguous ? 'ambiguous-tool-result' : 'pi-tool-result',
+      outcome: ambiguous ? 'unknown' : event.isError ? 'failed' : 'executed' });
     released.delete(id);
   });
   on('agent_end', async () => { invalidate('agent-end'); });

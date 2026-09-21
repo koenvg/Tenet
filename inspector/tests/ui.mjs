@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { JSDOM } from 'jsdom';
 import { recordFixture } from '../../test/recording-fixture.ts';
-import { ArchiveWriter } from '../../src/recording/archive.ts';
+import { ArchiveWriter, sessionKey } from '../../src/recording/archive.ts';
 import { startInspector } from '../../src/inspector/server.ts';
 const directory = await realpath(await mkdtemp(join(tmpdir(), 'tenet-ui-')));
 let app, dom, intervals = [];
@@ -35,7 +35,7 @@ try {
   const document = dom.window.document;
   async function wait(check) {
     for (let n = 0; n < 100; n++) { if (check()) return; await new Promise(r => setTimeout(r, 20)); }
-    throw new Error('UI condition timed out: ' + document.body.textContent);
+    throw new Error('UI condition timed out: ' + check.toString() + '\n' + document.body.textContent.slice(0,1600));
   }
   const buttons = () => [...document.querySelectorAll('button')];
   await wait(() => buttons().some(b => b.querySelector('strong')?.textContent === 's'));
@@ -86,12 +86,75 @@ try {
     toolName: delayedRecord.toolName, cwd: delayedRecord.cwd, mode: delayedRecord.mode })('execution', { outcome: 'executed', origin: 'pi-tool-result' });
   await delayed.close();
   await wait(() => document.body.textContent.includes('executed'));
-  assert.equal(buttons().find(b => b.getAttribute('aria-pressed') === 'true')?.textContent, selectedRuleText);
-  assert.ok(buttons().some(b => b.classList.contains('chosen') && b.textContent === selectedInvocation));
+  assert.equal([...document.querySelectorAll('article button')].find(b => b.getAttribute('aria-pressed') === 'true')?.textContent, selectedRuleText);
+  assert.ok(buttons().some(b => b.classList.contains('chosen') && b.querySelector('[data-call-id]')?.textContent === 'concerning'));
   assert.equal(article.scrollTop, 37);
   assert.ok(document.body.textContent.includes('rule-fail'));
   assert.ok(!document.body.textContent.includes('fixture-transport-secret'));
   assert.ok(requests.some(p => p.includes('/invocations/')));
+  const writer = new ArchiveWriter({ enabled: true, directory });
+  const arbitrary = '../雪 ?#%';
+  for (let n = 0; n < 55; n++) {
+    writer.bind({ sessionId: arbitrary, invocationId: `page-${n}`, callId: 'reused', toolName: 'edit', cwd: '/second-project', mode: 'observe' })('begin', {});
+  }
+  writer.bind({ sessionId: 'fork', invocationId: 'fork-call', callId: 'reused', toolName: 'edit', cwd: '/third-project', mode: 'observe' })('begin', {});
+  await writer.close();
+  buttons().find(b => b.textContent === 'Refresh sessions').click();
+  await wait(() => buttons().some(b => b.querySelector('strong')?.textContent === arbitrary));
+  const filter = document.querySelector('input[aria-label="Project directory"]');
+  assert.ok(filter, 'project filter');
+  filter.value = '/second-project'; filter.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  await wait(() => buttons().some(b => b.textContent === 'Filter projects' && !b.disabled));
+  buttons().find(b => b.textContent === 'Filter projects').click();
+  await wait(() => document.querySelectorAll('nav button strong').length === 1);
+  buttons().find(b => b.querySelector('strong')?.textContent === arbitrary).click();
+  await wait(() => buttons().some(b => b.textContent === 'More invocations'));
+  const callButtons = () => buttons().filter(b => b.querySelector('[data-call-id]'));
+  assert.equal(callButtons().length, 50);
+  callButtons()[0].click();
+  await wait(() => document.querySelector('article h2')?.textContent.includes('reused'));
+  const selectedLink = dom.window.location.href;
+  assert.ok(new URL(selectedLink).searchParams.get('session') === sessionKey(arbitrary));
+  assert.match(new URL(selectedLink).searchParams.get('invocation'), /^[a-f0-9]{64}$/);
+  assert.ok(!selectedLink.includes('window.hostile'));
+  buttons().find(b => b.textContent === 'More invocations').click();
+  await wait(() => callButtons().length === 55);
+  assert.equal(dom.window.location.href, selectedLink, 'pagination preserves selection and deep link');
+  assert.ok(document.querySelector('[aria-label="Invocation detail"]'));
+  const beforePoll = requests.length;
+  await wait(() => requests.length >= beforePoll + 6);
+  assert.equal(callButtons().length, 55, 'live polling preserves loaded pages');
+  assert.equal(document.querySelectorAll('nav button strong').length, 1, 'live polling preserves the project filter');
+  assert.equal(dom.window.location.href, selectedLink, 'live polling preserves the deep link');
+  // Reload directly into a call that is not on the first timeline page.
+  dom.window.history.replaceState(null, '', `/?session=${sessionKey(arbitrary)}&invocation=${sessionKey('page-0')}`);
+  dom.window.dispatchEvent(new dom.window.PopStateEvent('popstate'));
+  await wait(() => document.querySelector('article')?.textContent.includes('page-0'));
+  assert.ok(document.querySelector('article')?.textContent.includes(arbitrary));
+  dom.window.history.replaceState(null, '', '/?session=../../unsafe&invocation=bad');
+  dom.window.dispatchEvent(new dom.window.PopStateEvent('popstate'));
+  await wait(() => document.querySelector('[role="alert"]'));
+  assert.ok(document.querySelector('[role="alert"]').textContent.includes('Invalid'));
+  dom.window.history.replaceState(null, '', '/'); dom.window.dispatchEvent(new dom.window.PopStateEvent('popstate'));
+  await wait(() => !document.querySelector('[role="alert"]'));
+  filter.value = '/no-recordings'; filter.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  buttons().find(b => b.textContent === 'Filter projects').click();
+  await wait(() => document.body.textContent.includes('No recorded sessions for this project.'));
+  buttons().find(b => b.textContent === 'All projects').click();
+  await wait(() => buttons().some(b => b.querySelector('strong')?.textContent === arbitrary));
+  const realFetch = dom.window.fetch;
+  dom.window.fetch = async () => new Response('', { status: 503 });
+  buttons().find(b => b.textContent === 'Refresh sessions').click();
+  await wait(() => document.querySelector('[role="alert"]')?.textContent.includes('503'));
+  dom.window.fetch = realFetch;
+  buttons().find(b => b.textContent === 'Refresh sessions').click();
+  await wait(() => !document.querySelector('[role="alert"]'));
+  const linked = new JSDOM(html, { url: `${app.origin}/?session=${sessionKey(arbitrary)}&invocation=${sessionKey('page-0')}`, runScripts: 'outside-only', pretendToBeVisual: true });
+  try {
+    linked.window.fetch = realFetch; linked.window.eval(script);
+    for (let n = 0; n < 100 && !linked.window.document.querySelector('[aria-label="Invocation detail"]'); n++) await new Promise(r => setTimeout(r, 20));
+    assert.ok(linked.window.document.querySelector('article').textContent.includes('page-0'), 'fresh launch restores a deep-linked call beyond the first page');
+  } finally { linked.window.close(); }
   console.log('PASS: production client browses retained assessments without authentication; hostile evidence remains inert.');
   assert.equal(document.querySelector('[role="alert"]'), null);
 } finally {

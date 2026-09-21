@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { open, readdir, rename, rm } from 'node:fs/promises';
+import { open, readdir, realpath, rename, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { type ArchiveRecord, type RecordingIdentity, type RecordingSink, validRecord } from './contract.js';
@@ -24,6 +24,7 @@ export class ArchiveWriter {
   private dropped = 0;
   private written = 0;
   private closed = false;
+  private projects = new Map<string, Promise<string>>();
   constructor(readonly config: RecordingConfig, private limits = { events: 64, bytes: 16 * 1024 * 1024 }, private onChange?: () => void) {}
   private changed(): void { queueMicrotask(() => { try { this.onChange?.(); } catch { /* Owner UI is also best-effort. */ } }); }
   health() { return { ...this.config, failed: this.failed, dropped: this.dropped, written: this.written, pending: this.queue.length }; }
@@ -47,13 +48,20 @@ export class ArchiveWriter {
       const item = this.queue[0]!;
       let temporary: string | undefined;
       try {
+        let project = this.projects.get(item.record.cwd);
+        if (!project) {
+          project = realpath(item.record.cwd).catch(() => item.record.cwd);
+          this.projects.set(item.record.cwd, project);
+        }
+        const text = JSON.stringify({ ...JSON.parse(item.text), project: await project });
+        if (Buffer.byteLength(text) > MAX_RECORD_BYTES) throw new Error('record-too-large');
         await ensureArchive(this.config.directory);
         const folder = join(this.config.directory, sessionKey(item.record.sessionId));
         await directory(folder, true);
         const name = `${this.writerId}-${String(item.record.sequence).padStart(12, '0')}-${item.record.eventId}`;
         temporary = join(folder, `${name}.tmp`);
         const handle = await open(temporary, 'wx', 0o600);
-        try { await handle.writeFile(item.text); } finally { await handle.close(); }
+        try { await handle.writeFile(text); } finally { await handle.close(); }
         await rename(temporary, join(folder, `${name}.json`));
         this.written++;
       } catch { this.failed++; }
