@@ -44,6 +44,14 @@ Rebased onto `origin/main` at `3017c95`, retaining KVG-5170/5171/5172 behavior: 
 
 Post-merge verification: 202 Bun tests, three smoke tests, production DOM/HTTP tests, TypeScript checks, Svelte checks (zero errors/warnings), and `git diff --check` all passed.
 
+## Follow-up simplification and startup
+
+The owner requested a quieter inspector UI. Capture status and recording identity now share one collapsed section. Gate identifiers and question version/reference metadata remain available behind labeled details controls. Repeated validated-status lines, no-gate row descriptions and the redundant dock snapshot label are omitted from the default view. Failure/incomplete states, lifecycle fields, confidence warnings, all distributions and Rich / JSON remain available. No recorded payload content was changed.
+
+Standalone startup and Vite now prefer port 52320, with sequential fallback when occupied. The standalone listener retries up to 20 subsequent ports; its API remains strict by default for explicit-port callers. Regression coverage checks occupied-port fallback and preferred-port reuse.
+
+Latest verification: 203 Bun tests, three smoke tests, production DOM/HTTP tests, typecheck, Svelte check (zero errors/warnings), and diff checks pass. Playwright was retried but still times out attaching to Arc; all six browser cases were skipped after setup failed. Existing screenshots predate this simplification; no fresh visual verification is claimed.
+
 ## Redesign finish status
 
 The approved direction contract is `.impeccable/surfaces/inspector-src-app-svelte.md`, seed `5c4b72e9`, owner-selected Decision debugger, code-led.

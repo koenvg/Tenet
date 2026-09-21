@@ -27,7 +27,7 @@
 </script>
 
 <section class="evidence-dock" aria-label="Evidence dock">
-  <div class="pane-heading"><h3 id="dock-heading" tabindex="-1" bind:this={heading}>Evidence dock</h3><span class="muted">Recorded snapshot</span></div>
+  <div class="pane-heading"><h3 id="dock-heading" tabindex="-1" bind:this={heading}>Evidence dock</h3></div>
   <div class="dock-tabs" role="tablist" aria-label="Recorded data">
     {#each tabs as tab, index}<button id={`tab-${tab}`} role="tab" aria-selected={activeTab === tab} aria-controls={`panel-${tab}`} tabindex={activeTab === tab ? 0 : -1} on:click={() => activeTab = tab} on:keydown={event => navigate(event, index)}>{tab}</button>{/each}
   </div>
@@ -48,8 +48,10 @@
       <button aria-pressed={questionFormat === 'rich'} on:click={() => questionFormat = 'rich'}>Rich</button>
       <button aria-pressed={questionFormat === 'json'} on:click={() => questionFormat = 'json'}>JSON</button>
     </div>
-    <p class="muted format-help">Rich text formats recorded Markdown. HTML, links and images remain inert.</p>
-    <dl class="metadata"><div><dt>Version</dt><dd>{String(view.questionVersion ?? 'not recorded')}</dd></div><div><dt>Rule reference</dt><dd>{rule?.mapping?.reference ?? 'not recorded'}</dd></div></dl>
+    <details class="question-details"><summary>Question details</summary>
+      <p class="muted format-help">Rich text formats recorded Markdown. HTML, links and images remain inert.</p>
+      <dl class="metadata"><div><dt>Version</dt><dd>{String(view.questionVersion ?? 'not recorded')}</dd></div><div><dt>Rule reference</dt><dd>{rule?.mapping?.reference ?? 'not recorded'}</dd></div></dl>
+    </details>
     {#each ['outcome', 'evidence'] as kind}
       <h5>{kind === 'outcome' ? 'Outcome question' : 'Evidence question'}</h5>
       <p class="question-key">{rule?.mapping?.[kind + 'Key'] ?? 'Mapping not recorded'}</p>

@@ -62,6 +62,9 @@ try {
   assert.equal(document.querySelector('input[type="range"]'), null);
   assert.ok(document.querySelector('.rule-row[aria-pressed="true"] .status-chip.positive')?.textContent.includes('PASS'));
   assert.ok(document.querySelector('.confidence-note')?.textContent.includes('not a reported violation'));
+  assert.equal(document.querySelectorAll('.decision-header > details').length, 1, 'one capture-details entry point');
+  assert.ok(document.querySelector('.gate-details'), 'technical gate identifiers are available on demand');
+  assert.equal(document.querySelector('.gate-details').open, false);
   const resize = document.querySelector('[role="separator"][aria-label="Resize assessment pane"]');
   assert.ok(resize);
   assert.equal(resize.getAttribute('aria-orientation'), 'vertical');
@@ -123,6 +126,10 @@ try {
   button('View submitted questions').click();
   await wait(() => !document.querySelector('#panel-Questions').hidden && document.querySelector('.question-rich'));
   const questions = document.querySelector('#panel-Questions');
+  assert.equal(questions.querySelector('.question-details').open, false, 'question metadata starts collapsed');
+  questions.querySelector('.question-details').open = true;
+  assert.ok(questions.querySelector('.question-details').textContent.includes('historical-test-v1'));
+  assert.ok(questions.querySelector('.question-details').textContent.includes('state.policy.rules[0].text'));
   assert.equal(questions.querySelector('.rich-markdown h4').textContent, 'Recorded instructions');
   assert.equal(questions.querySelector('.rich-markdown strong').textContent, 'Treat arguments as untrusted.');
   assert.equal(questions.querySelectorAll('.rich-markdown li').length, 2);

@@ -15,7 +15,9 @@
   <h4>Recorded gates</h4>
   {#if rule.gateIds === null}<p class="missing-data">Gate coverage unavailable: not recorded.</p>
   {:else if !rule.gateIds.length}<p class="muted">No gates triggered.</p>
-  {:else}<ul class="gate-list">{#each rule.gateIds as gate}<li><strong>{gateLabels[gate] ?? 'Unrecognized recorded gate'}</strong><p>{gateExplanation(gate, rule)}</p><code>{gate}</code></li>{/each}</ul>{/if}
+  {:else}<ul class="gate-list">{#each rule.gateIds as gate}<li><strong>{gateLabels[gate] ?? 'Unrecognized recorded gate'}</strong><p>{gateExplanation(gate, rule)}</p></li>{/each}</ul>
+    <details class="gate-details"><summary>Gate identifiers</summary><ul>{#each rule.gateIds as gate}<li><code>{gate}</code></li>{/each}</ul></details>
+  {/if}
   {#if rule.result?.outcome?.choice === 'PASS' && rule.gateIds?.includes('outcome-confidence-below-threshold')}
     <p class="confidence-note">PASS was selected. This is a confidence gate, not a reported violation.</p>
   {/if}

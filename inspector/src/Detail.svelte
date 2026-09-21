@@ -24,17 +24,20 @@
   <header class="decision-header">
     <div class="decision-title"><h2>{view.identity?.toolName ?? 'Invocation'} <span>{view.identity?.callId}</span></h2><StatusChip value={view.decision} label={view.decision === 'unavailable' ? 'Decision unavailable' : `Would ${view.decision}`} /></div>
     <p class="decision-explanation" aria-label="Decision explanation">{explainDecision(view)}</p>
-    <p class="assessment-status">{#if view.assessmentStatus === 'failed'}Assessment failed: {view.failure}.
-      {:else if view.assessmentStatus === 'incomplete'}Assessment incomplete. No validated result was recorded; the call may still be in progress or recording may have stopped.
-      {:else}Assessment validated.{/if}</p>
+    {#if view.assessmentStatus !== 'validated'}<p class="assessment-status">{#if view.assessmentStatus === 'failed'}Assessment failed: {view.failure}.
+      {:else}Assessment incomplete. No validated result was recorded; the call may still be in progress or recording may have stopped.{/if}</p>{/if}
     <dl class="lifecycle">
       <div><dt>Mode</dt><dd>{view.identity?.mode ?? 'unknown'}</dd></div>
       <div><dt>Permission</dt><dd>{view.permission}</dd></div>
       <div><dt>Execution</dt><dd>{view.execution}</dd></div>
       <div><dt>Approval</dt><dd>{view.approval}</dd></div>
     </dl>
-    <details class="capture-details"><summary>{view.missing.length ? `${view.missing.length} missing stages` : 'Capture details'} · {view.requestStatus}</summary><p>{view.coverage}</p><p>Missing stages: {view.missing.join(', ') || 'none observed'}. Recorded reason: {view.reason}.</p></details>
-    <details class="capture-details"><summary>Recording identity</summary><p>Session {view.identity?.sessionId}<br />Invocation {view.identity?.invocationId}</p></details>
+    <details class="capture-details"><summary>Capture details{view.missing.length ? ` · ${view.missing.length} missing stages` : ''}</summary>
+      <p>{view.requestStatus}. {view.coverage}</p>
+      {#if view.assessmentStatus === 'validated'}<p>Assessment validated.</p>{/if}
+      <p>Missing stages: {view.missing.join(', ') || 'none observed'}. Recorded reason: {view.reason}.</p>
+      <p>Session {view.identity?.sessionId}<br />Invocation {view.identity?.invocationId}</p>
+    </details>
   </header>
   <div class="debugger-panes" style:--assessment-share={`${assessmentShare}%`}>
     <section id="assessment-pane" class="assessment-pane" aria-label="Assessment pane">
@@ -44,7 +47,7 @@
           <button class="rule-row" aria-pressed={item.id === rule?.id} on:click={() => selected = item.id}>
             <span class="rule-row-top"><strong>{ruleName(item)}</strong><span>{item.enforcement}</span><StatusChip value={item.result?.outcome?.choice ?? 'Unavailable'} /></span>
             <span class="rule-text">{item.text}</span>
-            <span class="rule-finding">{item.gateIds?.length ? item.gateIds.map((g: string) => gateLabels[g] ?? g).join(' · ') : item.contribution.includes('approval') ? 'Approval requirement' : item.gateIds === null ? 'Gates not recorded' : 'No triggered gates'}</span>
+            {#if item.gateIds?.length || item.contribution.includes('approval') || item.gateIds === null}<span class="rule-finding">{item.gateIds?.length ? item.gateIds.map((g: string) => gateLabels[g] ?? g).join(' · ') : item.contribution.includes('approval') ? 'Approval requirement' : 'Gates not recorded'}</span>{/if}
           </button>
         {/each}
         {#if !rules.length}<p class="empty-inline">No rule snapshot recorded. Inspect the response and capture details for available information.</p>{/if}

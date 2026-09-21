@@ -204,7 +204,7 @@
           <span class="call-id">{item.callId}</span>
           <span class="call-state"><StatusChip value={item.decision} /><span>{item.permission}</span><span>{item.mode}</span></span>
           <span class="call-execution">Execution: {item.execution}</span>
-          <small>{item.failure ?? (item.assessmentStatus === 'incomplete' ? 'Assessment incomplete' : 'Assessment validated')}</small>
+          {#if item.failure || item.assessmentStatus === 'incomplete'}<small>{item.failure ?? 'Assessment incomplete'}</small>{/if}
           {#if item.missing.length}<span class="call-execution">Incomplete capture · {item.missing.length} missing stages</span>{/if}
         </button>
       {/each}

@@ -101,7 +101,9 @@ dd { margin: 0; font-size: .85rem; font-weight: 600; }
 .gate-list li { padding: .6rem 0; border-bottom: 1px solid var(--line); }
 .gate-list strong { font-size: .85rem; }
 .gate-list p { margin: .25rem 0; }
-.gate-list code { color: var(--muted); font-size: .7rem; }
+.gate-details, .question-details { margin-top: .65rem; color: var(--muted); font-size: .8rem; }
+.gate-details ul { padding-left: 1.25rem; margin: .5rem 0; }
+.gate-details code { font-size: .75rem; }
 .confidence-note, .missing-data { color: var(--amber); background: var(--amber-bg); padding: .7rem; font-size: .85rem; margin: .7rem 0; }
 .distributions { display: grid; gap: 1.1rem; margin-top: 1.25rem; }
 table { width: 100%; border-collapse: collapse; font-size: .8rem; font-variant-numeric: tabular-nums; }

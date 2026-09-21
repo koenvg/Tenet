@@ -177,7 +177,7 @@ bun run inspector:build
 bun run inspector:serve
 ```
 
-Open the printed loopback URL in Arc. There is no authentication, token or authentication flag. Plain URLs and reloads work directly. Any local process can read the archive. Loopback binding, Host/Origin checks and read-only routing remain enabled.
+Open the printed loopback URL in Arc. The standalone inspector, Vite development server and Vite preview always try `http://127.0.0.1:52320/` first, then successive ports if occupied. Use `bun run inspector` for the full UI and archive API. There is no authentication, token or authentication flag. Plain URLs and reloads work directly. Any local process can read the archive. Loopback binding, Host/Origin checks and read-only routing remain enabled.
 
 Choose a session, an invocation, then a rule. The view shows the recorded policy, actual application-level questions and choices, bounded/redacted submitted state, SDK response, validation and deterministic decision. All rules, including passing rules and built-in integrity, are selectable. Evidence and response text are inert. Mode, would-decision, permission and observed execution are separate. Missing stages stay unknown; a released call is not proof of execution.
 
