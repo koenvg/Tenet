@@ -46,7 +46,7 @@ async function host(options: { judge?: Judge; env?: Record<string, string>; fail
       records.push(data);
     },
   } as unknown as ExtensionAPI;
-  registerGuard(pi, { env: { TENET_MODE: 'enforce', ...options.env }, judge: async (request, signal) => {
+  registerGuard(pi, { env: { TENET_RECORDING: 'off', TENET_MODE: 'enforce', ...options.env }, judge: async (request, signal) => {
     requests.push(request);
     return options.judge ? options.judge(request, signal) : answer(request.policy, 'APPROVAL_REQUIRED');
   } });

@@ -171,7 +171,7 @@ bun run inspector:build
 bun run inspector
 ```
 
-Open the printed private loopback URL in Arc. Its per-launch token is in the URL fragment, not a query parameter. The app removes it and keeps it only in memory. Reloading requires opening the launch URL again. The API requires authorization and rejects unexpected Host and Origin values. Do not share the launch URL.
+Open the printed loopback URL in Arc. There is no authentication, token or authentication flag. Plain URLs and reloads work directly. Any local process can read the archive. Loopback binding, Host/Origin checks and read-only routing remain enabled.
 
 Choose a session, an invocation, then a rule. The view shows the recorded policy, actual application-level questions and choices, bounded/redacted submitted state, SDK response, validation and deterministic decision. All rules, including passing rules and built-in integrity, are selectable. Evidence and response text are inert. Mode, would-decision, permission and observed execution are separate. Missing stages stay unknown; a released call is not proof of execution.
 
@@ -200,7 +200,7 @@ bun run inspector:check
 bun run inspector:test
 ```
 
-The UI test builds the production Svelte client and exercises it in a DOM against the authenticated local server, using scripted SDK transport and persisted pass/concern records. It makes no live provider calls.
+The UI test builds the production Svelte client and exercises it in a DOM against the local server, using scripted SDK transport and persisted pass/concern records. It makes no live provider calls.
 
 ## Data disclosure and audit
 

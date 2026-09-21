@@ -4,6 +4,7 @@ import { INTEGRITY_ID } from './policy.js';
 import { blockingDiagnostics } from './diagnostics.js';
 import { boundEvidence } from './judge-evidence.js';
 import type { Trajectory, EvidenceLimits } from './contracts.js';
+import type { RecordingSink } from '../recording/contract.js';
 
 export const QUESTION_VERSION = 'policy-rules-v3-trajectory';
 export const MODEL = 'jev-latest';
@@ -48,7 +49,7 @@ export function validateAssessment(value: unknown, policy: PolicySet): Assessmen
 
 export async function decide(options: {
   policy: Policy; action: Action; cwd: string; judge: Judge; config?: Partial<Config>; clock?: Clock; signal?: AbortSignal;
-  trajectory?: Trajectory; evidenceLimits?: EvidenceLimits;
+  trajectory?: Trajectory; evidenceLimits?: EvidenceLimits; recording?: RecordingSink;
 }): Promise<Decision> {
   const { policy, action, cwd, judge, signal } = options;
   const clock = options.clock ?? clockDefault;
@@ -76,7 +77,7 @@ export async function decide(options: {
     });
     const raw = await Promise.race([interrupted, Promise.resolve().then(() => {
       if (controller.signal.aborted) throw new JudgeFailure(signal?.aborted ? 'cancelled' : 'timeout');
-      return judge(request, controller.signal);
+      return judge(request, controller.signal, options.recording);
     })]);
     if (signal?.aborted) return result('BLOCK', 'cancelled');
     if (clock.now() - start >= config.deadlineMs) { controller.abort(); return result('BLOCK', 'timeout'); }

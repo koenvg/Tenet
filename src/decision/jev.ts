@@ -3,21 +3,27 @@ import { JudgeFailure, type Judge } from './contracts.js';
 import { MODEL, probability, validateAssessment } from './decide.js';
 import { judgeState } from './judge-evidence.js';
 import { assessmentEntries, buildQuestions } from './questions.js';
+import { capture, responseSnapshot } from '../recording/contract.js';
+import { freeze } from './evidence.js';
+import { QUESTION_VERSION } from './decide.js';
 
 export function createJevJudge(options: { apiKey?: string; fetch?: Fetch }): Judge {
   let client: TypeSafeClient | undefined;
-  return async (request, signal) => {
-    if (!options.apiKey?.trim()) throw new JudgeFailure('missing-credentials');
+  return async (request, signal, recording) => {
+    if (!options.apiKey?.trim()) {
+      capture(recording, 'validation', () => ({ valid: false, reason: 'missing-credentials', request: 'not-submitted' }));
+      throw new JudgeFailure('missing-credentials');
+    }
     try {
       // Explicit destination, model, logging and retry policy prevent SDK env overrides.
       client ??= new TypeSafeClient({ apiKey: options.apiKey, baseURL: 'https://api.typesafe.ai',
         defaultModel: MODEL, logLevel: 'off', retry: { maxRetries: 0 }, fetch: options.fetch });
       const entries = assessmentEntries(request.policy);
       const questions = buildQuestions(request.policy);
-      const raw = await client.systemOne({ model: MODEL,
-        state: judgeState(request),
-        questions,
-      }, { signal, timeout: request.deadlineMs, retry: { maxRetries: 0 } });
+      const payload = freeze({ model: MODEL, state: judgeState(request), questions });
+      capture(recording, 'request', () => ({ payload, policy: request.policy, mapping: entries, questionVersion: QUESTION_VERSION }));
+      const raw = await client.systemOne(payload, { signal, timeout: request.deadlineMs, retry: { maxRetries: 0 } });
+      capture(recording, 'response', () => responseSnapshot(raw));
       if (!raw || typeof raw !== 'object' || !raw.answers || typeof raw.answers !== 'object' || Array.isArray(raw.answers)
           || Object.keys(raw.answers).length !== Object.keys(questions).length
           || !Object.keys(questions).every(key => Object.hasOwn(raw.answers, key))) throw new JudgeFailure('invalid-response');
@@ -27,12 +33,15 @@ export function createJevJudge(options: { apiKey?: string; fetch?: Fetch }): Jud
             || !probability(outcome.confidence) || !probability(evidence.confidence)) throw new JudgeFailure('invalid-response');
         return { ruleId: entry.id, outcome, evidence };
       });
-      return validateAssessment({ model: raw.model, rules }, request.policy);
+      const assessment = validateAssessment({ model: raw.model, rules }, request.policy);
+      capture(recording, 'validation', () => ({ valid: true, assessment }));
+      return assessment;
     } catch (error) {
-      if (error instanceof JudgeFailure) throw error;
-      if (signal.aborted || error instanceof APIUserAbortError) throw new JudgeFailure('cancelled');
-      if (error instanceof APITimeoutError) throw new JudgeFailure('timeout');
-      throw new JudgeFailure('provider-error');
+      const failure = error instanceof JudgeFailure ? error
+        : new JudgeFailure(signal.aborted || error instanceof APIUserAbortError ? 'cancelled'
+          : error instanceof APITimeoutError ? 'timeout' : 'provider-error');
+      capture(recording, 'validation', () => ({ valid: false, reason: failure.reason }));
+      throw failure;
     }
   };
 }
