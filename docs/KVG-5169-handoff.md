@@ -52,6 +52,8 @@ Standalone startup and Vite now prefer port 52320, with sequential fallback when
 
 After the owner reconnected Arc, all six Vitest/Playwright browser tests passed. A first combined desktop/mobile pass identified stretched probability rows and concatenated inert HTML examples; one fix batch aligned table rows, separated literal HTML blocks, shortened helper text and clarified finding counts. The confirmation pass passed with new captures in `.impeccable/review/playwright/`. Local browser-extension script requests are blocked but excluded from external-network assertions. Production DOM/HTTP tests, typecheck and Svelte check (zero errors/warnings) also pass. Earlier Arc-blocker entries above describe prior attempts, not the current state.
 
+Further owner feedback reduced the decision header to tool, would-decision and actual execution/mode. Call IDs, explanation, permission, approval and capture metadata remain under Decision details; failed/incomplete assessment notices remain visible. Assessment typography now uses larger rule text, two-line rule previews, clearer headings, 14px probability tables and roomier row spacing. Production UI tests and all six Arc browser tests pass, with refreshed desktop/mobile captures.
+
 ## Redesign finish status
 
 The approved direction contract is `.impeccable/surfaces/inspector-src-app-svelte.md`, seed `5c4b72e9`, owner-selected Decision debugger, code-led.

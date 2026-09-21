@@ -22,17 +22,18 @@
 
 <section class="invocation" aria-label="Invocation detail">
   <header class="decision-header">
-    <div class="decision-title"><h2>{view.identity?.toolName ?? 'Invocation'} <span>{view.identity?.callId}</span></h2><StatusChip value={view.decision} label={view.decision === 'unavailable' ? 'Decision unavailable' : `Would ${view.decision}`} /></div>
-    <p class="decision-explanation" aria-label="Decision explanation">{explainDecision(view)}</p>
+    <div class="decision-title"><h2>{view.identity?.toolName ?? 'Invocation'} <span class="visually-hidden">{view.identity?.callId}</span></h2><StatusChip value={view.decision} label={view.decision === 'unavailable' ? 'Decision unavailable' : `Would ${view.decision}`} /><p class="execution-summary">Execution: {view.execution} · {view.identity?.mode ?? 'unknown'} mode</p></div>
     {#if view.assessmentStatus !== 'validated'}<p class="assessment-status">{#if view.assessmentStatus === 'failed'}Assessment failed: {view.failure}.
       {:else}Assessment incomplete. No validated result was recorded; the call may still be in progress or recording may have stopped.{/if}</p>{/if}
+    <details class="capture-details"><summary>Decision details{view.missing.length ? ` · ${view.missing.length} missing stages` : ''}</summary>
+      <p class="decision-explanation" aria-label="Decision explanation">{explainDecision(view)}</p>
+      <p>Call {view.identity?.callId}</p>
     <dl class="lifecycle">
       <div><dt>Mode</dt><dd>{view.identity?.mode ?? 'unknown'}</dd></div>
       <div><dt>Permission</dt><dd>{view.permission}</dd></div>
       <div><dt>Execution</dt><dd>{view.execution}</dd></div>
       <div><dt>Approval</dt><dd>{view.approval}</dd></div>
     </dl>
-    <details class="capture-details"><summary>Capture details{view.missing.length ? ` · ${view.missing.length} missing stages` : ''}</summary>
       <p>{view.requestStatus}. {view.coverage}</p>
       {#if view.assessmentStatus === 'validated'}<p>Assessment validated.</p>{/if}
       <p>Missing stages: {view.missing.join(', ') || 'none observed'}. Recorded reason: {view.reason}.</p>

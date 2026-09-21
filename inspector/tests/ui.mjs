@@ -63,6 +63,8 @@ try {
   assert.ok(document.querySelector('.rule-row[aria-pressed="true"] .status-chip.positive')?.textContent.includes('PASS'));
   assert.ok(document.querySelector('.confidence-note')?.textContent.includes('not a reported violation'));
   assert.equal(document.querySelectorAll('.decision-header > details').length, 1, 'one capture-details entry point');
+  assert.ok(document.querySelector('.capture-details .lifecycle'), 'lifecycle details are grouped under disclosure');
+  assert.ok(document.querySelector('.execution-summary')?.textContent.includes('Execution:'));
   assert.ok(document.querySelector('.gate-details'), 'technical gate identifiers are available on demand');
   assert.equal(document.querySelector('.gate-details').open, false);
   const resize = document.querySelector('[role="separator"][aria-label="Resize assessment pane"]');
