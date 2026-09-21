@@ -177,7 +177,17 @@ bun run inspector:build
 bun run inspector:serve
 ```
 
-Open the printed loopback URL in Arc. The standalone inspector, Vite development server and Vite preview always try `http://127.0.0.1:52320/` first, then successive ports if occupied. Use `bun run inspector` for the full UI and archive API. There is no authentication, token or authentication flag. Plain URLs and reloads work directly. Any local process can read the archive. Loopback binding, Host/Origin checks and read-only routing remain enabled.
+Run these commands from the repository root with Bun 1.3.14 or newer. Keep `inspector/dist` beside `src` after building. Production launch serves those built assets, not Vite, and requires neither Pi nor `TYPESAFE_API_KEY`. Stop it with Ctrl+C. Rebuild after frontend changes.
+
+To browse a non-default archive, use the same absolute directory configured for the Pi writer:
+
+```sh
+TENET_RECORDING_DIR=/absolute/private/archive bun run inspector:serve
+```
+
+You can leave the inspector closed while Pi records. Open it later, select the retained session and call, then inspect each rule's contribution, questions, evidence and response. Resume that same Pi session to see new calls and stages arrive through polling. A fork creates a different session. The inspector cannot approve, retry, execute tools, edit policy or call a provider.
+
+Open the printed loopback URL in Arc. The production server chooses an available port. The Vite development server and Vite preview try `http://127.0.0.1:52320/` first, then successive ports if occupied. There is no authentication, token or authentication flag. Plain URLs and reloads work directly. Any local process can read the archive. Loopback binding, Host/Origin checks and read-only routing remain enabled.
 
 Choose a session, an invocation, then a rule. The view shows the recorded policy, actual application-level questions and choices, bounded/redacted submitted state, SDK response, validation and deterministic decision. All rules, including passing rules and built-in integrity, are selectable. Evidence and response text are inert. Mode, would-decision, permission and observed execution are separate. Missing stages stay unknown; a released call is not proof of execution.
 
@@ -210,9 +220,13 @@ Additional offline verification:
 ```sh
 bun run inspector:check
 bun run inspector:test
+bun test test/standalone-workflow.test.ts
+bun run inspector:test:browser
 ```
 
 The UI test builds the production Svelte client and exercises it in a DOM against the local server, using scripted SDK transport and persisted pass, concern and failure records. It restarts the reader and checks incomplete history, truncation, unavailable responses, recording issues and capture health. It makes no live provider calls.
+
+The integrated workflow test records passes, concerns and provider failure with the reader closed, restarts the reader, resumes the same session and compares historical questions and evidence with the scripted SDK payload. It checks live permission and execution stages separately. The browser suite connects only to the owner's existing Arc debugging endpoint at `http://127.0.0.1:9222`, or `TENET_BROWSER_CDP_URL`. A connection failure blocks browser verification; DOM checks are not a visual substitute.
 
 ## Data disclosure and audit
 

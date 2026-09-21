@@ -34,7 +34,9 @@ KVG-5172 adds cross-project browsing, bounded metadata indexing and resumed/conc
 
 ## 5. Documentation and end-to-end verification
 
-- [ ] 5.1 Document default-on sensitive persistence, storage location, opt-out, owner-only limitations, standalone launch, project/session navigation and manual removal; verify every documented command and configuration example against the implementation.
-- [ ] 5.2 Add an offline end-to-end fixture that records calls with the inspector stopped, restarts the reader and resumes the same session; verify retained exact evidence, all-rule inspection and new live stages with no provider network calls.
+- [x] 5.1 Document default-on sensitive persistence, storage location, opt-out, owner-only limitations, standalone launch, project/session navigation and manual removal; verify every documented command and configuration example against the implementation.
+- [x] 5.2 Add an offline end-to-end fixture that records calls with the inspector stopped, restarts the reader and resumes the same session; verify retained exact evidence, all-rule inspection and new live stages with no provider network calls.
 - [x] 5.3 Run the full Bun tests, Pi smoke tests, typecheck, frontend checks/build and diff checks; record results and any unsupported runtime or browser coverage explicitly.
 - [ ] 5.4 Inspect synthetic live and historical sessions in the owner's Arc browser, including rule selection and hostile evidence rendering; record the visual verification or an explicit Arc-connection blocker without substituting another browser unapproved.
+
+KVG-5173 verification and the Arc CDP connection blocker are recorded in `docs/KVG-5173-handoff.md`. Visual acceptance remains open.
