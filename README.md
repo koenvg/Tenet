@@ -2,6 +2,8 @@
 
 A TypeScript POC for Pi 0.85.1. Every exposed tool call follows the same rule-evaluation path through Jev using the official `@typesafe-ai/sdk` 0.6.0. No tool allowlists, tool-family mappings or replacement executors.
 
+**New persistence default:** TENET saves submitted assessment evidence locally, including passes. Strings can contain source code or secrets. Set `TENET_RECORDING=off` before starting Pi to opt out. See [Local decision inspector](#local-decision-inspector).
+
 The original KVG-5093 publication slice is extended by configurable policy rules, KVG-5094's bounded recent observations and KVG-5095's invocation-bound approval. No subprocess inspection or OS sandbox.
 
 ## Observe first, enforce later
@@ -159,6 +161,47 @@ Example: `TENET_SENSITIVE_FIELDS='["customerSecret","internalPayload"]'`. Field 
 
 Retries are disabled. Cancellation reaches the SDK, and a late response cannot change a blocked decision. Requests use `jev-latest`, which is a provider alias rather than an immutable release. Audit entries retain requested and returned model identities. SDK logging is disabled and the destination is the official TypeSafe endpoint.
 
+## Local decision inspector
+
+TENET records assessments by default in `~/.tenet/recordings`, independently of whether the inspector is running. `TENET_RECORDING_DIR=/absolute/path` selects another archive. Paths must be absolute and have no symlink components. Existing archive directories must be owner-only; unsafe paths disable writes rather than being repaired silently. Recording settings are separate from enforcement settings.
+
+```sh
+bun install --frozen-lockfile
+bun run inspector:build
+bun run inspector
+```
+
+Open the printed private loopback URL in Arc. Its per-launch token is in the URL fragment, not a query parameter. The app removes it and keeps it only in memory. Reloading requires opening the launch URL again. The API requires authorization and rejects unexpected Host and Origin values. Do not share the launch URL.
+
+Choose a session, an invocation, then a rule. The view shows the recorded policy, actual application-level questions and choices, bounded/redacted submitted state, SDK response, validation and deterministic decision. All rules, including passing rules and built-in integrity, are selectable. Evidence and response text are inert. Mode, would-decision, permission and observed execution are separate. Missing stages stay unknown; a released call is not proof of execution.
+
+The standalone server reads the archive without Pi or evaluator credentials. Close Pi, then run the same inspector command to inspect retained assessments. This initial slice uses manual session refresh and paginated lists. Project filtering, deep links, live polling and lazy archive indexing remain later work in the parent change. The current reader scans stage files on each request, so large archives will be slower.
+
+### Sensitive local storage
+
+Submitted strings may contain secrets despite field redaction. Capture preserves the exact submitted application payload; it does not reconstruct omitted history or record transport headers/API configuration credentials. SDK response snapshots have a 1 MiB limit and explicit truncation markers. Records have a 4 MiB limit. Oversized or unserializable records are dropped and counted, never silently labeled exact.
+
+Directories use mode `0700`, files `0600`. This is unencrypted owner-restricted storage, not protection against an agent or another process running as that owner. Archive content and capture-health reports are not added to Pi messages, tool output or evaluator history. Existing safe Pi custom records retain their separate format.
+
+The asynchronous queue allows 64 pending records and 16 MiB total. Capture failures do not change enforcement, approval or permission. Owner UI shows the archive location and loss/pending counters. Normal shutdown drains for up to one second. A crash, full disk or exhausted queue can leave incomplete history. Records are best-effort diagnostics, not a transactional audit log.
+
+To disable new capture without changing mode:
+
+```sh
+TENET_RECORDING=off bun run pi --no-extensions
+```
+
+Disabling capture does not delete old files. There is no automatic expiry. After stopping all Pi writers and the inspector, remove the archive directory yourself to delete retained evidence. For the default location, that directory is `~/.tenet/recordings`. Existing pre-feature Pi session files are not imported.
+
+Additional offline verification:
+
+```sh
+bun run inspector:check
+bun run inspector:test
+```
+
+The UI test builds the production Svelte client and exercises it in a DOM against the authenticated local server, using scripted SDK transport and persisted pass/concern records. It makes no live provider calls.
+
 ## Data disclosure and audit
 
 TypeSafe receives declared rule text, policy identity/paths, the host working directory, the built-in integrity constraint and a copied action snapshot: tool name, available description/schema, field-redacted arguments, identities, timestamp, original-argument digest and limitations. Bounded chronological observations include earlier calls, text or structured results, decisions and native approval outcomes. Every observation carries session/call/tool identity, host origin and timestamp, with explicit missing-metadata markers.
@@ -196,3 +239,5 @@ Concurrent approval and lifecycle behavior have offline contract coverage. Adver
 ## Independent decision entry
 
 `src/decision/decide.ts` imports no Pi code. Call `decide({ policy, action, cwd, judge, ... })` with a loaded policy set, captured action and trusted host working directory. Offline callers inject a scripted `Judge`; deadline tests can inject a `Clock`. `createJevJudge` uses TypeSafe and makes live calls when invoked with credentials. ALLOW and ASK are decisions for the caller to enforce, not execution commands. Pi owns the policy freshness checks and native confirmation.
+
+hello
