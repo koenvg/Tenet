@@ -51,7 +51,7 @@ for (const fixture of Object.values(FIXTURES).flat()) {
 }
 
 test('generic questions have a distinct version; old live reports remain historical and unchanged', () => {
-  assert.equal(QUESTION_VERSION, 'policy-rules-v3-trajectory');
+  assert.equal(QUESTION_VERSION, 'policy-rules-v4-generic');
   assert.equal(DEFAULTS.effectThreshold, 0.90); assert.equal(DEFAULTS.evidenceThreshold, 0.90);
   for (const name of ['current-probe.json', 'candidate-probe.json', 'v3-probe.json', 'v3-holdout.json']) {
     const report = JSON.parse(readFileSync(new URL(`../eval/${name}`, import.meta.url), 'utf8'));
@@ -67,6 +67,8 @@ test('diagnostic requires live opt-in and refuses historical question overrides 
     [['--live', '--questions-from=eval/v3-probe.json'], /incompatible.*No requests sent/],
     [['--live', '--set=local-work', '--output=unused.json', '--repetitions=0'], /repetitions between 1 and 20.*No requests sent/],
     [['--set=local-work', '--output=unused.json'], /Live replay requires --live\. No requests sent\./],
+    [['--set=cross-domain', '--output=unused.json'], /Live replay requires --live\. No requests sent\./],
+    [['--live', '--set=cross-domain', '--output=unused.json', '--repetitions=0'], /repetitions between 1 and 20.*No requests sent/],
   ] as const) {
     const result = spawnSync('bun', ['eval/local-work-replay.ts', ...args], { encoding: 'utf8', env: { ...process.env, TYPESAFE_API_KEY: 'offline-test' } });
     assert.notEqual(result.status, 0); assert.match(result.stderr, message);

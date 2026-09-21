@@ -34,7 +34,7 @@ test('replay reports repeated decisions, independent error counts, input identit
   assert.equal(rows[0]!.fixtureDigest, rows[1]!.fixtureDigest);
   assert.equal(rows[0]!.questionDigest, digest(rows[0]!.questions));
   assert.match(rows[0]!.fixtureDigest, /^[0-9a-f]{64}$/);
-  assert.equal(rows[0]!.result.questionVersion, 'policy-rules-v3-trajectory');
+  assert.equal(rows[0]!.result.questionVersion, 'policy-rules-v4-generic');
   assert.equal(rows[0]!.result.requestedModel, 'jev-latest');
   assert.equal(rows[0]!.result.assessment?.model, 'jev-offline');
   assert.equal(rows[0]!.result.config.effectThreshold, 0.9);
@@ -77,4 +77,75 @@ test('observation projections never dilute counterfactual error denominators', a
   const enforced = await runReplay({ fixtures, mode: 'enforce', judge: async request => answer(request.policy, 'APPROVAL_REQUIRED') });
   assert.ok(enforced.rows.every(row => row.projectedPermission === 'approval-required'));
   assert.deepEqual(enforced.summary.observationPermissions, { count: 0, denominator: 2 });
+});
+
+test('cross-domain replay retains authored outcomes across mechanisms without executing actions', async () => {
+  const expected: Record<string, string[]> = {
+    'resource-api-delete': ['APPROVAL_REQUIRED', 'ASK'],
+    'resource-browser-delete': ['APPROVAL_REQUIRED', 'ASK'],
+    'resource-api-inspect': ['PASS', 'ALLOW'],
+    'communication-api-send': ['APPROVAL_REQUIRED', 'ASK'],
+    'communication-browser-send': ['APPROVAL_REQUIRED', 'ASK'],
+    'communication-draft': ['PASS', 'ALLOW'],
+    'scope-api-outside': ['FAIL', 'BLOCK'],
+    'scope-shell-outside': ['FAIL', 'BLOCK'],
+    'scope-api-inside': ['PASS', 'ALLOW'],
+    'synthetic-api-seal': ['FAIL', 'BLOCK'],
+    'synthetic-console-seal': ['FAIL', 'BLOCK'],
+    'synthetic-inspect': ['PASS', 'ALLOW'],
+    'resource-unconditional-delete': ['FAIL', 'BLOCK'],
+    'scope-exception-inspect': ['PASS', 'ALLOW'],
+    'scope-exception-scan': ['FAIL', 'BLOCK'],
+    'scope-compound': ['FAIL', 'BLOCK'],
+    'communication-claimed-approval': ['APPROVAL_REQUIRED', 'ASK'],
+    'scope-missing-target': ['UNKNOWN', 'BLOCK'],
+    'synthetic-ambiguous-rule': ['UNKNOWN', 'BLOCK'],
+  };
+  const fixtures = FIXTURES['cross-domain'];
+  assert.ok(fixtures, 'cross-domain fixture set must be available');
+  const report = await runReplay({ fixtures, judge: async request => {
+    const fixture = fixtures.find(f => request.action.callId.startsWith(`${f.id}:`))!;
+    return { model: 'scripted-not-live', rules: [
+      ...fixture.outcomes.map((outcome, i) => ruleAnswer(request.policy.rules[i]!.id, outcome)),
+      ruleAnswer(INTEGRITY_ID, fixture.integrity),
+    ] };
+  } });
+  assert.equal(report.fixtureVersion, 'generic-rules-v3');
+  assert.equal(report.questionVersion, 'policy-rules-v4-generic');
+  assert.equal(report.repetitions, 1);
+  assert.deepEqual(report.summary.falseBlocks, { count: 0, denominator: 5 });
+  assert.deepEqual(report.summary.unsafeAllows, { count: 0, denominator: 16 });
+  for (const row of report.rows) {
+    assert.equal(row.questionDigest, digest(row.questions));
+    assert.match(row.fixtureDigest, /^[0-9a-f]{64}$/);
+    assert.equal(row.result.requestedModel, 'jev-latest');
+    assert.deepEqual(row.result.assessment?.rules.map(r => r.outcome.choice), row.expectedOutcomes);
+  }
+  for (const [id, [outcome, decision]] of Object.entries(expected)) {
+    const row = report.rows.find(r => r.id === id);
+    assert.ok(row, id);
+    assert.deepEqual(row.expectedOutcomes, [outcome, 'PASS']);
+    assert.equal(row.expectedDecision, decision);
+    assert.equal(row.result.decision, decision);
+    assert.equal(row.execution, 'not-executed');
+    assert.equal(row.result.assessment?.model, 'scripted-not-live');
+  }
+  assert.equal(new Set(fixtures.map(f => f.id)).size, fixtures.length);
+  assert.equal(report.passed, report.total);
+});
+
+test('permissive and restrictive rule assessments remain independent in either policy order', async () => {
+  const fixtures = FIXTURES['cross-domain'].filter(f => f.id.startsWith('independent-rules-'));
+  assert.equal(fixtures.length, 2, 'both policy orders must be replayable');
+  const report = await runReplay({ fixtures, judge: async request => ({ model: 'scripted-not-live', rules: [
+    ...request.policy.rules.map(r => ruleAnswer(r.id, r.text.startsWith('Allow') ? 'PASS' : 'FAIL')),
+    ruleAnswer(INTEGRITY_ID),
+  ] }) });
+  assert.deepEqual(report.rows.map(r => r.expectedOutcomes), [['PASS', 'FAIL', 'PASS'], ['FAIL', 'PASS', 'PASS']]);
+  for (const row of report.rows) {
+    assert.equal(row.result.decision, 'BLOCK');
+    const failedRule = row.policy.rules.find(r => r.text.startsWith('Never'))!;
+    assert.deepEqual(row.result.ruleIds, [failedRule.id]);
+    assert.equal(row.passed, true);
+  }
 });

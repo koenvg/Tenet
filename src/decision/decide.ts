@@ -6,7 +6,7 @@ import { boundEvidence } from './judge-evidence.js';
 import type { Trajectory, EvidenceLimits } from './contracts.js';
 import type { RecordingSink } from '../recording/contract.js';
 
-export const QUESTION_VERSION = 'policy-rules-v3-trajectory';
+export const QUESTION_VERSION = 'policy-rules-v4-generic';
 export const MODEL = 'jev-latest';
 export const DEFAULTS: Readonly<Config> = Object.freeze({ effectThreshold: 0.90, evidenceThreshold: 0.90, deadlineMs: 2500 });
 const clockDefault: Clock = {
