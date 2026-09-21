@@ -28,7 +28,7 @@ KVG-5168 implements the first assessment-to-inspector slice. See `docs/KVG-5168-
 - [ ] 4.2 Build the cross-project session browser and paginated call timeline with passes, concerns and unavailable states; verify UI tests for project filters, session/invocation deep links and empty/error states.
 - [ ] 4.3 Build the rule table and decision detail view using recorded snapshots, distributions, thresholds and gates; verify FAIL, UNKNOWN, PASS-below-threshold, WARN, approval and built-in integrity examples receive distinct labels.
 - [ ] 4.4 Build questions/choices, submitted evidence and response views with explicit redaction, omission, truncation and missing-data indicators; verify hostile markup is inert and changed current policy/questions cannot affect historical displays.
-- [ ] 4.5 Add two-second live polling with preserved selection and separate permission/execution fields; verify new sessions and stages appear without reload, reconnect resumes reading, and absent tool results remain unknown.
+- [x] 4.5 Add two-second live polling with preserved selection and separate permission/execution fields; verify new sessions and stages appear without reload, reconnect resumes reading, and absent tool results remain unknown.
 
 ## 5. Documentation and end-to-end verification
 

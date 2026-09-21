@@ -11,10 +11,10 @@
   <p class="notice">{view.coverage}</p>
   <dl class="outcomes">
     <div><dt>Mode</dt><dd>{view.identity?.mode}</dd></div>
-    <div><dt>Would decide</dt><dd>{view.decision}</dd></div>
-    <div><dt>Permission</dt><dd>{view.permission}</dd></div>
-    <div><dt>Execution</dt><dd>{view.execution}</dd></div>
-    <div><dt>Approval</dt><dd>{view.approval}</dd></div>
+    <div><dt>Counterfactual decision</dt><dd>{view.decision}</dd></div>
+    <div><dt>Actual permission</dt><dd>{view.permission}</dd></div>
+    <div><dt>Observed execution</dt><dd>{view.execution}</dd></div>
+    <div><dt>Native approval</dt><dd>{view.approval}</dd></div>
   </dl>
   <p>{view.reason}</p>
   <p>Capture: {view.requestStatus}. Missing stages: {view.missing.join(', ') || 'none observed'}.</p>

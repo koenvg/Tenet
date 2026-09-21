@@ -3,7 +3,7 @@ export const object = (value: unknown): Record<string, any> => value !== null &&
 const list = (value: unknown): Record<string, any>[] => Array.isArray(value) ? value.map(object) : [];
 const text = (value: unknown, fallback = 'unavailable'): string => typeof value === 'string' ? value : fallback;
 export function invocationView(records: ArchiveRecord[]) {
-  const stage = (name: string) => object(records.find(r => r.stage === name)?.data);
+  const stage = (name: string) => object(records.findLast(r => r.stage === name)?.data);
   const begin = stage('begin'), request = stage('request'), response = stage('response');
   const assessment = object(stage('assessment').assessment ?? stage('validation').assessment);
   const decision = stage('decision'), permission = stage('permission');
@@ -15,7 +15,10 @@ export function invocationView(records: ArchiveRecord[]) {
     identity: records[0] ? { sessionId: records[0].sessionId, invocationId: records[0].invocationId,
       callId: records[0].callId, toolName: records[0].toolName, cwd: records[0].cwd, mode: records[0].mode } : null,
     decision: text(decision.decision), reason: text(decision.reason), permission: text(permission.outcome, 'unknown'),
-    execution: text(stage('execution').outcome, 'unknown'), approval: text(stage('approval').outcome, 'not recorded'),
+    execution: text(stage('execution').outcome, 'unknown'),
+    approval: text(stage('approval').outcome, decision.decision === 'ASK'
+      ? records[0]?.mode === 'observe' ? 'not requested (observe mode)' : 'unknown'
+      : typeof decision.decision === 'string' ? 'not required' : 'unknown'),
     config: begin.config ?? stage('assessment').config ?? null,
     requestStatus: request.payload ? 'submitted application payload' : permission.requestStatus === 'not-submitted' ? 'not submitted' : 'payload unavailable; capture incomplete',
     coverage: 'Best-effort capture. Missing stages are unknown, not proof of success.',
