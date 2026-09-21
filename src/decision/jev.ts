@@ -14,6 +14,7 @@ export function createJevJudge(options: { apiKey?: string; fetch?: Fetch }): Jud
       capture(recording, 'validation', () => ({ valid: false, reason: 'missing-credentials', request: 'not-submitted' }));
       throw new JudgeFailure('missing-credentials');
     }
+    let submitted = false;
     try {
       // Explicit destination, model, logging and retry policy prevent SDK env overrides.
       client ??= new TypeSafeClient({ apiKey: options.apiKey, baseURL: 'https://api.typesafe.ai',
@@ -21,6 +22,7 @@ export function createJevJudge(options: { apiKey?: string; fetch?: Fetch }): Jud
       const entries = assessmentEntries(request.policy);
       const questions = buildQuestions(request.policy);
       const payload = freeze({ model: MODEL, state: judgeState(request), questions });
+      submitted = true;
       capture(recording, 'request', () => ({ payload, policy: request.policy, mapping: entries, questionVersion: QUESTION_VERSION }));
       const raw = await client.systemOne(payload, { signal, timeout: request.deadlineMs, retry: { maxRetries: 0 } });
       capture(recording, 'response', () => responseSnapshot(raw));
@@ -40,7 +42,7 @@ export function createJevJudge(options: { apiKey?: string; fetch?: Fetch }): Jud
       const failure = error instanceof JudgeFailure ? error
         : new JudgeFailure(signal.aborted || error instanceof APIUserAbortError ? 'cancelled'
           : error instanceof APITimeoutError ? 'timeout' : 'provider-error');
-      capture(recording, 'validation', () => ({ valid: false, reason: failure.reason }));
+      capture(recording, 'validation', () => ({ valid: false, reason: failure.reason, request: submitted ? 'submitted' : 'not-submitted' }));
       throw failure;
     }
   };

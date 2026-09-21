@@ -1,14 +1,16 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Detail from './Detail.svelte';
-  import type { InvocationView } from '../../src/inspector/view';
+  import type { CaptureHealth, InvocationView } from '../../src/inspector/view';
+  import type { ArchiveIssue } from '../../src/recording/archive';
   import type { SessionSummary, InvocationSummary } from '../../src/inspector/archive-index';
   let sessions: SessionSummary[] = [], invocations: InvocationSummary[] = [];
   let session = '', invocation = '', error = '', project = '', projectInput = '';
   let busy = false, timelineBusy = false, detailBusy = false;
   let polling = false;
   let view: InvocationView | null = null;
-  let issues: { reason: string }[] = [];
+  let issues: ArchiveIssue[] = [];
+  let health: CaptureHealth = [];
   let nextSession: string | null = null, nextInvocation: string | null = null;
   let navigation = 0, sessionRequest = 0, timelineRequest = 0, detailRequest = 0;
   let projects: string[] = [];
@@ -37,7 +39,7 @@
       if (current !== sessionRequest) return;
       sessions = cursor ? [...sessions, ...data.sessions.filter((item: SessionSummary) => !sessions.some(s => s.id === item.id))] : data.sessions;
       projects = [...new Set([...projects, ...sessions.flatMap(s => s.projects)])].sort();
-      nextSession = data.next; issues = data.issues;
+      nextSession = data.next; issues = data.issues; health = data.captureHealth;
     } catch (e) { if (current === sessionRequest) error = message(e); }
     finally { if (current === sessionRequest) busy = false; }
   }
@@ -49,7 +51,7 @@
       const data = await api(`/api/sessions/${selected}?${query}`);
       if (current !== timelineRequest || generation !== navigation) return;
       invocations = cursor ? [...invocations, ...data.invocations.filter((item: InvocationSummary) => !invocations.some(i => i.id === item.id))] : data.invocations;
-      nextInvocation = data.next; issues = data.issues;
+      nextInvocation = data.next; issues = data.issues; health = data.captureHealth;
     } catch (e) { if (current === timelineRequest && generation === navigation) error = message(e); }
     finally { if (current === timelineRequest) timelineBusy = false; }
   }
@@ -67,7 +69,7 @@
     try {
       const data = await api(`/api/sessions/${session}/invocations/${id}`);
       if (current !== detailRequest || generation !== navigation) return;
-      view = data.view; issues = data.issues;
+      view = data.view; issues = data.issues; health = data.captureHealth;
     } catch (e) { if (current === detailRequest && generation === navigation) error = message(e); }
     finally { if (current === detailRequest) detailBusy = false; }
   }
@@ -89,16 +91,16 @@
   }
   async function livePage<T>(path: string, field: 'sessions' | 'invocations', count: number, current: () => boolean) {
     const items: T[] = [];
-    let next: string | null = null, pageIssues: { reason: string }[] = [];
+    let next: string | null = null, pageIssues: ArchiveIssue[] = [], pageHealth: CaptureHealth = [];
     do {
       const url = new URL(path, window.location.origin);
       url.searchParams.set('limit', String(Math.min(100, Math.max(50, count) - items.length)));
       if (next) url.searchParams.set('cursor', next);
       const data = await api(url.pathname + url.search);
       if (!current()) return null;
-      items.push(...data[field]); next = data.next; pageIssues = data.issues;
+      items.push(...data[field]); next = data.next; pageIssues = data.issues; pageHealth = data.captureHealth;
     } while (next && items.length < Math.max(50, count));
-    return { items, next, issues: pageIssues };
+    return { items, next, issues: pageIssues, captureHealth: pageHealth };
   }
   async function refreshLive() {
     if (polling || busy || timelineBusy || detailBusy) return;
@@ -110,17 +112,17 @@
       const query = new URLSearchParams(); if (project) query.set('project', project);
       const sessionData = await livePage<SessionSummary>(`/api/sessions?${query}`, 'sessions', sessions.length, current);
       if (!sessionData) return;
-      sessions = sessionData.items; nextSession = sessionData.next; issues = sessionData.issues;
+      sessions = sessionData.items; nextSession = sessionData.next; issues = sessionData.issues; health = sessionData.captureHealth;
       projects = [...new Set([...projects, ...sessions.flatMap(s => s.projects)])].sort();
       if (selectedSession) {
         const invocationData = await livePage<InvocationSummary>(`/api/sessions/${selectedSession}`, 'invocations', invocations.length, current);
         if (!invocationData) return;
-        invocations = invocationData.items; nextInvocation = invocationData.next; issues = invocationData.issues;
+        invocations = invocationData.items; nextInvocation = invocationData.next; issues = invocationData.issues; health = invocationData.captureHealth;
         if (selectedInvocation) {
           const detail = await api(`/api/sessions/${selectedSession}/invocations/${selectedInvocation}`);
           if (!current()) return;
           // Keep Detail mounted so its rule selection and scroll survive polling.
-          view = detail.view; issues = detail.issues;
+          view = detail.view; issues = detail.issues; health = detail.captureHealth;
         }
       }
       if (error.startsWith('Live updates paused;')) error = '';
@@ -140,7 +142,23 @@
 <header><h1>TENET <span>Decision inspector</span></h1><p>Local, read-only assessment history. No evaluator calls.</p></header>
 <main>
   {#if error}<p role="alert">{error}</p>{/if}
-  {#if issues.length}<p role="status">Archive coverage is incomplete: {[...new Set(issues.map(i => i.reason))].join(', ')}. Refresh to check for new records.</p>{/if}
+  {#if issues.length || health.length}
+    <section aria-label="Recording issues">
+      <p class="notice">Recording issues detected. Valid records remain browsable; capture may be incomplete.</p>
+      <details>
+        <summary>Recording issues: {issues.length} {issues.length === 1 ? 'file' : 'files'}, {health.length} {health.length === 1 ? 'writer' : 'writers'} reporting recording issues</summary>
+        {#if issues.length}
+          <p>Temporary files may be in progress or left by an interruption. Their contents are not read.</p>
+          <ul>{#each issues as issue}<li><strong>{issue.reason}</strong>: {issue.file || 'Archive directory'}</li>{/each}</ul>
+        {/if}
+        {#if health.length}
+          <h2>Writer-wide capture health</h2>
+          <p>Cumulative counters per writer, not per call. They may include other sessions. Zero counters do not prove complete capture.</p>
+          <ul>{#each health as item}<li>{item.failed} failed writes or snapshots, {item.dropped} dropped stages, {item.drainTimeouts} drain timeouts. Writer {item.writerId}</li>{/each}</ul>
+        {/if}
+      </details>
+    </section>
+  {/if}
   <div class="workspace">
     <nav aria-label="Archive">
       <h2>Sessions</h2>
@@ -164,6 +182,7 @@
         {#if timelineBusy}<p role="status">Loading calls…</p>{:else if !invocations.length}<p>No recorded invocations.</p>{/if}
         {#each invocations as item}<button class:chosen={invocation === item.id} aria-pressed={invocation === item.id} on:click={() => selectInvocation(item.id)}>
           {item.toolName} · {item.decision}<span data-call-id>{item.callId}</span><span>{date(item.timestamp)}</span>
+          <small>{item.failure ?? (item.assessmentStatus === 'incomplete' ? 'Assessment incomplete' : 'Assessment validated')}</small>
           {#if item.missing.length}<span>Incomplete capture · {item.missing.length} missing stages</span>{/if}
         </button>{/each}
         {#if nextInvocation !== null}<button disabled={timelineBusy} on:click={() => loadTimeline(nextInvocation!)}>More invocations</button>{/if}

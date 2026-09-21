@@ -17,6 +17,11 @@
     <div><dt>Native approval</dt><dd>{view.approval}</dd></div>
   </dl>
   <p>{view.reason}</p>
+  <p class="notice">
+    {#if view.assessmentStatus === 'failed'}Assessment failed: {view.failure}.
+    {:else if view.assessmentStatus === 'incomplete'}Assessment incomplete. No validated result was recorded; the call may still be in progress or recording may have stopped.
+    {:else}Assessment validated.{/if}
+  </p>
   <p>Capture: {view.requestStatus}. Missing stages: {view.missing.join(', ') || 'none observed'}.</p>
   <h3>Rules</h3>
   {#if !view.rules.length}<p>No rule snapshot recorded.</p>{/if}
@@ -41,6 +46,13 @@
     <details open><summary>Submitted questions and choices</summary><pre>{pretty(rule.questions)}</pre></details>
   {/if}
   <details><summary>Submitted evidence shared by all rules</summary><p>Field redactions and omitted history remain as submitted. Strings may still contain secrets.</p><pre>{pretty(view.evidence)}</pre></details>
-  <details><summary>Application response and validation</summary><p>Untrusted response content. Truncated snapshots show a preview and original byte count.</p><pre>{pretty(view.response)}</pre><pre>{pretty(view.validation)}</pre></details>
+  <details open={view.assessmentStatus === 'failed'}>
+    <summary>Application response and validation</summary>
+    <p>Untrusted response content, not a validated assessment. Credential and header fields are omitted; strings may still contain secrets.</p>
+    {#if view.response?.unavailable}<p>Response snapshot unavailable. The response could not be safely serialized within capture limits.</p>
+    {:else if view.response?.truncated}<p>Response truncated. Preview limited to 1 MiB; serialized size after field omissions: {view.response.bytes} bytes.</p>
+    {:else if !view.response}<p>No application response recorded. This does not prove the provider returned nothing.</p>{/if}
+    <pre>{pretty(view.response)}</pre><pre>{pretty(view.validation)}</pre>
+  </details>
   <details><summary>Recorded policy snapshot</summary><pre>{pretty(view.policy)}</pre></details>
 </section>

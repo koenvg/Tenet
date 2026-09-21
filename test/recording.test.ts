@@ -99,9 +99,10 @@ test('bounded queue and response snapshots report loss without throwing', () => 
   sink('begin', {}); sink('decision', { decision: 'ALLOW' });
   await writer.drain();
   assert.equal(writer.health().dropped, 1);
-  assert.equal((await readArchive(dir)).records.length, 1);
+  assert.equal((await readArchive(dir)).records.filter(r => r.stage !== 'health').length, 1);
   const cyclic: any = {}; cyclic.self = cyclic; sink('response', cyclic);
   assert.equal(writer.health().failed, 1);
+  await writer.close();
 }));
 
 test('reader rejects oversized, malformed-stage and public files independently', () => temporary(async dir => {

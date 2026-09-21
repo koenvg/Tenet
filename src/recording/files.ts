@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { lstat, mkdir, open } from 'node:fs/promises';
+import { lstat, mkdir, open, rename, rm } from 'node:fs/promises';
 import { dirname, isAbsolute, parse, relative, resolve, sep } from 'node:path';
 
 export const MAX_RECORD_BYTES = 4 * 1024 * 1024;
@@ -48,4 +48,17 @@ export async function readPrivateFile(root: string, path: string): Promise<strin
     if (used > MAX_RECORD_BYTES) throw new Error('record-too-large');
     return buffer.subarray(0, used).toString('utf8');
   } finally { await handle.close(); }
+}
+
+export async function writeStageFile(root: string, folder: string, name: string, text: string): Promise<void> {
+  await ensureArchive(root);
+  await directory(folder, true);
+  const temporary = resolve(folder, `${name}.tmp`);
+  let created = false;
+  try {
+    const handle = await open(temporary, 'wx', 0o600);
+    created = true;
+    try { await handle.writeFile(text); } finally { await handle.close(); }
+    await rename(temporary, resolve(folder, `${name}.json`));
+  } finally { if (created) await rm(temporary, { force: true }).catch(() => {}); }
 }
