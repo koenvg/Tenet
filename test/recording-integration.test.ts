@@ -149,6 +149,27 @@ test('concurrent SDK completions stay bound to their invocation IDs across a ses
     }
   } finally { release?.(); await h.close(); }
 }));
+test('reused host call IDs across a session switch cannot attribute a late result to the new invocation', () => temp(async dir => {
+  const trajectories: string[] = [];
+  const h = await guardHarness({ env: { TENET_RECORDING: 'on', TENET_RECORDING_DIR: dir },
+    judge: async request => { trajectories.push(JSON.stringify(request.trajectory)); return answer(request.policy); } });
+  try {
+    await h.start(); await h.call('reused');
+    await h.emit('session_before_switch');
+    h.ctx.sessionManager.getSessionId = () => 'resumed-or-forked';
+    await h.start(); await h.call('reused');
+    await h.emit('tool_result', { toolCallId: 'reused', toolName: 'edit', content: [{ type: 'text', text: 'late-old-session-evidence' }], isError: false });
+    await h.call('next');
+    assert.ok(!trajectories.at(-1)!.includes('late-old-session-evidence'));
+    await h.emit('session_shutdown');
+    const { records } = await readArchive(dir);
+    const calls = records.filter(r => r.stage === 'begin' && r.callId === 'reused');
+    assert.equal(calls.length, 2); assert.notEqual(calls[0]!.invocationId, calls[1]!.invocationId);
+    assert.ok(records.filter(r => r.stage === 'execution').every(r => r.data.outcome === 'unknown'));
+    assert.deepEqual(new Set(calls.map(r => r.sessionId)), new Set(['s', 'resumed-or-forked']));
+  } finally { await h.close(); }
+}));
+
 
 test('recording-specific owner UI failures cannot veto or change approval in either mode', () => temp(async dir => {
   for (const mode of ['observe', 'enforce']) for (const outcome of ['PASS', 'APPROVAL_REQUIRED'] as const) {

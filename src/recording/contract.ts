@@ -6,6 +6,8 @@ export type RecordingSink = (stage: Stage, data: Record<string, unknown>) => voi
 export interface RecordingIdentity {
   sessionId: string; invocationId: string; callId: string; toolName: string;
   cwd: string; mode: 'observe' | 'enforce';
+  /** Canonical cwd captured by the writer; absent in older archives. */
+  project?: string;
 }
 export interface ArchiveRecord extends RecordingIdentity {
   schemaVersion: 1; writerId: string; sequence: number; eventId: string;
@@ -54,6 +56,7 @@ export function validRecord(value: unknown): value is ArchiveRecord {
   const r = value as ArchiveRecord;
   return r.schemaVersion === SCHEMA_VERSION && STAGES.includes(r.stage)
     && ['sessionId', 'invocationId', 'callId', 'toolName', 'cwd', 'writerId', 'eventId'].every(k => typeof (r as any)[k] === 'string' && (r as any)[k].length > 0)
+    && (r.project === undefined || (typeof r.project === 'string' && r.project.length > 0))
     && /^[a-f0-9-]{36}$/.test(r.writerId) && /^[a-f0-9-]{36}$/.test(r.eventId)
     && Number.isSafeInteger(r.sequence) && r.sequence > 0 && Number.isFinite(r.timestamp)
     && ['observe', 'enforce'].includes(r.mode) && object(r.data) && validStage(r);

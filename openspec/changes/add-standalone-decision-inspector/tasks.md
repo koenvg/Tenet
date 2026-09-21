@@ -1,5 +1,7 @@
 KVG-5168 implements the first assessment-to-inspector slice. See `docs/KVG-5168-handoff.md`. Unchecked tasks may have partial support; their broader behavior and verification remain in the parent change.
 
+KVG-5172 adds cross-project browsing, bounded metadata indexing and resumed/concurrent-session verification. See `docs/KVG-5172-handoff.md`.
+
 ## 1. Recording contracts and persistent archive
 
 - [x] 1.1 Define versioned recording stages, invocation/session identities and completeness states; verify contract tests cover absent requests, partial lifecycles and unsupported schema versions.
@@ -18,14 +20,14 @@ KVG-5168 implements the first assessment-to-inspector slice. See `docs/KVG-5168-
 
 ## 3. Standalone read-only backend
 
-- [ ] 3.1 Add archive indexing, project filtering, paginated session/invocation summaries and on-demand detail reads; verify multi-project fixtures, repeated refresh, historical snapshots and incomplete-stage results.
+- [x] 3.1 Add archive indexing, project filtering, paginated session/invocation summaries and on-demand detail reads; verify multi-project fixtures, repeated refresh, historical snapshots and incomplete-stage results.
 - [ ] 3.2 Add a loopback-only standalone server with per-launch token authentication, Host/Origin checks and no-store evidence responses; verify unauthenticated, cross-origin and non-loopback access cannot disclose data. Authentication was subsequently removed at the owner's explicit request; this original requirement is superseded. See `docs/KVG-5168-handoff.md`.
 - [x] 3.3 Expose only read APIs and built frontend assets through bounded ID-based routing; verify traversal/symlink attempts, unexpected HTTP methods and arbitrary-file requests are rejected and the server never imports Pi or invokes an evaluator.
 
 ## 4. Svelte inspector
 
 - [ ] 4.1 Add the isolated Svelte + Vite frontend and build/dev/standalone-launch scripts; verify a production build is served by the standalone backend without loading the Pi extension.
-- [ ] 4.2 Build the cross-project session browser and paginated call timeline with passes, concerns and unavailable states; verify UI tests for project filters, session/invocation deep links and empty/error states.
+- [x] 4.2 Build the cross-project session browser and paginated call timeline with passes, concerns and unavailable states; verify UI tests for project filters, session/invocation deep links and empty/error states.
 - [ ] 4.3 Build the rule table and decision detail view using recorded snapshots, distributions, thresholds and gates; verify FAIL, UNKNOWN, PASS-below-threshold, WARN, approval and built-in integrity examples receive distinct labels.
 - [ ] 4.4 Build questions/choices, submitted evidence and response views with explicit redaction, omission, truncation and missing-data indicators; verify hostile markup is inert and changed current policy/questions cannot affect historical displays.
 - [x] 4.5 Add two-second live polling with preserved selection and separate permission/execution fields; verify new sessions and stages appear without reload, reconnect resumes reading, and absent tool results remain unknown.

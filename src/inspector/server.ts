@@ -1,10 +1,11 @@
 import { createServer } from 'node:http';
 import { lstat, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { readArchive, sessionKey } from '../recording/archive.js';
+import { ArchiveIndex } from './archive-index.js';
 import { invocationView } from './view.js';
 
 export async function startInspector(options: { directory: string; assets?: string; port?: number }) {
+  const index = new ArchiveIndex(options.directory);
   const assets = new Map<string, { content: Buffer; type: string }>();
   if (options.assets) {
     const files = ['index.html', ...(await readdir(join(options.assets, 'assets'))).filter(f => /^[\w.-]+\.(js|css)$/.test(f)).map(f => `assets/${f}`)];
@@ -34,33 +35,22 @@ export async function startInspector(options: { directory: string; assets?: stri
       if (!route) return reply(404, { error: 'not-found' });
       const offset = Number(url.searchParams.get('offset') ?? 0), limit = Number(url.searchParams.get('limit') ?? 50);
       if (!Number.isSafeInteger(offset) || offset < 0 || offset > 1000000 || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) return reply(400, { error: 'invalid-page' });
-      const archive = await readArchive(options.directory, route[1]);
-      const page = <T>(rows: T[]) => ({ items: rows.slice(offset, offset + limit), next: offset + limit < rows.length ? offset + limit : null });
-      if (!route[1]) {
-        const groups = new Map<string, typeof archive.records>();
-        for (const record of archive.records) {
-          const id = sessionKey(record.sessionId);
-          const rows = groups.get(id) ?? []; rows.push(record); groups.set(id, rows);
+      const cursor = url.searchParams.get('cursor') ?? undefined, project = url.searchParams.get('project') ?? undefined;
+      if ((cursor?.length ?? 0) > 512 || (project?.length ?? 0) > 8192) return reply(400, { error: 'invalid-page' });
+      await index.refresh();
+      try {
+        if (!route[1]) {
+          const result = index.sessions({ offset, limit, cursor, project });
+          return reply(200, { sessions: result.items, next: result.next, issues: index.issues(), indexing: index.indexing });
         }
-        const rows = [...groups].map(([id, records]) => ({ id, sessionId: records[0]!.sessionId,
-          projects: [...new Set(records.map(r => r.cwd))], timestamp: Math.max(...records.map(r => r.timestamp)),
-          invocations: new Set(records.map(r => r.invocationId)).size,
-          coverage: 'best-effort' }));
-        const result = page(rows.sort((a, b) => b.timestamp - a.timestamp));
-        return reply(200, { sessions: result.items, next: result.next, issues: archive.issues });
-      }
-      if (!route[2]) {
-        const ids = [...new Set(archive.records.map(r => r.invocationId))];
-        const result = page(ids.map(id => {
-          const records = archive.records.filter(r => r.invocationId === id), first = records[0]!;
-          return { id: sessionKey(id), invocationId: id, callId: first.callId, toolName: first.toolName,
-            timestamp: first.timestamp, decision: records.find(r => r.stage === 'decision')?.data.decision ?? 'unavailable' };
-        }));
-        return reply(200, { invocations: result.items, next: result.next, issues: archive.issues });
-      }
-      const records = archive.records.filter(r => sessionKey(r.invocationId) === route[2]);
-      if (!records.length) return reply(404, { error: 'not-found' });
-      return reply(200, { view: invocationView(records), issues: archive.issues });
+        if (!route[2]) {
+          const result = index.invocations(route[1], { offset, limit, cursor });
+          return reply(200, { invocations: result.items, next: result.next, issues: index.issues(route[1]), indexing: index.indexing });
+        }
+      } catch { return reply(400, { error: 'invalid-page' }); }
+      const detail = await index.detail(route[1]!, route[2]!);
+      if (!detail.records.length) return reply(index.indexing ? 503 : 404, { error: index.indexing ? 'indexing-in-progress' : 'not-found' });
+      return reply(200, { view: invocationView(detail.records), issues: detail.issues });
     })().catch(() => { if (!res.headersSent) reply(503, { error: 'archive-unavailable' }); else res.end(); });
   });
   await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(options.port ?? 0, '127.0.0.1', resolve); });
