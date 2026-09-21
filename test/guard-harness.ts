@@ -28,7 +28,7 @@ export async function guardHarness(options: { env?: Record<string, string>; judg
       select: async (title: string, items: string[]) => { views.push({ title, items }); return undefined; },
     },
   };
-  registerGuard(pi as unknown as ExtensionAPI, { env: options.env ?? {}, createJudge: options.createJudge,
+  registerGuard(pi as unknown as ExtensionAPI, { env: { TENET_RECORDING: 'off', ...options.env }, createJudge: options.createJudge,
     ...(options.judge === null || options.createJudge ? {} : { judge: options.judge ?? (async request => answer(request.policy)) }) });
   const emit = (type: string, data: any = {}) => handlers.get(type)?.({ type, ...data }, ctx as unknown as ExtensionContext);
   const start = () => emit('session_start', { reason: 'startup' });

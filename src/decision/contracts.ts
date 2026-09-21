@@ -1,3 +1,4 @@
+import type { RecordingSink } from '../recording/contract.js';
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 export type Outcome = 'PASS' | 'APPROVAL_REQUIRED' | 'FAIL' | 'UNKNOWN';
 export type Sufficiency = 'SUFFICIENT' | 'INSUFFICIENT';
@@ -57,7 +58,7 @@ export interface JudgeRequest {
   trajectory?: Trajectory;
 }
 // Treat responses as untrusted, including responses from injected judges.
-export type Judge = (request: JudgeRequest, signal: AbortSignal) => Promise<unknown>;
+export type Judge = (request: JudgeRequest, signal: AbortSignal, recording?: RecordingSink) => Promise<unknown>;
 export interface Clock {
   now(): number;
   schedule(callback: () => void, ms: number): () => void;

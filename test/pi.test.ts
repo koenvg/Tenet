@@ -28,7 +28,7 @@ async function harness(judge: Judge = pass, options: { confirm?: () => Promise<b
     ui: { confirm: async (title: string, body: string) => { prompts.push(title + '\n' + body); return options.confirm ? options.confirm() : true; },
       notify: (message: string) => notifications.push(message), setStatus: (_key: string, value: string) => statuses.push(value) },
   } as unknown as ExtensionContext;
-  registerGuard(pi, { judge, env: { TENET_MODE: 'enforce', ...options.env } });
+  registerGuard(pi, { judge, env: { TENET_RECORDING: 'off', TENET_MODE: 'enforce', ...options.env } });
   const emit = (event: { type: string; [key: string]: unknown }) => handlers.get(event.type)?.(event, ctx);
   const restart = () => emit({ type: 'session_start', reason: 'startup' });
   if (!options.beforeStart) await restart();

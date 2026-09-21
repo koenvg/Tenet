@@ -27,7 +27,7 @@ test('scripted primary switch, directed fallback and separate approvals use the 
     cwd, hasUI: true, sessionManager: { getSessionId: () => 'demo-offline' },
     ui: { confirm: async () => { prompts++; return approve; }, notify: () => {}, setStatus: () => {} },
   } as unknown as ExtensionContext;
-  registerGuard(pi, { env: { TENET_MODE: 'enforce' }, judge: async request => { requests.push(request.action.callId); return answer(request.policy, 'APPROVAL_REQUIRED'); } });
+  registerGuard(pi, { env: { TENET_RECORDING: 'off', TENET_MODE: 'enforce' }, judge: async request => { requests.push(request.action.callId); return answer(request.policy, 'APPROVAL_REQUIRED'); } });
   const emit = (type: string, event: Record<string, unknown> = {}) => handlers.get(type)?.({ type, ...event }, ctx);
   try {
     await emit('session_start');

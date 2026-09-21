@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm, realpath } from 'node:fs/promises';
+import { readArchive } from '../src/recording/archive.js';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createAgentSession, DefaultResourceLoader, ModelRuntime, SessionManager, SettingsManager,
@@ -53,7 +54,7 @@ test('pinned Pi dispatch gates built-in, extension and dynamically registered to
             if (executorFailure) throw new Error('dummy executor failed');
             return { content: [{ type: 'text', text: 'done' }], details: {} };
           } });
-        registerGuard(pi, { env: { TENET_MODE: 'enforce' }, judge: async request => {
+        registerGuard(pi, { env: { TENET_RECORDING: 'off', TENET_MODE: 'enforce' }, judge: async request => {
           assessed.push(request.action);
           if (judgeFailure) throw new Error('scripted provider failure');
           const raw = answer(request.policy, outcome);
@@ -196,6 +197,10 @@ test('pinned Pi dispatch gates built-in, extension and dynamically registered to
 
 test('production extension entry loads with pinned Pi and missing credentials remains fail-closed', async () => {
   const cwd = await mkdtemp(join(tmpdir(), 'tenet-entry-'));
+  const previousRecording = process.env.TENET_RECORDING;
+  const previousDirectory = process.env.TENET_RECORDING_DIR;
+  delete process.env.TENET_RECORDING;
+  process.env.TENET_RECORDING_DIR = join(await realpath(cwd), 'archive');
   const previousKey = process.env.TYPESAFE_API_KEY;
   const previousMode = process.env.TENET_MODE;
   process.env.TENET_MODE = 'enforce';
@@ -222,7 +227,15 @@ test('production extension entry loads with pinned Pi and missing credentials re
     assert.ok(result && typeof result === 'object' && 'block' in result && 'reason' in result);
     assert.equal(result.block, true);
     assert.match(String(result.reason), /missing-credentials/);
+    for (const shutdown of extensions[0]!.handlers.get('session_shutdown')!) await shutdown({ type: 'session_shutdown' }, ctx);
+    const archive = await readArchive(process.env.TENET_RECORDING_DIR!);
+    assert.ok(archive.records.some(r => r.stage === 'permission' && r.data.requestStatus === 'not-submitted'));
+    assert.ok(!archive.records.some(r => r.stage === 'request'));
   } finally {
+    if (previousRecording === undefined) delete process.env.TENET_RECORDING;
+    else process.env.TENET_RECORDING = previousRecording;
+    if (previousDirectory === undefined) delete process.env.TENET_RECORDING_DIR;
+    else process.env.TENET_RECORDING_DIR = previousDirectory;
     if (previousMode === undefined) delete process.env.TENET_MODE;
     else process.env.TENET_MODE = previousMode;
     if (previousKey === undefined) delete process.env.TYPESAFE_API_KEY;
@@ -246,7 +259,7 @@ test('pinned Pi observation executes concerns without delivering reports to mode
       extensionFactories: [pi => {
         pi.registerTool({ name: 'observation_dummy', label: 'Dummy', description: 'Offline dummy', parameters: Type.Object({ value: Type.String() }),
           async execute() { executed++; return { content: [{ type: 'text', text: 'ordinary-tool-result' }], details: {} }; } });
-        registerGuard(pi, { env: {}, judge: async request => {
+        registerGuard(pi, { env: { TENET_RECORDING: 'off' }, judge: async request => {
           if (scenario === 'provider') throw new Error('provider-private-prose');
           const raw = answer(request.policy, scenario === 'ASK' ? 'APPROVAL_REQUIRED' : 'FAIL');
           if (scenario === 'integrity') raw.rules[raw.rules.length - 1] = ruleAnswer(INTEGRITY_ID, 'FAIL');
