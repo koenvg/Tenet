@@ -8,7 +8,7 @@ import { INTEGRITY_ID, INTEGRITY_TEXT } from '../src/decision/policy.js';
 import { answer, policy } from './helpers.js';
 import { Observations } from '../src/decision/trajectory.js';
 
-const selected = { ...policy, rules: [...policy.rules, { id: 'second', line: 2, text: 'Never delete files outside the project directory.' }] };
+const selected = { ...policy, rules: [...policy.rules, { id: 'second', line: 2, text: 'Never delete files outside the project directory.', enforcement: 'BLOCK' as const }] };
 const action = captureAction({ sessionId: 's', callId: 'c', toolName: 'new-tool', arguments: { objects: ['code'], authorization: 'hidden' } });
 const base = { policy: selected, action, cwd: '/project' };
 function response() {
@@ -40,7 +40,8 @@ test('one official SDK request assesses every rule with generic evidence and tru
   assert.equal(Object.keys(body.questions).length, 6);
   assert.equal(body.model, 'jev-latest'); assert.deepEqual(body.state.action, action);
   assert.deepEqual(body.state.trajectory, trajectory);
-  assert.deepEqual(body.state.policy.rules, selected.rules);
+  assert.deepEqual(body.state.policy.rules, selected.rules.map(({ id, line, text }) => ({ id, line, text })));
+  assert.ok(!JSON.stringify(body.state.policy).includes('enforcement'));
   assert.equal(body.state.context.cwd, '/project'); assert.equal(body.state.policy.target, '/policy');
   assert.equal(body.state.integrity.id, INTEGRITY_ID); assert.equal(body.state.integrity.text, INTEGRITY_TEXT);
   assert.ok(!JSON.stringify(body.state).includes('hidden'));

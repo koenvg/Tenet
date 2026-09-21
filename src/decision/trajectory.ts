@@ -59,7 +59,7 @@ export function recoverObservations(sessionId: string, entries: readonly unknown
     const timestamp = Number.isFinite(time) ? time : null;
     if (entry.type === 'custom' && entry.customType === 'tenet') {
       const d = entry.data;
-      if (d?.sessionId === sessionId && ['decision', 'approval'].includes(d.stage)) {
+      if (d?.mode !== 'observe' && d?.sessionId === sessionId && ['decision', 'approval'].includes(d.stage)) {
         history.add(`recovered-tenet-${d.stage}`, typeof d.callId === 'string' ? d.callId : null,
           typeof d.toolName === 'string' ? d.toolName : null, d, timestamp);
       }

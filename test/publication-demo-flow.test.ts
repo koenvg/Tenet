@@ -19,6 +19,7 @@ test('scripted primary switch, directed fallback and separate approvals use the 
   let approve = false, prompts = 0;
   const pi = {
     on: (name: string, handler: Handler) => handlers.set(name, handler),
+    registerCommand() {},
     appendEntry: (_type: string, data: unknown) => records.push(data),
     getAllTools: () => [{ name: 'bash', description: 'shell', parameters: {} }, { name: 'existing-api-tool', description: 'API call', parameters: {} }],
   } as unknown as ExtensionAPI;
@@ -26,7 +27,7 @@ test('scripted primary switch, directed fallback and separate approvals use the 
     cwd, hasUI: true, sessionManager: { getSessionId: () => 'demo-offline' },
     ui: { confirm: async () => { prompts++; return approve; }, notify: () => {}, setStatus: () => {} },
   } as unknown as ExtensionContext;
-  registerGuard(pi, { env: {}, judge: async request => { requests.push(request.action.callId); return answer(request.policy, 'APPROVAL_REQUIRED'); } });
+  registerGuard(pi, { env: { TENET_MODE: 'enforce' }, judge: async request => { requests.push(request.action.callId); return answer(request.policy, 'APPROVAL_REQUIRED'); } });
   const emit = (type: string, event: Record<string, unknown> = {}) => handlers.get(type)?.({ type, ...event }, ctx);
   try {
     await emit('session_start');

@@ -12,6 +12,7 @@ import { argumentDigest } from '../src/decision/evidence.js';
 import { RULE, INTEGRITY_ID } from '../src/decision/policy.js';
 import type { Action, Outcome } from '../src/decision/contracts.js';
 import { answer, ruleAnswer } from './helpers.js';
+import { recoverObservations, EVIDENCE_DEFAULTS } from '../src/decision/trajectory.js';
 
 // Real Pi loader -> AgentSession hooks -> ExtensionRunner -> agent-core -> dummy executor.
 // Both model streaming and Jev are scripted. Any accidental HTTP request fails this test.
@@ -52,7 +53,7 @@ test('pinned Pi dispatch gates built-in, extension and dynamically registered to
             if (executorFailure) throw new Error('dummy executor failed');
             return { content: [{ type: 'text', text: 'done' }], details: {} };
           } });
-        registerGuard(pi, { env: {}, judge: async request => {
+        registerGuard(pi, { env: { TENET_MODE: 'enforce' }, judge: async request => {
           assessed.push(request.action);
           if (judgeFailure) throw new Error('scripted provider failure');
           const raw = answer(request.policy, outcome);
@@ -196,6 +197,8 @@ test('pinned Pi dispatch gates built-in, extension and dynamically registered to
 test('production extension entry loads with pinned Pi and missing credentials remains fail-closed', async () => {
   const cwd = await mkdtemp(join(tmpdir(), 'tenet-entry-'));
   const previousKey = process.env.TYPESAFE_API_KEY;
+  const previousMode = process.env.TENET_MODE;
+  process.env.TENET_MODE = 'enforce';
   process.env.TYPESAFE_API_KEY = '';
   try {
     await writeFile(join(cwd, 'TENET.md'), `Rule; ${RULE}`);
@@ -220,8 +223,87 @@ test('production extension entry loads with pinned Pi and missing credentials re
     assert.equal(result.block, true);
     assert.match(String(result.reason), /missing-credentials/);
   } finally {
+    if (previousMode === undefined) delete process.env.TENET_MODE;
+    else process.env.TENET_MODE = previousMode;
     if (previousKey === undefined) delete process.env.TYPESAFE_API_KEY;
     else process.env.TYPESAFE_API_KEY = previousKey;
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test('pinned Pi observation executes concerns without delivering reports to model context or stdout', async () => {
+  const cwd = await mkdtemp(join(tmpdir(), 'tenet-observe-smoke-'));
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error('network forbidden'); };
+  let session: Awaited<ReturnType<typeof createAgentSession>>['session'] | undefined;
+  const stdout = process.stdout.write; const output: string[] = [];
+  try {
+    await writeFile(join(cwd, 'TENET.md'), `Rule; BLOCK; ${RULE}`);
+    const requests: string[] = []; let executed = 0, scenario = 'FAIL';
+    const settingsManager = SettingsManager.inMemory({ compaction: { enabled: false }, retry: { enabled: false } });
+    const loader = new DefaultResourceLoader({ cwd, agentDir: cwd, settingsManager,
+      noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true,
+      extensionFactories: [pi => {
+        pi.registerTool({ name: 'observation_dummy', label: 'Dummy', description: 'Offline dummy', parameters: Type.Object({ value: Type.String() }),
+          async execute() { executed++; return { content: [{ type: 'text', text: 'ordinary-tool-result' }], details: {} }; } });
+        registerGuard(pi, { env: {}, judge: async request => {
+          if (scenario === 'provider') throw new Error('provider-private-prose');
+          const raw = answer(request.policy, scenario === 'ASK' ? 'APPROVAL_REQUIRED' : 'FAIL');
+          if (scenario === 'integrity') raw.rules[raw.rules.length - 1] = ruleAnswer(INTEGRITY_ID, 'FAIL');
+          return { ...raw, explanation: 'unsolicited-secret-prose' };
+        } });
+      }],
+    });
+    await loader.reload(); assert.deepEqual(loader.getExtensions().errors, []);
+    const credentials = new InMemoryCredentialStore();
+    await credentials.modify('openai', async () => ({ type: 'api_key', key: 'offline-not-a-real-key' }));
+    const modelRuntime = await ModelRuntime.create({ credentials, modelsPath: null,
+      modelsStorePath: join(cwd, 'models-store.json'), allowModelNetwork: false, refreshOnCreate: false });
+    const model = modelRuntime.getModels().find(m => m.provider === 'openai')!;
+    ({ session } = await createAgentSession({ cwd, agentDir: cwd, modelRuntime, model, resourceLoader: loader, settingsManager,
+      sessionManager: SessionManager.create(cwd, join(cwd, 'sessions')) }));
+    await session.bindExtensions({ mode: 'json' });
+    let call: ToolCall | undefined;
+    session.agent.streamFunction = (_model, context) => {
+      requests.push(JSON.stringify(context));
+      const stream = createAssistantMessageEventStream();
+      const pending = call; call = undefined;
+      const message: AssistantMessage = { role: 'assistant', content: pending ? [pending] : [{ type: 'text', text: 'finished' }],
+        api: model.api, provider: model.provider, model: model.id,
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        stopReason: pending ? 'toolUse' : 'stop', timestamp: Date.now() };
+      stream.push({ type: 'done', reason: message.stopReason as 'toolUse' | 'stop', message }); stream.end(message); return stream;
+    };
+    process.stdout.write = ((chunk: unknown) => { output.push(String(chunk)); return true; }) as typeof process.stdout.write;
+    for (const value of ['FAIL', 'ASK', 'integrity', 'provider']) {
+      scenario = value;
+      call = { type: 'toolCall', id: `observe-${value}`, name: 'observation_dummy', arguments: { value: 'safe' } };
+      await session.prompt('Run the offline dummy.');
+    }
+    assert.equal(executed, 4);
+    const records = session.sessionManager.getEntries().flatMap(e => e.type === 'custom' && e.customType === 'tenet' ? [e.data as any] : []);
+    assert.equal(records.filter(r => r.stage === 'permission' && r.mode === 'observe' && r.outcome === 'released').length, 4);
+    assert.equal(records.filter(r => r.stage === 'approval').length, 0);
+    assert.ok(records.some(r => r.stage === 'permission' && r.wouldDecision === 'ASK'));
+    assert.ok(records.some(r => r.stage === 'permission' && !r.assessmentAvailable));
+    assert.ok(!JSON.stringify(records).includes('private-prose'));
+    assert.ok(!JSON.stringify(records).includes('unsolicited-secret-prose'));
+    for (const request of requests) {
+      assert.ok(!request.includes('wouldDecision') && !request.includes('outcome-confidence-below-threshold'));
+      assert.ok(!request.includes('TENET blocked') && !request.includes('provider-private-prose'));
+    }
+    assert.deepEqual(output, [], 'observation writes no protocol stdout');
+    const restored = SessionManager.open(session.sessionManager.getSessionFile()!);
+    assert.ok(restored.getBranch().some(e => e.type === 'custom' && e.customType === 'tenet'));
+    assert.ok(!JSON.stringify(restored.buildSessionContext()).includes('wouldDecision'));
+    assert.ok(!recoverObservations(restored.getSessionId(), restored.getBranch(), EVIDENCE_DEFAULTS, []).snapshot().observations.some(o => o.origin.includes('tenet')));
+    const branchFile = restored.createBranchedSession(restored.getLeafId()!);
+    assert.ok(branchFile);
+    const fork = SessionManager.open(branchFile!);
+    assert.ok(!JSON.stringify(fork.buildSessionContext()).includes('wouldDecision'));
+    assert.ok(!recoverObservations(fork.getSessionId(), fork.getBranch(), EVIDENCE_DEFAULTS, []).snapshot().observations.some(o => o.origin.includes('tenet')));
+  } finally {
+    process.stdout.write = stdout; session?.dispose(); globalThis.fetch = realFetch;
     await rm(cwd, { recursive: true, force: true });
   }
 });

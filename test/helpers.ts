@@ -2,7 +2,7 @@ import type { Assessment, Choice, Outcome, PolicySet, RuleAssessment } from '../
 import { INTEGRITY_ID, RULE } from '../src/decision/policy.js';
 
 export const policy: PolicySet = Object.freeze({ available: true, source: '/policy', target: '/policy', digest: 'test-digest',
-  rules: Object.freeze([Object.freeze({ id: 'test-digest:1', line: 1, text: RULE })]) });
+  rules: Object.freeze([Object.freeze({ id: 'test-digest:1', line: 1, text: RULE, enforcement: 'BLOCK' as const })]) });
 export function outcomeChoice(outcome: Outcome = 'PASS', p = 0.97): Choice<Outcome> {
   const labels: Outcome[] = ['PASS', 'APPROVAL_REQUIRED', 'FAIL', 'UNKNOWN'];
   return { choice: outcome, probabilities: Object.fromEntries(labels.map(e => [e, e === outcome ? p : (1 - p) / 3])) as Record<Outcome, number> };

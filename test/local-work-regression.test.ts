@@ -33,7 +33,7 @@ for (const fixture of Object.values(FIXTURES).flat()) {
     const judge = createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => {
       requests++;
       const body = JSON.parse(init!.body as string);
-      assert.deepEqual(body.state.policy.rules, policy.rules);
+      assert.deepEqual(body.state.policy.rules, policy.rules.map(({ id, line, text }) => ({ id, line, text })));
       assert.deepEqual(body.state.action, action);
       const answers = Object.fromEntries(outcomes.flatMap((outcome, i) => {
         const r = ruleAnswer('unused', outcome);

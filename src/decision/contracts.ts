@@ -8,7 +8,8 @@ export interface RuleAssessment {
   evidence: Choice<Sufficiency>;
 }
 export interface Assessment { model: string; rules: RuleAssessment[] }
-export interface Rule { readonly id: string; readonly line: number; readonly text: string }
+export type Enforcement = 'BLOCK' | 'WARN';
+export interface Rule { readonly id: string; readonly line: number; readonly text: string; readonly enforcement: Enforcement }
 export type PolicyFailure = 'policy-unavailable' | 'policy-format' | 'policy-file-limit' | 'policy-rule-count-limit' | 'policy-rule-size-limit';
 export interface PolicySet {
   readonly available: true;
@@ -61,13 +62,14 @@ export interface Clock {
   now(): number;
   schedule(callback: () => void, ms: number): () => void;
 }
-export type Reason = PolicyFailure | 'all-rules-pass' | 'rule-approval-required' | 'rule-failed' | 'policy-integrity'
+export type Reason = PolicyFailure | 'all-rules-pass' | 'advisory-findings' | 'rule-approval-required' | 'rule-failed' | 'policy-integrity'
   | 'insufficient-evidence' | 'configuration' | 'missing-credentials'
   | 'invalid-response' | 'provider-error' | 'timeout' | 'cancelled';
 export type BlockingGate = 'rule-fail' | 'outcome-unknown' | 'outcome-confidence-below-threshold'
   | 'evidence-insufficient' | 'evidence-confidence-below-threshold';
 export interface RuleDiagnostic {
   ruleId: string;
+  enforcement: Enforcement;
   gates: BlockingGate[];
   outcome: Outcome;
   outcomeProbability: number;

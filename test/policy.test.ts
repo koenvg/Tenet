@@ -30,6 +30,27 @@ test('explicit rules retain text, order, source lines and immutable snapshot ide
   });
 });
 
+test('BLOCK and WARN declarations preserve semantic text and legacy semicolons', async () => {
+  await fixture(async file => {
+    await writeFile(file, '# Policy\n Rule; WARN; Keep edits small; prefer focus.\nRule; BLOCK; Never commit.\nRule; Never delete; ask first.\nRule; warn; legacy text');
+    const policy = await loadPolicy(file); assert.ok(policy.available);
+    assert.deepEqual(policy.rules.map(r => [r.line, r.enforcement, r.text]), [
+      [2, 'WARN', 'Keep edits small; prefer focus.'], [3, 'BLOCK', 'Never commit.'],
+      [4, 'BLOCK', 'Never delete; ask first.'], [5, 'BLOCK', 'warn; legacy text'],
+    ]);
+    assert.equal(new Set(policy.rules.map(r => r.id)).size, 4);
+    assert.ok(policy.rules.every(r => Object.isFrozen(r) && r.id === `${policy.digest}:${r.line}`));
+    for (const prefix of ['BLOCK', 'WARN']) {
+      await writeFile(file, `Rule; ${prefix}; `);
+      assert.equal((await loadPolicy(file)).available, false);
+      await writeFile(file, `Rule; ${prefix}; ${'x'.repeat(POLICY_LIMITS.ruleBytes)}`);
+      assert.equal((await loadPolicy(file)).available, true);
+      await writeFile(file, `Rule; ${prefix}; ${'x'.repeat(POLICY_LIMITS.ruleBytes + 1)}`);
+      assert.equal((await loadPolicy(file)).available, false);
+    }
+  });
+});
+
 test('missing, directory, invalid UTF-8, empty and malformed policies fail closed', async () => {
   await fixture(async (file, dir) => {
     assert.equal((await loadPolicy(file)).available, false);

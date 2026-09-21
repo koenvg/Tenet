@@ -21,13 +21,14 @@ async function harness(judge: Judge = pass, options: { confirm?: () => Promise<b
   const records: any[] = [], tools: any[] = [], prompts: string[] = [], notifications: string[] = [], statuses: string[] = [];
   const controller = new AbortController();
   const pi = { on: (name: string, handler: Handler) => handlers.set(name, handler), getAllTools: () => tools,
+    registerCommand() {},
     appendEntry: (_type: string, data: unknown) => records.push(data) } as unknown as ExtensionAPI;
   const ctx = { cwd, hasUI: options.hasUI ?? true, signal: controller.signal,
     sessionManager: { getSessionId: () => 'session' },
     ui: { confirm: async (title: string, body: string) => { prompts.push(title + '\n' + body); return options.confirm ? options.confirm() : true; },
       notify: (message: string) => notifications.push(message), setStatus: (_key: string, value: string) => statuses.push(value) },
   } as unknown as ExtensionContext;
-  registerGuard(pi, { judge, env: options.env ?? {} });
+  registerGuard(pi, { judge, env: { TENET_MODE: 'enforce', ...options.env } });
   const emit = (event: { type: string; [key: string]: unknown }) => handlers.get(event.type)?.(event, ctx);
   const restart = () => emit({ type: 'session_start', reason: 'startup' });
   if (!options.beforeStart) await restart();

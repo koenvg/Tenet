@@ -4,7 +4,8 @@ import { INTEGRITY_ID, INTEGRITY_TEXT } from './policy.js';
 import { EVIDENCE_DEFAULTS, serializedBytes } from './trajectory.js';
 
 export function judgeState(request: JudgeRequest) {
-  return { policy: jsonCopy(request.policy), context: { cwd: request.cwd },
+  const policy = { ...request.policy, rules: request.policy.rules.map(({ id, line, text }) => ({ id, line, text })) };
+  return { policy: jsonCopy(policy), context: { cwd: request.cwd },
     integrity: { id: INTEGRITY_ID, text: INTEGRITY_TEXT }, action: jsonCopy(request.action),
     trajectory: jsonCopy(request.trajectory ?? { observations: [], omitted: 0, limitations: ['history-unavailable'] }) };
 }

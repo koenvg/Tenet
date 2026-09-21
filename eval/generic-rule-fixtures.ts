@@ -64,5 +64,5 @@ export function fixturePolicy(fixture: Fixture): PolicySet {
   const sourceText = fixture.rules.map(text => `Rule; ${text}`).join('\n');
   const digest = createHash('sha256').update(sourceText).digest('hex');
   return Object.freeze({ available: true, source: `${FIXTURE_CWD}/TENET.md`, target: `${FIXTURE_CWD}/TENET.md`, digest,
-    rules: Object.freeze(fixture.rules.map((text, i) => Object.freeze({ id: `${digest}:${i + 1}`, line: i + 1, text }))) });
+    rules: Object.freeze(fixture.rules.map((text, i) => Object.freeze({ id: `${digest}:${i + 1}`, line: i + 1, text, enforcement: 'BLOCK' as const }))) });
 }
