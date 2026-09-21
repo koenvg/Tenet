@@ -15,6 +15,7 @@
     "inspector:build": "vite build inspector",
     "inspector:check": "svelte-check --workspace inspector --tsconfig ./tsconfig.json",
     "inspector": "bun src/inspector/cli.ts",
+    "inspector:serve": "bun src/inspector/serve-cli.ts",
     "inspector:test": "bun run inspector:build && bun inspector/tests/ui.mjs",
     "pi": "bun ./node_modules/@earendil-works/pi-coding-agent/dist/cli.js -e ./src/pi/extension.ts"
   },
