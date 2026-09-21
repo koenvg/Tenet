@@ -4,7 +4,7 @@
   import type { InvocationView } from '../../src/inspector/view';
   let sessions: { id: string; sessionId: string; projects: string[] }[] = [];
   let invocations: { id: string; callId: string; toolName: string; decision: string }[] = [];
-  let session = '', invocation = '', error = '', busy = false;
+  let session = '', invocation = '', error = '', busy = false, polling = false;
   let view: InvocationView | null = null;
   let issues: unknown[] = [];
   let nextSession: number | null = null, nextInvocation: number | null = null;
@@ -34,7 +34,36 @@
     try { const data = await api(`/api/sessions/${session}/invocations/${id}`); if (current !== generation) return; view = data.view; issues = data.issues; }
     catch (e) { if (current === generation) error = e instanceof Error ? e.message : 'Archive unavailable'; }
   }
-  onMount(() => { void loadSessions(); });
+  async function refreshLive() {
+    if (polling) return;
+    polling = true;
+    const selectedSession = session, selectedInvocation = invocation;
+    try {
+      const sessionLimit = Math.max(50, Math.min(100, sessions.length));
+      const sessionData = await api(`/api/sessions?limit=${sessionLimit}`);
+      sessions = sessionData.sessions; issues = sessionData.issues;
+      if (selectedSession && session === selectedSession) {
+        const invocationLimit = Math.max(50, Math.min(100, invocations.length));
+        const invocationData = await api(`/api/sessions/${selectedSession}?limit=${invocationLimit}`);
+        if (session !== selectedSession) return;
+        invocations = invocationData.invocations; nextInvocation = invocationData.next; issues = invocationData.issues;
+        if (selectedInvocation && invocation === selectedInvocation) {
+          const detail = await api(`/api/sessions/${selectedSession}/invocations/${selectedInvocation}`);
+          if (session !== selectedSession || invocation !== selectedInvocation) return;
+          // Updating the existing Detail component preserves its selected rule and browser scroll.
+          view = detail.view; issues = detail.issues;
+        }
+      }
+      error = '';
+    } catch (e) {
+      error = `Live updates paused; reconnecting automatically. ${e instanceof Error ? e.message : 'Archive unavailable'}`;
+    } finally { polling = false; }
+  }
+  onMount(() => {
+    void loadSessions();
+    const timer = setInterval(() => { void refreshLive(); }, 2000);
+    return () => clearInterval(timer);
+  });
 </script>
 
 <header><h1>TENET <span>Decision inspector</span></h1><p>Local, read-only assessment history. No evaluator calls.</p></header>
@@ -43,7 +72,7 @@
   {#if issues.length}<p role="alert">{issues.length} archive issue(s). Some recordings are unavailable or unsafe.</p>{/if}
   <div class="workspace">
     <nav aria-label="Archive">
-      <h2>Sessions</h2><button disabled={busy} on:click={() => loadSessions()}>Refresh sessions</button>
+      <h2>Sessions</h2><button disabled={busy || polling} on:click={() => refreshLive()}>Refresh now</button>
       {#if !busy && !sessions.length}<p>No recorded sessions.</p>{/if}
       {#each sessions as item}<button class:chosen={session === item.id} on:click={() => selectSession(item.id)}><strong>{item.sessionId}</strong><span>{item.projects.join(', ')}</span></button>{/each}
       {#if nextSession !== null}<button on:click={() => loadSessions(nextSession!)}>More sessions</button>{/if}

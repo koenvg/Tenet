@@ -3,18 +3,25 @@ import { test } from 'node:test';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ArchiveWriter } from '../src/recording/archive.js';
+import { ArchiveWriter, readArchive } from '../src/recording/archive.js';
 import { startInspector } from '../src/inspector/server.js';
 
-test('independent server reads retained records without authentication and keeps Host/Origin checks and read-only routing', async () => {
+test('independent server reads retained and delayed lifecycle stages without authentication', async () => {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'tenet-inspector-')));
   const writer = new ArchiveWriter({ enabled: true, directory: dir });
   const sink = writer.bind({ sessionId: '../../s', invocationId: 'one', callId: 'c', toolName: 'edit', mode: 'observe', cwd: '/project' });
   sink('begin', { policy: { rules: [{ id: 'r', text: '<script>alert(1)</script>', line: 1, enforcement: 'BLOCK' }] } });
   sink('decision', { decision: 'BLOCK', reason: 'rule-failed' });
   sink('permission', { outcome: 'released' });
-  await writer.close();
+  const approved = writer.bind({ sessionId: '../../s', invocationId: 'approved', callId: 'approved', toolName: 'publish', mode: 'enforce', cwd: '/project' });
+  approved('begin', {}); approved('decision', { decision: 'ASK', reason: 'approval-required' });
+  approved('approval', { outcome: 'approved' }); approved('permission', { outcome: 'released' });
+  const denied = writer.bind({ sessionId: '../../s', invocationId: 'denied', callId: 'denied', toolName: 'publish', mode: 'enforce', cwd: '/project' });
+  denied('begin', {}); denied('decision', { decision: 'ASK', reason: 'approval-required' });
+  denied('approval', { outcome: 'denied-or-dismissed' }); denied('permission', { outcome: 'blocked' });
+  await writer.drain();
   const app = await startInspector({ directory: dir });
+  let appClosed = false;
   try {
     const get = (path: string, headers: Record<string, string> = {}, method = 'GET') => fetch(`${app.origin}${path}`, { method, headers });
     assert.equal(app.url, `${app.origin}/`);
@@ -29,12 +36,38 @@ test('independent server reads retained records without authentication and keeps
     assert.equal(index.sessions[0].sessionId, '../../s');
     const session = index.sessions[0].id;
     const invocations: any = await (await get(`/api/sessions/${session}`)).json();
-    const invocation = invocations.invocations[0].id;
-    const detail: any = await (await get(`/api/sessions/${session}/invocations/${invocation}`)).json();
-    assert.equal(detail.view.rules[0].text, '<script>alert(1)</script>');
-    assert.equal(detail.view.permission, 'released'); assert.equal(detail.view.execution, 'unknown');
-    assert.equal(detail.view.evidence, null);
-    assert.ok(detail.view.missing.includes('request'));
+    const invocation = invocations.invocations.find((item: any) => item.callId === 'c').id;
+    const lifecycle = async (callId: string) => {
+      const row = invocations.invocations.find((item: any) => item.callId === callId);
+      assert.ok(row);
+      return (await (await get(`/api/sessions/${session}/invocations/${row.id}`)).json()).view;
+    };
+    const approvedView = await lifecycle('approved');
+    assert.deepEqual({ decision: approvedView.decision, approval: approvedView.approval, permission: approvedView.permission, execution: approvedView.execution },
+      { decision: 'ASK', approval: 'approved', permission: 'released', execution: 'unknown' });
+    const deniedView = await lifecycle('denied');
+    assert.deepEqual({ decision: deniedView.decision, approval: deniedView.approval, permission: deniedView.permission, execution: deniedView.execution },
+      { decision: 'ASK', approval: 'denied-or-dismissed', permission: 'blocked', execution: 'unknown' });
+    const detailUrl = `/api/sessions/${session}/invocations/${invocation}`;
+    const before: any = await (await get(detailUrl)).json();
+    assert.equal(before.view.rules[0].text, '<script>alert(1)</script>');
+    assert.equal(before.view.decision, 'BLOCK');
+    assert.equal(before.view.approval, 'not required');
+    assert.equal(before.view.permission, 'released');
+    assert.equal(before.view.execution, 'unknown');
+    assert.equal(before.view.evidence, null);
+    assert.ok(before.view.missing.includes('request'));
+    sink('execution', { outcome: 'executed', origin: 'pi-tool-result' });
+    await writer.drain();
+    const after: any = await (await get(detailUrl)).json();
+    assert.equal(after.view.decision, 'BLOCK');
+    assert.equal(after.view.permission, 'released');
+    assert.equal(after.view.execution, 'executed');
+    assert.ok(!after.view.missing.includes('execution'));
     assert.equal((await get(`/api/sessions/${'a'.repeat(64)}/invocations/${invocation}`)).status, 404);
-  } finally { await app.close(); await rm(dir, { recursive: true, force: true }); }
+    await app.close(); appClosed = true;
+    writer.bind({ sessionId: '../../s', invocationId: 'after-close', callId: 'after-close', toolName: 'edit', mode: 'observe', cwd: '/project' })('begin', {});
+    await writer.drain();
+    assert.ok((await readArchive(dir)).records.some(record => record.callId === 'after-close'));
+  } finally { await writer.close(); if (!appClosed) await app.close(); await rm(dir, { recursive: true, force: true }); }
 });

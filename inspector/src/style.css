@@ -11,7 +11,7 @@ h2, h3, h4 { line-height: 1.3; } h2 { margin-top: 0; } small { font-size: .8rem;
 button { cursor: pointer; font: inherit; border: 1px solid #a3b3c5; border-radius: 5px; background: #fff; color: #243247; padding: .7rem; text-align: left; }
 button:hover { background: #edf4fa; } button:focus-visible, summary:focus-visible { outline: 3px solid #1666ab; outline-offset: 2px; }
 button:disabled { cursor: default; opacity: .6; } nav button { width: 100%; margin: .35rem 0; } button span, button strong { display: block; }
-.chosen { border-color: #1768a9; background: #eaf3fb; box-shadow: inset 3px 0 #1768a9; }
+.chosen { border-color: #1768a9; background: #eaf3fb; color: #124f7f; }
 p, button, dd { overflow-wrap: anywhere; } .notice { color: #654c0a; background: #fff4d5; padding: .7rem; }
 .outcomes { display: flex; flex-wrap: wrap; gap: 1rem; } dt { color: #52657a; font-size: .85rem; } dd { margin: 0; font-weight: 600; }
 .rules { display: grid; gap: .5rem; } pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #f3f5f7; padding: 1rem; font: .85rem/1.6 ui-monospace, monospace; max-height: 36rem; overflow: auto; }
