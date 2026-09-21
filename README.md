@@ -167,8 +167,14 @@ TENET records assessments by default in `~/.tenet/recordings`, independently of 
 
 ```sh
 bun install --frozen-lockfile
+bun inspector
+```
+
+`bun inspector` starts the inspector with Vite live reloading for local development. For the standalone production build, run:
+
+```sh
 bun run inspector:build
-bun run inspector
+bun run inspector:serve
 ```
 
 Open the printed loopback URL in Arc. There is no authentication, token or authentication flag. Plain URLs and reloads work directly. Any local process can read the archive. Loopback binding, Host/Origin checks and read-only routing remain enabled.

@@ -26,7 +26,7 @@ KVG-5172 adds cross-project browsing, bounded metadata indexing and resumed/conc
 
 ## 4. Svelte inspector
 
-- [ ] 4.1 Add the isolated Svelte + Vite frontend and build/dev/standalone-launch scripts; verify a production build is served by the standalone backend without loading the Pi extension.
+- [x] 4.1 Add the isolated Svelte + Vite frontend and build/dev/standalone-launch scripts; verify a production build is served by the standalone backend without loading the Pi extension.
 - [x] 4.2 Build the cross-project session browser and paginated call timeline with passes, concerns and unavailable states; verify UI tests for project filters, session/invocation deep links and empty/error states.
 - [ ] 4.3 Build the rule table and decision detail view using recorded snapshots, distributions, thresholds and gates; verify FAIL, UNKNOWN, PASS-below-threshold, WARN, approval and built-in integrity examples receive distinct labels.
 - [ ] 4.4 Build questions/choices, submitted evidence and response views with explicit redaction, omission, truncation and missing-data indicators; verify hostile markup is inert and changed current policy/questions cannot affect historical displays.
