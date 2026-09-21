@@ -6,6 +6,7 @@ import { join, resolve } from 'node:path';
 import { JSDOM } from 'jsdom';
 import { recordFixture } from '../../test/recording-fixture.ts';
 import { ArchiveWriter, sessionKey } from '../../src/recording/archive.ts';
+import { recordFailureFixture } from '../../test/failure-fixture.ts';
 import { startInspector } from '../../src/inspector/server.ts';
 const directory = await realpath(await mkdtemp(join(tmpdir(), 'tenet-ui-')));
 let app, dom, intervals = [];
@@ -157,6 +158,35 @@ try {
   } finally { linked.window.close(); }
   console.log('PASS: production client browses retained assessments without authentication; hostile evidence remains inert.');
   assert.equal(document.querySelector('[role="alert"]'), null);
+  await recordFailureFixture(directory);
+  await app.close();
+  app = await startInspector({ directory, assets: resolve('inspector/dist') });
+  // Live polling reconnects to the restarted reader and discovers failure history.
+  await wait(() => buttons().some(b => b.querySelector('strong')?.textContent === 'failure-history'));
+  buttons().find(b => b.querySelector('strong')?.textContent === 'failure-history').click();
+  await wait(() => buttons().some(b => b.textContent.includes('missing-credentials')));
+  for (const reason of ['temporary-record', 'corrupt-record', 'unsupported-schema']) assert.ok(document.body.textContent.includes(reason));
+  assert.ok(document.body.textContent.includes('Writer-wide capture health'));
+  for (const kind of ['missing-credentials', 'provider-error', 'invalid-response', 'interrupted', 'truncated-response', 'unavailable-response', 'missing-payload', 'capture-loss']) {
+    buttons().find(b => b.querySelector('span')?.textContent === kind).click();
+    await wait(() => document.querySelector('article h2')?.textContent.includes(kind));
+    const detail = document.querySelector('article').textContent;
+    if (kind === 'interrupted' || kind === 'capture-loss') {
+      assert.ok(detail.includes('Assessment incomplete'));
+      assert.ok(detail.includes('unknown'));
+      assert.ok(![...document.querySelectorAll('article .rules strong')].some(el => el.textContent === 'PASS'));
+    } else {
+      assert.ok(detail.includes('Assessment failed'));
+    }
+    if (kind === 'missing-credentials') assert.ok(detail.includes('not submitted'));
+    if (kind === 'missing-payload') assert.ok(detail.includes('submitted; payload unavailable'));
+    if (kind === 'truncated-response') assert.ok(detail.includes('Response truncated'));
+    if (kind === 'unavailable-response') assert.ok(detail.includes('Response snapshot unavailable'));
+    assert.equal(dom.window.hostile, undefined);
+    assert.equal(document.querySelector('article script'), null);
+  }
+  assert.ok(!document.body.textContent.includes('fixture-transport-secret'));
+  console.log('PASS: restarted API and client distinguish failed, unsubmitted, incomplete, truncated and unavailable history with capture-health and record issues.');
 } finally {
   for (const id of intervals) dom?.window.clearInterval(id);
   await new Promise(resolve => setTimeout(resolve, 50));

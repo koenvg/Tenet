@@ -2,6 +2,16 @@ import type { ArchiveRecord } from '../recording/contract.js';
 export const object = (value: unknown): Record<string, any> => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const list = (value: unknown): Record<string, any>[] => Array.isArray(value) ? value.map(object) : [];
 const text = (value: unknown, fallback = 'unavailable'): string => typeof value === 'string' ? value : fallback;
+const failures = new Set(['missing-credentials', 'provider-error', 'invalid-response', 'timeout', 'cancelled',
+  'configuration', 'policy-unavailable', 'policy-format', 'policy-file-limit', 'policy-rule-count-limit', 'policy-rule-size-limit',
+  'guard-error', 'guard-state-changed', 'session-shutdown']);
+export function captureHealth(records: ArchiveRecord[]) {
+  const latest = new Map<string, ArchiveRecord>();
+  for (const record of records) if (record.stage === 'health' && record.sequence > (latest.get(record.writerId)?.sequence ?? 0)) latest.set(record.writerId, record);
+  return [...latest.values()].map(r => ({ writerId: r.writerId, failed: Number(r.data.failed),
+    dropped: Number(r.data.dropped), drainTimeouts: Number(r.data.drainTimeouts) }));
+}
+export type CaptureHealth = ReturnType<typeof captureHealth>;
 export function invocationView(records: ArchiveRecord[]) {
   const stage = (name: string) => object(records.findLast(r => r.stage === name)?.data);
   const begin = stage('begin'), request = stage('request'), response = stage('response');
@@ -11,6 +21,14 @@ export function invocationView(records: ArchiveRecord[]) {
   const policy = object(request.policy ?? begin.policy);
   const integrity = object(state.integrity);
   const rules = [...list(policy.rules), ...(typeof integrity.id === 'string' ? [{ ...integrity, enforcement: 'BLOCK', line: null }] : [])];
+  const validation = stage('validation');
+  // The decision deadline can cancel transport afterward. Preserve the recorded decision cause.
+  const failure = [stage('assessment').reason, decision.reason, validation.reason, permission.reason]
+    .find(reason => typeof reason === 'string' && failures.has(reason)) as string | undefined;
+  const notSubmitted = validation.request === 'not-submitted' || permission.requestStatus === 'not-submitted';
+  const submitted = validation.request === 'submitted' || permission.requestStatus === 'submitted';
+  const assessmentStatus = failure || validation.valid === false ? 'failed'
+    : typeof assessment.model === 'string' && Array.isArray(assessment.rules) ? 'validated' : 'incomplete';
   return {
     identity: records[0] ? { sessionId: records[0].sessionId, invocationId: records[0].invocationId,
       callId: records[0].callId, toolName: records[0].toolName, cwd: records[0].cwd, mode: records[0].mode } : null,
@@ -20,7 +38,10 @@ export function invocationView(records: ArchiveRecord[]) {
       ? records[0]?.mode === 'observe' ? 'not requested (observe mode)' : 'unknown'
       : typeof decision.decision === 'string' ? 'not required' : 'unknown'),
     config: begin.config ?? stage('assessment').config ?? null,
-    requestStatus: request.payload ? 'submitted application payload' : permission.requestStatus === 'not-submitted' ? 'not submitted' : 'payload unavailable; capture incomplete',
+    failure: failure ?? (validation.valid === false ? 'validation-failed' : null), assessmentStatus,
+    requestStatus: request.payload ? 'submitted application payload' : submitted ? 'submitted; payload unavailable'
+      : notSubmitted ? 'not submitted' : 'payload unavailable; capture incomplete',
+    captureHealth: captureHealth(records),
     coverage: 'Best-effort capture. Missing stages are unknown, not proof of success.',
     missing: ['begin', 'request', 'response', 'validation', 'assessment', 'decision', 'permission', 'execution'].filter(name => !records.some(r => r.stage === name)),
     policy, evidence: payload.state ?? null, response: Object.keys(response).length ? response : null,

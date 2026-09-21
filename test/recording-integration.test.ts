@@ -70,7 +70,8 @@ test('records real passing and concerning requests before a fresh reader opens; 
   await writeFile(join(folder, 'unsupported.json'), JSON.stringify({ ...valid, schemaVersion: 500 }), { mode: 0o600 });
   await writeFile(join(folder, 'pending.tmp'), '{', { mode: 0o600 });
   const corrupt = await readArchive(dir);
-  assert.equal(corrupt.records.length, reopened.records.length); assert.equal(corrupt.issues.length, 1);
+  assert.equal(corrupt.records.length, reopened.records.length);
+  assert.deepEqual(corrupt.issues.map(i => i.reason).sort(), ['temporary-record', 'unsupported-schema']);
 }));
 
 test('early guard unavailability records no fabricated request and default capture is independent of enforcement configuration', () => temp(async dir => {

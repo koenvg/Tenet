@@ -85,7 +85,7 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
     recordingStatus = () => {
       if (ctx.hasUI && (archive.config.enabled || archive.config.issue)) reportRecording(() => {
         const health = archive.health();
-        ctx.ui.setStatus('tenet-recording', `TENET capture ${health.enabled ? 'ON' : 'OFF'}; ${health.failed + health.dropped} lost; ${health.pending} pending`);
+        ctx.ui.setStatus('tenet-recording', `TENET capture ${health.enabled ? 'ON' : 'OFF'}; ${health.failed + health.dropped} lost; ${health.pending} pending; ${health.drainTimeouts} drain timeouts`);
       });
     };
     config = undefined;

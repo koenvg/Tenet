@@ -1,4 +1,4 @@
-KVG-5168 implements the first assessment-to-inspector slice. See `docs/KVG-5168-handoff.md`. Unchecked tasks may have partial support; their broader behavior and verification remain in the parent change.
+KVG-5168 implements the first assessment-to-inspector slice. KVG-5170 adds failure and incomplete-record inspection plus durable capture health. See `docs/KVG-5168-handoff.md` and `docs/KVG-5170-handoff.md`. Unchecked tasks may have partial support; their broader behavior and verification remain in the parent change.
 
 KVG-5172 adds cross-project browsing, bounded metadata indexing and resumed/concurrent-session verification. See `docs/KVG-5172-handoff.md`.
 
@@ -7,7 +7,7 @@ KVG-5172 adds cross-project browsing, bounded metadata indexing and resumed/conc
 - [x] 1.1 Define versioned recording stages, invocation/session identities and completeness states; verify contract tests cover absent requests, partial lifecycles and unsupported schema versions.
 - [x] 1.2 Add separately parsed default-on recording config with archive path override and opt-out; verify invalid recording settings do not invalidate enforcement configuration and disabled capture writes nothing.
 - [x] 1.3 Implement owner-restricted immutable stage files, hashed session directories and unique writer/event IDs; verify persistence across reopen, same-session resume, fork separation and concurrent-writer tests.
-- [ ] 1.4 Implement bounded asynchronous queue, atomic writes, graceful shutdown drain and capture-health counters; verify injected disk errors, queue overflow and partial writes leave valid records readable without throwing into callers.
+- [x] 1.4 Implement bounded asynchronous queue, atomic writes, graceful shutdown drain and capture-health counters; verify injected disk errors, queue overflow and partial writes leave valid records readable without throwing into callers.
 - [x] 1.5 Implement schema-validating archive reads with size limits and root/symlink containment; verify corrupt/unsupported records are surfaced individually and malicious session IDs cannot escape the archive.
 
 ## 2. Exact evaluator and lifecycle capture
@@ -15,7 +15,7 @@ KVG-5172 adds cross-project browsing, bounded metadata indexing and resumed/conc
 - [x] 2.1 Capture the single immutable application payload at the `jev.ts` submission boundary with question mapping and policy/config metadata; verify scripted SDK fetch observes the same questions, choices and state as the archive, including redactions and omitted history.
 - [x] 2.2 Capture SDK-returned responses, validation results and safe failure categories with bounded invalid-response snapshots; verify valid distributions, malformed responses, truncation, timeout and missing-credential cases without transport headers or API config credentials.
 - [x] 2.3 Bind recording sinks to unique guard invocations and emit decision, approval, permission and execution stages for passes and concerns; verify concurrent calls, session switches, resumes and missing tool results remain correctly correlated.
-- [ ] 2.4 Add owner-only recording location/health indicators while keeping existing safe session records unchanged; verify Pi integration tests exclude archive content and health reports from agent context and recovered evaluator trajectory.
+- [x] 2.4 Add owner-only recording location/health indicators while keeping existing safe session records unchanged; verify Pi integration tests exclude archive content and health reports from agent context and recovered evaluator trajectory.
 - [x] 2.5 Verify failure isolation using on/off/failing recording variants in observe and enforce modes; assert unchanged decisions, approval lifecycle, permissions and executor counts, including early guard failures.
 
 ## 3. Standalone read-only backend

@@ -183,11 +183,13 @@ The inspector polls every two seconds, preserving project filters, loaded pages 
 
 ### Sensitive local storage
 
-Submitted strings may contain secrets despite field redaction. Capture preserves the exact submitted application payload; it does not reconstruct omitted history or record transport headers/API configuration credentials. SDK response snapshots have a 1 MiB limit and explicit truncation markers. Records have a 4 MiB limit. Oversized or unserializable records are dropped and counted, never silently labeled exact.
+Submitted strings may contain secrets despite field redaction. Capture preserves the exact submitted application payload; it does not reconstruct omitted history or record transport headers/API configuration credentials. SDK response snapshots are untrusted, have a 1 MiB limit and explicit truncation markers. Their byte counts describe serialized content after credential/header field omissions. Snapshots reject error instances, accessors, custom serialization, more than 100,000 values or nesting deeper than 64 levels and show an unavailable marker instead. Records have a 4 MiB limit. Oversized or unserializable records are dropped and counted, never silently labeled exact.
 
 Directories use mode `0700`, files `0600`. This is unencrypted owner-restricted storage, not protection against an agent or another process running as that owner. Archive content and capture-health reports are not added to Pi messages, tool output or evaluator history. Existing safe Pi custom records retain their separate format.
 
-The asynchronous queue allows 64 pending records and 16 MiB total. Capture failures do not change enforcement, approval or permission. Owner UI shows the archive location and loss/pending counters. Normal shutdown drains for up to one second. A crash, full disk or exhausted queue can leave incomplete history. Records are best-effort diagnostics, not a transactional audit log.
+The asynchronous queue allows 64 pending records and 16 MiB total. Capture failures do not change enforcement, approval or permission. Owner UI shows the archive location, loss/pending counters and drain timeouts. Normal shutdown drains for up to one second. On storage recovery, a reserved health write records cumulative writer-wide failure, dropped-stage and drain-timeout counts without competing for queue space. Counts can span sessions and must not be summed across snapshots from the same writer. If storage never recovers or the process exits first, health may only reach the owner's live UI.
+
+The inspector distinguishes safe provider failures, invalid responses, requests not submitted and incomplete assessments. Missing responses or tool results stay unknown. Corrupt, unsupported, unsafe/unreadable and temporary stage files appear as separate recording issues without blocking valid records. Temporary files are not read; they may be in progress or left after an interruption. A crash, full disk or exhausted queue can leave incomplete history. Records are best-effort diagnostics, not a transactional audit log.
 
 To disable new capture without changing mode:
 
@@ -204,7 +206,7 @@ bun run inspector:check
 bun run inspector:test
 ```
 
-The UI test builds the production Svelte client and exercises it in a DOM against the local server, using scripted SDK transport and persisted pass/concern records. It makes no live provider calls.
+The UI test builds the production Svelte client and exercises it in a DOM against the local server, using scripted SDK transport and persisted pass, concern and failure records. It restarts the reader and checks incomplete history, truncation, unavailable responses, recording issues and capture health. It makes no live provider calls.
 
 ## Data disclosure and audit
 

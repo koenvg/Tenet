@@ -16,6 +16,7 @@ p, button, dd { overflow-wrap: anywhere; } .notice { color: #654c0a; background:
 .outcomes { display: flex; flex-wrap: wrap; gap: 1rem; } dt { color: #52657a; font-size: .85rem; } dd { margin: 0; font-weight: 600; }
 .rules { display: grid; gap: .5rem; } pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #f3f5f7; padding: 1rem; font: .85rem/1.6 ui-monospace, monospace; max-height: 36rem; overflow: auto; }
 details { border-top: 1px solid #ccd5df; padding: 1rem 0; } summary { cursor: pointer; font-weight: 600; }
+[aria-label="Recording issues"] { margin-bottom: 1.5rem; overflow-wrap: anywhere; }
 [role=alert] { background: #fff0ee; border: 1px solid #bf4739; padding: .8rem; }
 input { width: 100%; min-width: 0; font: inherit; padding: .6rem; color: #243247; border: 1px solid #a3b3c5; border-radius: 5px; background: #fff; caret-color: #1768a9; }
 input::placeholder { color: #52657a; } input:focus-visible { outline: 3px solid #1666ab; outline-offset: 2px; }

@@ -16,17 +16,34 @@ export interface ArchiveRecord extends RecordingIdentity {
 export function capture(sink: RecordingSink | undefined, stage: Stage, data: () => Record<string, unknown>): void {
   try { sink?.(stage, data()); } catch { /* A diagnostic callback cannot affect the caller. */ }
 }
+// Only application JSON is eligible. Never invoke toJSON/accessors or serialize Error instances.
+function applicationJson(value: unknown, state: { nodes: number; omittedFields: number }, depth = 0): unknown {
+  if (++state.nodes > 100000 || depth > 64) throw new Error('snapshot-limit');
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (!value || typeof value !== 'object' || (!Array.isArray(value) && ![Object.prototype, null].includes(Object.getPrototypeOf(value)))) throw new Error('non-json-response');
+  const entries = Object.entries(Object.getOwnPropertyDescriptors(value)).filter(([, d]) => d.enumerable);
+  if (Array.isArray(value) && (entries.length !== value.length || entries.some(([key], index) => key !== String(index)))) throw new Error('non-json-array');
+  const result: Record<string, unknown> = Object.create(null);
+  for (const [key, descriptor] of entries) {
+    if (!Object.hasOwn(descriptor, 'value')) throw new Error('response-accessor');
+    if (/^(headers|requestheaders|responseheaders|authorization|proxyauthorization|cookie|setcookie|apikey|xapikey|token|accesstoken|refreshtoken|idtoken|password|passwd|secret|clientsecret|privatekey|credentials|awsaccesskeyid|awssecretaccesskey|awssessiontoken)$/.test(key.toLowerCase().replace(/[-_\s]/g, ''))) { state.omittedFields++; continue; }
+    result[key] = applicationJson(descriptor.value, state, depth + 1);
+  }
+  return Array.isArray(value) ? Object.values(result) : result;
+}
 export function responseSnapshot(value: unknown): Record<string, unknown> {
   try {
-    const text = JSON.stringify(value);
-    if (text === undefined) return { unavailable: true };
+    const state = { nodes: 0, omittedFields: 0 };
+    const text = JSON.stringify(applicationJson(value, state));
     const bytes = Buffer.byteLength(text);
     const limit = 1024 * 1024;
-    if (bytes <= limit) return { value: JSON.parse(text), bytes, truncated: false };
+    const markers = { untrusted: true, omittedFields: state.omittedFields, bytes };
+    if (bytes <= limit) return { ...markers, value: JSON.parse(text), truncated: false };
     let preview = Buffer.from(text).subarray(0, limit).toString('utf8');
     while (Buffer.byteLength(preview) > limit) preview = preview.slice(0, -1);
-    return { preview, bytes, truncated: true };
-  } catch { return { unavailable: true }; }
+    return { ...markers, preview, truncated: true };
+  } catch { return { untrusted: true, unavailable: true, reason: 'non-json-or-snapshot-limit' }; }
 }
 function object(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -48,6 +65,8 @@ function validStage(r: ArchiveRecord): boolean {
     case 'decision': return ['ALLOW', 'ASK', 'BLOCK'].includes(d.decision as string);
     case 'permission': return ['released', 'blocked'].includes(d.outcome as string);
     case 'execution': return ['executed', 'failed', 'unknown'].includes(d.outcome as string);
+    case 'health': return d.scope === 'writer' && ['failed', 'dropped', 'drainTimeouts', 'pending']
+      .every(key => Number.isSafeInteger(d[key]) && (d[key] as number) >= 0);
     default: return true;
   }
 }

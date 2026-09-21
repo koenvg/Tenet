@@ -38,19 +38,20 @@ export async function startInspector(options: { directory: string; assets?: stri
       const cursor = url.searchParams.get('cursor') ?? undefined, project = url.searchParams.get('project') ?? undefined;
       if ((cursor?.length ?? 0) > 512 || (project?.length ?? 0) > 8192) return reply(400, { error: 'invalid-page' });
       await index.refresh();
+      const health = index.captureHealth(route[1]);
       try {
         if (!route[1]) {
           const result = index.sessions({ offset, limit, cursor, project });
-          return reply(200, { sessions: result.items, next: result.next, issues: index.issues(), indexing: index.indexing });
+          return reply(200, { sessions: result.items, next: result.next, issues: index.issues(), indexing: index.indexing, captureHealth: health });
         }
         if (!route[2]) {
           const result = index.invocations(route[1], { offset, limit, cursor });
-          return reply(200, { invocations: result.items, next: result.next, issues: index.issues(route[1]), indexing: index.indexing });
+          return reply(200, { invocations: result.items, next: result.next, issues: index.issues(route[1]), indexing: index.indexing, captureHealth: health });
         }
       } catch { return reply(400, { error: 'invalid-page' }); }
       const detail = await index.detail(route[1]!, route[2]!);
       if (!detail.records.length) return reply(index.indexing ? 503 : 404, { error: index.indexing ? 'indexing-in-progress' : 'not-found' });
-      return reply(200, { view: invocationView(detail.records), issues: detail.issues });
+      return reply(200, { view: invocationView(detail.records), issues: detail.issues, captureHealth: health });
     })().catch(() => { if (!res.headersSent) reply(503, { error: 'archive-unavailable' }); else res.end(); });
   });
   await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(options.port ?? 0, '127.0.0.1', resolve); });
