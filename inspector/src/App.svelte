@@ -13,7 +13,7 @@
   let sessions: SessionSummary[] = [], invocations: InvocationSummary[] = [];
   let session = '', invocation = '', error = '', project = '', projectInput = '';
   let busy = false, timelineBusy = false, detailBusy = false;
-  let polling = false;
+  let polling = false, manualRefreshing = false;
   let view: InvocationView | null = null;
   let issues: ArchiveIssue[] = [];
   let health: CaptureHealth = [];
@@ -137,6 +137,11 @@
       if (current()) error = `Live updates paused; reconnecting automatically. ${message(e)}`;
     } finally { polling = false; }
   }
+  async function refreshArchive() {
+    if (polling) return;
+    manualRefreshing = true;
+    try { await refreshLive(); } finally { manualRefreshing = false; }
+  }
   onMount(() => {
     void loadSessions(); void restoreLink();
     const restore = () => { void restoreLink(); };
@@ -149,7 +154,7 @@
 <header class="app-bar">
   <h1>TENET <span>Decision debugger</span></h1>
   <span class="local-label">Local archive · read-only</span>
-  <button class="header-button" disabled={busy || timelineBusy || detailBusy || polling} on:click={refreshLive}>Refresh archive</button>
+  <button class="header-button" disabled={busy || timelineBusy || detailBusy || manualRefreshing} on:click={refreshArchive}>Refresh archive</button>
 </header>
 <main class="workspace" data-mobile-view={mobileView} style:--explorer-width={`${explorerWidth}px`}>
   <nav class="mobile-nav" aria-label="Workspace views">

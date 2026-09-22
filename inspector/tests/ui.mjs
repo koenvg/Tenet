@@ -60,6 +60,15 @@ try {
   assert.match(document.querySelector('[aria-label="Decision explanation"]').textContent, /PASS selected at 0.88; required confidence 0.9/);
   assert.equal(document.querySelector('[aria-label="Pane sizes"]'), null, 'slider toolbar removed');
   assert.equal(document.querySelector('input[type="range"]'), null);
+  const stableDetail = document.querySelector('.invocation');
+  const stableMutations = [];
+  const observer = new dom.window.MutationObserver(records => stableMutations.push(...records));
+  observer.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
+  const stableRequests = requests.length;
+  await wait(() => requests.length >= stableRequests + 6);
+  observer.disconnect();
+  assert.equal(document.querySelector('.invocation'), stableDetail, 'unchanged polling keeps the selected detail mounted');
+  assert.equal(stableMutations.length, 0, `unchanged polling does not flash the page: ${stableMutations.map(r => `${r.type} ${r.target.nodeName}.${r.attributeName ?? ''}`).join(', ')}`);
   assert.ok(document.querySelector('.rule-row[aria-pressed="true"] .status-chip.positive')?.textContent.includes('PASS'));
   assert.ok(document.querySelector('.confidence-note')?.textContent.includes('not a reported violation'));
   assert.equal(document.querySelectorAll('.decision-header > details').length, 1, 'one capture-details entry point');
