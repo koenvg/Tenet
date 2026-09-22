@@ -11,15 +11,15 @@ Mode: Operate. Developers investigating a blocked call or a questionable assessm
 
 ## Direction contract
 
-THESIS: Start with the decision, keep its evidence within reach. Replace the long stacked detail document with a debugger workspace.
+THESIS: Make the latest recorded decision understandable before exposing debugging data. Use action, decision and execution as distinct steps, followed by the recorded reason.
 
-OWN-WORLD: A dark graphite application bar, pale explorer, white inspection panes, blue selection and restrained amber/red status ink. Workhorse system sans; monospace only for captured data. Thin separators, compact rows, no decorative cards.
+OWN-WORLD: Preserve the graphite application bar, pale explorer, white reading area, blue selection, and restrained semantic status colors. System sans for reading; monospace for recorded commands. Thin separators, no decorative cards.
 
-STORY: Select a session and call, understand its recorded gates, inspect each rule, then compare the assessment with exact submitted questions and shared evidence.
+STORY: Open the latest call on a fresh visit, see its action and outcome, understand the contributing rule, then reveal other rules or technical evidence if needed. Direct links and manual selections take priority over live updates.
 
-FIRST VIEWPORT: Compact header over a left call explorer. The remaining width holds a pinned decision explanation above a rule inspector and a docked evidence reader. Desktop pane widths are adjustable. On phones, Calls, Assessment and Evidence views retain selection. Signature interaction: selecting a rule updates its assessment and question mapping while shared evidence stays at its scroll position. A short background transition identifies selection; reduced motion is immediate.
+FIRST VIEWPORT: A compact recent-call explorer beside one readable summary column. An icon-and-label sequence separates Action, TENET decision and Actual execution. The deciding rule and exact confidence threshold are visible; other rules, probability tables, identifiers and evidence start collapsed. On mobile, Calls and Summary retain selection. Signature interaction: opening submitted questions reveals the evidence section and transfers keyboard focus, preserving its scroll position on subsequent rule changes. Selection uses a short background transition with reduced-motion support.
 
-FORM: Decision debugger, first grounded candidate; owner chose the pick over assigned candidate three. Seed 5c4b72e9. Code-led; no generated comp exists or is owed.
+FORM: Owner-approved refinement of the existing Decision debugger, code-led. Original seed 5c4b72e9 retained as provenance; the approved summary composition supersedes the split-pane layout. No new visual world or generated assets.
 
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
 
@@ -30,3 +30,5 @@ Use recorded gates and distributions only. No new evaluator logic, model rationa
 ## Owner feedback
 
 Replace pane-width sliders with draggable, keyboard-operable separators. Use reusable semantic status chips, including green PASS without hiding its confidence gate. Default submitted questions to readable Markdown instructions and explicit answer choices, with a Rich / JSON toggle preserving the recorded object. Markdown is inert: no active HTML, navigation or remote images.
+
+KVG-5215: Owner approved a less cluttered overview focused on understanding the latest decision. Separate the policy decision from actual execution, use visual status icons and exact confidence indicators, collapse technical data, and remove the always-open evidence pane. Keep all archived details reachable and incomplete assessments explicit. Preserve live updates and project filtering without expanding them.

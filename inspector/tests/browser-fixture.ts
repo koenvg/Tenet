@@ -20,5 +20,13 @@ export async function browserFixture(directory: string) {
   sink('decision', { decision: 'ALLOW', reason: 'all-rules-pass' });
   const missing = writer.bind({ sessionId: 's', invocationId: 'missing', callId: 'missing', toolName: 'edit', mode: 'enforce', cwd: '/historical' });
   missing('begin', { policy }); missing('decision', { decision: 'BLOCK', reason: 'timeout' });
+  const summaryPolicy = { ...policy, rules: [{ id: 'email', text: 'Never send any email without confirmation.', line: 5, enforcement: 'BLOCK' }] };
+  const summary = writer.bind({ sessionId: 's', invocationId: 'summary', callId: 'summary', toolName: 'bash', mode: 'observe', cwd: '/historical' });
+  summary('begin', { policy: summaryPolicy, config: { effectThreshold: .9, evidenceThreshold: .9 } });
+  summary('request', { policy: summaryPolicy, questionVersion: 'offline-summary-v1', mapping: [], payload: { model: 'offline', questions: {}, state: { policy: summaryPolicy, context: {}, trajectory: {}, integrity: {}, action: { arguments: { command: 'git status --short && git diff -- README.md && git diff --cached --stat' } } } } });
+  summary('response', { value: {}, truncated: false, bytes: 2 }); summary('validation', { valid: true });
+  summary('assessment', { assessment: { model: 'offline', rules: [{ ruleId: 'email', outcome: { choice: 'PASS', probabilities: { PASS: .99, FAIL: 0, UNKNOWN: .01, APPROVAL_REQUIRED: 0 } }, evidence: { choice: 'SUFFICIENT', probabilities: { SUFFICIENT: .85, INSUFFICIENT: .15 } } }] } });
+  summary('decision', { decision: 'BLOCK', reason: 'insufficient-evidence', contributions: [{ ruleId: 'email', contribution: 'blocking-gates', gates: ['evidence-confidence-below-threshold'], effectThreshold: .9, evidenceThreshold: .9 }] });
+  summary('permission', { outcome: 'released' }); summary('execution', { outcome: 'executed' });
   await writer.close();
 }

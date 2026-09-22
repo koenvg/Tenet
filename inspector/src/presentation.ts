@@ -1,7 +1,7 @@
 import type { InvocationView } from '../../src/inspector/view.js';
 export type RuleView = InvocationView['rules'][number];
 export type DockTab = 'Evidence' | 'Questions' | 'Response' | 'Policy';
-export type MobileView = 'calls' | 'assessment' | 'evidence';
+export type MobileView = 'calls' | 'assessment';
 
 export const pretty = (value: unknown) => value == null ? 'Unavailable: not recorded.' : JSON.stringify(value, null, 2);
 export const ruleName = (rule: RuleView) => rule.builtin ? 'Built-in integrity' : `Line ${rule.line ?? 'unavailable'}`;
@@ -60,3 +60,55 @@ export function tone(value: string) {
   return 'neutral';
 }
 export const timestamp = (value: number) => Number.isFinite(value) ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Time unavailable';
+
+export const toolLabel = (name: string) => ({ bash: 'Shell command', read: 'Read file', edit: 'Edit file', write: 'Write file' }[name] ?? name);
+export const decisionLabel = (decision: string, mode?: string) => {
+  const labels: Record<string, string> = mode === 'observe'
+    ? { BLOCK: 'Would block', ALLOW: 'Would allow', ASK: 'Would ask for approval' }
+    : { BLOCK: 'Block', ALLOW: 'Allow', ASK: 'Approval required' };
+  return labels[decision] ?? 'Decision unavailable';
+};
+export function actionPreview(view: InvocationView): string | null {
+  const args = view.evidence?.action?.arguments;
+  if (!args || typeof args !== 'object' || Array.isArray(args)) return null;
+  for (const key of ['command', 'path', 'file_path']) {
+    if (typeof args[key] === 'string' && args[key].trim()) return args[key];
+  }
+  return null;
+}
+export function decisionReason(view: InvocationView): string {
+  const blocker = orderedRules(view.rules).find(r => r.enforcement === 'BLOCK' && r.gateIds?.length);
+  if (view.decision === 'BLOCK' && blocker) {
+    const reasons: Record<string, string> = {
+      'rule-fail': 'A policy rule was reported as violated.',
+      'outcome-unknown': 'TENET could not determine whether the action follows a policy rule.',
+      'outcome-confidence-below-threshold': 'Confidence in a rule outcome was below the required threshold.',
+      'evidence-insufficient': 'There was not enough evidence to assess a policy rule.',
+      'evidence-confidence-below-threshold': 'Evidence confidence was below the required threshold.',
+    };
+    return reasons[blocker.gateIds![0]!] ?? explainDecision(view);
+  }
+  if (view.failure) return `The assessment could not complete. Recorded reason: ${view.failure}.`;
+  if (view.decision === 'ASK') return 'The recorded decision requires your approval before proceeding.';
+  if (view.decision === 'ALLOW') return view.reason === 'all-rules-pass'
+    ? 'No blocking issues or approval requirements were recorded.'
+    : explainDecision(view);
+  return explainDecision(view);
+}
+export function executionExplanation(view: InvocationView): string {
+  if (view.identity?.mode === 'observe') {
+    return view.execution === 'executed'
+      ? 'The call ran. Observe mode records decisions without enforcing them.'
+      : 'Observe mode records decisions without enforcing them. Execution is shown only when recorded.';
+  }
+  if (view.execution === 'executed') return 'The call ran. Execution is separate from the policy decision.';
+  if (view.execution === 'failed') return 'The tool reported a failure.';
+  return 'No execution result was recorded. This does not prove the call ran or was stopped.';
+}
+export function confidenceReadings(rule: RuleView) {
+  const readings = [
+    { gate: 'outcome-confidence-below-threshold', label: 'Outcome confidence', value: rule.result?.outcome?.probabilities?.[rule.result?.outcome?.choice], threshold: rule.thresholds.effectThreshold },
+    { gate: 'evidence-confidence-below-threshold', label: 'Evidence confidence', value: rule.result?.evidence?.probabilities?.SUFFICIENT, threshold: rule.thresholds.evidenceThreshold },
+  ];
+  return readings.filter(r => rule.gateIds?.includes(r.gate) && typeof r.value === 'number' && Number.isFinite(r.value) && r.value >= 0 && r.value <= 1 && typeof r.threshold === 'number' && Number.isFinite(r.threshold) && r.threshold >= 0 && r.threshold <= 1);
+}

@@ -83,8 +83,6 @@ dt { color: var(--muted); font-size: .8rem; }
 dd { margin: 0; font-size: .85rem; font-weight: 600; }
 .capture-details { margin-top: .7rem; color: var(--muted); font-size: .8rem; }
 .capture-details p { margin-top: .4rem; }
-.debugger-panes { display: grid; grid-template-columns: minmax(0, calc(var(--assessment-share, 53%) - 4.5px)) 9px minmax(0, 1fr); flex: 1; min-height: 0; }
-.assessment-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--line); }
 .count { color: var(--muted); font-weight: 400; margin-left: .3rem; }
 .rule-list { flex: none; max-height: 27vh; overflow: auto; border-bottom: 1px solid var(--line); }
 .rule-row { display: block; width: 100%; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: .7rem 1.1rem; }
@@ -147,9 +145,6 @@ pre { margin: 1rem 0; white-space: pre-wrap; overflow-wrap: anywhere; font: .78r
   .archive-messages { grid-row: 2; }
   .explorer, .inspection { grid-row: 3; grid-column: 1; }
   .workspace[data-mobile-view="calls"] .inspection, .workspace:not([data-mobile-view="calls"]) .explorer { display: none; }
-  .workspace[data-mobile-view="assessment"] .evidence-dock, .workspace[data-mobile-view="evidence"] .assessment-pane { display: none; }
-  .debugger-panes { display: flex; }
-  .assessment-pane, .evidence-dock { flex: 1; border: 0; }
   .decision-header { padding: .8rem 1rem; }
   .rule-list { max-height: 24vh; }
 }

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { gateLabels, gateExplanation, contributions, type RuleView } from './presentation';
+  import { gateLabels, gateExplanation, contributions, confidenceReadings, type RuleView } from './presentation';
+  import ConfidenceMeter from './ConfidenceMeter.svelte';
   import StatusChip from './StatusChip.svelte';
   export let rule: RuleView;
   export let showQuestions: () => void;
@@ -10,17 +11,21 @@
 <section aria-label="Selected rule" class="rule-detail" tabindex="0">
   <div class="rule-detail-title"><h3>{rule.builtin ? 'Built-in integrity' : `Rule at line ${rule.line}`}</h3><span class="setting">{rule.enforcement}</span></div>
   <p class="snapshot-text">{rule.text}</p>
-  <p class="contribution">{contributions[rule.contribution] ?? 'Contribution unavailable: not recorded.'}</p>
-  <div class="rule-actions"><button on:click={showQuestions}>View submitted questions</button><button on:click={showEvidence}>View shared evidence</button></div>
-  <h4>Recorded gates</h4>
+  {#if rule.result?.outcome}<p class="rule-outcome">Rule outcome <StatusChip value={rule.result.outcome.choice ?? 'Unavailable'} /></p>{/if}
+  {#if rule.contribution.includes('approval')}<p class="contribution">{contributions[rule.contribution]}</p>{/if}
   {#if rule.gateIds === null}<p class="missing-data">Gate coverage unavailable: not recorded.</p>
   {:else if !rule.gateIds.length}<p class="muted">No gates triggered.</p>
-  {:else}<ul class="gate-list">{#each rule.gateIds as gate}<li><strong>{gateLabels[gate] ?? 'Unrecognized recorded gate'}</strong><p>{gateExplanation(gate, rule)}</p></li>{/each}</ul>
-    <details class="gate-details"><summary>Gate identifiers</summary><ul>{#each rule.gateIds as gate}<li><code>{gate}</code></li>{/each}</ul></details>
+  {:else}<ul class="gate-list">{#each rule.gateIds as gate}{#if !confidenceReadings(rule).some(r => r.gate === gate)}<li><strong>{gateLabels[gate] ?? 'Unrecognized recorded gate'}</strong><p>{gateExplanation(gate, rule)}</p></li>{/if}{/each}</ul>
   {/if}
-  {#if rule.result?.outcome?.choice === 'PASS' && rule.gateIds?.includes('outcome-confidence-below-threshold')}
-    <p class="confidence-note">PASS was selected. This is a confidence gate, not a reported violation.</p>
+  {#each confidenceReadings(rule) as reading}<ConfidenceMeter label={reading.label} value={reading.value} threshold={reading.threshold} />{/each}
+  {#if rule.result?.outcome?.choice === 'PASS' && rule.gateIds?.some(g => g.includes('confidence') || g === 'evidence-insufficient')}
+    <p class="confidence-note">PASS was selected for the rule outcome, but a confidence or evidence check did not pass. This is not a reported violation.</p>
   {/if}
+  <div class="rule-actions"><button on:click={showQuestions}>View submitted questions</button><button on:click={showEvidence}>View shared evidence</button></div>
+  <details class="rule-technical disclosure"><summary>Probabilities and rule details</summary>
+  <p class="contribution">{contributions[rule.contribution] ?? 'Contribution unavailable: not recorded.'}</p>
+  <p class="setting">Enforcement: {rule.enforcement}</p>
+  {#if rule.gateIds?.length}<details class="gate-details"><summary>Gate identifiers</summary><ul>{#each rule.gateIds as gate}<li><code>{gate}</code></li>{/each}</ul></details>{/if}
   <div class="distributions">
     {#each ['outcome', 'evidence'] as kind}
       <table>
@@ -36,4 +41,5 @@
     {/each}
   </div>
   <p class="muted probability-note">Model probabilities, not calibrated safety guarantees. No hidden model reasoning is recorded.</p>
+  </details>
 </section>
