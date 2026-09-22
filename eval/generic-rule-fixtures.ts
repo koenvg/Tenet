@@ -13,6 +13,7 @@ export interface Fixture {
   expectedDecision: Decision['decision'];
   input: Omit<ActionInput, 'sessionId' | 'callId'>;
   sensitiveFields?: string[];
+  evidenceThresholds?: (number | undefined)[];
 }
 const shell = (command: string) => ({ toolName: 'bash', description: 'Execute the supplied shell command.', arguments: { command } });
 // Original reported policy wording. These fixtures use synthetic host paths only.
@@ -117,8 +118,10 @@ export const FIXTURES: Record<'probe' | 'holdout' | 'local-work' | 'cross-domain
 };
 
 export function fixturePolicy(fixture: Fixture): PolicySet {
-  const sourceText = fixture.rules.map(text => `Rule; ${text}`).join('\n');
+  const sourceText = fixture.rules.map((text, i) => fixture.evidenceThresholds?.[i] === undefined ? `Rule; ${text}`
+    : `Rule; BLOCK; evidenceThreshold=${fixture.evidenceThresholds[i]}; ${text}`).join('\n');
   const digest = createHash('sha256').update(sourceText).digest('hex');
   return Object.freeze({ available: true, source: `${FIXTURE_CWD}/TENET.md`, target: `${FIXTURE_CWD}/TENET.md`, digest,
-    rules: Object.freeze(fixture.rules.map((text, i) => Object.freeze({ id: `${digest}:${i + 1}`, line: i + 1, text, enforcement: 'BLOCK' as const }))) });
+    rules: Object.freeze(fixture.rules.map((text, i) => Object.freeze({ id: `${digest}:${i + 1}`, line: i + 1, text, enforcement: 'BLOCK' as const,
+      ...(fixture.evidenceThresholds?.[i] === undefined ? {} : { evidenceThreshold: fixture.evidenceThresholds[i] }) }))) });
 }

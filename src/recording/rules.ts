@@ -1,4 +1,5 @@
 import type { Decision, PolicySet } from '../decision/contracts.js';
+import { evidenceThreshold } from '../decision/thresholds.js';
 
 // Capture the decision's existing outputs. Never evaluate probabilities here.
 export function ruleContributions(result: Decision, policy: PolicySet) {
@@ -10,6 +11,6 @@ export function ruleContributions(result: Decision, policy: PolicySet) {
       : rule.outcome.choice === 'APPROVAL_REQUIRED' ? enforcement === 'WARN' ? 'advisory-approval' : 'approval-required'
       : 'pass';
     return { ruleId: rule.ruleId, enforcement, gates, contribution,
-      effectThreshold: result.config.effectThreshold, evidenceThreshold: result.config.evidenceThreshold };
+      effectThreshold: result.config.effectThreshold, evidenceThreshold: evidenceThreshold(rule.ruleId, policy, result.config) };
   }) ?? null;
 }

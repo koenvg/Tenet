@@ -25,7 +25,7 @@ export async function guardHarness(options: { env?: Record<string, string>; judg
     ui: { setStatus: (_key: string, value: string) => statuses.push(value),
       notify: (value: string) => notifications.push(value),
       confirm: async (title: string) => { prompts.push(title); return false; },
-      select: async (title: string, items: string[]) => { views.push({ title, items }); return undefined; },
+      select: async (title: string, items: string[]): Promise<string | undefined> => { views.push({ title, items }); return undefined; },
     },
   };
   registerGuard(pi as unknown as ExtensionAPI, { env: { TENET_RECORDING: 'off', ...options.env }, createJudge: options.createJudge,

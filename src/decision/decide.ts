@@ -61,6 +61,7 @@ export async function decide(options: {
   });
   if (!policy.available) return result('BLOCK', policy.reason);
   if (!validConfig(config) || typeof cwd !== 'string' || !cwd.trim()) return result('BLOCK', 'configuration');
+  if (policy.rules.some(rule => rule.evidenceThreshold !== undefined && !probability(rule.evidenceThreshold))) return result('BLOCK', 'configuration');
   if (signal?.aborted) return result('BLOCK', 'cancelled');
   if (options.evidenceLimits && (!Number.isSafeInteger(options.evidenceLimits.recentEvents) || options.evidenceLimits.recentEvents < 0
     || !Number.isSafeInteger(options.evidenceLimits.maxBytes) || options.evidenceLimits.maxBytes < 1)) return result('BLOCK', 'configuration');
