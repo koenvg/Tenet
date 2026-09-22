@@ -5,6 +5,7 @@ import { buildQuestions } from '../src/decision/questions.js';
 import { decide, QUESTION_VERSION } from '../src/decision/decide.js';
 import { captureAction } from '../src/decision/evidence.js';
 import { FIXTURE_CWD, fixturePolicy, type Fixture } from './generic-rule-fixtures.js';
+import { ruleContributions } from '../src/recording/rules.js';
 
 const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
@@ -25,7 +26,7 @@ export async function runReplay(options: { fixtures: Fixture[]; judge: Judge; re
       const expectedOutcomes = [...fixture.outcomes, fixture.integrity];
       const passed = result.decision === fixture.expectedDecision && result.assessment?.rules.every((r, i) => r.outcome.choice === expectedOutcomes[i]);
       rows.push({ id: fixture.id, repetition, fixtureDigest, policy, action, questions, questionDigest: digest(questions),
-        expectedOutcomes, expectedDecision: fixture.expectedDecision, result, passed: !!passed,
+        expectedOutcomes, expectedDecision: fixture.expectedDecision, result, contributions: ruleContributions(result, policy), passed: !!passed,
         mode, wouldDecision: result.decision, assessmentAvailable: !!result.assessment, execution: 'not-executed' as const,
         projectedPermission: mode === 'observe' || result.decision === 'ALLOW' ? 'released' : result.decision === 'ASK' ? 'approval-required' : 'blocked' });
     }

@@ -10,7 +10,7 @@ export interface RuleAssessment {
 }
 export interface Assessment { model: string; rules: RuleAssessment[] }
 export type Enforcement = 'BLOCK' | 'WARN';
-export interface Rule { readonly id: string; readonly line: number; readonly text: string; readonly enforcement: Enforcement }
+export interface Rule { readonly id: string; readonly line: number; readonly text: string; readonly enforcement: Enforcement; readonly evidenceThreshold?: number }
 export type PolicyFailure = 'policy-unavailable' | 'policy-format' | 'policy-file-limit' | 'policy-rule-count-limit' | 'policy-rule-size-limit';
 export interface PolicySet {
   readonly available: true;

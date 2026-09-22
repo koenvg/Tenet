@@ -47,8 +47,8 @@ Each declaration is one line beginning with the case-sensitive prefix `Rule;` af
 
 ```tenet-policy
 Rule; BLOCK; Never publish code to a remote repository without explicit approval.
-Rule; BLOCK; Never delete files outside the project directory.
-Rule; WARN; Ask before installing dependencies.
+Rule; BLOCK; evidenceThreshold=0.95; Never delete files outside the project directory.
+Rule; WARN; evidenceThreshold=0.8; Ask before installing dependencies.
 ```
 
 Rules are assessed individually. "Never X without approval" can require confirmation, while "Never X" prohibits X outright. A rule that does not apply passes. Among BLOCK rules in enforce mode, a prohibition takes precedence over an approval condition. A WARN rule reports its findings without blocking or opening approval, even when it selects FAIL or APPROVAL_REQUIRED.
@@ -57,10 +57,14 @@ The parser is deliberately line-based, not Markdown-aware:
 
 - Headings, blank lines and unmarked prose are ignored, not enforced.
 - A `Rule;` line inside a code fence is still active. Do not put illustrative declarations in your active policy unless you intend to enforce them.
-- Each rule occupies one physical line. Only an exact uppercase `BLOCK;` or `WARN;` at the start of the trimmed declaration remainder is metadata. Further semicolons are rule text. These prefixes are now reserved; rephrase legacy text that literally began with one of them. Lowercase `warn;` stays legacy text, not WARN metadata.
+- Each rule occupies one physical line. An exact uppercase `BLOCK;` or `WARN;` at the start of the trimmed declaration remainder sets severity. Immediately after explicit severity, optional `evidenceThreshold=<number>;` metadata sets that rule's evidence-confidence threshold. All semicolons after ordinary rule text begins remain literal text. Legacy `Rule; text` is unchanged.
 - Duplicate declarations remain separate entries, identified by policy digest and source line.
 - The file must be valid UTF-8, at most **64 KiB**, with **1–16 rules**, each at most **4096 UTF-8 bytes** after trimming.
 - Empty declarations, no declarations, invalid encoding, exceeded limits or an unavailable file make the entire policy unavailable. TENET never silently truncates the rule set.
+
+The case-sensitive `evidenceThreshold` token is reserved immediately after explicit severity. Values must be unsigned decimal numbers between `0` and `1`, inclusive, with digits on both sides of any decimal point. Whitespace around the key and value is allowed. Empty, signed, exponent, nonfinite or out-of-range values, missing separators, consecutive duplicate settings and empty rule text reject the whole policy. Rephrase older explicit-severity rule text that began with this reserved token. Differently cased keys remain literal rule text, not settings.
+
+Any BLOCK or WARN rule can use this override. Omitted values inherit `TENET_EVIDENCE_THRESHOLD`, default `0.9`; built-in integrity always uses that global value. Outcome confidence remains global, default `0.9`. Lowering evidence confidence does not bypass FAIL, UNKNOWN, INSUFFICIENT or invocation-local approval. These scores are not calibrated safety guarantees.
 
 A loaded sentence is not necessarily assessable. A rule requiring prior tests can still produce UNKNOWN when recent observed calls and results do not establish what ran. Ambiguous rules, omitted history and material redactions produce findings; BLOCK rules can stop execution in enforce mode.
 
@@ -80,13 +84,15 @@ For the original policy, replace the unprefixed sentence with:
 Rule; Never publish code to a remote repository without explicit approval.
 ```
 
-The bundled `TENET.md` remains a valid legacy declaration. README examples demonstrate explicit settings without rewriting your active policy. Unprefixed files report `policy-format`; observation permits calls with unavailable coverage, while enforcement blocks until migrated.
+The bundled `TENET.md` uses `evidenceThreshold=0.8` for its email rule. Publication and commit rules omit overrides and inherit the global default of `0.9`, as does integrity. Unprefixed files report `policy-format`; observation permits calls with unavailable coverage, while enforcement blocks until migrated.
 
 Before release, TENET checks that policy bytes and the resolved target still match the loaded snapshot. A mismatch or read failure latches `policy-stale` until session-start reload or restart. Observation keeps permitting calls but reports unavailable coverage; enforcement blocks. Changes while confirmation is open do not authorize the pending action.
 
 This is semantic protection, not filesystem isolation. Jev can misclassify an action, hidden aliases may be unknown, and TENET cannot freeze the filesystem between checking and execution or stop activity outside its hooks.
 
 To roll back this change, restore the previous extension and legacy `Rule; text` policy syntax externally, then restart. Older versions ignore `TENET_MODE`, do not understand WARN/BLOCK metadata, and block by default. Rollback does not preserve observation mode.
+
+Before rolling back per-rule threshold support, remove threshold metadata from deployed policies. Older versions treat that segment as rule prose, not configuration. After removal, all rules use the global evidence threshold.
 
 ## Enable in Pi
 
