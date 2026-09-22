@@ -10,6 +10,8 @@
 
 Set `TENET_BROWSER_CDP_URL` if Arc uses a different CDP endpoint. A connection failure fails the suite; it never downloads or launches another browser. Vitest runs in Node and drives the existing Arc through `playwright-core`, rather than launching a Vitest Browser Mode provider.
 
+When the owner explicitly authorizes a separate Chrome debugging instance, run the same suite against its loopback endpoint, for example `TENET_BROWSER_CDP_URL=http://127.0.0.1:9223 bun run inspector:test:browser`. Use a temporary profile. The suite connects to that instance; it never launches a browser itself.
+
 The suite builds the production client, creates an offline synthetic archive, and starts an ephemeral loopback inspector. Each test creates and closes its own tab in Arc's existing context. Other tabs and the signed-in profile are left in place. Non-local page requests are blocked and checked; no evaluator calls are made.
 
 Coverage:

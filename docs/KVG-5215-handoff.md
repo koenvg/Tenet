@@ -30,12 +30,17 @@ The live all-sessions API returned a `temporary-record` warning while the select
 
 `App.svelte` now stages refresh responses and publishes one completed update using the selected context's recording status. Failed or stale refreshes do not publish partial snapshots. Polling, actual recording warnings, delayed execution updates and selection preservation remain intact.
 
-Regression evidence: adding a real temporary file in an unrelated archived session caused five DOM mutations during unchanged polling before the fix. The same test passes with zero mutations after the fix. Browser coverage also checks the summary position across two completed polls, pending the Arc connection.
+Regression evidence: adding a real temporary file in an unrelated archived session caused five DOM mutations during unchanged polling before the fix. The same test passes with zero mutations after the fix. Chrome browser coverage also passed with no summary movement across two completed polls.
 
-## Pending completion gates
+## Chrome verification
 
-The Arc CDP endpoint responds at `http://127.0.0.1:9222`, but Playwright's browser connection times out after the websocket connects, including the latest verification attempt. No alternate browser was launched. Reconnect the owner's Arc, then run `bun run inspector:test:browser`. The suite now contains eight tests, including the flashing regression.
+The owner explicitly approved a separate Chrome debugging instance after Arc's CDP connection repeatedly timed out. Verification used the installed Chrome for Testing binary with a temporary profile and loopback debugging on port 9223. No signed-in profile was reused or modified.
 
-The owner supplied desktop screenshots of the new overview, which were inspected. Automated desktop/mobile captures are still pending, so existing files in `.impeccable/review/` must not be treated as current verification. The browser suite captures desktop, mobile and the 2233px viewport. Inspect that batch, fix together if needed, and confirm in at most one further pass.
+- `TENET_BROWSER_CDP_URL=http://127.0.0.1:9223 bun run inspector:test:browser`: all eight tests passed.
+- Inspected `.impeccable/review/desktop.png` at 1440px, `mobile.png` at 390px and `user-2233.png` at the owner's viewport. These captures use the documented synthetic archive fixture.
+- Browser tests also verified 320px and 768px layouts, no horizontal overflow, resizing, disclosure behavior, focus, safe Markdown, evidence scroll preservation and refresh-error recovery.
+- Checked the owner's actual running page at port 52320 and the supplied session/invocation link. Across two completed polls, observed zero mutations in the main workspace, no recording banner, and an unchanged summary position of 90px from the viewport top.
+
+## Pending independent finish checks
 
 The named Impeccable finish reviewer and documenter are not registered in this session's agent list. No independent finish verdict or documentation review has run. Arrange those checks after valid captures are available. `DESIGN.md` was already absent; this scoped refinement does not repair that pre-existing documentation gap implicitly.
