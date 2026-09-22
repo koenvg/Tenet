@@ -1,10 +1,11 @@
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest';
 import { chromium, type Browser, type Page } from 'playwright-core';
-import { mkdtemp, mkdir, realpath, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { startInspector } from '../../src/inspector/server.js';
 import { browserFixture, recordedQuestion } from './browser-fixture.js';
+import { sessionKey } from '../../src/recording/archive.js';
 
 let browser: Browser | undefined, page: Page | undefined;
 let app: Awaited<ReturnType<typeof startInspector>> | undefined;
@@ -24,6 +25,9 @@ beforeAll(async () => {
   catch (cause) { throw new Error(`Cannot connect to the owner's Arc at ${endpoint}. Enable Arc remote debugging or set TENET_BROWSER_CDP_URL. This suite never launches another browser.`, { cause }); }
   directory = await realpath(await mkdtemp(join(tmpdir(), 'tenet-playwright-')));
   await browserFixture(directory);
+  const unrelated = join(directory, sessionKey('unrelated-session'));
+  await mkdir(unrelated, { mode: 0o700 });
+  await writeFile(join(unrelated, 'pending.tmp'), 'in progress', { mode: 0o600 });
   app = await startInspector({ directory, assets: resolve('inspector/dist') });
   await mkdir(artifacts, { recursive: true });
 });
@@ -57,6 +61,24 @@ afterAll(async () => {
   // For a CDP-connected browser this disconnects Playwright, not the owner's Arc.
   await browser?.close();
   if (directory) await rm(directory, { recursive: true, force: true });
+});
+
+test('background refresh does not flash archive-wide warnings into the selected session', async () => {
+  const p = currentPage(); await pickCall('summary');
+  let completedPolls = 0;
+  p.on('response', response => { if (response.url().includes('/invocations/')) completedPolls++; });
+  const before = await p.locator('.decision-title').boundingBox();
+  const mutations = await p.evaluate(() => new Promise<number>(resolve => {
+    let count = 0;
+    const observer = new MutationObserver(records => count += records.length);
+    observer.observe(document.querySelector('main')!, { subtree: true, childList: true, attributes: true, characterData: true });
+    setTimeout(() => { observer.disconnect(); resolve(count); }, 4500);
+  }));
+  expect(completedPolls).toBeGreaterThanOrEqual(2);
+  expect(mutations).toBe(0);
+  expect(await p.locator('.decision-title').boundingBox()).toEqual(before);
+  expect(await p.getByRole('region', { name: 'Recording issues' }).count()).toBe(0);
+  expect(pageErrors).toEqual([]);
 });
 
 test('pane dividers drag, respond to keys, clamp and retain their sizes across calls', async () => {

@@ -24,3 +24,5 @@ Coverage:
 Summary screenshots go to `.impeccable/review/desktop.png`, `mobile.png` and `user-2233.png`. They use a synthetic offline fixture reproducing a low-evidence-confidence decision in observe mode, not a real session. Failed-test captures go to `.impeccable/review/playwright/`. The archive is removed and the inspector stopped after the suite. Tests use the `.vitest.ts` suffix so `bun test` does not collect them.
 
 The offline DOM suite also covers fresh-visit latest-call selection, direct links, stable selection during live updates, project filtering and pagination.
+
+Both suites include an archive-wide temporary-file warning outside the selected session. Unchanged background polls must not mutate the page or briefly show that warning in the selected session. Genuine selected-session recording issues remain visible.

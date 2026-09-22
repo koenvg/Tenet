@@ -24,10 +24,18 @@ Help the owner understand the latest decision without reading raw evaluator data
 - `bun test`: 228 passed, zero failed.
 - Impeccable detector: one run over changed UI files, no findings. Output in `.impeccable/review/kvg-5215-detector.json`.
 
+## Whole-page flashing follow-up
+
+The live all-sessions API returned a `temporary-record` warning while the selected-session and invocation APIs returned no warnings. `refreshLive` rendered each response as it arrived, causing the recording banner to be inserted and removed on every poll and shifting the entire workspace.
+
+`App.svelte` now stages refresh responses and publishes one completed update using the selected context's recording status. Failed or stale refreshes do not publish partial snapshots. Polling, actual recording warnings, delayed execution updates and selection preservation remain intact.
+
+Regression evidence: adding a real temporary file in an unrelated archived session caused five DOM mutations during unchanged polling before the fix. The same test passes with zero mutations after the fix. Browser coverage also checks the summary position across two completed polls, pending the Arc connection.
+
 ## Pending completion gates
 
-The Arc CDP endpoint responds at `http://127.0.0.1:9222`, but Playwright's browser connection timed out after the websocket connected. A second connection attempt with a 20-second timeout also failed. No alternate browser was launched. The browser suite failed setup, leaving all seven tests unexecuted. Reconnect the owner's Arc, then run `bun run inspector:test:browser`.
+The Arc CDP endpoint responds at `http://127.0.0.1:9222`, but Playwright's browser connection times out after the websocket connects, including the latest verification attempt. No alternate browser was launched. Reconnect the owner's Arc, then run `bun run inspector:test:browser`. The suite now contains eight tests, including the flashing regression.
 
-New screenshots have not been captured or visually inspected. Existing files in `.impeccable/review/` must not be treated as proof of this change. The updated browser suite captures the approved desktop, mobile and 2233px viewport set. Inspect that batch, fix together if needed, and confirm in at most one further pass.
+The owner supplied desktop screenshots of the new overview, which were inspected. Automated desktop/mobile captures are still pending, so existing files in `.impeccable/review/` must not be treated as current verification. The browser suite captures desktop, mobile and the 2233px viewport. Inspect that batch, fix together if needed, and confirm in at most one further pass.
 
 The named Impeccable finish reviewer and documenter are not registered in this session's agent list. No independent finish verdict or documentation review has run. Arrange those checks after valid captures are available. `DESIGN.md` was already absent; this scoped refinement does not repair that pre-existing documentation gap implicitly.

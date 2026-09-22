@@ -1,6 +1,6 @@
 // Exercise the built client against real local HTTP and an offline archive.
 import assert from 'node:assert/strict';
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { JSDOM } from 'jsdom';
@@ -20,6 +20,10 @@ try {
   sink('decision', { decision: 'BLOCK', reason: 'timeout' });
   sink('response', { preview: '<script>window.hostile=true</script>', truncated: true, bytes: 2000000 });
   await writer.close();
+  // The archive-wide response sees this warning; the selected session does not.
+  const unrelatedDirectory = join(directory, sessionKey('unrelated-session'));
+  await mkdir(unrelatedDirectory, { mode: 0o700 });
+  await writeFile(join(unrelatedDirectory, 'pending.tmp'), 'in progress', { mode: 0o600 });
   app = await startInspector({ directory, assets: resolve('inspector/dist') });
   const html = await (await fetch(app.origin)).text();
   const scriptPath = /src="([^"]+\.js)"/.exec(html)?.[1];
@@ -70,6 +74,9 @@ try {
   assert.match(document.querySelector('[aria-label="Decision explanation"]').textContent, /PASS selected at 0.88; required confidence 0.9/);
   assert.equal(document.querySelector('[aria-label="Pane sizes"]'), null, 'slider toolbar removed');
   assert.equal(document.querySelector('input[type="range"]'), null);
+  assert.equal(document.querySelector('[aria-label="Recording issues"]'), null, 'selected session has no recording warning');
+  const allSessions = await (await fetch(app.origin + '/api/sessions')).json();
+  assert.ok(allSessions.issues.some(issue => issue.reason === 'temporary-record'), 'other-session warning remains recorded');
   const stableDetail = document.querySelector('.invocation');
   const stableMutations = [];
   const observer = new dom.window.MutationObserver(records => stableMutations.push(...records));

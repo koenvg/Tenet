@@ -128,19 +128,25 @@
       const query = new URLSearchParams(); if (project) query.set('project', project);
       const sessionData = await livePage<SessionSummary>(`/api/sessions?${query}`, 'sessions', sessions.length, current);
       if (!sessionData) return;
-      sessions = sessionData.items; nextSession = sessionData.next; issues = sessionData.issues; health = sessionData.captureHealth;
-      projects = [...new Set([...projects, ...sessions.flatMap(s => s.projects)])].sort();
+      let refreshedInvocations = invocations, refreshedNextInvocation = nextInvocation, refreshedView = view;
+      let refreshedIssues = sessionData.issues, refreshedHealth = sessionData.captureHealth;
       if (selectedSession) {
         const invocationData = await livePage<InvocationSummary>(`/api/sessions/${selectedSession}`, 'invocations', invocations.length, current);
         if (!invocationData) return;
-        invocations = invocationData.items; nextInvocation = invocationData.next; issues = invocationData.issues; health = invocationData.captureHealth;
+        refreshedInvocations = invocationData.items; refreshedNextInvocation = invocationData.next;
+        refreshedIssues = invocationData.issues; refreshedHealth = invocationData.captureHealth;
         if (selectedInvocation) {
           const detail = await api(`/api/sessions/${selectedSession}/invocations/${selectedInvocation}`);
           if (!current()) return;
-          // Keep Detail mounted so its rule selection and scroll survive polling.
-          view = detail.view; issues = detail.issues; health = detail.captureHealth;
+          refreshedView = detail.view; refreshedIssues = detail.issues; refreshedHealth = detail.captureHealth;
         }
       }
+      // Publish one completed refresh. Archive-wide warnings must not flash above
+      // a selected session before its scoped response replaces them.
+      sessions = sessionData.items; nextSession = sessionData.next;
+      projects = [...new Set([...projects, ...sessions.flatMap(s => s.projects)])].sort();
+      invocations = refreshedInvocations; nextInvocation = refreshedNextInvocation;
+      view = refreshedView; issues = refreshedIssues; health = refreshedHealth;
       if (error.startsWith('Live updates paused;')) error = '';
     } catch (e) {
       if (current()) error = `Live updates paused; reconnecting automatically. ${message(e)}`;
