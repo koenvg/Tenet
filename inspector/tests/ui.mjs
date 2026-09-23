@@ -281,6 +281,22 @@ try {
     for (let n = 0; n < 100 && !linked.window.document.querySelector('.invocation'); n++) await new Promise(r => setTimeout(r, 20));
     assert.ok(linked.window.document.querySelector('.invocation').textContent.includes('page-0'), 'fresh launch restores deep-linked call beyond first page');
   } finally { linked.window.close(); }
+  const emptyKey = sessionKey('not-yet-recorded');
+  const empty = new JSDOM(html, { url: `${app.origin}/?session=${emptyKey}`, runScripts: 'outside-only', pretendToBeVisual: true });
+  try {
+    empty.window.setInterval = () => 0; // This secondary view tests navigation, not polling.
+    empty.window.fetch = dom.window.fetch; empty.window.eval(script);
+    for (let n = 0; n < 100 && !empty.window.document.body.textContent.includes('Waiting for recorded calls'); n++) await new Promise(r => setTimeout(r, 20));
+    assert.equal(new URL(empty.window.location.href).searchParams.get('session'), emptyKey);
+    assert.match(empty.window.document.querySelector('.empty-state h2').textContent, /Waiting for recorded calls/);
+    assert.equal(empty.window.document.querySelector('.call-row[aria-pressed="true"]'), null, 'an unrelated call must not be selected');
+    assert.equal(empty.window.document.querySelector('.session-picker summary').textContent.trim(), 'Selected session');
+    const other = [...empty.window.document.querySelectorAll('[aria-label="Sessions"] button')].find(b => b.querySelector('strong')?.textContent === 'live-session');
+    assert.ok(other, 'another project remains browsable');
+    other.click();
+    for (let n = 0; n < 100 && !empty.window.document.querySelector('.invocation'); n++) await new Promise(r => setTimeout(r, 20));
+    assert.equal(new URL(empty.window.location.href).searchParams.get('session'), sessionKey('live-session'));
+  } finally { empty.window.close(); }
   await recordFailureFixture(directory); await app.close();
   app = await startInspector({ directory, assets: resolve('inspector/dist') });
   await wait(() => sessionButtons().some(b => b.querySelector('strong')?.textContent === 'failure-history'));
@@ -302,6 +318,28 @@ try {
   }
   assert.ok(!document.body.textContent.includes('fixture-transport-secret'));
   console.log('PASS: live discovery, delayed execution, preserved selection, project filters, pagination, deep links, reconnect and failed capture history.');
+
+  // A deep-linked session can have recordings even when the first picker page omits it.
+  const pagedDirectory = await realpath(await mkdtemp(join(tmpdir(), 'tenet-paged-link-')));
+  let pagedApp, pagedDom;
+  try {
+    const pagedWriter = new ArchiveWriter({ enabled: true, directory: pagedDirectory });
+    pagedWriter.bind({ sessionId: 'older-session', invocationId: 'older-call', callId: 'older-call', toolName: 'read', mode: 'observe', cwd: '/old-project' })('begin', {});
+    await new Promise(resolve => setTimeout(resolve, 20));
+    for (let n = 0; n < 52; n++) pagedWriter.bind({ sessionId: `new-${n}`, invocationId: `new-${n}`, callId: `new-${n}`, toolName: 'read', mode: 'observe', cwd: '/new-project' })('begin', {});
+    await pagedWriter.close();
+    pagedApp = await startInspector({ directory: pagedDirectory, assets: resolve('inspector/dist') });
+    const page = await (await fetch(pagedApp.origin + '/api/sessions')).json();
+    assert.equal(page.sessions.length, 50);
+    assert.ok(!page.sessions.some(item => item.sessionId === 'older-session'));
+    pagedDom = new JSDOM(html, { url: `${pagedApp.origin}/?session=${sessionKey('older-session')}`, runScripts: 'outside-only', pretendToBeVisual: true });
+    pagedDom.window.setInterval = () => 0;
+    pagedDom.window.fetch = (path, init) => fetch(new URL(path, pagedApp.origin), { ...init, headers: { Origin: pagedApp.origin } });
+    pagedDom.window.eval(script);
+    for (let n = 0; n < 100 && !pagedDom.window.document.querySelector('.invocation'); n++) await new Promise(resolve => setTimeout(resolve, 20));
+    assert.ok(pagedDom.window.document.querySelector('.invocation')?.textContent.includes('older-call'));
+    assert.equal(pagedDom.window.document.querySelector('.session-picker summary').textContent.trim(), 'Selected session');
+  } finally { pagedDom?.window.close(); await pagedApp?.close(); await rm(pagedDirectory, { recursive: true, force: true }); }
 } finally {
   for (const id of intervals) dom?.window.clearInterval(id);
   await new Promise(resolve => setTimeout(resolve, 50));

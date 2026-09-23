@@ -173,7 +173,7 @@
 <header class="app-bar">
   <h1><DecisionIcon kind="brand" /> TENET</h1>
   <details class="session-picker" bind:this={sessionPicker} open={!session}>
-    <summary title={currentSession?.sessionId}>{currentSession ? projectName(currentSession.projects) : 'Choose a session'}</summary>
+    <summary title={currentSession?.sessionId}>{currentSession ? projectName(currentSession.projects) : session ? 'Selected session' : 'Choose a session'}</summary>
     <div class="session-menu">
       <h2>Sessions <span class="muted">{sessions.length} loaded</span></h2>
       <form class="project-filter" on:submit|preventDefault={filterProjects}>
@@ -245,8 +245,8 @@
     {:else}
       <section class="empty-state" aria-live="polite">
         <span class="empty-symbol" aria-hidden="true">[ ]</span>
-        <h2>{detailBusy ? 'Reading invocation…' : session ? 'Choose a call to investigate' : 'Start with a recorded session'}</h2>
-        <p>{detailBusy ? 'Loading its recorded assessment and evidence.' : 'See what TENET decided, which rules contributed, and the evidence the evaluator actually received.'}</p>
+        <h2>{detailBusy ? 'Reading invocation…' : session && !invocations.length ? 'Waiting for recorded calls' : session ? 'Choose a call to investigate' : 'Start with a recorded session'}</h2>
+        <p>{detailBusy ? 'Loading its recorded assessment and evidence.' : session && !invocations.length ? 'No calls are recorded for this session yet. New calls appear here as TENET records them.' : 'See what TENET decided, which rules contributed, and the evidence the evaluator actually received.'}</p>
         <p class="muted">Missing records stay unknown. This inspector never reruns an assessment.</p>
       </section>
     {/if}
