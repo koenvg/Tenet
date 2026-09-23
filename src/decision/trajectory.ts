@@ -49,9 +49,10 @@ export class Observations {
 
 // Replay only the selected session branch. Transcript content can supply evidence, never permission.
 export function recoverObservations(sessionId: string, entries: readonly unknown[] | undefined,
-  limits: EvidenceLimits, sensitiveFields: string[]): Observations {
+  limits: EvidenceLimits, sensitiveFields: string[], assessedCalls?: ReadonlySet<string>): Observations {
   const history = new Observations(sessionId, limits, sensitiveFields,
-    [entries ? 'recovered-history-untrusted' : 'history-unavailable']);
+    [entries ? 'recovered-history-untrusted' : 'history-unavailable', ...(assessedCalls ? ['recovery-restricted-to-assessed-calls'] : [])]);
+  const eligible = (id: unknown) => !assessedCalls || (typeof id === 'string' && assessedCalls.has(id));
   for (const raw of entries ?? []) {
     if (!raw || typeof raw !== 'object') continue;
     const entry = raw as Record<string, any>;
@@ -65,10 +66,10 @@ export function recoverObservations(sessionId: string, entries: readonly unknown
       }
     } else if (entry.type === 'message') {
       const message = entry.message;
-      if (message?.role === 'toolResult') history.add('recovered-pi-tool-result', message.toolCallId ?? null,
+      if (message?.role === 'toolResult' && eligible(message.toolCallId)) history.add('recovered-pi-tool-result', message.toolCallId ?? null,
         message.toolName ?? null, { content: message.content, details: message.details, isError: message.isError }, timestamp);
       if (message?.role === 'assistant' && Array.isArray(message.content)) {
-        for (const block of message.content) if (block?.type === 'toolCall') {
+        for (const block of message.content) if (block?.type === 'toolCall' && eligible(block.id)) {
           history.add('recovered-pi-tool-call', block.id ?? null, block.name ?? null, block.arguments, timestamp);
         }
       }

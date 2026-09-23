@@ -118,8 +118,12 @@ test('resume recovers bounded observations, not grants; sessions never share liv
     await h.result('live', [{ type: 'text', text: 'old session only' }]);
     await h.switch('two'); await h.call('isolated');
     assert.doesNotMatch(JSON.stringify(requests.at(-1)), /old session only/);
-    for (let i = 0; i < 18; i++) h.entries.push({ type: 'message', timestamp: '2020-01-01T00:00:00Z',
-      message: { role: 'toolResult', toolCallId: `recovered-${i}`, toolName: 'novel', content: [{ type: 'text', text: `target-${i} uploads code` }] } });
+    for (let i = 0; i < 18; i++) {
+      h.entries.push({ type: 'message', timestamp: '2020-01-01T00:00:00Z',
+        message: { role: 'toolResult', toolCallId: `recovered-${i}`, toolName: 'novel', content: [{ type: 'text', text: `target-${i} uploads code` }] } });
+      h.entries.push({ type: 'custom', customType: 'tenet', data: { stage: 'permission', mode: 'observe', sessionId: 'two',
+        callId: `recovered-${i}`, outcome: 'released' } });
+    }
     h.entries.push({ type: 'custom', customType: 'tenet', timestamp: '2020-01-02T00:00:00Z',
       data: { stage: 'approval', sessionId: 'two', callId: 'pending', toolName: 'novel', outcome: 'approved' } });
     h.entries.push({ type: 'custom', customType: 'tenet', data: { stage: 'approval', sessionId: 'one', callId: 'foreign', outcome: 'approved' } });
@@ -145,6 +149,8 @@ test('recovery includes proposed calls and decisions with unavailable metadata e
       { type: 'toolCall', id: 'proposed', name: 'unexpected', arguments: { strangeKey: 77, authorization: 'hidden' } },
     ] } });
     h.entries.push({ type: 'custom', customType: 'tenet', data: { stage: 'decision', sessionId: 'one', callId: 'proposed', decision: 'BLOCK' } });
+    h.entries.push({ type: 'custom', customType: 'tenet', data: { stage: 'permission', mode: 'enforce',
+      sessionId: 'one', callId: 'proposed', outcome: 'blocked' } });
     await h.switch('one'); await h.call('pending');
     const observations = captured!.trajectory!.observations;
     assert.deepEqual(observations.map(o => o.origin), ['recovered-pi-tool-call', 'recovered-tenet-decision']);
