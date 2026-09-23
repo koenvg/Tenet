@@ -260,7 +260,7 @@ test('turning off during session initialization does not strand readiness when r
   const h = await guardHarness({ env: { TENET_MODE: 'enforce' } });
   try {
     const starting = h.start();
-    await h.commands.get('tenet').handler('off', h.ctx);
+    await new ActivationStore(join(h.cwd, 'control.json')).write('off');
     await starting;
     await h.commands.get('tenet').handler('on', h.ctx);
     assert.match(footer(h.statuses), /TENET ON ENFORCE.*ready:/);

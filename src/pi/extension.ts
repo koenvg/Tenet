@@ -3,6 +3,5 @@ import { registerGuard } from './guard.js';
 import { registerInspectorCommand } from './inspector-command.js';
 
 export default function tenet(pi: ExtensionAPI): void {
-  registerGuard(pi);
-  registerInspectorCommand(pi);
+  registerGuard(pi, { onEligible: () => registerInspectorCommand(pi) });
 }

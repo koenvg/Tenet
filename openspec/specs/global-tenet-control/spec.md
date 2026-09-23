@@ -7,19 +7,23 @@ Let a Pi owner switch TENET assessment and capture on or off across projects and
 ## Requirements
 
 ### Requirement: Owner-facing activation commands
-When the TENET Pi extension is loaded, it SHALL offer `/tenet status`, `/tenet on`, and `/tenet off`; bare `/tenet` SHALL retain its findings view. Status SHALL identify the effective state as ON OBSERVE, ON ENFORCE, OFF, or CONTROL UNAVAILABLE, show the configured base mode and relevant readiness, and distinguish OFF from observation and recording-only opt-out. Commands SHALL not inject status or archived evidence into agent messages or tool results. Invalid arguments or failed state writes SHALL report an error and SHALL NOT claim that activation changed.
+When the TENET Pi extension is loaded in an eligible session, it SHALL offer `/tenet status`, `/tenet on`, and `/tenet off`; bare `/tenet` SHALL retain its findings view. An ineligible session SHALL offer no TENET commands or status UI. In an eligible session status SHALL identify the effective state as ON OBSERVE, ON ENFORCE, OFF, or CONTROL UNAVAILABLE, show the configured base mode and relevant readiness, and distinguish OFF from observation and recording-only opt-out. Commands SHALL not inject status or archived evidence into agent messages or tool results. Invalid arguments or failed state writes SHALL report an error and SHALL NOT claim that activation changed.
 
 #### Scenario: Existing findings command
-- **WHEN** the owner enters `/tenet` without an argument
+- **WHEN** the owner enters `/tenet` without an argument in an eligible session
 - **THEN** the existing owner-only findings view opens rather than toggling activation
 
 #### Scenario: Status in off state
-- **WHEN** the shared choice is off and a Pi process was started with `TENET_MODE=enforce`
+- **WHEN** the shared choice is off and an eligible Pi process was started with `TENET_MODE=enforce`
 - **THEN** `/tenet status` and the owner footer show OFF and identify enforce as the mode that on will restore
 
 #### Scenario: Invalid command
-- **WHEN** the owner enters `/tenet enable` or the shared state cannot be written
+- **WHEN** the owner enters `/tenet enable` or the shared state cannot be written in an eligible session
 - **THEN** no activation change is reported as successful and the owner sees a safe error
+
+#### Scenario: No policy eligibility
+- **WHEN** the owner starts Pi in a directory without a local `TENET.md` or an explicit `TENET_POLICY`
+- **THEN** TENET offers no commands, footer, or notifications in that session, even if the shared choice is on or its control file is unavailable
 
 ### Requirement: Persistent machine-wide choice
 The on/off choice SHALL apply to TENET in every Pi project and every running Pi process belonging to this owner on this machine, and SHALL survive Pi restarts. A previously unconfigured installation SHALL begin ON, preserving the existing default observe mode and recording settings. An off command SHALL persist the choice and cancel pending work in its own process before reporting success; it SHALL NOT wait for acknowledgments from other processes. Running processes SHALL notice a change promptly without a Pi restart, including while idle, and SHALL read the latest shared choice before starting each assessment or releasing a pending call. A different process can still assess or release a pending call before it observes off; success of the command does not certify that every process has stopped. Repeated on or off commands SHALL be idempotent. On SHALL restore each process's previously configured observe or enforce mode without changing `TENET_MODE`, policy selection, or `TENET_RECORDING`.
@@ -71,8 +75,12 @@ On observing off, a running process SHALL cancel its pending assessments and app
 - **THEN** status reports CONTROL UNAVAILABLE, no request or evidence is submitted, and new invocations are blocked rather than silently treated as off or on
 
 ### Requirement: Pi-wide setup guidance and limits
-The owner documentation SHALL describe how to load the extension globally in Pi, set a policy path usable outside this repository, verify status before live calls, turn it off and back on, and remove the global loading configuration. It SHALL state that on without a usable policy or credentials follows the existing mode-specific unavailable behavior; that off does not remove past recordings; and that same-user processes and agents can change this cooperative control state. It SHALL not describe this toggle as an operating-system security boundary or as support for other agent hosts.
+The owner documentation SHALL describe how to load the extension globally in Pi, activate it with a local `TENET.md` or explicit `TENET_POLICY` usable outside this repository, verify status in eligible sessions before live calls, turn it off and back on, and remove the global loading configuration. It SHALL state that sessions without either policy source are dormant in both modes and show no TENET UI; an explicit missing source or present unusable policy remains unavailable with mode-specific behavior; missing credentials in eligible sessions also follow existing unavailable behavior. It SHALL state that off does not remove past recordings and that same-user processes and agents can change this cooperative control state. It SHALL not describe this toggle as an operating-system security boundary or as support for other agent hosts.
 
 #### Scenario: Pi in a project without TENET.md
-- **WHEN** an owner loads TENET globally and starts Pi in a directory with no local `TENET.md` and no usable absolute `TENET_POLICY`
-- **THEN** the instructions identify the resulting policy-unavailable state instead of claiming that global loading supplies a policy automatically
+- **WHEN** an owner loads TENET globally and starts Pi in a directory with no local `TENET.md` and no explicit `TENET_POLICY`
+- **THEN** the instructions identify the dormant state and do not claim global loading supplies a policy automatically
+
+#### Scenario: Explicit path that cannot be loaded
+- **WHEN** an owner globally loads TENET with `TENET_POLICY` pointing at an unavailable file
+- **THEN** the instructions distinguish that policy-unavailable state from dormancy and explain its observe and enforce outcomes

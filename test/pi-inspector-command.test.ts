@@ -18,18 +18,20 @@ function harness(sessionId = 'current-session') {
     on: (name: string, fn: (event: unknown, ctx: ExtensionContext) => Promise<void>) => handlers.set(name, [...(handlers.get(name) ?? []), fn]),
     registerCommand: (name: string, command: Command) => commands.set(name, command),
   } as unknown as ExtensionAPI;
-  const ctx = { hasUI: true, sessionManager: { getSessionId: () => sessionId },
-    ui: { notify: (message: string) => notices.push(message) } } as unknown as ExtensionContext;
+  const ctx = { cwd: process.cwd(), hasUI: true, sessionManager: { getSessionId: () => sessionId },
+    ui: { notify: (message: string) => notices.push(message), setStatus: () => {} } } as unknown as ExtensionContext;
   const emit = async (name: string, reason = 'quit') => { for (const fn of handlers.get(name) ?? []) await fn({ type: name, reason }, ctx); };
   const invoke = async () => { const command = commands.get('tenet-inspector'); assert.ok(command); await command.handler('', ctx); };
   return { pi, ctx, commands, notices, emit, invoke };
 }
 
-test('extension registers the command but opens no inspector on load', () => {
+test('extension registers inspector command only after an eligible session starts', async () => {
   const h = harness();
   tenet(h.pi);
-  assert.ok(h.commands.has('tenet-inspector'));
-  assert.equal(h.notices.length, 0);
+  assert.equal(h.commands.has('tenet-inspector'), false);
+  await h.emit('session_start', 'startup');
+  try { assert.ok(h.commands.has('tenet-inspector')); }
+  finally { await h.emit('session_shutdown'); }
 });
 
 test('command starts a real local reader on demand and repeated calls reuse its listener', async () => {

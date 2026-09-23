@@ -13,6 +13,7 @@ for (const mode of ['observe', 'enforce'] as const) for (const failure of ['cred
     }
     if (failure === 'policy') options.policy = 'not a policy';
     if (failure === 'configuration') options.env!.TENET_EFFECT_THRESHOLD = 'invalid';
+    if (failure === 'missing-policy') options.env!.TENET_POLICY = 'TENET.md';
     if (failure === 'invalid-response') options.judge = async () => ({ rules: [] });
     if (failure === 'provider') options.judge = async () => { throw new Error('private transport failure'); };
     if (failure === 'timeout') { options.env!.TENET_JUDGE_DEADLINE_MS = '5'; options.judge = () => new Promise(() => {}); }

@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { lstat } from 'node:fs/promises';
+import { join } from 'node:path';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import type { Action, Judge, Policy, RuleDiagnostic } from '../decision/contracts.js';
 import { decide, QUESTION_VERSION } from '../decision/decide.js';
@@ -18,7 +20,7 @@ import { capture, STAGES, type RecordingSink, type Stage } from '../recording/co
 
 type Identity = Pick<Action, 'sessionId' | 'callId' | 'toolName' | 'argumentDigest'> & { policyDigest: string | null; invocationId: string };
 
-export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; createJudge?: () => Judge; env?: Record<string, string | undefined>; controlPath?: string } = {}): void {
+export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; createJudge?: () => Judge; env?: Record<string, string | undefined>; controlPath?: string; onEligible?: () => void } = {}): void {
   const env = { ...(options.env ?? process.env) };
   const activation = new ActivationStore(options.controlPath);
   const reportRecording = (work: () => void) => { try { work(); } catch { /* Capture UI must not veto, even in enforce mode. */ } };
@@ -33,7 +35,13 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
     reports.status(ctx);
     recordingStatus();
   });
-  boundary.attempt(() => reports.register(pi));
+  let commandsRegistered = false;
+  let eligible = true; // Unknown until session_start; unknown is never a bypass.
+  const localPolicyEligible = async (cwd: string): Promise<boolean> => {
+    if (env.TENET_POLICY !== undefined) return true;
+    try { await lstat(join(cwd, 'TENET.md')); return true; }
+    catch (error) { return (error as NodeJS.ErrnoException).code !== 'ENOENT'; }
+  };
   let provider = options.judge;
   const judge: Judge = async (request, signal, recording) => {
     provider ??= options.createJudge ? options.createJudge() : createJevJudge({ apiKey: env.TYPESAFE_API_KEY });
@@ -70,7 +78,7 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
     return recoverObservations(session, branch, settings.evidence, settings.sensitiveFields, assessed);
   };
   const record = (stage: string, data: Record<string, unknown>, archiveData: Record<string, unknown> = {}) => {
-    if (activation.read() !== 'on') return;
+    if (!eligible || activation.read() !== 'on') return;
     const time = Date.now();
     if (typeof data.invocationId === 'string' && STAGES.includes(stage as Stage)) {
       capture(recordings.get(data.invocationId), stage as Stage, () => ({ ...data, ...archiveData }));
@@ -105,6 +113,20 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
     invalidate('session-start');
     activation.close();
     const starting = loadToken;
+    const selected = await localPolicyEligible(ctx.cwd);
+    if (starting !== loadToken) return;
+    eligible = selected;
+    if (!eligible) {
+      recordingStatus = () => {};
+      config = undefined;
+      observations = undefined;
+      return;
+    }
+    if (!commandsRegistered) {
+      boundary.attempt(() => reports.register(pi));
+      boundary.attempt(() => options.onEligible?.());
+      commandsRegistered = true;
+    }
     unavailable = 'starting';
     sessionId = ctx.sessionManager.getSessionId();
     recordingStatus = () => {
@@ -150,6 +172,7 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
   });
 
   on('tool_call', async (event, ctx) => {
+    if (!eligible) return;
     const control = activation.refresh();
     if (control !== 'on') {
       disabled.add(key(ctx.sessionManager.getSessionId(), event.toolCallId));
@@ -277,6 +300,7 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
   });
 
   on('tool_result', async (event, ctx) => {
+    if (!eligible) return;
     if (activation.refresh() !== 'on' || disabled.has(key(ctx.sessionManager.getSessionId(), event.toolCallId))) return;
     if (config && observations?.sessionId === ctx.sessionManager.getSessionId()) {
       observations.add('pi-tool-result', event.toolCallId, event.toolName,
@@ -296,12 +320,14 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
   on('session_before_fork', async () => { invalidate('session-fork'); });
   on('session_before_tree', async () => { invalidate('session-tree'); });
   on('session_tree', async (_event, ctx) => {
+    if (!eligible) return;
     invalidate('session-tree');
     observations = activation.refresh() === 'on' && config ? recoverGuarded(ctx.sessionManager.getSessionId(), ctx.sessionManager.getBranch?.(), config) : undefined;
     boundary.attempt(() => reports.restore(ctx.sessionManager.getBranch?.()));
     reports.status(ctx);
   });
   on('session_shutdown', async (_event, ctx) => {
+    if (!eligible) { activation.close(); return; }
     unavailable = 'session-shutdown'; invalidate('session-shutdown');
     activation.close();
     const drained = await archive.drain();
