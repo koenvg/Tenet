@@ -44,3 +44,37 @@ The owner explicitly approved a separate Chrome debugging instance after Arc's C
 ## Pending independent finish checks
 
 The named Impeccable finish reviewer and documenter are not registered in this session's agent list. No independent finish verdict or documentation review has run. Arrange those checks after valid captures are available. `DESIGN.md` was already absent; this scoped refinement does not repair that pre-existing documentation gap implicitly.
+
+## Decision map + Focus sidebar follow-up (in progress)
+
+The owner subsequently approved replacing the whole inspector identity with Open map, then explicitly requested the Focus sidebar from `.impeccable/mocks/decision/tenet-focus.png` instead of horizontal call navigation. This supersedes the original identity-preservation scope above.
+
+- Implemented the recorded-check map, separate execution summary, deliberate-selection trace and attached rule disclosures.
+- Restored a vertically scrollable, keyboard-resizable left sidebar with action icons and a white selection joining the white workspace. Preserved session/project controls, pagination, deep links and atomic polling.
+- The map stacks based on available workspace width, including after resizing. Mobile retains Calls / Summary navigation.
+- Added local Kode Mono and its SIL license; the font is embedded into the built stylesheet, without widening the inspector server's asset allowlist.
+- `DESIGN.md` now records this explicitly approved replacement direction. PRODUCT.md's stale planned-inspector wording remains untouched.
+
+Test-first evidence: missing map/check selection, missing Focus sidebar/resizer, and missing UNKNOWN warning each failed before their implementations. Final checks: 228 core tests pass; offline inspector UI tests pass; Svelte reports zero errors/warnings; TypeScript and diff checks pass.
+
+Browser verification is blocked, not passed. Temporary Chrome for Testing instances accept CDP connections but local-page navigation stalls before rendering; this also happens without request interception. The focused browser test times out in beforeEach at page.goto, then during failure capture. A subsequent CDP attach to a stalled target also times out. Neither headless nor ordinary Chrome resolved it. The updated ten-test suite and fresh desktop/mobile captures remain pending; existing captures describe the earlier overview. No signed-in browser profile was touched. The independent finish review remains outstanding.
+
+### Sidebar decision clarity
+
+Owner feedback on the sidebar requested a clearer allowed/blocked distinction. Restored semantic badge backgrounds and stronger labels, added distinct allowed/blocked/approval SVG symbols, and removed the selected-row override that made every decision gray. Sidebar approval uses amber. Observe-mode "Would allow/block" wording remains unchanged; these badges describe policy, not actual execution.
+
+A new UI regression failed on missing decision symbols, then passed. Rechecked all 228 core tests, the offline UI suite, Svelte checks and TypeScript. Added browser assertions for badge foreground/background colors and selected-row color preservation; browser execution remains pending under the navigation blocker above.
+
+### Completion review and responsive fixes
+
+The single fresh-context completion review returned Request changes with two CSS findings. Its original report is retained at `.impeccable/review/kvg-5215-working-tree-review.md`. No second review was launched.
+
+- P1: Removed the superseded workspace grid placements and 1100px mobile layout from `style.css`, and the competing divider breakpoint from `PaneResizer.svelte`. `summary.css` now owns workspace placements and the 900px mobile switch.
+- P2: Reset stacked `.map-check` insets so relative positioning for branch stubs cannot retain desktop offsets.
+- Added browser assertions for nonoverlapping panes and full-height dividers at 901/1024/1100px, contained check bounds and branch alignment at 320/390/768px and after resizing, and overflow within the invocation scroller itself.
+
+After these fixes, the offline UI suite, all 228 core tests, Svelte checks, TypeScript and diff checks pass. The new browser assertions have not run because of the previously documented navigation blocker. Review findings are addressed in code, but current visual/browser verification and visual finish approval remain pending.
+
+### Publication
+
+The owner requested pushing the current implementation and marking PR #21 ready for review despite the documented browser-verification gap. GitHub readiness does not imply visual approval or a passing current browser suite. The PR description retains these limitations.

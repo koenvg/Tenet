@@ -51,5 +51,4 @@
   .pane-resizer:hover, .pane-resizer:focus-visible, .pane-resizer.dragging { background: #e5eefb; }
   .pane-resizer:hover::after, .pane-resizer:focus-visible::after, .pane-resizer.dragging::after { background: #285fa6; }
   .pane-resizer:focus-visible { outline: 2px solid #285fa6; outline-offset: -2px; z-index: 1; }
-  @media (max-width: 1100px) { .pane-resizer { display: none; } }
 </style>

@@ -64,8 +64,25 @@ try {
   document.querySelector('[aria-label="Sessions"] button').click();
   await wait(() => calls().length === 13);
   await chooseCall('low-pass');
+  const decisionSymbols = [];
+  for (const state of ['positive', 'danger', 'approval']) {
+    const badge = document.querySelector(`.call-state .status-chip.${state}`);
+    assert.ok(badge, `sidebar includes ${state} decisions`);
+    const symbol = badge.querySelector('svg[aria-hidden="true"]');
+    assert.ok(symbol, `${state} decisions have a shape cue as well as color and text`);
+    decisionSymbols.push(symbol.innerHTML);
+  }
+  assert.equal(new Set(decisionSymbols).size, 3, 'allow, block and approval use distinct symbols');
+  const observedBadge = calls().find(row => row.querySelector('.call-id')?.textContent === 'summary').querySelector('.status-chip');
+  assert.equal(observedBadge.textContent.trim(), 'Would block', 'observation is not mislabeled as actual blocking');
   assert.ok(document.querySelector('[aria-label="Decision summary"]'), 'a visual summary leads the selected call');
-  assert.deepEqual([...document.querySelectorAll('.decision-flow h3')].map(el => el.textContent), ['Action', 'TENET decision', 'Actual execution']);
+  const map = document.querySelector('[aria-label="Decision map"]');
+  assert.ok(map, 'the selected call exposes a recorded decision map');
+  assert.match(map.textContent, /Rule outcome.*PASS/s, 'a confidence gate does not turn PASS into a violation');
+  const inspectConfidence = document.querySelector('button[aria-label="Inspect outcome confidence"]');
+  assert.ok(inspectConfidence, 'recorded gates are keyboard-operable inspection controls');
+  inspectConfidence.click();
+  await wait(() => document.querySelector('.rule-inspection')?.open);
   assert.equal(document.querySelector('.evidence-disclosure').open, false, 'raw evidence starts collapsed');
   assert.equal(document.querySelector('.rule-technical').open, false, 'probability tables start collapsed');
   assert.equal(document.querySelector('.other-rules').open, false, 'other rules start collapsed');
@@ -94,8 +111,10 @@ try {
   assert.ok(document.querySelector('.gate-details'), 'technical gate identifiers are available on demand');
   assert.equal(document.querySelector('.gate-details').open, false);
   assert.equal(document.querySelector('[role="separator"][aria-label="Resize assessment pane"]'), null, 'no split evidence pane');
-  const resize = document.querySelector('[role="separator"][aria-label="Resize call explorer"]');
-  assert.ok(resize);
+  assert.ok(document.querySelector('.app-bar .session-picker'), 'sessions remain accessible from the toolbar');
+  assert.ok(document.querySelector('.explorer h2:not(.visually-hidden)'), 'the sidebar has a visible Recent calls heading');
+  const resize = document.querySelector('[aria-label="Resize call explorer"]');
+  assert.ok(resize, 'the call sidebar can be resized without changing the decision map');
   resize.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'End', bubbles: true }));
   await wait(() => resize.getAttribute('aria-valuenow') === '460');
   const cases = [
@@ -111,6 +130,8 @@ try {
     assert.equal(selected.querySelectorAll('tbody tr').length, 6, 'full distributions');
     assert.ok(selected.textContent.includes('0.9'));
     if (id === 'low-pass') assert.ok(selected.textContent.includes('not a reported violation'));
+    if (id === 'unknown') assert.match(document.querySelector('.map-check').textContent, /does not mean passed/, 'UNKNOWN is never drawn as a successful outcome');
+    if (id === 'warn') assert.equal(document.querySelectorAll('.map-edge.blocking').length, 0, 'WARN findings are not blocking contributions');
     button('View submitted questions').click();
     await wait(() => document.querySelector('[aria-label="Questions"]')?.hidden === false);
     assert.ok(document.querySelector('[aria-label="Questions"]').textContent.includes('rule_'));
@@ -122,7 +143,7 @@ try {
     assert.equal(dom.window.hostile, undefined);
     assert.ok(!document.body.textContent.includes('Changed current policy'));
   }
-  assert.equal(resize.getAttribute('aria-valuenow'), '460', 'explorer size survives invocation changes');
+  assert.equal(resize.getAttribute('aria-valuenow'), '460', 'sidebar size survives invocation changes');
   await chooseCall('summary');
   assert.match(document.querySelector('.summary-reason').textContent, /Evidence confidence was below/);
   assert.match(document.querySelector('.execution-summary').textContent, /call ran.*Observe mode/);

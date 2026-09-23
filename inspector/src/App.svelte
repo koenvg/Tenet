@@ -2,10 +2,12 @@
   import { onMount } from 'svelte';
   import Detail from './Detail.svelte';
   import { timestamp, toolLabel, decisionLabel, type MobileView } from './presentation';
+  import DecisionIcon from './DecisionIcon.svelte';
   import PaneResizer from './PaneResizer.svelte';
+  let explorerWidth = 300;
   import StatusChip from './StatusChip.svelte';
   let mobileView: MobileView = 'calls';
-  let explorerWidth = 260;
+  let sessionPicker: HTMLDetailsElement;
   $: currentSession = sessions.find(s => s.id === session);
   import type { CaptureHealth, InvocationView } from '../../src/inspector/view';
   import type { ArchiveIssue } from '../../src/recording/archive';
@@ -64,6 +66,7 @@
   }
   async function selectSession(id: string, updateLink = true, openLatest = true) {
     const generation = ++navigation; detailRequest++;
+    if (sessionPicker) sessionPicker.open = false;
     session = id; invocation = ''; view = null; error = ''; detailBusy = false; mobileView = 'calls';
     invocations = []; nextInvocation = null;
     if (updateLink) link();
@@ -168,8 +171,32 @@
 </script>
 
 <header class="app-bar">
-  <h1>TENET <span>Decision overview</span></h1>
-  <span class="local-label">Local archive · read-only</span>
+  <h1><DecisionIcon kind="brand" /> TENET</h1>
+  <details class="session-picker" bind:this={sessionPicker} open={!session}>
+    <summary title={currentSession?.sessionId}>{currentSession ? projectName(currentSession.projects) : 'Choose a session'}</summary>
+    <div class="session-menu">
+      <h2>Sessions <span class="muted">{sessions.length} loaded</span></h2>
+      <form class="project-filter" on:submit|preventDefault={filterProjects}>
+        <label for="project">Project directory</label>
+        <input id="project" aria-label="Project directory" list="projects" bind:value={projectInput} placeholder="All projects" />
+        <datalist id="projects">{#each projects as path}<option value={path}></option>{/each}</datalist>
+        <button type="submit" disabled={busy}>Filter projects</button>
+      </form>
+      {#if project}<p>Showing {project}</p><button on:click={() => { projectInput = ''; filterProjects(); }}>All projects</button>{/if}
+      <nav aria-label="Sessions">
+        {#each sessions as item}
+          <button class="session-row" aria-pressed={session === item.id} on:click={() => selectSession(item.id)}>
+            <strong hidden>{item.sessionId}</strong><b>{projectName(item.projects)}</b><span>{item.invocations} calls</span>
+            <small>{date(item.started)}</small>
+            {#if item.concerns || item.unavailable}<small>{item.concerns} flagged · {item.unavailable} unavailable</small>{/if}
+          </button>
+        {/each}
+      </nav>
+      {#if nextSession !== null}<button class="text-button" disabled={busy} on:click={() => loadSessions(nextSession!)}>More sessions</button>{/if}
+      {#if busy}<p role="status">Reading archive…</p>{:else if !sessions.length}<p>No recorded sessions{project ? ' for this project' : ''}.</p>{/if}
+    </div>
+  </details>
+  <span class="local-label">Read-only</span>
   <button class="header-button" disabled={busy || timelineBusy || detailBusy || manualRefreshing} on:click={refreshArchive}>Refresh archive</button>
 </header>
 <main class="workspace" data-mobile-view={mobileView} style:--explorer-width={`${explorerWidth}px`}>
@@ -192,37 +219,18 @@
     {/if}
   </div>
   <aside id="call-explorer" class="explorer" aria-label="Call explorer">
-    <div class="pane-heading"><h2>Sessions</h2><span class="muted">{sessions.length} loaded</span></div>
-    <details class="session-picker" open={!session}>
-      <summary>{currentSession ? projectName(currentSession.projects) : 'Choose a session'}</summary>
-      <form class="project-filter" on:submit|preventDefault={filterProjects}>
-        <label for="project">Project directory</label>
-        <input id="project" aria-label="Project directory" list="projects" bind:value={projectInput} placeholder="All projects" />
-        <datalist id="projects">{#each projects as path}<option value={path}></option>{/each}</datalist>
-        <button type="submit" disabled={busy}>Filter projects</button>
-      </form>
-      {#if project}<p>Showing {project}</p><button on:click={() => { projectInput = ''; filterProjects(); }}>All projects</button>{/if}
-      <nav aria-label="Sessions">
-        {#each sessions as item}
-          <button class="session-row" aria-pressed={session === item.id} on:click={() => selectSession(item.id)}>
-            <strong hidden>{item.sessionId}</strong><b>{projectName(item.projects)}</b><span>{item.invocations} calls</span>
-            <small>{date(item.started)}</small>
-            {#if item.concerns || item.unavailable}<small>{item.concerns} flagged · {item.unavailable} unavailable</small>{/if}
-          </button>
-        {/each}
-      </nav>
-      {#if nextSession !== null}<button class="text-button" disabled={busy} on:click={() => loadSessions(nextSession!)}>More sessions</button>{/if}
-      {#if busy}<p role="status">Reading archive…</p>{:else if !sessions.length}<p>No recorded sessions{project ? ' for this project' : ''}.</p>{/if}
-    </details>
-    <div class="pane-heading"><h2>Recent calls</h2><span class="muted">Newest first</span></div>
+    <div class="pane-heading"><h2>Recent calls</h2></div>
     <nav class="call-list" aria-label="Invocations">
       {#each invocations as item}
         <button class="call-row" aria-pressed={invocation === item.id} on:click={() => selectInvocation(item.id)}>
+          <DecisionIcon kind={item.toolName === 'bash' ? 'action' : ['read', 'write', 'edit'].includes(item.toolName) ? 'document' : 'tool'} />
+          <span class="call-copy">
           <span class="call-top"><strong>{toolLabel(item.toolName)}</strong><time>{timestamp(item.timestamp)}</time></span>
           <span class="call-id" hidden>{item.callId}</span>
-          <span class="call-state"><StatusChip value={item.decision} label={decisionLabel(item.decision, item.mode)} /></span>
+          <span class="call-state"><StatusChip value={item.decision} label={decisionLabel(item.decision, item.mode)} showIcon /></span>
           {#if item.failure || item.assessmentStatus === 'incomplete'}<small>{item.failure ?? 'Assessment incomplete'}</small>{/if}
           {#if item.missing.length && item.assessmentStatus !== 'incomplete'}<span class="call-execution">Incomplete recording</span>{/if}
+          </span>
         </button>
       {/each}
       {#if timelineBusy}<p role="status">Loading calls…</p>{:else if session && !invocations.length}<p class="empty-inline">No recorded invocations in this session.</p>{/if}

@@ -34,13 +34,7 @@ small, .muted { color: var(--muted); }
 .header-button { border-color: #627083; background: transparent; color: #f0f4f9; font-size: .85rem; }
 .header-button:hover { background: #394653; }
 .header-button:focus-visible { outline-color: #9fc8ff; }
-.workspace { display: grid; grid-template-columns: var(--explorer-width, 260px) 9px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); flex: 1; min-height: 0; }
-.workspace > .pane-resizer { grid-column: 2; grid-row: 2; }
-.workspace:has(.pane-resizer.dragging) * { cursor: col-resize !important; user-select: none; }
-.archive-messages { grid-column: 1 / -1; }
 .archive-alert { color: #7a2929; background: #fbeceb; padding: .65rem 1.25rem; border-bottom: 1px solid #deb9b7; }
-.explorer { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; min-height: 0; background: var(--soft); border-right: 1px solid var(--line); overflow: auto; }
-.inspection { grid-column: 3; grid-row: 2; min-width: 0; min-height: 0; }
 .pane-heading { display: flex; flex: none; align-items: center; justify-content: space-between; gap: .65rem; min-height: 44px; padding: .65rem 1rem; border-bottom: 1px solid var(--line); }
 .pane-heading h2, .pane-heading h3 { font-size: .9rem; }
 .pane-heading .muted { font-size: .75rem; }
@@ -136,18 +130,7 @@ pre { margin: 1rem 0; white-space: pre-wrap; overflow-wrap: anywhere; font: .78r
 .metadata div { margin-top: .5rem; }
 .metadata dd { font-size: .8rem; font-weight: 400; }
 .question-key { font: .75rem ui-monospace, monospace; color: var(--muted); margin-top: .4rem; }
-.mobile-nav { display: none; }
 @media (min-width: 1650px) { .distributions { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 1100px) {
-  .workspace { grid-template-columns: 1fr; grid-template-rows: auto auto minmax(0, 1fr); }
-  .mobile-nav { display: flex; grid-row: 1; grid-column: 1; border-bottom: 1px solid var(--line); background: var(--soft); padding: .4rem .6rem; gap: .4rem; }
-  .mobile-nav button { flex: 1; text-align: center; font-size: .85rem; }
-  .archive-messages { grid-row: 2; }
-  .explorer, .inspection { grid-row: 3; grid-column: 1; }
-  .workspace[data-mobile-view="calls"] .inspection, .workspace:not([data-mobile-view="calls"]) .explorer { display: none; }
-  .decision-header { padding: .8rem 1rem; }
-  .rule-list { max-height: 24vh; }
-}
 @media (max-width: 600px) {
   .app-bar { gap: .75rem; padding: .7rem .8rem; flex-wrap: wrap; min-height: 54px; }
   .app-bar h1 { font-size: .9rem; flex: 1; }

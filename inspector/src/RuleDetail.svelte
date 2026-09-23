@@ -3,8 +3,6 @@
   import ConfidenceMeter from './ConfidenceMeter.svelte';
   import StatusChip from './StatusChip.svelte';
   export let rule: RuleView;
-  export let showQuestions: () => void;
-  export let showEvidence: () => void;
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex (Scrollable assessment region needs keyboard access.) -->
@@ -21,7 +19,6 @@
   {#if rule.result?.outcome?.choice === 'PASS' && rule.gateIds?.some(g => g.includes('confidence') || g === 'evidence-insufficient')}
     <p class="confidence-note">PASS was selected for the rule outcome, but a confidence or evidence check did not pass. This is not a reported violation.</p>
   {/if}
-  <div class="rule-actions"><button on:click={showQuestions}>View submitted questions</button><button on:click={showEvidence}>View shared evidence</button></div>
   <details class="rule-technical disclosure"><summary>Probabilities and rule details</summary>
   <p class="contribution">{contributions[rule.contribution] ?? 'Contribution unavailable: not recorded.'}</p>
   <p class="setting">Enforcement: {rule.enforcement}</p>

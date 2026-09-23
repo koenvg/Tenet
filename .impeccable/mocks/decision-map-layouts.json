@@ -1,0 +1,42 @@
+{
+  "title": "Decision map: choose the layout",
+  "question": "Same visual identity, three ways to inspect a call. Choose the layout to build. Each uses recorded gates only and keeps actual execution separate.",
+  "followup": true,
+  "options": [
+    {
+      "id": "open-map",
+      "label": "01 · Open map",
+      "thesis": "The whole decision reads as one uninterrupted diagram.",
+      "palette": ["#F5F5F2", "#171918", "#C53D36"],
+      "materials": ["plain canvas", "black nodes", "one red contributing path"],
+      "viewport": "The selected call spans a full-width map; its explanation and evidence controls sit below.",
+      "risk": "Many rules need grouping, and detailed evidence uses space below the map.",
+      "case": "Your chosen concept, unchanged. Motion traces the selected connection once and opens evidence beneath it.",
+      "comp": ".impeccable/mocks/decision/tenet-decision-map.png"
+    },
+    {
+      "id": "map-and-evidence",
+      "label": "02 · Map + evidence",
+      "thesis": "Keep the decision visible while reading a selected gate's evidence.",
+      "palette": ["#F5F5F2", "#171918", "#C53D36"],
+      "materials": ["plain canvas", "black nodes", "one red contributing path"],
+      "viewport": "A broad diagram sits beside a focused right-hand evidence panel. It becomes a bottom sheet on mobile.",
+      "risk": "The diagram has less horizontal space; commands and long rule text need careful wrapping.",
+      "case": "Motion follows your selected node into the evidence panel. Unchanged polling never moves the map.",
+      "comp": ".impeccable/mocks/decision-map-evidence.png"
+    },
+    {
+      "id": "rule-lanes",
+      "label": "03 · Rule lanes",
+      "thesis": "Give each rule its own readable row without losing the overall decision.",
+      "palette": ["#F5F5F2", "#171918", "#C53D36"],
+      "materials": ["plain canvas", "black nodes", "one red contributing path"],
+      "viewport": "The action and policy result frame stacked rule lanes; each lane shows its outcome and confidence checks.",
+      "risk": "More information up front, so it feels closer to a debugging view than the open map.",
+      "case": "Expanding a rule opens its evidence in place. Other lanes move together rather than fading in separately.",
+      "comp": ".impeccable/mocks/decision-map-lanes.png"
+    }
+  ],
+  "buildPath": {"value": "comp", "toggle": true},
+  "steer": true
+}
