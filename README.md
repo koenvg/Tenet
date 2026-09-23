@@ -2,7 +2,7 @@
 
 A TypeScript POC for Pi 0.85.1. Every exposed tool call follows the same rule-evaluation path through Jev using the official `@typesafe-ai/sdk` 0.6.0. No tool allowlists, tool-family mappings or replacement executors.
 
-**New persistence default:** TENET saves submitted assessment evidence locally, including passes. Strings can contain source code or secrets. Set `TENET_RECORDING=off` before starting Pi to opt out. See [Local decision inspector](#local-decision-inspector).
+**New persistence default:** While TENET is on, it saves submitted assessment evidence locally, including passes. Strings can contain source code or secrets. Set `TENET_RECORDING=off` before starting Pi to opt out, or use `/tenet off` to stop both new assessment and capture. Old records remain. See [Local decision inspector](#local-decision-inspector).
 
 The original KVG-5093 publication slice is extended by configurable policy rules, KVG-5094's bounded recent observations and KVG-5095's invocation-bound approval. No subprocess inspection or OS sandbox.
 
@@ -22,7 +22,7 @@ To enable blocking later, explicitly start a new process with:
 TENET_MODE=enforce bun run pi --no-extensions
 ```
 
-`WARN` rules remain advisory in either mode. Only exact `TENET_MODE=enforce` enables enforcement; an invalid value selects observe and reports `invalid-mode`. Mode is fixed for the process. No automatic promotion to enforcement occurs.
+`WARN` rules remain advisory in either mode. Only exact `TENET_MODE=enforce` enables enforcement; an invalid value selects observe and reports `invalid-mode`. Mode is fixed for the process. `/tenet off` temporarily bypasses both modes across Pi processes; `/tenet on` restores each process's configured mode without restarting it.
 
 ## Verify offline
 
@@ -106,12 +106,34 @@ Before rolling back per-rule threshold support, remove threshold metadata from d
 
    The package script adds `-e ./src/pi/extension.ts`. Explicit extensions still load with `--no-extensions`.
 
-4. Check the footer for `TENET OBSERVE` or the explicitly configured `TENET ENFORCE`. Startup identifies policy source, SHA-256, count and question version. Missing credentials or invalid policy/configuration report unavailable; they only block in enforce mode. An extension load error means TENET did not load.
+4. Check the footer for `TENET ON OBSERVE` or the explicitly configured `TENET ON ENFORCE`. If the global choice is off, it shows `TENET OFF` instead. Startup identifies policy source, SHA-256, count and question version. Missing credentials or invalid policy/configuration report unavailable; they only block in enforce mode. An extension load error means TENET did not load.
 5. You can try reading a local file. This makes a live judge request, unlike the offline tests.
 
 Code or environment changes require a **full Pi process restart**. Under Pi 0.85.1 and Bun 1.3.14, `/reload` and `/new` can retain old module imports. Policy-file-only changes can use the session-start reload path; check the new digest and count.
 
 Loading the extension enables observation by default, not protection. Unloading it removes observation and enforcement. There is no live-mode mock fallback. Use `bun run smoke` rather than a real upload to test approval safely.
+
+## Use TENET across Pi projects
+
+Install the package from a stable checkout, not a disposable worktree. A local Pi package stays at the path you give it; Pi does not copy it. Its `package.json` loads `src/pi/extension.ts`. Keep its dependencies installed and restart Pi after changing extension code.
+
+```sh
+TENET_DIR=/absolute/path/to/stable/Tenet
+cd "$TENET_DIR"
+bun install --frozen-lockfile
+pi install "$TENET_DIR"       # user-level package; do not add -l
+pi list
+```
+
+In each shell that will launch Pi, set `TYPESAFE_API_KEY` with your secret manager. Set `TENET_POLICY` to an absolute path to a reviewed policy when working outside this repository. Otherwise Pi looks for `TENET.md` in **each session's working directory**; global installation does not provide one. If you want an initial trial without local capture, set `TENET_RECORDING=off` before launching Pi. Then start plain `pi` from any project. Do not also load this extension with `-e` or `bun run pi`, which can load two guard copies.
+
+In the Pi owner UI, run `/tenet status` before a live tool call. It shows `TENET ON OBSERVE`, `TENET ON ENFORCE`, `TENET OFF`, or `TENET CONTROL UNAVAILABLE`, the base mode, policy readiness and effective capture state. Bare `/tenet` still opens the findings view. `/tenet off` persists a machine-wide choice at `~/.tenet/control.json`, skips new assessments, approvals, trajectory capture and recording, and keeps the extension and commands available. `/tenet on` restores each process's existing `TENET_MODE` and `TENET_RECORDING` settings. Both commands are safe to repeat. Missing policy, credentials or invalid configuration on re-enable still follows that mode's usual unavailable behavior. The control file defaults to on when no choice exists. A corrupt or unreadable control file shows `CONTROL UNAVAILABLE`: enforce blocks and observe permits without assessing or recording. Repair a safe malformed file with `/tenet on` or `/tenet off`; fix unsafe permissions or symlinks outside Pi.
+
+The issuing process cancels its pending assessments before `/tenet off` reports success. Other running Pi processes observe the shared file through notifications and a short refresh loop, then cancel their pending work. **The command does not wait for them.** A call in another process might complete before it notices off; work already released or dispatched cannot be recalled. Every new guard entry and pending release rechecks the file, but a change between the final check and host dispatch can still race. Treat this as a cooperative same-user switch, not an OS security boundary. An agent or process with your filesystem permissions can change or remove the control file; removing it lets fresh processes start on. Pending archive writes can finish after off, and previous recordings in `~/.tenet/recordings` remain until you remove them separately.
+
+The offline tests cover shared-file propagation in a separate process and two guard instances, plus the pinned Pi dispatcher in one process. They do not establish live multi-process Pi behavior with TypeSafe credentials; no global package install or live tool trial was performed for this change.
+
+To remove global loading, run `pi remove "$TENET_DIR"` with the same stable path you installed and restart Pi. Removing the package does not remove the control file or old evidence. Older TENET versions ignore the control file; if you roll back, unload the extension or use that version's startup controls before launching Pi. This switch applies only to TENET's Pi extension, not other agent hosts.
 
 ## Enforcement decisions and approval
 
@@ -242,7 +264,7 @@ TypeSafe receives declared rule text, policy identity/paths, the host working di
 
 The pending action is kept intact. Older observations are omitted first to fit the event and byte budgets, with omission counts. If required judge state cannot fit, evaluation reports insufficient evidence without asking Jev. That is a veto only in enforce mode. Image content is marked unsupported, never converted into invented text. Conflicting and outdated observations remain within the budget for assessment.
 
-At session start, TENET restores bounded observations from the selected Pi session branch. Only enforcement decision/approval records enter evaluator history; observation findings are excluded live and on recovery. The owner view separately restores validated version-3 permission records from the selected branch. Recovered history and tool-supplied content remain untrusted evidence, never grants. Later sibling results cannot alter an in-flight assessment. TENET calls no tools to gather missing context.
+At session start and after re-enabling TENET, it restores bounded observations from the selected Pi branch. Native tool calls and results are replayed only when their call ID has a matching TENET permission record in the same session. Off-state and otherwise unassessed transcript content is excluded, with a trajectory limitation marker. Only enforcement decision/approval records enter evaluator history; observation findings are excluded live and on recovery. The owner view separately restores validated version-3 permission records from the selected branch. Recovered history and tool-supplied content remain untrusted evidence, never grants. Later sibling results cannot alter an in-flight assessment. TENET calls no tools to gather missing context.
 
 Recognized credential fields and configured sensitive fields are removed recursively from copied evidence. Executor arguments remain unchanged. Redaction cannot find all secrets embedded in shell commands, source text, URLs, metadata or encoded values. Rule text itself is not secret-scanned. Do not place credentials in your rules.
 

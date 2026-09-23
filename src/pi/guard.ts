@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
+import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import type { Action, Judge, Policy, RuleDiagnostic } from '../decision/contracts.js';
 import { decide, QUESTION_VERSION } from '../decision/decide.js';
 import { argumentDigest, captureAction, display } from '../decision/evidence.js';
@@ -7,6 +7,7 @@ import { createJevJudge } from '../decision/jev.js';
 import { loadPolicy, policyIsCurrent, INTEGRITY_ID, INTEGRITY_TEXT } from '../decision/policy.js';
 import { ruleContributions } from '../recording/rules.js';
 import { ApprovalQueue } from './approval.js';
+import { ActivationStore } from './activation.js';
 import { readConfig, readMode, type GuardConfig } from './config.js';
 import { Observations, recoverObservations } from '../decision/trajectory.js';
 import { Consequences } from './consequences.js';
@@ -17,8 +18,9 @@ import { capture, STAGES, type RecordingSink, type Stage } from '../recording/co
 
 type Identity = Pick<Action, 'sessionId' | 'callId' | 'toolName' | 'argumentDigest'> & { policyDigest: string | null; invocationId: string };
 
-export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; createJudge?: () => Judge; env?: Record<string, string | undefined> } = {}): void {
+export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; createJudge?: () => Judge; env?: Record<string, string | undefined>; controlPath?: string } = {}): void {
   const env = { ...(options.env ?? process.env) };
+  const activation = new ActivationStore(options.controlPath);
   const reportRecording = (work: () => void) => { try { work(); } catch { /* Capture UI must not veto, even in enforce mode. */ } };
   let recordingStatus = () => {};
   const archive = new ArchiveWriter(recordingConfig(env), undefined, () => recordingStatus());
@@ -26,7 +28,11 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
   const { mode, warning: modeWarning } = readMode(env);
   const boundary = new GuardBoundary(pi, mode);
   const on = boundary.on;
-  const reports = new OwnerReports(mode, boundary);
+  const reports = new OwnerReports(mode, boundary, activation, () => archive.health().enabled, (ctx: ExtensionContext) => {
+    activation.refresh();
+    reports.status(ctx);
+    recordingStatus();
+  });
   boundary.attempt(() => reports.register(pi));
   let provider = options.judge;
   const judge: Judge = async (request, signal, recording) => {
@@ -39,6 +45,7 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
   let unavailable: string | undefined = 'not-started';
   let observations: Observations | undefined;
   let lifecycle = new AbortController();
+  let loadToken = 0;
   let sessionId: string | undefined;
   const pending = new Map<string, (reason: string) => unknown>();
   // Host call IDs must be unique within a session. Retain tombstones, never grants.
@@ -49,7 +56,21 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
   const resultCallIds = new Set<string>();
   const ambiguousResults = new Set<string>();
   const key = (session: string, call: string) => JSON.stringify([session, call]);
+  const disabled = new Set<string>(); // Off calls can report results after on; never turn them into evidence.
+  const recoverGuarded = (session: string, branch: readonly unknown[] | undefined, settings: GuardConfig): Observations => {
+    const assessed = new Set<string>();
+    for (const raw of branch ?? []) {
+      if (!raw || typeof raw !== 'object') continue;
+      const entry = raw as { type?: unknown; customType?: unknown; data?: unknown };
+      if (entry.type !== 'custom' || entry.customType !== 'tenet' || !entry.data || typeof entry.data !== 'object') continue;
+      const data = entry.data as Record<string, unknown>;
+      if (data.stage === 'permission' && data.sessionId === session && typeof data.callId === 'string'
+        && (data.mode === 'observe' || data.mode === 'enforce')) assessed.add(data.callId);
+    }
+    return recoverObservations(session, branch, settings.evidence, settings.sensitiveFields, assessed);
+  };
   const record = (stage: string, data: Record<string, unknown>, archiveData: Record<string, unknown> = {}) => {
+    if (activation.read() !== 'on') return;
     const time = Date.now();
     if (typeof data.invocationId === 'string' && STAGES.includes(stage as Stage)) {
       capture(recordings.get(data.invocationId), stage as Stage, () => ({ ...data, ...archiveData }));
@@ -67,12 +88,14 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
     for (const identity of unknown) record('execution', { ...identity, outcome: 'unknown', origin: 'no-tool-result-observed' });
   };
   const invalidate = (reason: string) => {
+    if (reason !== 'tenet-off' && reason !== 'control-unavailable') loadToken++;
     // Revoke first. Audit failures must never keep an invocation valid.
     lifecycle.abort();
     lifecycle = new AbortController();
     try {
       // Record before the old runtime is torn down and abort continuations run.
       for (const block of pending.values()) block(reason);
+      if (activation.read() !== 'on') recordings.clear();
     } finally {
       unknownOutcomes();
     }
@@ -80,27 +103,34 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
 
   on('session_start', async (_event, ctx) => {
     invalidate('session-start');
-    const starting = lifecycle;
+    activation.close();
+    const starting = loadToken;
     unavailable = 'starting';
     sessionId = ctx.sessionManager.getSessionId();
     recordingStatus = () => {
-      if (ctx.hasUI && (archive.config.enabled || archive.config.issue)) reportRecording(() => {
+      if (ctx.hasUI) reportRecording(() => {
         const health = archive.health();
-        ctx.ui.setStatus('tenet-recording', `TENET capture ${health.enabled ? 'ON' : 'OFF'}; ${health.failed + health.dropped} lost; ${health.pending} pending; ${health.drainTimeouts} drain timeouts`);
+        ctx.ui.setStatus('tenet-recording', `TENET capture ${activation.read() === 'on' && health.enabled ? 'ON' : 'OFF'}; ${health.failed + health.dropped} lost; ${health.pending} pending; ${health.drainTimeouts} drain timeouts`);
       });
     };
+    activation.watch(value => {
+      if (value !== 'on') { invalidate(value === 'off' ? 'tenet-off' : 'control-unavailable'); observations = undefined; }
+      else if (config && sessionId) observations = recoverGuarded(sessionId, ctx.sessionManager.getBranch?.(), config);
+      reports.status(ctx);
+      recordingStatus();
+    });
     config = undefined;
     observations = undefined;
     try {
       const loadedConfig = readConfig(ctx.cwd, env);
       const loadedPolicy = await loadPolicy(loadedConfig.policyPath);
-      if (starting !== lifecycle) return;
+      if (starting !== loadToken) return;
       config = loadedConfig;
       policy = loadedPolicy;
-      observations = recoverObservations(sessionId, ctx.sessionManager.getBranch?.(), config.evidence, config.sensitiveFields);
+      observations = activation.read() === 'on' ? recoverGuarded(sessionId, ctx.sessionManager.getBranch?.(), config) : undefined;
       unavailable = !policy.available ? policy.reason : !options.judge && !options.createJudge && !env.TYPESAFE_API_KEY?.trim() ? 'missing-credentials' : undefined;
     } catch {
-      if (starting !== lifecycle) return;
+      if (starting !== loadToken) return;
       unavailable = 'configuration';
     }
     const ruleCount = policy.available ? policy.rules.length : 0;
@@ -111,12 +141,20 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
       evidence: config?.evidence ?? null, approvalTimeoutMs: config?.approvalTimeoutMs ?? null });
     if (ctx.hasUI) {
       reports.status(ctx);
-      reportRecording(() => ctx.ui.notify(`TENET recording ${archive.config.enabled ? 'ON' : 'OFF'}: ${display(archive.config.directory)}. Submitted evidence may contain secrets. TENET_RECORDING=off disables capture.${archive.config.issue ? ` ${archive.config.issue}` : ''}`, 'info'));
-      ctx.ui.notify(`TENET ${mode.toUpperCase()} ${modeWarning ?? ''} ${unavailable ? `unavailable (${unavailable}); ${mode === 'enforce' ? 'intercepted calls BLOCK' : 'observation unavailable'}.` : `ready: ${ruleCount} rules plus policy integrity.`} Judge questions: ${QUESTION_VERSION}. ${policy.available ? `Policy ${display(policy.source)}, SHA-256 ${policy.digest}.` : 'Load a UTF-8 policy with nonempty Rule; declarations, then reload or restart.'} Rule text, selected tool evidence and bounded recent observations reach TypeSafe. No filesystem sandbox or subprocess observation.`, unavailable || modeWarning ? 'error' : 'info');
+      recordingStatus();
+      if (activation.read() === 'on') {
+        reportRecording(() => ctx.ui.notify(`TENET recording ${archive.config.enabled ? 'ON' : 'OFF'}: ${display(archive.config.directory)}. Submitted evidence may contain secrets. TENET_RECORDING=off disables capture.${archive.config.issue ? ` ${archive.config.issue}` : ''}`, 'info'));
+        ctx.ui.notify(`TENET ${mode.toUpperCase()} ${modeWarning ?? ''} ${unavailable ? `unavailable (${unavailable}); ${mode === 'enforce' ? 'intercepted calls BLOCK' : 'observation unavailable'}.` : `ready: ${ruleCount} rules plus policy integrity.`} Judge questions: ${QUESTION_VERSION}. ${policy.available ? `Policy ${display(policy.source)}, SHA-256 ${policy.digest}.` : 'Load a UTF-8 policy with nonempty Rule; declarations, then reload or restart.'} Rule text, selected tool evidence and bounded recent observations reach TypeSafe. No filesystem sandbox or subprocess observation.`, unavailable || modeWarning ? 'error' : 'info');
+      }
     }
   });
 
   on('tool_call', async (event, ctx) => {
+    const control = activation.refresh();
+    if (control !== 'on') {
+      disabled.add(key(ctx.sessionManager.getSessionId(), event.toolCallId));
+      return control === 'unavailable' && mode === 'enforce' ? { block: true, reason: 'TENET blocked: control-unavailable.' } : undefined;
+    }
     if (resultCallIds.has(event.toolCallId)) ambiguousResults.add(event.toolCallId);
     resultCallIds.add(event.toolCallId);
     const selectedPolicy = policy;
@@ -128,6 +166,7 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
     const sink = archive.bind({ ...identity, cwd: ctx.cwd, mode });
     let submitted = false;
     const recording: RecordingSink = (stage, data) => {
+      if (activation.read() !== 'on' || signal.aborted || generation !== lifecycle) return;
       if (stage === 'request') submitted = true;
       sink(stage, stage === 'permission' ? { ...data, requestStatus: submitted ? 'submitted' : 'not-submitted' } : data);
     };
@@ -138,21 +177,28 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
     const consequences = new Consequences(mode, selectedPolicy);
     let permissionRecorded = false;
     const finish = (failure?: string, ruleIds?: string[], diagnostics?: RuleDiagnostic[]) => {
+      const state = activation.refresh();
+      if (state !== 'on') failure = state === 'off' ? 'tenet-off' : 'control-unavailable';
       const permission = consequences.permission(failure, ruleIds, diagnostics);
       if (!permissionRecorded) {
         permissionRecorded = true;
         pending.delete(identity.invocationId);
-        record('permission', { ...identity, ...permission });
-        boundary.attempt(() => reports.add({ ...identity, ...permission, mode }));
-        recordingStatus();
-        reports.status(ctx);
-        if (permission.outcome === 'released') released.set(key(identity.sessionId, identity.callId), identity);
+        if (state === 'on') {
+          record('permission', { ...identity, ...permission });
+          boundary.attempt(() => reports.add({ ...identity, ...permission, mode }));
+          recordingStatus();
+          reports.status(ctx);
+          if (permission.outcome === 'released') released.set(key(identity.sessionId, identity.callId), identity);
+        }
       }
       return consequences.veto(permission);
     };
-    const block = (reason: string, ruleIds?: string[], diagnostics?: RuleDiagnostic[]) => finish(reason, ruleIds, diagnostics);
+    const block = (reason: string, ruleIds?: string[], diagnostics?: RuleDiagnostic[]) => {
+      if (reason === 'tenet-off' || reason === 'control-unavailable') disabled.add(key(identity.sessionId, identity.callId));
+      return finish(reason, ruleIds, diagnostics);
+    };
     pending.set(identity.invocationId, block);
-    const current = () => !signal.aborted && generation === lifecycle && !unavailable
+    const current = () => activation.refresh() === 'on' && !signal.aborted && generation === lifecycle && !unavailable
       && policy === selectedPolicy && ctx.sessionManager.getSessionId() === identity.sessionId && sessionId === identity.sessionId;
     try {
       const callKey = key(identity.sessionId, identity.callId);
@@ -231,6 +277,7 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
   });
 
   on('tool_result', async (event, ctx) => {
+    if (activation.refresh() !== 'on' || disabled.has(key(ctx.sessionManager.getSessionId(), event.toolCallId))) return;
     if (config && observations?.sessionId === ctx.sessionManager.getSessionId()) {
       observations.add('pi-tool-result', event.toolCallId, event.toolName,
         ambiguousResults.has(event.toolCallId) ? { limitation: 'ambiguous-tool-result' }
@@ -250,16 +297,17 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
   on('session_before_tree', async () => { invalidate('session-tree'); });
   on('session_tree', async (_event, ctx) => {
     invalidate('session-tree');
-    observations = config ? recoverObservations(ctx.sessionManager.getSessionId(), ctx.sessionManager.getBranch?.(), config.evidence, config.sensitiveFields) : undefined;
+    observations = activation.refresh() === 'on' && config ? recoverGuarded(ctx.sessionManager.getSessionId(), ctx.sessionManager.getBranch?.(), config) : undefined;
     boundary.attempt(() => reports.restore(ctx.sessionManager.getBranch?.()));
     reports.status(ctx);
   });
   on('session_shutdown', async (_event, ctx) => {
     unavailable = 'session-shutdown'; invalidate('session-shutdown');
+    activation.close();
     const drained = await archive.drain();
     if (ctx.hasUI) reportRecording(() => {
       const health = archive.health();
-      ctx.ui.setStatus('tenet-recording', `TENET capture ${health.enabled ? 'ON' : 'OFF'}; ${health.failed + health.dropped} lost; ${drained ? 'drained' : 'incomplete drain'}`);
+      ctx.ui.setStatus('tenet-recording', `TENET capture ${activation.read() === 'on' && health.enabled ? 'ON' : 'OFF'}; ${health.failed + health.dropped} lost; ${drained ? 'drained' : 'incomplete drain'}`);
     });
   });
 }

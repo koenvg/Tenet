@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
@@ -6,8 +6,8 @@ import type { Judge } from '../src/decision/contracts.js';
 import { registerGuard } from '../src/pi/guard.js';
 import { answer } from './helpers.js';
 
-export async function guardHarness(options: { env?: Record<string, string>; judge?: Judge | null; createJudge?: () => Judge; policy?: string; hasUI?: boolean } = {}) {
-  const cwd = await mkdtemp(join(tmpdir(), 'tenet-observe-'));
+export async function guardHarness(options: { env?: Record<string, string>; judge?: Judge | null; createJudge?: () => Judge; policy?: string; hasUI?: boolean; controlPath?: string } = {}) {
+  const cwd = await realpath(await mkdtemp(join(tmpdir(), 'tenet-observe-')));
   const file = join(cwd, 'TENET.md');
   await writeFile(file, options.policy ?? 'Rule; Never commit.');
   const handlers = new Map<string, any>(), commands = new Map<string, any>();
@@ -28,11 +28,11 @@ export async function guardHarness(options: { env?: Record<string, string>; judg
       select: async (title: string, items: string[]): Promise<string | undefined> => { views.push({ title, items }); return undefined; },
     },
   };
-  registerGuard(pi as unknown as ExtensionAPI, { env: { TENET_RECORDING: 'off', ...options.env }, createJudge: options.createJudge,
+  registerGuard(pi as unknown as ExtensionAPI, { controlPath: options.controlPath ?? join(cwd, 'control.json'), env: { TENET_RECORDING: 'off', ...options.env }, createJudge: options.createJudge,
     ...(options.judge === null || options.createJudge ? {} : { judge: options.judge ?? (async request => answer(request.policy)) }) });
   const emit = (type: string, data: any = {}) => handlers.get(type)?.({ type, ...data }, ctx as unknown as ExtensionContext);
   const start = () => emit('session_start', { reason: 'startup' });
   const call = (id = 'c', input: any = { path: 'README.md', text: 'hello' }) => emit('tool_call', { toolName: 'edit', toolCallId: id, input });
   return { cwd, file, pi, ctx, records, statuses, notifications, prompts, views, branch, commands, controller, emit, start, call,
-    close: () => rm(cwd, { recursive: true, force: true }) };
+    close: async () => { await emit('session_shutdown'); await rm(cwd, { recursive: true, force: true }); } };
 }

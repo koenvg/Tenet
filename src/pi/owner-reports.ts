@@ -5,7 +5,7 @@ import type { Mode } from './config.js';
 import type { GuardBoundary } from './boundary.js';
 import { recoverReport } from './report-history.js';
 import { INTEGRITY_ID, INTEGRITY_TEXT } from '../decision/policy.js';
-
+import type { ActivationStore } from './activation.js';
 export interface OwnerReport extends Permission {
   mode: Mode;
   callId: string;
@@ -27,11 +27,26 @@ export class OwnerReports {
   private recent: OwnerReport[] = [];
   private evicted = 0;
   private coverage = 'not-started';
-  constructor(private mode: Mode, private boundary: GuardBoundary) {}
+  constructor(private mode: Mode, private boundary: GuardBoundary, private activation: ActivationStore,
+    private captureEnabled: () => boolean, private changed: (ctx: ExtensionContext) => void) {}
 
   register(pi: ExtensionAPI): void {
-    pi.registerCommand('tenet', { description: 'View owner-only TENET findings', handler: async (_args, ctx) => {
+    pi.registerCommand('tenet', { description: 'TENET findings and global on/off/status', handler: async (args, ctx) => {
       if (!ctx.hasUI) return;
+      const command = args.trim();
+      if (command) {
+        if (command === 'status') { this.status(ctx); ctx.ui.notify(this.summary(), 'info'); return; }
+        if (command !== 'on' && command !== 'off') { ctx.ui.notify('Usage: /tenet [status|on|off]', 'error'); return; }
+        try {
+          await this.activation.write(command);
+          this.changed(ctx);
+          ctx.ui.notify(this.summary(), 'info');
+        } catch {
+          this.status(ctx);
+          ctx.ui.notify('TENET control update failed. Run /tenet status to check the effective state.', 'error');
+        }
+        return;
+      }
       try {
         const reports = [...this.recent].reverse();
         const items = reports.map((r, i) => {
@@ -39,7 +54,7 @@ export class OwnerReports {
           const rules = ids.map(id => ruleReference(r, id, true)).join(' | ');
           return `${i + 1}. ${rules || text(r.reason)} | ${text(r.toolName, 20)} ${text(r.callId, 24)} | ${r.outcome} / would ${r.wouldDecision}`;
         });
-        const selected = await ctx.ui.select(`TENET ${this.mode.toUpperCase()} | ${this.coverage} | ${this.evicted} evicted`, items.length ? items : ['No recent concerns recorded.']);
+        const selected = await ctx.ui.select(`${this.label()} | ${this.coverage} | ${this.evicted} evicted`, items.length ? items : ['No recent concerns recorded.']);
         const report = reports[items.indexOf(selected ?? '')];
         if (report) await ctx.ui.select('TENET finding | Esc to close', this.details(report));
       } catch { this.boundary.attempt(() => { throw new Error('owner-ui-unavailable'); }); }
@@ -62,11 +77,18 @@ export class OwnerReports {
     if (this.recent.length > LIMIT) { this.recent.shift(); this.evicted++; }
   }
 
+  private label(): string {
+    const state = this.activation.read();
+    return state === 'off' ? 'TENET OFF' : state === 'unavailable' ? 'TENET CONTROL UNAVAILABLE' : `TENET ON ${this.mode.toUpperCase()}`;
+  }
+  private summary(): string {
+    return `${this.label()} | base ${this.mode.toUpperCase()} | policy ${this.coverage} | capture ${this.activation.read() === 'on' && this.captureEnabled() ? 'ON' : 'OFF'}`;
+  }
   status(ctx: ExtensionContext): void {
     if (!ctx.hasUI) return;
     const unavailable = this.recent.filter(r => !r.assessmentAvailable).length;
     this.boundary.attempt(() => ctx.ui.setStatus('tenet',
-      `TENET ${this.mode.toUpperCase()} ${this.recent.length - unavailable} concerns | ${unavailable} unavailable | ${this.coverage}`
+      `${this.summary()} | ${this.recent.length - unavailable} concerns | ${unavailable} unavailable`
       + (this.boundary.failures ? ` | ${this.boundary.failures} reporting errors` : '')));
   }
 
