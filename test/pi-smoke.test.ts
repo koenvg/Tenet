@@ -194,6 +194,60 @@ test('pinned Pi dispatch gates built-in, extension and dynamically registered to
     await rm(cwd, { recursive: true, force: true });
   }
 });
+test('pinned Pi sessions stay silent without a policy, then expose TENET with one in both modes', async () => {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error('network forbidden in offline smoke'); };
+  try {
+    for (const mode of ['observe', 'enforce'] as const) for (const active of [false, true]) {
+      const cwd = await realpath(await mkdtemp(join(tmpdir(), 'tenet-eligibility-smoke-')));
+      let session: Awaited<ReturnType<typeof createAgentSession>>['session'] | undefined;
+      try {
+        await writeFile(join(cwd, 'local.txt'), 'offline local file');
+        if (active) await writeFile(join(cwd, 'TENET.md'), 'Rule; Never publish without approval.');
+        let pi!: ExtensionAPI; let assessments = 0;
+        const statuses: string[] = [], notices: string[] = [];
+        const settingsManager = SettingsManager.inMemory({ compaction: { enabled: false }, retry: { enabled: false } });
+        const loader = new DefaultResourceLoader({ cwd, agentDir: cwd, settingsManager,
+          noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true,
+          extensionFactories: [api => { pi = api; registerGuard(api, { env: { TENET_MODE: mode, TENET_RECORDING: 'off' },
+            controlPath: join(cwd, 'control.json'), judge: async request => { assessments++; return answer(request.policy); } }); }],
+        });
+        await loader.reload(); assert.deepEqual(loader.getExtensions().errors, []);
+        const credentials = new InMemoryCredentialStore();
+        await credentials.modify('openai', async () => ({ type: 'api_key', key: 'offline-not-a-real-key' }));
+        const modelRuntime = await ModelRuntime.create({ credentials, modelsPath: null,
+          modelsStorePath: join(cwd, 'models-store.json'), allowModelNetwork: false, refreshOnCreate: false });
+        const model = modelRuntime.getModels().find(candidate => candidate.provider === 'openai')!;
+        ({ session } = await createAgentSession({ cwd, agentDir: cwd, modelRuntime, model,
+          resourceLoader: loader, settingsManager, sessionManager: SessionManager.inMemory(cwd) }));
+        await session.bindExtensions({ mode: 'tui', uiContext: {
+          notify: (text: string) => { notices.push(text); }, setStatus: (_key: string, value: string) => { statuses.push(value); },
+        } as unknown as ExtensionUIContext });
+        assert.equal(pi.getCommands().some(command => command.name === 'tenet'), active);
+        let pending: ToolCall | undefined = { type: 'toolCall', id: 'policy-check', name: 'read', arguments: { path: 'local.txt' } };
+        session.agent.streamFunction = () => {
+          const stream = createAssistantMessageEventStream();
+          const call = pending; pending = undefined;
+          const message: AssistantMessage = { role: 'assistant', content: call ? [call] : [{ type: 'text', text: 'done' }],
+            api: model.api, provider: model.provider, model: model.id,
+            usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
+              cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+            stopReason: call ? 'toolUse' : 'stop', timestamp: Date.now() };
+          stream.push({ type: 'done', reason: message.stopReason as 'toolUse' | 'stop', message });
+          stream.end(message); return stream;
+        };
+        await session.prompt('Read the local file.');
+        const records = session.sessionManager.getEntries().filter(entry => entry.type === 'custom' && entry.customType === 'tenet');
+        assert.equal(records.length > 0, active, `${mode} active=${active} assessments=${assessments} statuses=${statuses.join('; ')}`);
+        assert.equal(assessments, active ? 1 : 0);
+        assert.equal(statuses.some(value => value.includes('TENET ON')), active);
+        assert.equal(notices.length > 0, active);
+        assert.ok(JSON.stringify(session.sessionManager.getEntries()).includes('offline local file'));
+      } finally { session?.dispose(); await rm(cwd, { recursive: true, force: true }); }
+    }
+  } finally { globalThis.fetch = realFetch; }
+});
+
 
 test('production extension entry loads with pinned Pi and missing credentials remains fail-closed', async () => {
   const cwd = await mkdtemp(join(tmpdir(), 'tenet-entry-'));

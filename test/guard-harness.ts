@@ -6,10 +6,10 @@ import type { Judge } from '../src/decision/contracts.js';
 import { registerGuard } from '../src/pi/guard.js';
 import { answer } from './helpers.js';
 
-export async function guardHarness(options: { env?: Record<string, string>; judge?: Judge | null; createJudge?: () => Judge; policy?: string; hasUI?: boolean; controlPath?: string } = {}) {
+export async function guardHarness(options: { env?: Record<string, string>; judge?: Judge | null; createJudge?: () => Judge; policy?: string; localPolicy?: boolean; hasUI?: boolean; controlPath?: string } = {}) {
   const cwd = await realpath(await mkdtemp(join(tmpdir(), 'tenet-observe-')));
   const file = join(cwd, 'TENET.md');
-  await writeFile(file, options.policy ?? 'Rule; Never commit.');
+  if (options.localPolicy !== false) await writeFile(file, options.policy ?? 'Rule; Never commit.');
   const handlers = new Map<string, any>(), commands = new Map<string, any>();
   const records: any[] = [], statuses: string[] = [], notifications: string[] = [], prompts: string[] = [], views: any[] = [];
   const branch: any[] = [];
@@ -28,7 +28,7 @@ export async function guardHarness(options: { env?: Record<string, string>; judg
       select: async (title: string, items: string[]): Promise<string | undefined> => { views.push({ title, items }); return undefined; },
     },
   };
-  registerGuard(pi as unknown as ExtensionAPI, { controlPath: options.controlPath ?? join(cwd, 'control.json'), env: { TENET_RECORDING: 'off', ...options.env }, createJudge: options.createJudge,
+  registerGuard(pi as unknown as ExtensionAPI, { controlPath: options.controlPath ?? join(cwd, 'control.json'), env: { TENET_RECORDING: 'off', TENET_RECORDING_DIR: join(cwd, 'archive'), ...options.env }, createJudge: options.createJudge,
     ...(options.judge === null || options.createJudge ? {} : { judge: options.judge ?? (async request => answer(request.policy)) }) });
   const emit = (type: string, data: any = {}) => handlers.get(type)?.({ type, ...data }, ctx as unknown as ExtensionContext);
   const start = () => emit('session_start', { reason: 'startup' });

@@ -2,7 +2,7 @@
 
 A TypeScript POC for Pi 0.85.1. Every exposed tool call follows the same rule-evaluation path through Jev using the official `@typesafe-ai/sdk` 0.6.0. No tool allowlists, tool-family mappings or replacement executors.
 
-**New persistence default:** While TENET is on, it saves submitted assessment evidence locally, including passes. Strings can contain source code or secrets. Set `TENET_RECORDING=off` before starting Pi to opt out, or use `/tenet off` to stop both new assessment and capture. Old records remain. See [Local decision inspector](#local-decision-inspector).
+**Persistence default:** In eligible sessions while TENET is on, it saves submitted assessment evidence locally, including passes. Strings can contain source code or secrets. Set `TENET_RECORDING=off` before starting Pi to opt out, or use `/tenet off` to stop both new assessment and capture. Sessions without a local or explicit policy are dormant and create no TENET records. Old records remain. See [Local decision inspector](#local-decision-inspector).
 
 The original KVG-5093 publication slice is extended by configurable policy rules, KVG-5094's bounded recent observations and KVG-5095's invocation-bound approval. No subprocess inspection or OS sandbox.
 
@@ -10,7 +10,7 @@ The original KVG-5093 publication slice is extended by configurable policy rules
 
 **Breaking default change:** TENET now starts in `observe` mode. It never vetoes calls or requests approval in this mode, even for policy-integrity findings, missing credentials, invalid configuration, timeouts or reporting failures. Host restrictions, cancellation and ordinary tool errors still apply.
 
-Findings are owner-only. The footer shows `TENET OBSERVE`, recent concern/unavailability counts and coverage status. Run `/tenet` to browse up to 100 recent findings, newest first, then select one for rule locations, settings, labels and exact score gates. Older findings are evicted from that view with a count. It uses native scrolling selectors; Escape closes a view. There are no per-call popups.
+In an eligible session, findings are owner-only. The footer shows `TENET ON OBSERVE`, recent concern/unavailability counts and coverage status. Run `/tenet` to browse up to 100 recent findings, newest first, then select one for rule locations, settings, labels and exact score gates. Older findings are evicted from that view with a count. It uses native scrolling selectors; Escape closes a view. There are no per-call popups. A dormant session has no TENET footer, notifications, or commands.
 
 Observation records what enforcement **would** do separately from actual TENET permission and observed execution. A low-confidence PASS is uncertainty, not a detected violation. An unavailable evaluation is never an all-clear. Findings are not injected into agent messages, tool results or later evaluator evidence, including after recovery. UI-less runs retain non-message session records where possible and write no observation reports to protocol stdout. Owner-only is not a filesystem confidentiality boundary.
 
@@ -106,12 +106,12 @@ Before rolling back per-rule threshold support, remove threshold metadata from d
 
    The package script adds `-e ./src/pi/extension.ts`. Explicit extensions still load with `--no-extensions`.
 
-4. Check the footer for `TENET ON OBSERVE` or the explicitly configured `TENET ON ENFORCE`. If the global choice is off, it shows `TENET OFF` instead. Startup identifies policy source, SHA-256, count and question version. Missing credentials or invalid policy/configuration report unavailable; they only block in enforce mode. An extension load error means TENET did not load.
+4. In this repository, `TENET.md` makes the session eligible. Check the footer for `TENET ON OBSERVE` or the explicitly configured `TENET ON ENFORCE`; the shared off choice shows `TENET OFF`. Startup identifies policy source, SHA-256, count and question version. A missing local file without `TENET_POLICY` leaves the guard dormant with no TENET UI. A present but invalid policy, an explicit path that cannot be loaded, missing credentials, or invalid configuration remains unavailable and blocks only in enforce mode. An extension load error means TENET did not load.
 5. You can try reading a local file. This makes a live judge request, unlike the offline tests.
 
 Code or environment changes require a **full Pi process restart**. Under Pi 0.85.1 and Bun 1.3.14, `/reload` and `/new` can retain old module imports. Policy-file-only changes can use the session-start reload path; check the new digest and count.
 
-Loading the extension enables observation by default, not protection. Unloading it removes observation and enforcement. There is no live-mode mock fallback. Use `bun run smoke` rather than a real upload to test approval safely.
+Loading the extension enables observation by default only where a policy source makes the session eligible. Unloading it removes observation and enforcement. There is no live-mode mock fallback. Use `bun run smoke` rather than a real upload to test approval safely.
 
 ## Use TENET across Pi projects
 
@@ -125,15 +125,15 @@ pi install "$TENET_DIR"       # user-level package; do not add -l
 pi list
 ```
 
-In each shell that will launch Pi, set `TYPESAFE_API_KEY` with your secret manager. Set `TENET_POLICY` to an absolute path to a reviewed policy when working outside this repository. Otherwise Pi looks for `TENET.md` in **each session's working directory**; global installation does not provide one. If you want an initial trial without local capture, set `TENET_RECORDING=off` before launching Pi. Then start plain `pi` from any project. Do not also load this extension with `-e` or `bun run pi`, which can load two guard copies.
+In each shell that will launch Pi, set `TYPESAFE_API_KEY` with your secret manager. Set `TENET_POLICY` to an absolute path to a reviewed policy if you want TENET active across projects; a relative path resolves against each session's working directory. Otherwise only `TENET.md` in **that session's working directory** activates TENET. Pi does not search parent directories or fall back to this package's bundled `TENET.md`. An `@TENET.md` prompt attachment does not activate the guard. With neither local file nor override, TENET is dormant in observe and enforce: no assessment, veto, approval, recording, footer, notifications, or TENET commands. A file appearing later needs a new session or extension reload. If you want an initial eligible trial without local capture, set `TENET_RECORDING=off` before launching Pi. Then start plain `pi`. Do not also load this extension with `-e` or `bun run pi`, which can load two guard copies.
 
-In the Pi owner UI, run `/tenet status` before a live tool call. It shows `TENET ON OBSERVE`, `TENET ON ENFORCE`, `TENET OFF`, or `TENET CONTROL UNAVAILABLE`, the base mode, policy readiness and effective capture state. Bare `/tenet` still opens the findings view. `/tenet off` persists a machine-wide choice at `~/.tenet/control.json`, skips new assessments, approvals, trajectory capture and recording, and keeps the extension and commands available. `/tenet on` restores each process's existing `TENET_MODE` and `TENET_RECORDING` settings. Both commands are safe to repeat. Missing policy, credentials or invalid configuration on re-enable still follows that mode's usual unavailable behavior. The control file defaults to on when no choice exists. A corrupt or unreadable control file shows `CONTROL UNAVAILABLE`: enforce blocks and observe permits without assessing or recording. Repair a safe malformed file with `/tenet on` or `/tenet off`; fix unsafe permissions or symlinks outside Pi.
+In an eligible Pi session, run `/tenet status` before a live tool call. It shows `TENET ON OBSERVE`, `TENET ON ENFORCE`, `TENET OFF`, or `TENET CONTROL UNAVAILABLE`, the base mode, policy readiness and effective capture state. Bare `/tenet` still opens the findings view. `/tenet off` persists a machine-wide choice at `~/.tenet/control.json`, skips new assessments, approvals, trajectory capture and recording, and keeps commands available in eligible sessions. `/tenet on` restores each process's existing `TENET_MODE` and `TENET_RECORDING` settings but cannot activate a dormant session. Both commands are safe to repeat. A present invalid or unreadable policy, an explicit missing path, empty `TENET_POLICY`, missing credentials, or invalid configuration follows the mode's unavailable behavior: enforce blocks, observe permits without claiming a passing assessment. Policy deletion after activation remains unavailable, not dormant. A missing control file defaults to on when no choice exists. A corrupt or unreadable control file shows `CONTROL UNAVAILABLE` only in eligible sessions: enforce blocks and observe permits without assessing or recording. Repair a safe malformed file with `/tenet on` or `/tenet off`; fix unsafe permissions or symlinks outside Pi.
 
 The issuing process cancels its pending assessments before `/tenet off` reports success. Other running Pi processes observe the shared file through notifications and a short refresh loop, then cancel their pending work. **The command does not wait for them.** A call in another process might complete before it notices off; work already released or dispatched cannot be recalled. Every new guard entry and pending release rechecks the file, but a change between the final check and host dispatch can still race. Treat this as a cooperative same-user switch, not an OS security boundary. An agent or process with your filesystem permissions can change or remove the control file; removing it lets fresh processes start on. Pending archive writes can finish after off, and previous recordings in `~/.tenet/recordings` remain until you remove them separately.
 
-The offline tests cover shared-file propagation in a separate process and two guard instances, plus the pinned Pi dispatcher in one process. They do not establish live multi-process Pi behavior with TypeSafe credentials; no global package install or live tool trial was performed for this change.
+Offline tests cover shared-file propagation in a separate process and two guard instances, plus pinned Pi sessions with and without policies in both modes. They do not establish live multi-process Pi behavior with TypeSafe credentials. This change did not install the package globally or run live calls.
 
-To remove global loading, run `pi remove "$TENET_DIR"` with the same stable path you installed and restart Pi. Removing the package does not remove the control file or old evidence. Older TENET versions ignore the control file; if you roll back, unload the extension or use that version's startup controls before launching Pi. This switch applies only to TENET's Pi extension, not other agent hosts.
+To remove global loading, run `pi remove "$TENET_DIR"` with the same stable path you installed and restart Pi. Removing the package does not remove the control file or old evidence. A rollback to the previous extension restores missing-policy unavailability: in enforce mode, policy-free sessions block calls. Unload that version or provide a valid policy before launching Pi in other projects. Older TENET versions also ignore the control file; use that version's startup controls. This switch applies only to TENET's Pi extension, not other agent hosts.
 
 ## Enforcement decisions and approval
 
@@ -175,7 +175,7 @@ Details contain bounded rule locations, validated labels and numeric scores, not
 | Environment variable | Default | Meaning |
 | --- | --- | --- |
 | `TENET_MODE` | `observe` | `observe` never vetoes; exact `enforce` enables blocking. Restart to switch. Invalid values warn and observe. |
-| `TENET_POLICY` | `TENET.md` | Absolute path or path relative to session cwd |
+| `TENET_POLICY` | unset | When set, selects an absolute or session-cwd-relative policy and activates TENET even if the file is missing; empty values are invalid. When unset, only a local `TENET.md` activates TENET. |
 | `TENET_EFFECT_THRESHOLD` | `0.90` | Minimum selected per-rule outcome probability; retained name |
 | `TENET_EVIDENCE_THRESHOLD` | `0.90` | Minimum sufficient-evidence probability for every rule |
 | `TENET_JUDGE_DEADLINE_MS` | `2500` | Overall judge deadline, not per-rule; human approval time is separate |
