@@ -185,6 +185,8 @@ bun run inspector:serve
 
 Run these commands from the repository root with Bun 1.3.14 or newer. Keep `inspector/dist` beside `src` after building. Production launch serves those built assets, not Vite, and requires neither Pi nor `TYPESAFE_API_KEY`. Stop it with Ctrl+C. Rebuild after frontend changes.
 
+From an active Pi session, build the frontend once, then run `/tenet-inspector`. The command starts the same read-only server on demand, prints a URL selecting the current session, and asks macOS to open it in Arc. A session with no recorded calls yet shows a waiting state; other projects and sessions remain in the picker. Repeating the command uses the same listener. Pi closes its listener on session exit, switch, fork, or reload; invoke the command again after resuming. If Arc is unavailable or fails to open, Pi leaves the URL visible for manual use and does not open another browser. If the build is missing or invalid, run `bun run inspector:build` and retry. The independent `bun run inspector:serve` command remains available after Pi exits. Neither launch asks the evaluator to reassess anything.
+
 To browse a non-default archive, use the same absolute directory configured for the Pi writer:
 
 ```sh
@@ -193,7 +195,7 @@ TENET_RECORDING_DIR=/absolute/private/archive bun run inspector:serve
 
 You can leave the inspector closed while Pi records. Open it later, select the retained session and call, then inspect each rule's contribution, questions, evidence and response. Resume that same Pi session to see new calls and stages arrive through polling. A fork creates a different session. The inspector cannot approve, retry, execute tools, edit policy or call a provider.
 
-Open the printed loopback URL in Arc. The production server chooses an available port. The Vite development server and Vite preview try `http://127.0.0.1:52320/` first, then successive ports if occupied. There is no authentication, token or authentication flag. Plain URLs and reloads work directly. Any local process can read the archive. Loopback binding, Host/Origin checks and read-only routing remain enabled.
+Open the printed loopback URL in Arc. The Pi command attempts this automatically, while standalone users can open its URL manually. The production server chooses an available port. The Vite development server and Vite preview try `http://127.0.0.1:52320/` first, then successive ports if occupied. Neither launch uses authentication or a token. Plain URLs and reloads work directly. Any local process can read the archive, including evidence that may contain secrets. Loopback binding, Host/Origin checks and read-only routing remain enabled.
 
 Choose a session, an invocation, then a rule. The view shows the recorded policy, actual application-level questions and choices, bounded/redacted submitted state, SDK response, validation and deterministic decision. All rules, including passing rules and built-in integrity, are selectable. Evidence and response text are inert. Mode, would-decision, permission and observed execution are separate. Missing stages stay unknown; a released call is not proof of execution.
 
