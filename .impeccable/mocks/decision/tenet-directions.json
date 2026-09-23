@@ -1,0 +1,58 @@
+{
+  "title": "A new look for TENET",
+  "question": "Three branding directions for the whole inspector. Choose one, ask for a revision, or re-roll. These are visual proposals, not implemented screens.",
+  "options": [
+    {
+      "id": "signal-desk",
+      "label": "01 · Signal desk",
+      "thesis": "A precise measurement instrument for understanding a recorded decision.",
+      "palette": ["#D8D6CD", "#F4F2E9", "#252725", "#EF5B2A"],
+      "materials": ["warm instrument panels", "printed calibration scales", "compact engineered type"],
+      "viewport": "A narrow session index beside a large command display, a decisive outcome readout and an exact evidence-confidence scale.",
+      "risk": "Physical-instrument styling can become a costume; the controls must remain ordinary, readable software.",
+      "raised": [
+        {"from": "Event catalog", "raise": "Give the session index enough density to support scanning, rather than wasting its height."},
+        {"from": "One-bit desktop", "raise": "Make selection and disclosure states unmistakable without relying on accent color."},
+        {"from": "Laboratory counter", "raise": "Keep numeric readings exact and the threshold directly adjacent to the measured value."},
+        {"from": "Transforming textile", "raise": "Make expanded evidence visibly belong to its originating rule."},
+        {"from": "Cloud quarry", "raise": "Use one large, continuous field for the command rather than a collection of little cards."}
+      ],
+      "comp": ".impeccable/mocks/decision/tenet-signal-desk.png"
+    },
+    {
+      "id": "trace-studio",
+      "label": "02 · Trace studio",
+      "kicker": "IMPECCABLE’S PICK",
+      "thesis": "A contemporary tracing workspace with a recognisable plum-and-lilac identity.",
+      "palette": ["#292433", "#43384F", "#D5C7F0", "#F3EEF8"],
+      "materials": ["matte plum workspace", "lavender reading plane", "precise sans and code type"],
+      "viewport": "A dark call rail frames a broad light-lilac decision workspace, with action, policy and execution expressed as a readable trace.",
+      "risk": "The most familiar developer-tool option; it needs strong composition to avoid becoming another dark sidebar app.",
+      "comp": ".impeccable/mocks/decision/tenet-trace-studio.png"
+    },
+    {
+      "id": "wayfinder",
+      "label": "03 · Wayfinder",
+      "verdict": "competitive",
+      "lineage": "Airport wayfinding systems",
+      "thesis": "The decision is a sign you can read instantly, with evidence one turn away.",
+      "palette": ["#F3CB16", "#151714", "#E8E9E4", "#FFFFFF"],
+      "materials": ["yellow navigation bands", "black pictogram squares", "humanist sans"],
+      "viewport": "A bold yellow navigation rail meets a black outcome band and a quiet white evidence area.",
+      "case": "Stronger at immediate product clarity; less native to developers than a tracing workspace.",
+      "risk": "Yellow must mean navigation, not a warning; decision status needs its own explicit words and symbols.",
+      "comp": ".impeccable/mocks/decision/tenet-wayfinder.png",
+      "hero": "https://impeccable.style/worlds/cards/wayfinding-cartography-signage-terminal-yellow-wayfinding-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/wayfinding-cartography-signage-terminal-yellow-wayfinding.webp"
+    },
+    {"id":"catalog","label":"Event catalog","verdict":"declined","thesis":"Calls as tightly packed indexed cells.","palette":["#E7E5DE","#202020"],"materials":["newsprint","indexed grid"],"viewport":"A grid of commands opens the selected record.","risk":"Text-heavy calls are harder to inspect in tiny cells.","case":"Weaker on developer identification and on explaining one decision.","kept":"Dense, useful session navigation."},
+    {"id":"one-bit","label":"One-bit desktop","verdict":"declined","thesis":"Inspection through monochrome tiled windows.","palette":["#000000","#FFFFFF"],"materials":["pixel type","one-bit selection"],"viewport":"Sessions, rule and evidence appear in tiled windows.","risk":"Retro chrome competes with long evidence text.","case":"Nostalgia is less relevant than current debugging habits; the tiled view obscures the decision summary.","kept":"Strong non-color selection states."},
+    {"id":"counter","label":"Laboratory counter","verdict":"declined","thesis":"Confidence as an exact instrument reading.","palette":["#181A19","#E98A38"],"materials":["glass digits","dark steel"],"viewport":"A confidence readout dominates the workspace.","risk":"Overweights the number when the actual outcome matters more.","case":"Weaker on both developer identification and the distinction between policy and execution.","kept":"Exact numbers next to their thresholds."},
+    {"id":"textile","label":"Transforming textile","verdict":"declined","thesis":"Evidence opens as connected folds from a rule.","palette":["#161616","#B7A66C","#555963"],"materials":["matte black","gold channels"],"viewport":"An expanded evidence region remains attached to its rule.","risk":"The textile vocabulary adds unfamiliar controls.","case":"Weaker on both developer identification and immediate explanation.","kept":"Visible continuity between a rule and its expanded evidence."},
+    {"id":"quarry","label":"Cloud quarry","verdict":"declined","thesis":"Recorded stages as broad stacked layers.","palette":["#F6F7F7","#789FC8","#555D68"],"materials":["white mass","blue separation"],"viewport":"Command, assessment and execution occupy large linked regions.","risk":"Atmospheric imagery distracts from exact archived facts.","case":"Weaker on developer identification and product clarity.","kept":"One continuous command field instead of many competing cards."}
+  ],
+  "reroll": {"registers": ["safer", "bolder"]},
+  "buildPath": {"value": "code", "toggle": true},
+  "canon": true,
+  "steer": true
+}

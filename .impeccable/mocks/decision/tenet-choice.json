@@ -1,0 +1,31 @@
+{
+  "seed": "86284fc8",
+  "round": 1,
+  "optionId": "decision-map",
+  "kind": "challenger",
+  "catalogId": "kinetic-sculpture-automata-tensegrity-breathing-column",
+  "directionApproved": true,
+  "implementationApproved": true,
+  "comp": ".impeccable/mocks/decision/tenet-decision-map.png",
+  "layoutId": "open-map-focus-sidebar",
+  "sidebarComp": ".impeccable/mocks/decision/tenet-focus.png",
+  "layoutAmendment": "Owner requested the Focus left sidebar instead of the horizontal call strip to handle many commands. Keep the Decision map in the main workspace.",
+  "layoutApproved": true,
+  "layoutAlternatives": [".impeccable/mocks/decision-map-evidence.png", ".impeccable/mocks/decision-map-lanes.png"],
+  "hero": "https://impeccable.style/worlds/cards/kinetic-sculpture-automata-tensegrity-breathing-column-hero.webp",
+  "board": "https://impeccable.style/worlds/cards/kinetic-sculpture-automata-tensegrity-breathing-column.webp",
+  "buildPath": "comp",
+  "buildPathFlipped": true,
+  "buildPathScope": "session only; keep committed config unchanged",
+  "ownerFeedback": "I don't really like any of them. Be inspirational and do something else. I like plain colours but with nice animations to tie everything together and make it visual",
+  "rejectedDirections": ["signal-desk", "trace-studio", "wayfinder"],
+  "brief": {
+    "scope": "Whole inspector including navigation and layout",
+    "mode": "Operate",
+    "job": "Understand which recorded checks contributed to a coding-agent policy decision, then inspect their evidence",
+    "visualDirection": "Plain near-white canvas, black nodes and readable type, muted red for a recorded failing gate's contribution",
+    "interaction": "Selecting a recorded gate traces its connection once and opens attached evidence. Background polling must not replay motion or shift unchanged content. Respect reduced motion.",
+    "truthConstraints": "Recorded gates only, never invented evaluator rationale. Actual execution remains distinct from policy. A PASS rule outcome can coexist with an insufficient-evidence gate. Keep local read-only behavior and all archived details accessible.",
+    "nextStep": "Implementation in progress with the owner-requested Focus sidebar. No more concept generation. Offline UI and type checks pass; current Chrome navigation stalls before rendering, so updated browser verification and independent finish review remain pending."
+  }
+}

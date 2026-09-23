@@ -1,10 +1,11 @@
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest';
 import { chromium, type Browser, type Page } from 'playwright-core';
-import { mkdtemp, mkdir, realpath, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { startInspector } from '../../src/inspector/server.js';
 import { browserFixture, recordedQuestion } from './browser-fixture.js';
+import { sessionKey } from '../../src/recording/archive.js';
 
 let browser: Browser | undefined, page: Page | undefined;
 let app: Awaited<ReturnType<typeof startInspector>> | undefined;
@@ -24,6 +25,9 @@ beforeAll(async () => {
   catch (cause) { throw new Error(`Cannot connect to the owner's Arc at ${endpoint}. Enable Arc remote debugging or set TENET_BROWSER_CDP_URL. This suite never launches another browser.`, { cause }); }
   directory = await realpath(await mkdtemp(join(tmpdir(), 'tenet-playwright-')));
   await browserFixture(directory);
+  const unrelated = join(directory, sessionKey('unrelated-session'));
+  await mkdir(unrelated, { mode: 0o700 });
+  await writeFile(join(unrelated, 'pending.tmp'), 'in progress', { mode: 0o600 });
   app = await startInspector({ directory, assets: resolve('inspector/dist') });
   await mkdir(artifacts, { recursive: true });
 });
@@ -42,8 +46,8 @@ beforeEach(async () => {
     externalRequests.push(route.request().url()); return route.abort();
   });
   await page.goto(app.origin);
-  await page.locator('[aria-label="Sessions"] button').first().click();
-  await expect.poll(() => currentPage().locator('.call-row').count()).toBe(9);
+  await expect.poll(() => currentPage().locator('.call-row').count()).toBe(10);
+  await page.locator('[aria-label="Decision summary"]').waitFor();
 });
 
 afterEach(async context => {
@@ -59,6 +63,48 @@ afterAll(async () => {
   if (directory) await rm(directory, { recursive: true, force: true });
 });
 
+test('background refresh does not flash archive-wide warnings into the selected session', async () => {
+  const p = currentPage(); await pickCall('summary');
+  let completedPolls = 0;
+  p.on('response', response => { if (response.url().includes('/invocations/')) completedPolls++; });
+  const before = await p.locator('.decision-title').boundingBox();
+  const mutations = await p.evaluate(() => new Promise<number>(resolve => {
+    let count = 0;
+    const observer = new MutationObserver(records => count += records.length);
+    observer.observe(document.querySelector('main')!, { subtree: true, childList: true, attributes: true, characterData: true });
+    setTimeout(() => { observer.disconnect(); resolve(count); }, 4500);
+  }));
+  expect(completedPolls).toBeGreaterThanOrEqual(2);
+  expect(mutations).toBe(0);
+  expect(await p.locator('.decision-title').boundingBox()).toEqual(before);
+  expect(await p.getByRole('region', { name: 'Recording issues' }).count()).toBe(0);
+  expect(pageErrors).toEqual([]);
+});
+
+test('Focus sidebar scrolls independently and keeps the selected map', async () => {
+  const p = currentPage(); await p.setViewportSize({ width: 1440, height: 700 }); await pickCall('summary');
+  const list = p.locator('.call-list');
+  expect(await list.evaluate(el => getComputedStyle(el).flexDirection)).toBe('column');
+  expect(await list.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true);
+  const before = await p.locator('.invocation').evaluate(el => el.scrollTop);
+  await list.evaluate(el => el.scrollTop = 0);
+  await list.evaluate(el => el.scrollTop = el.scrollHeight);
+  expect(await p.locator('.invocation').evaluate(el => el.scrollTop)).toBe(before);
+  expect(await p.locator('.call-row[aria-pressed="true"] .call-id').textContent()).toBe('summary');
+  const sidebar = (await p.locator('.explorer').boundingBox())!;
+  expect((await p.locator('.inspection').boundingBox())!.x).toBeGreaterThanOrEqual(sidebar.x + sidebar.width);
+});
+
+test('check selection is keyboard accessible and reduced motion stays static', async () => {
+  const p = currentPage(); await pickCall('summary');
+  await p.emulateMedia({ reducedMotion: 'reduce' });
+  await p.getByRole('button', { name: 'Inspect evidence confidence', exact: true }).press('Enter');
+  expect(await p.locator('.rule-inspection').getAttribute('open')).not.toBeNull();
+  expect(await p.evaluate(() => document.activeElement?.id)).toBe('selected-check-details');
+  expect(await p.locator('.map-edge.is-selected').evaluate(el => getComputedStyle(el).animationName)).toBe('none');
+  expect(await p.locator('.map-execution .map-connections').count()).toBe(0);
+});
+
 test('pane dividers drag, respond to keys, clamp and retain their sizes across calls', async () => {
   const p = currentPage(); await pickCall('low-pass');
   expect(await p.locator('input[type="range"]').count()).toBe(0);
@@ -66,37 +112,41 @@ test('pane dividers drag, respond to keys, clamp and retain their sizes across c
   const start = await explorer.boundingBox(); expect(start).not.toBeNull();
   await p.mouse.move(start!.x + start!.width / 2, start!.y + 100);
   await p.mouse.down(); await p.mouse.move(start!.x + start!.width / 2 + 80, start!.y + 100, { steps: 8 }); await p.mouse.up();
-  await expect.poll(() => explorer.getAttribute('aria-valuenow')).toBe('340');
-  expect(Math.round((await p.locator('.explorer').boundingBox())!.width)).toBe(340);
-  const assessment = p.getByRole('separator', { name: 'Resize assessment pane' });
-  const handle = await assessment.boundingBox();
-  const paneWidth = (await p.locator('.debugger-panes').boundingBox())!.width;
-  await p.mouse.move(handle!.x + handle!.width / 2, handle!.y + 100);
-  await p.mouse.down(); await p.mouse.move(handle!.x + handle!.width / 2 + paneWidth * .07, handle!.y + 100, { steps: 10 }); await p.mouse.up();
-  await expect.poll(() => assessment.getAttribute('aria-valuenow')).toBe('60');
-  await assessment.press('End'); await assessment.press('ArrowRight');
-  expect(await assessment.getAttribute('aria-valuenow')).toBe('70');
-  await assessment.press('Home'); await assessment.press('ArrowLeft');
-  expect(await assessment.getAttribute('aria-valuenow')).toBe('35');
-  await assessment.press('Shift+ArrowRight');
-  expect(await assessment.getAttribute('aria-valuenow')).toBe('40');
+  await expect.poll(() => explorer.getAttribute('aria-valuenow')).toBe('380');
+  expect(Math.round((await p.locator('.explorer').boundingBox())!.width)).toBe(380);
+  expect(await p.getByRole('separator', { name: 'Resize assessment pane' }).count()).toBe(0);
+  await explorer.press('End'); await explorer.press('ArrowRight');
+  expect(await explorer.getAttribute('aria-valuenow')).toBe('460');
+  await explorer.press('Home'); await explorer.press('ArrowLeft');
+  expect(await explorer.getAttribute('aria-valuenow')).toBe('220');
+  await explorer.press('Shift+ArrowRight');
+  expect(await explorer.getAttribute('aria-valuenow')).toBe('270');
   await pickCall('unknown');
-  expect(await p.getByRole('separator', { name: 'Resize assessment pane' }).getAttribute('aria-valuenow')).toBe('40');
-  expect(await explorer.getAttribute('aria-valuenow')).toBe('340');
+  expect(await explorer.getAttribute('aria-valuenow')).toBe('270');
   expect(await p.locator('.pane-resizer.dragging').count()).toBe(0);
   expect(pageErrors).toEqual([]);
 });
 
 test('PASS chips are green while confidence gates remain distinct and readable', async () => {
   const p = currentPage(); await pickCall('low-pass');
-  const chip = p.locator('.rule-row[aria-pressed="true"] .status-chip');
+  for (const [state, color, background] of [
+    ['positive', 'rgb(23, 98, 62)', 'rgb(231, 245, 237)'],
+    ['danger', 'rgb(155, 53, 52)', 'rgb(251, 236, 235)'],
+    ['approval', 'rgb(128, 85, 22)', 'rgb(252, 242, 222)'],
+  ]) {
+    const badge = p.locator(`.call-state .status-chip.${state}`).first();
+    expect(await badge.evaluate(el => getComputedStyle(el).color)).toBe(color);
+    expect(await badge.evaluate(el => getComputedStyle(el).backgroundColor)).toBe(background);
+    expect(await badge.locator('svg[aria-hidden="true"]').count()).toBe(1);
+  }
+  expect(await p.locator('.call-row[aria-pressed="true"] .status-chip').evaluate(el => getComputedStyle(el).color)).toBe('rgb(155, 53, 52)');
+  const chip = p.locator('.rule-outcome .status-chip');
   expect(await chip.textContent()).toBe('PASS');
   expect(await chip.evaluate(el => getComputedStyle(el).color)).toBe('rgb(23, 98, 62)');
   expect(await chip.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(231, 245, 237)');
   expect(await p.locator('.confidence-note').textContent()).toContain('not a reported violation');
   expect(await p.locator('.decision-explanation').textContent()).toContain('PASS selected at 0.88');
   expect(await p.locator('.rule-detail tbody tr').count()).toBe(6);
-  await p.screenshot({ path: join(artifacts, 'desktop-2233.png'), fullPage: true });
   await pickCall('unknown');
   expect(await p.locator('.rule-row[aria-pressed="true"] .status-chip').textContent()).toBe('UNKNOWN');
   expect(await p.locator('.rule-row[aria-pressed="true"] .status-chip.caution').count()).toBe(1);
@@ -116,7 +166,6 @@ test('recorded instructions render as safe Markdown with exact JSON available', 
   expect(await questions.locator('.answer-choices').first().locator('.status-chip').count()).toBe(4);
   expect(await questions.locator('script, img, iframe, a, object').count()).toBe(0);
   expect(await p.evaluate(() => (window as Window & { hostile?: boolean }).hostile)).toBeUndefined();
-  await p.screenshot({ path: join(artifacts, 'rich-instructions-2233.png'), fullPage: true });
   await questions.getByRole('button', { name: 'JSON', exact: true }).click();
   await questions.locator('.question-json').first().waitFor();
   expect(JSON.parse((await questions.locator('.question-json').first().textContent())!)).toEqual(recordedQuestion);
@@ -127,9 +176,11 @@ test('recorded instructions render as safe Markdown with exact JSON available', 
 
 test('evidence keeps its scroll position when selecting rules or switching tabs', async () => {
   const p = currentPage(); await p.setViewportSize({ width: 1280, height: 700 }); await pickCall('low-pass');
+  await p.getByRole('button', { name: 'View shared evidence', exact: true }).click();
   const evidence = p.locator('#panel-Evidence');
   const scroll = await evidence.evaluate(el => { el.scrollTop = 180; return el.scrollTop; });
   expect(scroll).toBeGreaterThan(0);
+  await p.locator('.other-rules > summary').click();
   await p.locator('.rule-row').filter({ hasText: 'Line 2' }).click();
   await expect.poll(() => p.locator('.rule-detail h3').textContent()).toBe('Rule at line 2');
   expect(await evidence.evaluate(el => el.scrollTop)).toBe(scroll);
@@ -141,21 +192,55 @@ test('evidence keeps its scroll position when selecting rules or switching tabs'
   expect(await evidence.evaluate(el => el.scrollTop)).toBe(scroll);
 });
 
+async function expectStackedChecks(p: Page) {
+  expect(await p.locator('.map-connections').isVisible()).toBe(false);
+  expect(await p.locator('.invocation').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+  const checks = await p.locator('.map-check').evaluateAll(nodes => nodes.map(node => {
+    const bounds = node.getBoundingClientRect();
+    const branch = node.parentElement!;
+    const branchBounds = branch.getBoundingClientRect();
+    const stub = getComputedStyle(node, '::before');
+    const branchLine = branchBounds.left + parseFloat(getComputedStyle(branch).borderLeftWidth);
+    return { contained: bounds.left >= branchBounds.left && bounds.right <= branchBounds.right + 1,
+      branchGap: Math.abs(bounds.left + parseFloat(stub.left) - branchLine) };
+  }));
+  expect(checks.length).toBeGreaterThan(0);
+  for (const check of checks) { expect(check.contained).toBe(true); expect(check.branchGap).toBeLessThanOrEqual(1); }
+}
+
+test('sidebar and map do not overlap at intermediate widths or after resizing', async () => {
+  const p = currentPage(); await pickCall('summary');
+  for (const width of [901, 1024, 1100]) {
+    await p.setViewportSize({ width, height: 900 });
+    const sidebar = (await p.locator('.explorer').boundingBox())!;
+    const workspace = (await p.locator('.inspection').boundingBox())!;
+    const divider = (await p.getByRole('separator', { name: 'Resize call explorer' }).boundingBox())!;
+    expect(workspace.x).toBeGreaterThanOrEqual(sidebar.x + sidebar.width);
+    expect(workspace.width).toBeGreaterThan(width / 2);
+    expect(Math.abs(divider.y - sidebar.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(divider.height - sidebar.height)).toBeLessThanOrEqual(1);
+    await expectStackedChecks(p);
+  }
+  await p.setViewportSize({ width: 1280, height: 900 });
+  await p.getByRole('separator', { name: 'Resize call explorer' }).press('End');
+  await expectStackedChecks(p);
+});
+
 test('mobile views retain selection, hide drag handles and avoid horizontal overflow', async () => {
   const p = currentPage(); await pickCall('rich');
   for (const width of [390, 320, 768]) {
     await p.setViewportSize({ width, height: 844 });
     expect(await p.getByRole('separator').count()).toBe(0);
     expect(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await expectStackedChecks(p);
     await p.getByRole('button', { name: 'View submitted questions', exact: true }).click();
     await p.locator('#panel-Questions').waitFor({ state: 'visible' });
     expect(await p.evaluate(() => document.activeElement?.id)).toBe('dock-heading');
     expect(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    if (width === 390) await p.screenshot({ path: join(artifacts, 'mobile-rich-390.png'), fullPage: true });
-    await p.getByRole('button', { name: 'Assessment', exact: true }).click();
-    await p.locator('.rule-detail').waitFor({ state: 'visible' });
+    await p.getByRole('button', { name: 'Calls', exact: true }).click();
+    await p.getByRole('button', { name: 'Summary', exact: true }).click();
+    await p.getByRole('group', { name: 'Decision map', exact: true }).waitFor({ state: 'visible' });
     expect(await p.locator('.decision-title h2 span').textContent()).toBe('rich');
-    if (width === 390) await p.screenshot({ path: join(artifacts, 'mobile-assessment-390.png'), fullPage: true });
   }
 });
 
@@ -172,6 +257,37 @@ test('missing evidence is explicit and archive errors recover without a fake pas
   await p.unroute('**/api/sessions?*');
   await p.getByRole('button', { name: 'Refresh archive', exact: true }).click();
   await p.getByRole('alert').waitFor({ state: 'hidden' });
-  await p.locator('.rule-detail').waitFor();
+  await p.getByRole('group', { name: 'Decision map', exact: true }).waitFor();
+  expect(pageErrors).toEqual([]); expect(externalRequests).toEqual([]);
+});
+
+test('visual summary separates the policy result from execution and hides debugging data', async () => {
+  const p = currentPage(); await pickCall('summary');
+  expect(await p.locator('.map-action h3').textContent()).toBe('Shell command');
+  expect(await p.locator('.map-policy .map-verdict').textContent()).toBe('Would block');
+  expect(await p.locator('.map-execution h3').textContent()).toBe('Actual execution / Ran');
+  expect(await p.locator('.map-check').first().textContent()).toContain('Rule outcome / PASS');
+  expect(await p.locator('.map-edge.blocking').count()).toBe(1);
+  expect(await p.locator('.summary-reason').textContent()).toContain('Evidence confidence was below');
+  expect(await p.locator('.execution-summary').textContent()).toContain('Observe mode records decisions without enforcing them');
+  expect(await p.getByRole('meter', { name: 'Evidence confidence' }).getAttribute('aria-valuenow')).toBe('0.85');
+  expect(await p.getByRole('meter').getAttribute('aria-valuetext')).toContain('required confidence 0.9');
+  expect(await p.locator('.action-preview').textContent()).toContain('git status --short');
+  expect(await p.locator('.evidence-dock').isVisible()).toBe(false);
+  expect(await p.locator('.distributions').isVisible()).toBe(false);
+  expect(await p.locator('.rule-list').isVisible()).toBe(false);
+  expect(await p.locator('.call-id').first().isVisible()).toBe(false);
+  for (const [width, height, name] of [[2233, 1282, 'user-2233'], [1536, 1024, 'comp'], [1440, 1000, 'desktop'], [390, 1000, 'mobile']] as const) {
+    await p.setViewportSize({ width, height });
+    await p.locator('.invocation').evaluate(el => el.scrollTop = 0);
+    expect(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await p.screenshot({ path: resolve(`.impeccable/review/${name}.png`), fullPage: true });
+  }
+  await p.getByRole('button', { name: 'Inspect evidence confidence', exact: true }).click();
+  expect(await p.locator('.rule-inspection').getAttribute('open')).not.toBeNull();
+  await p.locator('.rule-technical > summary').click();
+  expect(await p.locator('.distributions').isVisible()).toBe(true);
+  await p.locator('.evidence-disclosure > summary').click();
+  expect(await p.locator('.evidence-dock').isVisible()).toBe(true);
   expect(pageErrors).toEqual([]); expect(externalRequests).toEqual([]);
 });

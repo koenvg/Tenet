@@ -1,0 +1,17 @@
+{
+  "title": "Open map selected",
+  "question": "The final layout is locked. A full-width decision graph, evidence below, and actual execution kept separate. No further design choice is needed on this page.",
+  "options": [
+    {
+      "id": "close-comparison",
+      "label": "Close comparison",
+      "thesis": "Open map is the approved layout for TENET.",
+      "palette": ["#F5F5F2", "#171918", "#C53D36"],
+      "materials": ["plain canvas", "readable nodes", "one contributing path"],
+      "viewport": "Session selector and recent calls above the map; evidence opens below the selected check.",
+      "case": "Motion happens on deliberate selection only. Background refresh preserves the view. On mobile the same relationships stack vertically.",
+      "risk": "Complex assessments require readable grouping. Missing data must be explicit, not drawn as a successful check.",
+      "comp": ".impeccable/mocks/decision/tenet-decision-map.png"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 // Exercise the built client against real local HTTP and an offline archive.
 import assert from 'node:assert/strict';
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { JSDOM } from 'jsdom';
@@ -20,6 +20,10 @@ try {
   sink('decision', { decision: 'BLOCK', reason: 'timeout' });
   sink('response', { preview: '<script>window.hostile=true</script>', truncated: true, bytes: 2000000 });
   await writer.close();
+  // The archive-wide response sees this warning; the selected session does not.
+  const unrelatedDirectory = join(directory, sessionKey('unrelated-session'));
+  await mkdir(unrelatedDirectory, { mode: 0o700 });
+  await writeFile(join(unrelatedDirectory, 'pending.tmp'), 'in progress', { mode: 0o600 });
   app = await startInspector({ directory, assets: resolve('inspector/dist') });
   const html = await (await fetch(app.origin)).text();
   const scriptPath = /src="([^"]+\.js)"/.exec(html)?.[1];
@@ -50,16 +54,46 @@ try {
   const button = label => [...document.querySelectorAll('button')].find(b => b.textContent.trim() === label);
   const calls = () => [...document.querySelectorAll('[aria-label="Invocations"] button')];
   const chooseCall = async id => {
+    await wait(() => calls().some(b => b.querySelector('.call-id')?.textContent === id));
     calls().find(b => b.querySelector('.call-id')?.textContent === id).click();
-    await wait(() => document.querySelector('[aria-label="Invocation detail"] h2')?.textContent.includes(id));
+    await wait(() => document.querySelector('[aria-label="Invocation detail"] h2 span')?.textContent === id);
   };
   await wait(() => document.querySelector('[aria-label="Sessions"] button'));
+  await wait(() => document.querySelector('[aria-label="Invocation detail"]'));
+  assert.equal(document.querySelector('.call-row[aria-pressed="true"]'), calls()[0], 'fresh visits open the latest call');
   document.querySelector('[aria-label="Sessions"] button').click();
-  await wait(() => calls().length === 12);
+  await wait(() => calls().length === 13);
   await chooseCall('low-pass');
+  const decisionSymbols = [];
+  for (const state of ['positive', 'danger', 'approval']) {
+    const badge = document.querySelector(`.call-state .status-chip.${state}`);
+    assert.ok(badge, `sidebar includes ${state} decisions`);
+    const symbol = badge.querySelector('svg[aria-hidden="true"]');
+    assert.ok(symbol, `${state} decisions have a shape cue as well as color and text`);
+    decisionSymbols.push(symbol.innerHTML);
+  }
+  assert.equal(new Set(decisionSymbols).size, 3, 'allow, block and approval use distinct symbols');
+  const observedBadge = calls().find(row => row.querySelector('.call-id')?.textContent === 'summary').querySelector('.status-chip');
+  assert.equal(observedBadge.textContent.trim(), 'Would block', 'observation is not mislabeled as actual blocking');
+  assert.ok(document.querySelector('[aria-label="Decision summary"]'), 'a visual summary leads the selected call');
+  const map = document.querySelector('[aria-label="Decision map"]');
+  assert.ok(map, 'the selected call exposes a recorded decision map');
+  assert.match(map.textContent, /Rule outcome.*PASS/s, 'a confidence gate does not turn PASS into a violation');
+  const inspectConfidence = document.querySelector('button[aria-label="Inspect outcome confidence"]');
+  assert.ok(inspectConfidence, 'recorded gates are keyboard-operable inspection controls');
+  inspectConfidence.click();
+  await wait(() => document.querySelector('.rule-inspection')?.open);
+  assert.equal(document.querySelector('.evidence-disclosure').open, false, 'raw evidence starts collapsed');
+  assert.equal(document.querySelector('.rule-technical').open, false, 'probability tables start collapsed');
+  assert.equal(document.querySelector('.other-rules').open, false, 'other rules start collapsed');
+  assert.equal(document.querySelector('[role="meter"]').getAttribute('aria-valuenow'), '0.88');
+  assert.match(document.querySelector('[role="meter"]').getAttribute('aria-valuetext'), /0.88.*0.9/);
   assert.match(document.querySelector('[aria-label="Decision explanation"]').textContent, /PASS selected at 0.88; required confidence 0.9/);
   assert.equal(document.querySelector('[aria-label="Pane sizes"]'), null, 'slider toolbar removed');
   assert.equal(document.querySelector('input[type="range"]'), null);
+  assert.equal(document.querySelector('[aria-label="Recording issues"]'), null, 'selected session has no recording warning');
+  const allSessions = await (await fetch(app.origin + '/api/sessions')).json();
+  assert.ok(allSessions.issues.some(issue => issue.reason === 'temporary-record'), 'other-session warning remains recorded');
   const stableDetail = document.querySelector('.invocation');
   const stableMutations = [];
   const observer = new dom.window.MutationObserver(records => stableMutations.push(...records));
@@ -71,47 +105,22 @@ try {
   assert.equal(stableMutations.length, 0, `unchanged polling does not flash the page: ${stableMutations.map(r => `${r.type} ${r.target.nodeName}.${r.attributeName ?? ''}`).join(', ')}`);
   assert.ok(document.querySelector('.rule-row[aria-pressed="true"] .status-chip.positive')?.textContent.includes('PASS'));
   assert.ok(document.querySelector('.confidence-note')?.textContent.includes('not a reported violation'));
-  assert.equal(document.querySelectorAll('.decision-header > details').length, 1, 'one capture-details entry point');
+  assert.equal(document.querySelectorAll('.capture-details').length, 1, 'one recording-details entry point');
   assert.ok(document.querySelector('.capture-details .lifecycle'), 'lifecycle details are grouped under disclosure');
-  assert.ok(document.querySelector('.execution-summary')?.textContent.includes('Execution:'));
+  assert.ok(document.querySelector('.execution-summary')?.textContent.includes('record'));
   assert.ok(document.querySelector('.gate-details'), 'technical gate identifiers are available on demand');
   assert.equal(document.querySelector('.gate-details').open, false);
-  const resize = document.querySelector('[role="separator"][aria-label="Resize assessment pane"]');
-  assert.ok(resize);
-  assert.equal(resize.getAttribute('aria-orientation'), 'vertical');
-  const press = key => resize.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key, bubbles: true }));
-  press('End');
-  await wait(() => resize.getAttribute('aria-valuenow') === '70');
-  press('ArrowRight');
-  await wait(() => resize.getAttribute('aria-valuenow') === '70');
-  press('Home');
-  await wait(() => resize.getAttribute('aria-valuenow') === '35');
-  for (let i = 0; i < 18; i++) press('ArrowRight');
-  await wait(() => resize.getAttribute('aria-valuenow') === '53');
-  resize.parentElement.getBoundingClientRect = () => ({ width: 1000, left: 0 });
-  let captured = null;
-  resize.setPointerCapture = id => captured = id;
-  resize.hasPointerCapture = id => captured === id;
-  resize.releasePointerCapture = () => captured = null;
-  const pointer = (type, clientX) => {
-    const event = new dom.window.MouseEvent(type, { clientX, button: 0, bubbles: true });
-    Object.defineProperties(event, { pointerId: { value: 1 }, isPrimary: { value: true } });
-    resize.dispatchEvent(event);
-  };
-  pointer('pointerdown', 100);
-  assert.equal(captured, 1);
-  pointer('pointermove', 170);
-  await wait(() => document.querySelector('.debugger-panes').style.getPropertyValue('--assessment-share') === '60%');
-  pointer('pointerup', 170);
-  assert.equal(captured, null);
-  pointer('pointermove', 500);
-  await wait(() => resize.getAttribute('aria-valuenow') === '60');
-  pointer('pointerdown', 100); pointer('pointercancel', 100); pointer('pointermove', 500);
-  assert.equal(captured, null);
+  assert.equal(document.querySelector('[role="separator"][aria-label="Resize assessment pane"]'), null, 'no split evidence pane');
+  assert.ok(document.querySelector('.app-bar .session-picker'), 'sessions remain accessible from the toolbar');
+  assert.ok(document.querySelector('.explorer h2:not(.visually-hidden)'), 'the sidebar has a visible Recent calls heading');
+  const resize = document.querySelector('[aria-label="Resize call explorer"]');
+  assert.ok(resize, 'the call sidebar can be resized without changing the decision map');
+  resize.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+  await wait(() => resize.getAttribute('aria-valuenow') === '460');
   const cases = [
-    ['low-pass', 'Low outcome confidence'], ['unknown', 'Outcome unknown'],
+    ['low-pass', 'Outcome confidence'], ['unknown', 'Outcome unknown'],
     ['approval', 'Requires approval'], ['evidence', 'Insufficient evidence'],
-    ['evidence-confidence', 'Low evidence confidence'], ['warn', 'Advisory gates only'],
+    ['evidence-confidence', 'Evidence confidence'], ['warn', 'Advisory gates only'],
     ['integrity', 'Reported FAIL'],
   ];
   for (const [id, expected] of cases) {
@@ -121,6 +130,8 @@ try {
     assert.equal(selected.querySelectorAll('tbody tr').length, 6, 'full distributions');
     assert.ok(selected.textContent.includes('0.9'));
     if (id === 'low-pass') assert.ok(selected.textContent.includes('not a reported violation'));
+    if (id === 'unknown') assert.match(document.querySelector('.map-check').textContent, /does not mean passed/, 'UNKNOWN is never drawn as a successful outcome');
+    if (id === 'warn') assert.equal(document.querySelectorAll('.map-edge.blocking').length, 0, 'WARN findings are not blocking contributions');
     button('View submitted questions').click();
     await wait(() => document.querySelector('[aria-label="Questions"]')?.hidden === false);
     assert.ok(document.querySelector('[aria-label="Questions"]').textContent.includes('rule_'));
@@ -132,7 +143,13 @@ try {
     assert.equal(dom.window.hostile, undefined);
     assert.ok(!document.body.textContent.includes('Changed current policy'));
   }
-  assert.equal(document.querySelector('[aria-label="Resize assessment pane"]').getAttribute('aria-valuenow'), '60', 'pane size survives invocation changes');
+  assert.equal(resize.getAttribute('aria-valuenow'), '460', 'sidebar size survives invocation changes');
+  await chooseCall('summary');
+  assert.match(document.querySelector('.summary-reason').textContent, /Evidence confidence was below/);
+  assert.match(document.querySelector('.execution-summary').textContent, /call ran.*Observe mode/);
+  assert.equal(document.querySelector('[aria-label="Recorded action"]').textContent, 'git status --short && git diff -- README.md && git diff --cached --stat');
+  assert.equal(document.querySelector('[role="meter"]').getAttribute('aria-valuenow'), '0.85');
+  assert.equal(document.querySelector('.evidence-disclosure').open, false);
   await chooseCall('rich');
   button('View submitted questions').click();
   await wait(() => !document.querySelector('#panel-Questions').hidden && document.querySelector('.question-rich'));
@@ -185,7 +202,7 @@ try {
   assert.ok(document.querySelector('[aria-label="Invocation detail"]').textContent.includes('executed'));
   button('Calls').click();
   await wait(() => document.querySelector('main').dataset.mobileView === 'calls');
-  button('Assessment').click();
+  button('Summary').click();
   await wait(() => document.querySelector('main').dataset.mobileView === 'assessment');
   assert.ok(document.querySelector('[aria-label="Invocation detail"] h2').textContent.includes('passing'));
   fail = true;
