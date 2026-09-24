@@ -7,7 +7,7 @@
   let explorerWidth = 300;
   import StatusChip from './StatusChip.svelte';
   let mobileView: MobileView = 'calls';
-  let sessionPicker: HTMLDetailsElement;
+  let pickerOpen = true;
   $: currentSession = sessions.find(s => s.id === session);
   import type { CaptureHealth, InvocationView } from '../../src/inspector/view';
   import type { ArchiveIssue } from '../../src/recording/archive';
@@ -66,7 +66,7 @@
   }
   async function selectSession(id: string, updateLink = true, openLatest = true) {
     const generation = ++navigation; detailRequest++;
-    if (sessionPicker) sessionPicker.open = false;
+    pickerOpen = !id;
     session = id; invocation = ''; view = null; error = ''; detailBusy = false; mobileView = 'calls';
     invocations = []; nextInvocation = null;
     if (updateLink) link();
@@ -172,7 +172,7 @@
 
 <header class="app-bar">
   <h1><DecisionIcon kind="brand" /> TENET</h1>
-  <details class="session-picker" bind:this={sessionPicker} open={!session}>
+  <details class="session-picker" bind:open={pickerOpen}>
     <summary title={currentSession?.sessionId}>{currentSession ? projectName(currentSession.projects) : session ? 'Selected session' : 'Choose a session'}</summary>
     <div class="session-menu">
       <h2>Sessions <span class="muted">{sessions.length} loaded</span></h2>

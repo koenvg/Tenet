@@ -81,6 +81,27 @@ test('background refresh does not flash archive-wide warnings into the selected 
   expect(pageErrors).toEqual([]);
 });
 
+test('session switcher stays open during polling and project filtering', async () => {
+  const p = currentPage(), picker = p.locator('.session-picker');
+  await picker.locator('summary').click();
+  await expect.poll(() => picker.getAttribute('open')).not.toBeNull();
+  const filter = p.getByRole('textbox', { name: 'Project directory' });
+  await filter.fill('/historical');
+  let completedPolls = 0;
+  p.on('response', response => { if (response.url().includes('/invocations/')) completedPolls++; });
+  await expect.poll(() => completedPolls, { timeout: 10000 }).toBeGreaterThanOrEqual(2);
+  expect(await picker.getAttribute('open')).not.toBeNull();
+  expect(await filter.inputValue()).toBe('/historical');
+  await p.getByRole('button', { name: 'Filter projects' }).click();
+  await expect.poll(() => p.locator('.session-row').count()).toBe(1);
+  expect(await picker.getAttribute('open')).not.toBeNull();
+  await p.getByRole('button', { name: 'All projects' }).click();
+  expect(await picker.getAttribute('open')).not.toBeNull();
+  await p.locator('.session-row').first().click();
+  await expect.poll(() => picker.getAttribute('open')).toBeNull();
+  expect(pageErrors).toEqual([]);
+});
+
 test('Focus sidebar scrolls independently and keeps the selected map', async () => {
   const p = currentPage(); await p.setViewportSize({ width: 1440, height: 700 }); await pickCall('summary');
   const list = p.locator('.call-list');

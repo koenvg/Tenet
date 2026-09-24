@@ -102,6 +102,18 @@ try {
   await wait(() => requests.length >= stableRequests + 6);
   observer.disconnect();
   assert.equal(document.querySelector('.invocation'), stableDetail, 'unchanged polling keeps the selected detail mounted');
+  const picker = document.querySelector('.session-picker');
+  picker.open = true;
+  const pickerFilter = document.querySelector('input[aria-label="Project directory"]');
+  pickerFilter.focus(); pickerFilter.value = '/histor';
+  pickerFilter.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  const pickerRequests = requests.length;
+  await wait(() => requests.length >= pickerRequests + 6);
+  await new Promise(resolve => setTimeout(resolve, 30));
+  assert.equal(picker.open, true, 'refresh leaves an opened session picker open');
+  assert.equal(document.activeElement, pickerFilter, 'refresh retains project search focus');
+  assert.equal(pickerFilter.value, '/histor', 'refresh retains unfinished project search');
+  picker.open = false;
   assert.equal(stableMutations.length, 0, `unchanged polling does not flash the page: ${stableMutations.map(r => `${r.type} ${r.target.nodeName}.${r.attributeName ?? ''}`).join(', ')}`);
   assert.ok(document.querySelector('.rule-row[aria-pressed="true"] .status-chip.positive')?.textContent.includes('PASS'));
   assert.ok(document.querySelector('.confidence-note')?.textContent.includes('not a reported violation'));
@@ -228,10 +240,13 @@ try {
   const selectedRuleText = selectedRule.textContent;
   const shared = document.querySelector('#panel-Evidence'); shared.scrollTop = 37;
   const discovered = new ArchiveWriter({ enabled: true, directory });
+  picker.open = true;
   const discoveredSink = discovered.bind({ sessionId: 'live-session', invocationId: 'live-invocation', callId: 'live-call', toolName: 'edit', cwd: '/live-project', mode: 'observe' });
   discoveredSink('begin', {}); discoveredSink('decision', { decision: 'ALLOW', reason: 'all-rules-pass' });
   discoveredSink('permission', { outcome: 'released' }); await discovered.close();
   await wait(() => sessionButtons().some(b => b.querySelector('strong')?.textContent === 'live-session'));
+  assert.equal(picker.open, true, 'discovering another session does not close the open switcher');
+  picker.open = false;
   assert.equal(document.querySelector('.call-row[aria-pressed="true"] .call-id').textContent, 'concerning');
   const delayed = new ArchiveWriter({ enabled: true, directory });
   const delayedRecord = fixture.records.find(r => r.callId === 'concerning'); assert.ok(delayedRecord);
@@ -248,9 +263,13 @@ try {
   await wait(() => sessionButtons().some(b => b.querySelector('strong')?.textContent === arbitrary));
   const filter = document.querySelector('input[aria-label="Project directory"]'); assert.ok(filter);
   filter.value = '/second-project'; filter.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  picker.open = true;
+  const initialPicker = picker;
   await wait(() => !button('Filter projects').disabled); button('Filter projects').click();
   await wait(() => sessionButtons().length === 1);
+  assert.equal(initialPicker.open, true, 'filtering keeps the session switcher open for choosing a result');
   sessionButtons()[0].click(); await wait(() => button('More invocations'));
+  assert.equal(picker.open, false, 'choosing a session closes the switcher');
   assert.equal(callButtons().length, 50); callButtons()[0].click();
   await wait(() => document.querySelector('.decision-title h2')?.textContent.includes('reused'));
   const selectedLink = dom.window.location.href;
@@ -274,7 +293,10 @@ try {
   await wait(() => !document.querySelector('[role="alert"]'));
   filter.value = '/no-recordings'; filter.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
   button('Filter projects').click(); await wait(() => document.body.textContent.includes('No recorded sessions for this project.'));
-  button('All projects').click(); await wait(() => sessionButtons().some(b => b.querySelector('strong')?.textContent === arbitrary));
+  picker.open = true;
+  button('All projects').click();
+  await wait(() => sessionButtons().some(b => b.querySelector('strong')?.textContent === arbitrary));
+  assert.equal(picker.open, true, 'clearing the filter keeps the switcher open when no session is selected');
   const linked = new JSDOM(html, { url: `${app.origin}/?session=${sessionKey(arbitrary)}&invocation=${sessionKey('page-0')}`, runScripts: 'outside-only', pretendToBeVisual: true });
   try {
     linked.window.fetch = dom.window.fetch; linked.window.eval(script);
