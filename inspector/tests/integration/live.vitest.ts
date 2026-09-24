@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { ArchiveWriter, sessionKey } from '../../../src/recording/archive.js';
+import { sessionKey } from '../../../src/recording/archive.js';
+import { ArchiveWriter } from '../../../test/legacy-recording-fixture.js';
 import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
 
 beforeAll(launchBrowser);
@@ -44,7 +45,7 @@ test('polling discovers another session and delayed execution without losing the
     await expect.poll(() => page.locator('.session-row strong').allTextContents(), { timeout: 10_000 }).toContain('live-session');
     expect(await page.locator('.call-row[aria-pressed="true"] .call-id').textContent()).toBe('concerning');
     const delayed = new ArchiveWriter({ enabled: true, directory });
-    delayed.bind({ sessionId: concerning.sessionId, invocationId: concerning.invocationId, callId: concerning.callId,
+    delayed.bind({ host: concerning.host, contextId: concerning.contextId, sessionId: concerning.sessionId, invocationId: concerning.invocationId, callId: concerning.callId,
       toolName: concerning.toolName, cwd: concerning.cwd, mode: concerning.mode })('execution', { outcome: 'executed', origin: 'pi-tool-result' });
     await delayed.close();
     await expect.poll(() => page.locator('.lifecycle').textContent(), { timeout: 10_000 }).toContain('executed');

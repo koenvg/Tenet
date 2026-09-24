@@ -46,7 +46,7 @@ export interface RuntimeOptions {
   env: Record<string, string | undefined>;
   judge: Judge;
   activation: { read(): Activation; refresh(): Activation };
-  bindRecording?: (identity: InvocationIdentity & { cwd: string; mode: Mode }) => RecordingSink;
+  bindRecording?: (identity: InvocationIdentity & RuntimeIdentity & { cwd: string; mode: Mode }) => RecordingSink;
   emit?: (stage: string, data: Record<string, unknown>, archiveData?: Record<string, unknown>) => void;
 }
 export interface Readiness { eligible: boolean; policy: Policy; config?: GuardConfig; unavailable?: string; ruleCount: number }
@@ -55,7 +55,7 @@ const scope = (identity: RuntimeIdentity) => JSON.stringify([identity.host, iden
 const key = (identity: RuntimeIdentity, callId: string) => JSON.stringify([scope(identity), callId]);
 
 const resultKey = (identity: RuntimeIdentity, callId: string, correlated: boolean) =>
-  correlated ? key(identity, callId) : JSON.stringify([identity.host, callId]);
+  identity.host === 'pi' && !correlated ? JSON.stringify([identity.host, callId]) : key(identity, callId);
 /** Policy and invocation state for one host/native session. */
 class SessionGuard {
   readonly mode: Mode;
@@ -210,17 +210,19 @@ class SessionGuard {
     const signal = AbortSignal.any([generation.signal, contextController.signal, ...(call.signal ? [call.signal] : [])]);
     const identity: InvocationIdentity & RuntimeIdentity = { host: call.host, contextId: call.contextId, sessionId: call.sessionId,
       callId: call.callId, toolName: call.toolName, argumentDigest: '', policyDigest: selectedPolicy.available ? selectedPolicy.digest : null, invocationId: randomUUID() };
-    const sink = this.options.bindRecording?.({ ...identity, cwd: call.cwd, mode: this.mode });
     let submitted = false;
+    let sink: RecordingSink | undefined;
+    try { sink = this.options.bindRecording?.({ ...identity, cwd: call.cwd, mode: this.mode }); }
+    catch { /* Capture failure cannot change permission. */ }
     const recording: RecordingSink = (stage, data) => {
-      if (this.options.activation.read() !== 'on' || signal.aborted || generation !== this.generation) return;
+      if (this.options.activation.read() !== 'on' || (stage !== 'execution' && (signal.aborted || generation !== this.generation))) return;
       if (stage === 'request') submitted = true;
       sink?.(stage, stage === 'permission' ? { ...data, requestStatus: submitted ? 'submitted' : 'not-submitted' } : data);
     };
     this.recordings.set(identity.invocationId, recording);
     capture(recording, 'begin', () => ({ policy: selectedPolicy, config: selectedConfig?.decision ?? null,
       integrity: { id: INTEGRITY_ID, text: INTEGRITY_TEXT }, evidenceLimits: selectedConfig?.evidence ?? null,
-      questionVersion: QUESTION_VERSION, request: 'not-yet-submitted' }));
+      questionVersion: QUESTION_VERSION, request: 'not-yet-submitted', adapterCoverage: this.capabilities }));
     const consequences = new Consequences(this.mode, selectedPolicy);
     let permissionRecorded = false;
     const finish = (failure?: string, ruleIds?: string[], diagnostics?: RuleDiagnostic[], preserveAsk = false) => {
@@ -394,6 +396,23 @@ export class GuardRuntime {
     else for (const session of this.sessions.values()) session.invalidate(reason);
   }
   activationChanged(value: Activation): void { for (const session of this.sessions.values()) session.activationChanged(value); }
+  /** Discard one ended host session; Pi's active-session shutdown contract remains unchanged. */
+  closeSession(identity: RuntimeIdentity): void {
+    const id = sessionKey(identity);
+    this.sessions.get(id)?.shutdown();
+    this.sessions.delete(id);
+    if (this.latest === id) this.latest = undefined;
+    for (const value of this.results.resultCallIds) {
+        try {
+          const [context] = JSON.parse(value) as [string, string];
+          const [host, sessionId] = JSON.parse(context) as [string, string, string];
+          if (host === identity.host && sessionId === identity.sessionId) {
+            this.results.resultCallIds.delete(value);
+            this.results.ambiguousResults.delete(value);
+          }
+        } catch { /* Older non-correlated host keys cannot be pruned by context. */ }
+      }
+  }
   shutdown(identity?: RuntimeIdentity): void {
     if (identity) this.session(identity)?.shutdown();
     else for (const session of this.sessions.values()) session.shutdown();

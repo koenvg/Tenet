@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { readdir, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
-import { type ArchiveRecord, type RecordingIdentity, type RecordingSink, validRecord } from './contract.js';
+import { SCHEMA_VERSION, type ArchiveRecord, type HostIdentity, type RecordingIdentity, type RecordingSink, validRecord } from './contract.js';
 import { directory, MAX_RECORD_BYTES, readPrivateFile, writeStageFile } from './files.js';
 
 export interface RecordingConfig { enabled: boolean; directory: string; issue?: string }
@@ -13,6 +13,14 @@ export function recordingConfig(env: Record<string, string | undefined>): Record
   return { enabled: env.TENET_RECORDING !== 'off' && !issue, directory: isAbsolute(path) ? resolve(path) : path, issue };
 }
 export const sessionKey = (id: string) => createHash('sha256').update(id).digest('hex');
+/** Schema-1 hashes are permanent URLs. New keys include every identity dimension. */
+export const qualifiedSessionKey = (host: string, sessionId: string, contextId: string) => sessionKey(JSON.stringify([host, sessionId, contextId]));
+type Address = { schemaVersion: number; host?: string; sessionId: string; contextId?: string; invocationId: string };
+export const recordSessionKey = (record: Address) => record.schemaVersion === 1 ? sessionKey(record.sessionId)
+  : qualifiedSessionKey(record.host!, record.sessionId, record.contextId!);
+export const recordInvocationKey = (record: Address) => record.schemaVersion === 1 ? sessionKey(record.invocationId)
+  : sessionKey(JSON.stringify([record.host, record.sessionId, record.contextId, record.invocationId]));
+type BoundIdentity = RecordingIdentity & ({ schemaVersion: 1; host?: never; contextId?: never } | ({ schemaVersion: 2 } & HostIdentity));
 type Pending = { text: string; bytes: number; record: ArchiveRecord };
 export class ArchiveWriter {
   private readonly writerId = randomUUID();
@@ -26,7 +34,7 @@ export class ArchiveWriter {
   private drainTimeouts = 0;
   private lossVersion = 0;
   private reportedVersion = 0;
-  private lastIdentity?: RecordingIdentity;
+  private lastIdentity?: BoundIdentity;
   private closed = false;
   private projects = new Map<string, Promise<string>>();
   constructor(readonly config: RecordingConfig, private limits = { events: 64, bytes: 16 * 1024 * 1024 },
@@ -37,11 +45,17 @@ export class ArchiveWriter {
   private loss(kind: 'failed' | 'dropped' | 'drainTimeouts'): void {
     this[kind]++; this.lossVersion++; this.changed();
   }
-  private record(identity: RecordingIdentity, stage: ArchiveRecord['stage'], data: Record<string, unknown>): ArchiveRecord {
-    return { ...identity, schemaVersion: 1, writerId: this.writerId, sequence: ++this.sequence,
+  private record(identity: BoundIdentity, stage: ArchiveRecord['stage'], data: Record<string, unknown>): ArchiveRecord {
+    return { ...identity, writerId: this.writerId, sequence: ++this.sequence,
       eventId: randomUUID(), timestamp: Date.now(), stage, data };
   }
-  bind(identity: RecordingIdentity): RecordingSink {
+  bind(identity: RecordingIdentity & HostIdentity): RecordingSink {
+    if (![identity.host, identity.contextId].every(value => typeof value === 'string' && value.length > 0 && value.length <= 256))
+      throw new Error('invalid-recording-identity');
+    return this.bindRecord({ ...identity, schemaVersion: SCHEMA_VERSION });
+  }
+  /** Explicit schema-1 path for test-only fixture subclasses; production callers use bind(). */
+  protected bindRecord(identity: BoundIdentity): RecordingSink {
     const snapshot = { ...identity };
     return (stage, data) => {
       if (!this.config.enabled || this.closed) return;
@@ -64,7 +78,7 @@ export class ArchiveWriter {
     }
     text = JSON.stringify({ ...JSON.parse(text), project: await project });
     if (Buffer.byteLength(text) > MAX_RECORD_BYTES) throw new Error('record-too-large');
-    const folder = join(this.config.directory, sessionKey(record.sessionId));
+    const folder = join(this.config.directory, recordSessionKey(record));
     const name = `${this.writerId}-${String(record.sequence).padStart(12, '0')}-${record.eventId}`;
     await this.persist(this.config.directory, folder, name, text);
     this.written++;
@@ -131,10 +145,10 @@ export async function readArchive(root: string, selectedSession?: string): Promi
         let record: unknown;
         try { record = JSON.parse(text); }
         catch { issues.push({ session, file, reason: 'corrupt-record' }); continue; }
-        if (record && typeof record === 'object' && 'schemaVersion' in record && record.schemaVersion !== 1) {
+        if (record && typeof record === 'object' && 'schemaVersion' in record && record.schemaVersion !== 1 && record.schemaVersion !== SCHEMA_VERSION) {
           issues.push({ session, file, reason: 'unsupported-schema' }); continue;
         }
-        if (!validRecord(record) || sessionKey(record.sessionId) !== session) {
+        if (!validRecord(record) || recordSessionKey(record) !== session) {
           issues.push({ session, file, reason: 'corrupt-record' }); continue;
         }
         records.push(record);

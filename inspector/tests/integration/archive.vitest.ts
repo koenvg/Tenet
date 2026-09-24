@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from 'vitest';
-import { ArchiveWriter, sessionKey } from '../../../src/recording/archive.js';
+import { sessionKey, qualifiedSessionKey } from '../../../src/recording/archive.js';
+import { ArchiveWriter } from '../../../test/legacy-recording-fixture.js';
 import { recordFailureFixture } from '../../../test/failure-fixture.js';
 import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
 
@@ -102,7 +103,7 @@ test('unrecorded linked session waits without borrowing another session’s call
     await openPicker(page);
     await page.locator('.session-row').filter({ has: page.locator('strong', { hasText: 's' }) }).click();
     await page.locator('.invocation').waitFor();
-    expect(new URL(page.url()).searchParams.get('session')).toBe(sessionKey('s'));
+    expect(new URL(page.url()).searchParams.get('session')).toBe(qualifiedSessionKey('pi', 's', 'main'));
   }, { path: `/?session=${emptyKey}` });
 });
 
@@ -157,6 +158,48 @@ test('corrupt and interrupted captures remain unavailable, and archive errors re
     sink('begin', { policy: { rules: [{ id: 'old-rule', line: 7, text: 'Historical rule', enforcement: 'BLOCK' }] } });
     sink('decision', { decision: 'BLOCK', reason: 'timeout' });
     sink('response', { preview: '<script>window.hostile=true</script>', truncated: true, bytes: 2000000 });
+    await writer.close();
+  } });
+});
+
+test('mixed schema-1 Pi and host-qualified Pi/Claude links keep evidence and outcomes separate', async () => {
+  await withInspector('mixed-host-archive', async ({ page, app, open }) => {
+    const sessions = (await (await fetch(`${app.origin}/api/sessions`)).json()).sessions as Array<{ id: string; host: string; contextId: string }>;
+    expect(sessions).toHaveLength(4);
+    expect(new Set(sessions.map(session => session.id)).size).toBe(4);
+    expect(sessions.filter(session => session.host === 'claude-code')).toHaveLength(2);
+    const legacy = await open(`/?session=${sessionKey('same')}&invocation=${sessionKey('same')}`);
+    await legacy.locator('.decision-summary').waitFor();
+    expect(await legacy.locator('.session-picker summary').textContent()).toContain('pi / main');
+    expect(await legacy.locator('.map-notices').textContent()).toContain('legacy-pi-coverage-not-recorded');
+    expect(await legacy.locator('.rule-detail').textContent()).toContain('Historical rule');
+    await legacy.close();
+    const child = sessions.find(session => session.host === 'claude-code' && session.contextId === 'child')!;
+    const calls = (await (await fetch(`${app.origin}/api/sessions/${child.id}`)).json()).invocations;
+    expect(calls).toHaveLength(1);
+    await page.goto(`${app.origin}/?session=${child.id}&invocation=${calls[0].id}`);
+    await page.locator('.decision-summary').waitFor();
+    expect(await page.locator('.map-notices').textContent()).toContain('actual-host-unverified');
+    expect(await page.locator('.map-execution').textContent()).toContain('Failed');
+    await page.locator('.capture-details summary').click();
+    expect(await page.locator('.capture-details').textContent()).toMatch(/Would decide.*ALLOW.*Permission.*released.*Execution.*failed/s);
+    expect(await page.locator('.capture-details').textContent()).toContain('approval-unavailable');
+    const parent = sessions.find(session => session.host === 'claude-code' && session.contextId === 'main')!;
+    const parentCalls = (await (await fetch(`${app.origin}/api/sessions/${parent.id}`)).json()).invocations;
+    expect(parentCalls[0].execution).toBe('unknown');
+    expect((await fetch(`${app.origin}/api/sessions/${child.id}`, { method: 'POST' })).status).toBe(405);
+  }, { base: false, seed: async directory => {
+    const writer = new ArchiveWriter({ enabled: true, directory });
+    const identity = { sessionId: 'same', invocationId: 'same', callId: 'same', toolName: 'Bash', cwd: '/historical', mode: 'observe' as const };
+    const legacy = writer.bind(identity);
+    legacy('begin', { policy: { rules: [{ id: 'old', text: 'Historical rule', line: 1, enforcement: 'BLOCK' }] }, config: { effectThreshold: 0.83 } });
+    legacy('decision', { decision: 'BLOCK' });
+    for (const [host, contextId] of [['pi', 'main'], ['claude-code', 'main'], ['claude-code', 'child']] as const) {
+      const sink = writer.bind({ ...identity, host, contextId });
+      sink('begin', { adapterCoverage: { version: null, limitations: ['actual-host-unverified', 'approval-unavailable'] } });
+      sink('decision', { decision: 'ALLOW' }); sink('permission', { outcome: 'released' });
+      if (contextId === 'child') sink('execution', { outcome: 'failed' });
+    }
     await writer.close();
   } });
 });

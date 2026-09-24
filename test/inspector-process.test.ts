@@ -10,7 +10,7 @@ import { sessionKey } from '../src/recording/archive.js';
 function writer(root: string, sessionId: string, project: string, prefix: string) {
   return new Promise<void>((resolve, reject) => {
     const child = spawn('bun', ['-e', `
-      import { ArchiveWriter } from './src/recording/archive.ts';
+      import { ArchiveWriter } from './test/legacy-recording-fixture.ts';
       const [directory, encodedSession, cwd, prefix] = process.argv.slice(1);
       const sessionId = JSON.parse(encodedSession);
       const writer = new ArchiveWriter({ enabled: true, directory });

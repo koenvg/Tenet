@@ -73,11 +73,16 @@
       <summary>Recording details</summary>
       <p class="decision-explanation" aria-label="Decision explanation">{explainDecision(view)}</p>
       <dl class="lifecycle">
+        <div><dt>Host</dt><dd>{view.identity?.host ?? 'unknown'} / {view.identity?.contextId ?? 'unknown'}</dd></div>
+        <div><dt>Adapter version</dt><dd>{view.adapterCoverage?.version ?? 'unverified'}</dd></div>
+        <div><dt>Assessment</dt><dd>{view.assessmentStatus}</dd></div>
+        <div><dt>Would decide</dt><dd>{view.decision}</dd></div>
         <div><dt>Mode</dt><dd>{view.identity?.mode ?? 'unknown'}</dd></div>
         <div><dt>Permission</dt><dd>{view.permission}</dd></div>
-        <div><dt>Execution</dt><dd>{view.execution}</dd></div>
         <div><dt>Approval</dt><dd>{view.approval}</dd></div>
+        <div><dt>Execution</dt><dd>{view.execution}</dd></div>
       </dl>
+      <p>Host coverage limitations: {Array.isArray(view.adapterCoverage?.limitations) && view.adapterCoverage.limitations.length ? view.adapterCoverage.limitations.join(', ') : 'not recorded'}. A policy pass does not certify host coverage.</p>
       <p>{view.requestStatus}. {view.coverage}</p>
       {#if view.assessmentStatus === 'validated'}<p>Assessment validated.</p>{/if}
       <p>Missing stages: {view.missing.join(', ') || 'none observed'}. Recorded reason: {view.reason}.</p>

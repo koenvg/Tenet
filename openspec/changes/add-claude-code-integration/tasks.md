@@ -10,10 +10,10 @@
 
 ## 2. Cross-host archives and inspector
 
-- [ ] 2.1 Introduce a host-qualified versioned recording envelope and dual-version reader; verify schema-1 fixtures still load without rewriting files and unsupported versions remain visible as issues.
-- [ ] 2.2 Update archive/index identity and inspector selection for host and execution context; verify equal native IDs across hosts/subagents remain separate and legacy Pi links still resolve.
-- [ ] 2.3 Show recorded host and coverage limitations alongside distinct decision, permission and execution state; verify inspector tests cover missing results, historical thresholds and mixed-version archives, and document the archive compatibility/rollback limits.
-- [ ] 2.4 Apply existing privacy and capture controls to the new runtime path; verify dormant/off/recording-disabled cases create no diagnostic evidence, capture failure does not change permission, and inspector endpoints remain read-only.
+- [x] 2.1 Introduce a host-qualified versioned recording envelope and dual-version reader; verify schema-1 fixtures still load without rewriting files and unsupported versions remain visible as issues.
+- [x] 2.2 Update archive/index identity and inspector selection for host and execution context; verify equal native IDs across hosts/subagents remain separate and legacy Pi links still resolve.
+- [x] 2.3 Show recorded host and coverage limitations alongside distinct decision, permission and execution state; verify inspector tests cover missing results, historical thresholds and mixed-version archives, and document the archive compatibility/rollback limits.
+- [x] 2.4 Apply existing privacy and capture controls to the new runtime path; verify dormant/off/recording-disabled cases create no diagnostic evidence, capture failure does not change permission, and inspector endpoints remain read-only.
 
 ## 3. Private bridge and shared owner control
 

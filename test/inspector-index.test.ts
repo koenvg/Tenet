@@ -3,7 +3,8 @@ import { test } from 'node:test';
 import { mkdtemp, realpath, rm, symlink, mkdir, readdir, writeFile, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ArchiveWriter, sessionKey } from '../src/recording/archive.js';
+import { sessionKey } from '../src/recording/archive.js';
+import { ArchiveWriter } from './legacy-recording-fixture.js';
 import { ArchiveIndex } from '../src/inspector/archive-index.js';
 import { readPrivateFile } from '../src/recording/files.js';
 

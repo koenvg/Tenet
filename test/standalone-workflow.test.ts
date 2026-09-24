@@ -7,7 +7,7 @@ import { guardHarness } from './guard-harness.js';
 import { answer } from './helpers.js';
 import { createJevJudge } from '../src/decision/jev.js';
 import { startInspector } from '../src/inspector/server.js';
-import { sessionKey } from '../src/recording/archive.js';
+import { qualifiedSessionKey } from '../src/recording/archive.js';
 
 // Public integration seams: Pi lifecycle, scripted SDK HTTP, and standalone read API.
 test('closed inspector capture survives reader restart and same-session live resumption', async () => {
@@ -32,7 +32,7 @@ test('closed inspector capture survives reader restart and same-session live res
     assert.equal(response.headers.get('cache-control'), 'no-store');
     return response.json() as Promise<any>;
   };
-  const callsPath = `/api/sessions/${sessionKey('s')}`;
+  const callsPath = `/api/sessions/${qualifiedSessionKey('pi', 's', 'main')}`;
   const detail = (id: string) => get(`${callsPath}/invocations/${id}`);
   const eventually = async (check: () => Promise<boolean>) => {
     for (let i = 0; i < 100; i++) {

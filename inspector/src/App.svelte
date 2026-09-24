@@ -173,7 +173,7 @@
 <header class="app-bar">
   <h1><DecisionIcon kind="brand" /> TENET</h1>
   <details class="session-picker" bind:open={pickerOpen}>
-    <summary title={currentSession?.sessionId}>{currentSession ? projectName(currentSession.projects) : session ? 'Selected session' : 'Choose a session'}</summary>
+    <summary title={currentSession?.sessionId}>{currentSession ? `${projectName(currentSession.projects)} · ${currentSession.host} / ${currentSession.contextId}` : session ? 'Selected session' : 'Choose a session'}</summary>
     <div class="session-menu">
       <h2>Sessions <span class="muted">{sessions.length} loaded</span></h2>
       <form class="project-filter" on:submit|preventDefault={filterProjects}>
@@ -186,7 +186,7 @@
       <nav aria-label="Sessions">
         {#each sessions as item}
           <button class="session-row" aria-pressed={session === item.id} on:click={() => selectSession(item.id)}>
-            <strong hidden>{item.sessionId}</strong><b>{projectName(item.projects)}</b><span>{item.invocations} calls</span>
+            <strong hidden>{item.sessionId}</strong><b>{projectName(item.projects)}</b><span>{item.host} / {item.contextId} · {item.invocations} calls</span>
             <small>{date(item.started)}</small>
             {#if item.concerns || item.unavailable}<small>{item.concerns} flagged · {item.unavailable} unavailable</small>{/if}
           </button>
