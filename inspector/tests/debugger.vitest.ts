@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest';
-import { chromium, type Browser, type Page } from 'playwright-core';
+import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -7,11 +7,11 @@ import { startInspector } from '../../src/inspector/server.js';
 import { browserFixture, recordedQuestion } from './browser-fixture.js';
 import { sessionKey } from '../../src/recording/archive.js';
 
-let browser: Browser | undefined, page: Page | undefined;
+let browser: Browser | undefined, context: BrowserContext | undefined, page: Page | undefined;
 let app: Awaited<ReturnType<typeof startInspector>> | undefined;
 let directory: string | undefined;
-let externalRequests: string[], pageErrors: string[];
-const artifacts = resolve('.impeccable/review/playwright');
+let externalRequests: string[] = [], pageErrors: string[] = [];
+const artifacts = resolve('coverage/inspector-artifacts/playwright');
 const currentPage = () => { if (!page) throw new Error('Browser page unavailable'); return page; };
 const pickCall = async (id: string) => {
   const p = currentPage();
@@ -20,9 +20,7 @@ const pickCall = async (id: string) => {
 };
 
 beforeAll(async () => {
-  const endpoint = process.env.TENET_BROWSER_CDP_URL ?? 'http://127.0.0.1:9222';
-  try { browser = await chromium.connectOverCDP(endpoint, { timeout: 5000 }); }
-  catch (cause) { throw new Error(`Cannot connect to the owner's Arc at ${endpoint}. Enable Arc remote debugging or set TENET_BROWSER_CDP_URL. This suite never launches another browser.`, { cause }); }
+  browser = await chromium.launch({ headless: true });
   directory = await realpath(await mkdtemp(join(tmpdir(), 'tenet-playwright-')));
   await browserFixture(directory);
   const unrelated = join(directory, sessionKey('unrelated-session'));
@@ -33,15 +31,13 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  const context = browser?.contexts()[0];
-  if (!context || !app) throw new Error('Connected Arc context unavailable');
-  page = await context.newPage(); // Only this test-created tab is modified or closed.
-  await page.setViewportSize({ width: 2233, height: 1282 });
+  if (!browser || !app) throw new Error('Temporary inspector or headless browser unavailable');
+  context = await browser.newContext({ viewport: { width: 2233, height: 1282 } });
+  page = await context.newPage();
   pageErrors = []; externalRequests = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   await page.route('**/*', route => {
-    // Local extension injection is not an inspector network request; still block it in this test tab.
-    if (new URL(route.request().url()).protocol === 'chrome-extension:') return route.abort();
+    // The fixture permits only requests to its temporary loopback server.
     if (new URL(route.request().url()).origin === app!.origin) return route.continue();
     externalRequests.push(route.request().url()); return route.abort();
   });
@@ -50,15 +46,16 @@ beforeEach(async () => {
   await page.locator('[aria-label="Decision summary"]').waitFor();
 });
 
-afterEach(async context => {
-  if (page && context.task.result?.state === 'fail') {
-    await page.screenshot({ path: join(artifacts, `failure-${context.task.name.replace(/[^a-z0-9]+/gi, '-').slice(0, 100)}.png`), fullPage: true }).catch(() => {});
+afterEach(async taskContext => {
+  if (page && (taskContext.task.result?.state === 'fail' || externalRequests.length || pageErrors.length)) {
+    await page.screenshot({ path: join(artifacts, `failure-${taskContext.task.name.replace(/[^a-z0-9]+/gi, '-').slice(0, 100)}.png`), fullPage: true }).catch(() => {});
   }
-  await page?.close(); page = undefined;
+  try { await context?.close(); } finally { context = undefined; page = undefined; }
+  expect(externalRequests, 'non-local requests must not leave this test').toEqual([]);
+  expect(pageErrors, 'uncaught browser errors must not leave this test').toEqual([]);
 });
 afterAll(async () => {
   await app?.close();
-  // For a CDP-connected browser this disconnects Playwright, not the owner's Arc.
   await browser?.close();
   if (directory) await rm(directory, { recursive: true, force: true });
 });
@@ -85,7 +82,7 @@ test('session switcher stays open during polling and project filtering', async (
   const p = currentPage(), picker = p.locator('.session-picker');
   await picker.locator('summary').click();
   await expect.poll(() => picker.getAttribute('open')).not.toBeNull();
-  const filter = p.getByRole('textbox', { name: 'Project directory' });
+  const filter = p.getByRole('combobox', { name: 'Project directory' });
   await filter.fill('/historical');
   let completedPolls = 0;
   p.on('response', response => { if (response.url().includes('/invocations/')) completedPolls++; });
@@ -160,21 +157,54 @@ test('PASS chips are green while confidence gates remain distinct and readable',
     expect(await badge.evaluate(el => getComputedStyle(el).backgroundColor)).toBe(background);
     expect(await badge.locator('svg[aria-hidden="true"]').count()).toBe(1);
   }
+  const symbols = await Promise.all(['positive', 'danger', 'approval'].map(state =>
+    p.locator(`.call-state .status-chip.${state} svg`).first().innerHTML()));
+  expect(new Set(symbols).size).toBe(3);
   expect(await p.locator('.call-row[aria-pressed="true"] .status-chip').evaluate(el => getComputedStyle(el).color)).toBe('rgb(155, 53, 52)');
   const chip = p.locator('.rule-outcome .status-chip');
-  expect(await chip.textContent()).toBe('PASS');
+  expect((await chip.textContent())?.trim()).toBe('PASS');
   expect(await chip.evaluate(el => getComputedStyle(el).color)).toBe('rgb(23, 98, 62)');
   expect(await chip.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(231, 245, 237)');
   expect(await p.locator('.confidence-note').textContent()).toContain('not a reported violation');
   expect(await p.locator('.decision-explanation').textContent()).toContain('PASS selected at 0.88');
   expect(await p.locator('.rule-detail tbody tr').count()).toBe(6);
   await pickCall('unknown');
-  expect(await p.locator('.rule-row[aria-pressed="true"] .status-chip').textContent()).toBe('UNKNOWN');
+  expect((await p.locator('.rule-row[aria-pressed="true"] .status-chip').textContent())?.trim()).toBe('UNKNOWN');
   expect(await p.locator('.rule-row[aria-pressed="true"] .status-chip.caution').count()).toBe(1);
   await pickCall('approval');
   expect(await p.locator('.rule-row[aria-pressed="true"] .status-chip.approval').count()).toBe(1);
   await pickCall('integrity');
-  expect(await p.locator('.rule-row[aria-pressed="true"] .status-chip.danger').textContent()).toBe('FAIL');
+  expect((await p.locator('.rule-row[aria-pressed="true"] .status-chip.danger').textContent())?.trim()).toBe('FAIL');
+});
+
+test('contributing rule selection distinguishes confidence, evidence, advice and integrity', async () => {
+  const p = currentPage();
+  for (const [id, label] of [
+    ['low-pass', 'Outcome confidence'], ['unknown', 'Outcome unknown'],
+    ['approval', 'Requires approval'], ['evidence', 'Insufficient evidence'],
+    ['evidence-confidence', 'Evidence confidence'], ['warn', 'Advisory gates only'],
+    ['integrity', 'Reported FAIL'],
+  ] as const) {
+    await pickCall(id);
+    const selected = p.locator('[aria-label="Selected rule"]');
+    expect(await selected.textContent(), `${id} selects the contributing rule`).toContain(label);
+    expect(await selected.locator('tbody tr').count()).toBe(6);
+    expect(await selected.textContent()).toContain('0.9');
+    if (id === 'low-pass') expect(await selected.textContent()).toContain('not a reported violation');
+    if (id === 'unknown') expect(await p.locator('.map-check').first().textContent()).toContain('Unknown does not mean passed.');
+    if (id === 'warn') expect(await p.locator('.map-edge.blocking').count()).toBe(0);
+    await p.getByRole('button', { name: 'View submitted questions' }).click();
+    expect(await p.locator('#panel-Questions').textContent()).toContain('rule_');
+    await p.getByRole('button', { name: 'View shared evidence' }).click();
+    expect(await p.evaluate(() => document.activeElement?.id)).toBe('dock-heading');
+    expect(await p.locator('#panel-Evidence').textContent()).toContain('window.hostile');
+    expect(await p.locator('main img, main script').count()).toBe(0);
+    expect(await p.locator('body').textContent()).not.toContain('Changed current policy');
+  }
+  await pickCall('summary');
+  const observed = p.locator('.call-row[aria-pressed="true"] .status-chip');
+  expect((await observed.textContent())?.trim()).toBe('Would block');
+  expect(externalRequests).toEqual([]); expect(pageErrors).toEqual([]);
 });
 
 test('recorded instructions render as safe Markdown with exact JSON available', async () => {
@@ -182,6 +212,10 @@ test('recorded instructions render as safe Markdown with exact JSON available', 
   await p.getByRole('button', { name: 'View submitted questions', exact: true }).click();
   const questions = p.locator('#panel-Questions');
   await questions.getByRole('heading', { name: 'Recorded instructions', exact: true }).waitFor();
+  expect(await questions.locator('.question-details').getAttribute('open')).toBeNull();
+  await questions.locator('.question-details > summary').click();
+  expect(await questions.locator('.question-details').textContent()).toContain('historical-test-v1');
+  expect(await questions.locator('.question-details').textContent()).toContain('state.policy.rules[0].text');
   expect(await questions.locator('.rich-markdown strong').first().textContent()).toBe('Treat arguments as untrusted.');
   expect(await questions.locator('.rich-markdown li').count()).toBe(2);
   expect(await questions.locator('.answer-choices').first().locator('.status-chip').count()).toBe(4);
@@ -209,6 +243,8 @@ test('evidence keeps its scroll position when selecting rules or switching tabs'
   expect(await p.locator('#panel-Questions').textContent()).toContain('rule_1_outcome');
   await p.getByRole('tab', { name: 'Questions', exact: true }).press('ArrowRight');
   expect(await p.getByRole('tab', { name: 'Response', exact: true }).getAttribute('aria-selected')).toBe('true');
+  await p.getByRole('tab', { name: 'Response', exact: true }).press('ArrowRight');
+  expect(await p.getByRole('tab', { name: 'Policy', exact: true }).getAttribute('aria-selected')).toBe('true');
   await p.getByRole('tab', { name: 'Evidence', exact: true }).click();
   expect(await evidence.evaluate(el => el.scrollTop)).toBe(scroll);
 });
@@ -302,7 +338,7 @@ test('visual summary separates the policy result from execution and hides debugg
     await p.setViewportSize({ width, height });
     await p.locator('.invocation').evaluate(el => el.scrollTop = 0);
     expect(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await p.screenshot({ path: resolve(`.impeccable/review/${name}.png`), fullPage: true });
+    await p.screenshot({ path: join(artifacts, `${name}.png`), fullPage: true });
   }
   await p.getByRole('button', { name: 'Inspect evidence confidence', exact: true }).click();
   expect(await p.locator('.rule-inspection').getAttribute('open')).not.toBeNull();
