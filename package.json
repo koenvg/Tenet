@@ -12,6 +12,8 @@
     "test": "bun test",
     "smoke": "bun test ./test/pi-smoke.test.ts",
     "typecheck": "bun --bun tsc --noEmit",
+    "claude:bridge": "bun src/claude/cli.ts bridge",
+    "claude:hook": "bun src/claude/cli.ts hook",
     "inspector:build": "vite build inspector",
     "inspector:check": "svelte-check --workspace inspector --tsconfig ./tsconfig.json",
     "inspector": "bun src/inspector/cli.ts",

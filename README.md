@@ -6,6 +6,8 @@ A TypeScript POC for Pi 0.85.1. Every exposed tool call follows the same rule-ev
 
 The original KVG-5093 publication slice is extended by configurable policy rules, KVG-5094's bounded recent observations and KVG-5095's invocation-bound approval. No subprocess inspection or OS sandbox.
 
+The [Claude Code command-hook prototype](docs/claude-code.md) is opt-in and has only offline protocol tests. No Claude CLI was available to verify a pinned host version. Do not treat Pi installation or `TENET_MODE=enforce` as Claude Code coverage.
+
 ## Observe first, enforce later
 
 **Breaking default change:** TENET now starts in `observe` mode. It never vetoes calls or requests approval in this mode, even for policy-integrity findings, missing credentials, invalid configuration, timeouts or reporting failures. Host restrictions, cancellation and ordinary tool errors still apply.
@@ -133,7 +135,7 @@ The issuing process cancels its pending assessments before `/tenet off` reports 
 
 Offline tests cover shared-file propagation in a separate process and two guard instances, plus pinned Pi sessions with and without policies in both modes. They do not establish live multi-process Pi behavior with TypeSafe credentials. This change did not install the package globally or run live calls.
 
-To remove global loading, run `pi remove "$TENET_DIR"` with the same stable path you installed and restart Pi. Removing the package does not remove the control file or old evidence. A rollback to the previous extension restores missing-policy unavailability: in enforce mode, policy-free sessions block calls. Unload that version or provide a valid policy before launching Pi in other projects. Older TENET versions also ignore the control file; use that version's startup controls. This switch applies only to TENET's Pi extension, not other agent hosts.
+To remove global loading, run `pi remove "$TENET_DIR"` with the same stable path you installed and restart Pi. Removing the package does not remove the control file or old evidence. A rollback to the previous extension restores missing-policy unavailability: in enforce mode, policy-free sessions block calls. Unload that version or provide a valid policy before launching Pi in other projects. Older TENET versions also ignore the control file; use that version's startup controls. The switch also applies to an explicitly installed local Claude bridge and hooks, but Pi loading alone does not install or verify Claude coverage. See [owner control and status](docs/claude-code.md#owner-control-and-status).
 
 ## Enforcement decisions and approval
 

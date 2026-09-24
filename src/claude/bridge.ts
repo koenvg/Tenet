@@ -176,8 +176,8 @@ function frame(socket: Socket, limit: number, deadline: number): Promise<unknown
     socket.on('data', data).once('end', end).once('error', failure);
   });
 }
-export async function exchange(directory: string, request: BridgeRequest, deadlineMs = 2000): Promise<BridgeResponse> {
-  if (!validRequest(request) || !Number.isSafeInteger(deadlineMs) || deadlineMs < 1 || deadlineMs > 3000) return DENY;
+export async function exchange(directory: string, request: BridgeRequest, deadlineMs = 3300): Promise<BridgeResponse> {
+  if (!validRequest(request) || !Number.isSafeInteger(deadlineMs) || deadlineMs < 1 || deadlineMs > 4000) return DENY;
   const bytes = Buffer.from(JSON.stringify(request) + '\n');
   if (bytes.length > MAX_FRAME) return DENY;
   let socket: Socket | undefined;
@@ -207,6 +207,7 @@ export async function startBridge(options: { directory: string; env: Record<stri
       invocationId: id.invocationId, callId: id.callId, toolName: id.toolName, cwd: id.cwd, mode: id.mode }),
   }, capabilities);
   const sessions = new Map<string, string>();
+  const resuming = new Map<string, Promise<BridgeResponse>>();
   let connections = 0;
   const sockets = new Set<Socket>();
   const processRequest = async (r: unknown, signal: AbortSignal): Promise<BridgeResponse> => {
@@ -233,14 +234,20 @@ export async function startBridge(options: { directory: string; env: Record<stri
     }
     if (r.event === 'resume') {
       const marker = await readLocalState(options.directory, r.sessionId).catch(() => undefined);
-      if (!marker?.deferred || !marker.eligible || marker.cwd !== r.cwd || activation.refresh() !== 'on'
+      if (!marker?.eligible || marker.cwd !== r.cwd || activation.refresh() !== 'on'
         || (previous && previous !== r.cwd)) return DENY;
       if (previous) return { version: 1, decision: 'pass' }; // Concurrent hooks share the fresh generation.
+      if (!marker.deferred) return DENY; // A restart cannot reopen a previously live session.
       if (sessions.size >= MAX_SESSIONS) return DENY;
-      const ready = await runtime.start(id, r.cwd, options.hasJudge ?? true);
-      if (!ready?.eligible || activation.refresh() !== 'on') { runtime.shutdown(id); return DENY; }
-      sessions.set(r.sessionId, r.cwd);
-      return { version: 1, decision: 'pass' };
+      const inFlight = resuming.get(r.sessionId);
+      if (inFlight) return inFlight;
+      const attempt: Promise<BridgeResponse> = runtime.start(id, r.cwd, options.hasJudge ?? true).then(ready => {
+        if (!ready?.eligible || activation.refresh() !== 'on') { runtime.shutdown(id); return DENY; }
+        sessions.set(r.sessionId, r.cwd);
+        return { version: 1 as const, decision: 'pass' as const };
+      }).finally(() => { resuming.delete(r.sessionId); });
+      resuming.set(r.sessionId, attempt);
+      return attempt;
     }
     if (r.event === 'end') {
       if (!previous) return DENY;
