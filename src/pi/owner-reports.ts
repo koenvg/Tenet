@@ -28,7 +28,8 @@ export class OwnerReports {
   private evicted = 0;
   private coverage = 'not-started';
   constructor(private mode: Mode, private boundary: GuardBoundary, private activation: ActivationStore,
-    private captureEnabled: () => boolean, private changed: (ctx: ExtensionContext) => void) {}
+    private captureEnabled: () => boolean, private changed: (ctx: ExtensionContext) => void,
+    private adapterCoverage: () => string = () => 'unverified') {}
 
   register(pi: ExtensionAPI): void {
     pi.registerCommand('tenet', { description: 'TENET findings and global on/off/status', handler: async (args, ctx) => {
@@ -82,7 +83,7 @@ export class OwnerReports {
     return state === 'off' ? 'TENET OFF' : state === 'unavailable' ? 'TENET CONTROL UNAVAILABLE' : `TENET ON ${this.mode.toUpperCase()}`;
   }
   private summary(): string {
-    return `${this.label()} | base ${this.mode.toUpperCase()} | policy ${this.coverage} | capture ${this.activation.read() === 'on' && this.captureEnabled() ? 'ON' : 'OFF'}`;
+    return `${this.label()} | base ${this.mode.toUpperCase()} | policy ${this.coverage} | capture ${this.activation.read() === 'on' && this.captureEnabled() ? 'ON' : 'OFF'} | adapter ${this.adapterCoverage()}`;
   }
   status(ctx: ExtensionContext): void {
     if (!ctx.hasUI) return;
