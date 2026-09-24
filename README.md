@@ -1,5 +1,7 @@
 # TENET policy guard
 
+hello
+
 A TypeScript POC for Pi 0.85.1. Every exposed tool call follows the same rule-evaluation path through Jev using the official `@typesafe-ai/sdk` 0.6.0. No tool allowlists, tool-family mappings or replacement executors.
 
 **Persistence default:** In eligible sessions while TENET is on, it saves submitted assessment evidence locally, including passes. Strings can contain source code or secrets. Set `TENET_RECORDING=off` before starting Pi to opt out, or use `/tenet off` to stop both new assessment and capture. Sessions without a local or explicit policy are dormant and create no TENET records. Old records remain. See [Local decision inspector](#local-decision-inspector).
@@ -295,5 +297,3 @@ Concurrent approval and lifecycle behavior have offline contract coverage. Adver
 ## Independent decision entry
 
 `src/decision/decide.ts` imports no Pi code. Call `decide({ policy, action, cwd, judge, ... })` with a loaded policy set, captured action and trusted host working directory. Offline callers inject a scripted `Judge`; deadline tests can inject a `Clock`. `createJevJudge` uses TypeSafe and makes live calls when invoked with credentials. ALLOW and ASK are decisions for the caller to enforce, not execution commands. Pi owns the policy freshness checks and native confirmation.
-
-hello
