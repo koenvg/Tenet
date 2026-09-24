@@ -2,11 +2,11 @@
 
 ## 1. Runtime contract and Pi preservation
 
-- [ ] 1.1 Add test-first shared contract cases using scripted judges for ALLOW/ASK/BLOCK, WARN, observe, unavailable, dormant, policy freshness and missing approval; verify cases reproduce current Pi outcomes before extraction and document the public runtime inputs/results.
-- [ ] 1.2 Extract host-neutral configuration, eligibility, assessment/consequence and pending invocation ownership from `src/pi/guard.ts` behind the runtime interface; verify shared contract tests and an import check that runtime modules require no Pi package or interactive UI.
-- [ ] 1.3 Move invocation-bound approval validity, cancellation and generation handling into shared runtime ownership while retaining Pi's native approval callback; verify `approval-lifecycle`, duplicate-ID, changed-argument, late-response and cross-context isolation tests.
-- [ ] 1.4 Adapt Pi hooks, native transcript recovery, owner reports, commands and inspector launch to the runtime; verify existing Pi, observe, owner-reporting, trajectory, session-policy-activation and pinned Pi smoke suites without changing expected behavior.
-- [ ] 1.5 Add adapter identity/capability status and a headless embedded caller fixture; verify equivalent evidence yields equivalent would-decisions and unsupported approval yields blocked permission without a UI dependency, and document capability meanings.
+- [x] 1.1 Add test-first shared contract cases using scripted judges for ALLOW/ASK/BLOCK, WARN, observe, unavailable, dormant, policy freshness and missing approval; verify cases reproduce current Pi outcomes before extraction and document the public runtime inputs/results.
+- [x] 1.2 Extract host-neutral configuration, eligibility, assessment/consequence and pending invocation ownership from `src/pi/guard.ts` behind the runtime interface; verify shared contract tests and an import check that runtime modules require no Pi package or interactive UI.
+- [x] 1.3 Move invocation-bound approval validity, cancellation and generation handling into shared runtime ownership while retaining Pi's native approval callback; verify `approval-lifecycle`, duplicate-ID, changed-argument, late-response and cross-context isolation tests.
+- [x] 1.4 Adapt Pi hooks, native transcript recovery, owner reports, commands and inspector launch to the runtime; verify existing Pi, observe, owner-reporting, trajectory, session-policy-activation and pinned Pi smoke suites without changing expected behavior.
+- [x] 1.5 Add adapter identity/capability status and a headless embedded caller fixture; verify equivalent evidence yields equivalent would-decisions and unsupported approval yields blocked permission without a UI dependency, and document capability meanings.
 
 ## 2. Cross-host archives and inspector
 
