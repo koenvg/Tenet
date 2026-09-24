@@ -4,9 +4,9 @@ import { fileURLToPath } from 'node:url';
 export default defineConfig({
   root: fileURLToPath(new URL('..', import.meta.url)),
   test: {
-    // Node orchestrates Playwright against the owner's already-running Arc.
-    // A separate suffix keeps Bun's node:test suite from collecting Vitest files.
-    include: ['inspector/tests/**/*.vitest.ts'],
+    // Node owns the temporary archive and drives a disposable headless Chromium.
+    // The suffix keeps Bun's test runner from collecting Vitest files.
+    include: ['inspector/tests/debugger.vitest.ts', 'inspector/tests/integration/**/*.vitest.ts'],
     environment: 'node',
     fileParallelism: false,
     maxWorkers: 1,
