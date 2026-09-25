@@ -3,7 +3,9 @@ import { test } from 'node:test';
 import { mkdtemp, readdir, stat, symlink, writeFile, rm, realpath, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ArchiveWriter, readArchive, recordingConfig, sessionKey } from '../src/recording/archive.js';
+import { readArchive, recordingConfig, sessionKey } from '../src/recording/archive.js';
+import { ArchiveWriter as ProductionArchiveWriter, qualifiedSessionKey } from '../src/recording/archive.js';
+import { ArchiveWriter } from './legacy-recording-fixture.js';
 import { createJevJudge } from '../src/decision/jev.js';
 import { decide } from '../src/decision/decide.js';
 import { captureAction } from '../src/decision/evidence.js';
@@ -14,6 +16,22 @@ async function temporary(run: (dir: string) => Promise<void>) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'tenet-archive-')));
   try { await run(join(dir, 'recordings')); } finally { await rm(dir, { recursive: true, force: true }); }
 }
+test('production writer requires host/context; schema 1 is an explicit fixture only', () => temporary(async dir => {
+  const writer = new ProductionArchiveWriter({ enabled: true, directory: dir });
+  // @ts-expect-error A production recording cannot omit the host and context.
+  const missing: Parameters<ProductionArchiveWriter['bind']>[0] = identity;
+  assert.throws(() => writer.bind(missing), /invalid-recording-identity/);
+  assert.throws(() => writer.bind({ ...identity, host: 'pi', contextId: '' }), /invalid-recording-identity/);
+  writer.bind({ ...identity, host: 'pi', contextId: 'main' })('begin', {});
+  await writer.close();
+  const archive = await readArchive(dir);
+  assert.equal(archive.records.length, 1);
+  assert.equal(archive.records[0]?.schemaVersion, 2);
+  assert.equal(archive.records[0]?.host, 'pi');
+  assert.ok((await readdir(join(dir, qualifiedSessionKey('pi', identity.sessionId, 'main')))).length);
+  assert.deepEqual(archive.issues, []);
+}));
+
 
 test('archive persists immutable private records across writers and reader restarts', () => temporary(async dir => {
   const first = new ArchiveWriter({ enabled: true, directory: dir });

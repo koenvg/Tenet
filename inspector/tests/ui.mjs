@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { JSDOM } from 'jsdom';
 import { recordFixture } from '../../test/recording-fixture.ts';
-import { ArchiveWriter, sessionKey } from '../../src/recording/archive.ts';
+import { sessionKey, qualifiedSessionKey } from '../../src/recording/archive.ts';
+import { ArchiveWriter } from '../../test/legacy-recording-fixture.ts';
 import { recordFailureFixture } from '../../test/failure-fixture.ts';
 import { startInspector } from '../../src/inspector/server.ts';
 import { browserFixture, recordedQuestion } from './browser-fixture.ts';
@@ -15,7 +16,7 @@ try {
   const fixture = await recordFixture(directory);
   await browserFixture(directory);
   const writer = new ArchiveWriter({ enabled: true, directory });
-  const sink = writer.bind({ sessionId: 's', invocationId: 'incomplete', callId: 'incomplete', toolName: 'edit', mode: 'enforce', cwd: '/historical' });
+  const sink = writer.bind({ host: 'pi', contextId: 'main', sessionId: 's', invocationId: 'incomplete', callId: 'incomplete', toolName: 'edit', mode: 'enforce', cwd: '/historical' });
   sink('begin', { policy: { rules: [{ id: 'old-rule', line: 7, text: 'Historical rule', enforcement: 'BLOCK' }] } });
   sink('decision', { decision: 'BLOCK', reason: 'timeout' });
   sink('response', { preview: '<script>window.hostile=true</script>', truncated: true, bytes: 2000000 });
@@ -250,7 +251,7 @@ try {
   assert.equal(document.querySelector('.call-row[aria-pressed="true"] .call-id').textContent, 'concerning');
   const delayed = new ArchiveWriter({ enabled: true, directory });
   const delayedRecord = fixture.records.find(r => r.callId === 'concerning'); assert.ok(delayedRecord);
-  delayed.bind({ sessionId: delayedRecord.sessionId, invocationId: delayedRecord.invocationId, callId: delayedRecord.callId, toolName: delayedRecord.toolName, cwd: delayedRecord.cwd, mode: delayedRecord.mode })('execution', { outcome: 'executed', origin: 'pi-tool-result' });
+  delayed.bind({ host: delayedRecord.host, contextId: delayedRecord.contextId, sessionId: delayedRecord.sessionId, invocationId: delayedRecord.invocationId, callId: delayedRecord.callId, toolName: delayedRecord.toolName, cwd: delayedRecord.cwd, mode: delayedRecord.mode })('execution', { outcome: 'executed', origin: 'pi-tool-result' });
   await delayed.close();
   await wait(() => document.querySelector('.lifecycle').textContent.includes('executed'));
   assert.equal(document.querySelector('.rule-row[aria-pressed="true"]').textContent, selectedRuleText);
@@ -339,6 +340,20 @@ try {
     assert.equal(dom.window.hostile, undefined); assert.equal(document.querySelector('.invocation script'), null);
   }
   assert.ok(!document.body.textContent.includes('fixture-transport-secret'));
+  const mixed = new ArchiveWriter({ enabled: true, directory });
+  const claude = mixed.bind({ host: 'claude-code', contextId: 'child', sessionId: 'live-session', invocationId: 'mixed-invocation', callId: 'mixed-call', toolName: 'Bash', cwd: '/historical', mode: 'observe' });
+  claude('begin', { adapterCoverage: { version: null, limitations: ['actual-host-unverified', 'approval-unavailable'] } });
+  claude('decision', { decision: 'ALLOW', reason: 'all-rules-pass' });
+  claude('permission', { outcome: 'released' });
+  await mixed.close();
+  await wait(() => sessionButtons().some(b => b.textContent.includes('claude-code / child')));
+  sessionButtons().find(b => b.textContent.includes('claude-code / child')).click();
+  await wait(() => document.querySelector('.decision-summary')?.textContent.includes('claude-code / child'));
+  assert.equal(new URL(dom.window.location.href).searchParams.get('session'), qualifiedSessionKey('claude-code', 'live-session', 'child'));
+  assert.match(document.querySelector('.map-notices').textContent, /actual-host-unverified/);
+  const mixedDetails = document.querySelector('.capture-details'); mixedDetails.open = true;
+  assert.match(mixedDetails.textContent, /Would decide.*ALLOW.*Permission.*released.*Execution.*unknown/s);
+  assert.match(mixedDetails.textContent, /Host coverage limitations.*approval-unavailable/s);
   console.log('PASS: live discovery, delayed execution, preserved selection, project filters, pagination, deep links, reconnect and failed capture history.');
 
   // A deep-linked session can have recordings even when the first picker page omits it.

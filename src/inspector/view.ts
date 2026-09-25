@@ -31,13 +31,16 @@ export function invocationView(records: ArchiveRecord[]) {
   const assessmentStatus = failure || validation.valid === false ? 'failed'
     : typeof assessment.model === 'string' && Array.isArray(assessment.rules) ? 'validated' : 'incomplete';
   return {
-    identity: records[0] ? { sessionId: records[0].sessionId, invocationId: records[0].invocationId,
+    identity: records[0] ? { host: records[0].host ?? 'pi', contextId: records[0].contextId ?? 'main',
+      schemaVersion: records[0].schemaVersion, sessionId: records[0].sessionId, invocationId: records[0].invocationId,
       callId: records[0].callId, toolName: records[0].toolName, cwd: records[0].cwd, mode: records[0].mode } : null,
     decision: text(decision.decision), reason: text(decision.reason), permission: text(permission.outcome, 'unknown'),
     execution: text(stage('execution').outcome, 'unknown'),
     approval: text(stage('approval').outcome, decision.decision === 'ASK'
-      ? records[0]?.mode === 'observe' ? 'not requested (observe mode)' : 'unknown'
+      ? records[0]?.mode === 'observe' ? 'not requested (observe mode)'
+        : permission.reason === 'approval-unavailable' ? 'unavailable (host cannot approve)' : 'unknown'
       : typeof decision.decision === 'string' ? 'not required' : 'unknown'),
+    adapterCoverage: records[0]?.schemaVersion === 2 ? object(begin.adapterCoverage) : { limitations: ['legacy-pi-coverage-not-recorded'] },
     config, questionVersion: request.questionVersion ?? begin.questionVersion ?? null,
     failure: failure ?? (validation.valid === false ? 'validation-failed' : null), assessmentStatus,
     requestStatus: request.payload ? 'submitted application payload' : submitted ? 'submitted; payload unavailable'

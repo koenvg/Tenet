@@ -14,7 +14,7 @@ import { ArchiveWriter, recordingConfig } from '../recording/archive.js';
 /** Translate native Pi events into the shared contract. Native UI and transcript parsing stay here. */
 export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; createJudge?: () => Judge; env?: Record<string, string | undefined>; controlPath?: string; onEligible?: () => void } = {}): void {
   const env = { ...(options.env ?? process.env) };
-  const activation = new ActivationStore(options.controlPath);
+  const activation = new ActivationStore(options.controlPath ?? env.TENET_CONTROL_PATH);
   const reportRecording = (work: () => void) => { try { work(); } catch { /* Capture UI must not veto. */ } };
   let recordingStatus = () => {};
   const archive = new ArchiveWriter(recordingConfig(env), undefined, () => recordingStatus());
@@ -25,7 +25,7 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
   };
   const runtime = new GuardRuntime({ env, activation, judge,
     bindRecording: identity => archive.bind({ sessionId: identity.sessionId, invocationId: identity.invocationId,
-      callId: identity.callId, toolName: identity.toolName, cwd: identity.cwd, mode: identity.mode }),
+      host: identity.host, contextId: identity.contextId, callId: identity.callId, toolName: identity.toolName, cwd: identity.cwd, mode: identity.mode }),
     emit: (stage, data) => boundary.attempt(() => pi.appendEntry('tenet', { version: 3, stage, time: Date.now(), ...data, mode: runtime.mode })),
   }, { host: 'pi', version: null, profile: 'native-extension', interception: true, resultCorrelation: false,
     lifecycleInvalidation: true, argumentStability: false, trustedApproval: true,

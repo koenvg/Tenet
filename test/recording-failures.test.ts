@@ -3,7 +3,8 @@ import { test } from 'node:test';
 import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ArchiveWriter, readArchive, sessionKey } from '../src/recording/archive.js';
+import { readArchive, sessionKey } from '../src/recording/archive.js';
+import { ArchiveWriter } from './legacy-recording-fixture.js';
 import { responseSnapshot } from '../src/recording/contract.js';
 import { writeStageFile } from '../src/recording/files.js';
 import { invocationView } from '../src/inspector/view.js';
@@ -154,7 +155,8 @@ test('bounded shutdown reports pending writes and persists timeout health if sto
 
 test('process exit after submission preserves incomplete API state and exposes a partial file', () => temporary(async dir => {
   const child = spawnSync('bun', ['-e', `
-    import {ArchiveWriter, sessionKey} from './src/recording/archive.ts';
+    import {sessionKey} from './src/recording/archive.ts';
+    import {ArchiveWriter} from './test/legacy-recording-fixture.ts';
     import {createJevJudge} from './src/decision/jev.ts';
     import {decide} from './src/decision/decide.ts';
     import {captureAction} from './src/decision/evidence.ts';
