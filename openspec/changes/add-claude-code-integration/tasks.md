@@ -19,14 +19,14 @@
 
 - [ ] 3.1 Implement the versioned local bridge with owner-only socket/state paths, bounded framing, request deadlines and session limits; verify process tests for unsafe paths, malformed/oversized input, protocol mismatch, disconnect and resource exhaustion.
 - [ ] 3.2 Implement minimal eligibility/generation state and explicit lifecycle/restart handling without storing disabled-capture action payloads; verify policy deletion never becomes dormancy, lost state is unavailable, restart cannot release old work and unknown results remain unknown.
-- [ ] 3.3 Reuse shared activation in Pi and the bridge and add owner CLI status/on/off; verify cross-process off propagation, pending cancellation, corrupt control, idempotency, stopped-bridge commands and unchanged Pi command behavior.
-- [ ] 3.4 Document explicit bridge startup/shutdown, control scope, status meanings and private-path requirements; verify documented commands in temporary directories with no changes to owner settings.
+- [x] 3.3 Reuse shared activation in Pi and the bridge and add owner CLI status/on/off; verify cross-process off propagation, pending cancellation, corrupt control, idempotency, stopped-bridge commands and unchanged Pi command behavior.
+- [x] 3.4 Document explicit bridge startup/shutdown, control scope, status meanings and private-path requirements; verify documented commands in temporary directories with no changes to owner settings.
 
 ## 4. Claude Code adapter
 
 - [ ] 4.1 Define documented hook fixtures and event mapping for session, turn, subagent, pre-tool and successful/failed result events; verify built-in/MCP calls share the same path, identities remain isolated, missing metadata is disclosed and arbitrary transcript paths are never read.
-- [ ] 4.2 Implement the synchronous command-hook client and mode-aware local failure path; verify eligible enforce bridge failures produce valid denial before the outer hook timeout, observe never vetoes, and trusted dormant/off states bypass without a bridge.
-- [ ] 4.3 Map runtime outcomes to Claude protocol without allow overrides, input mutation or native-ask approval; verify BLOCK/unavailable/ASK deny, ALLOW leaves native permissions intact and stdout contains only valid protocol output.
+- [x] 4.2 Implement the synchronous command-hook client and mode-aware local failure path; verify eligible enforce bridge failures produce valid denial before the outer hook timeout, observe never vetoes, and trusted dormant/off states bypass without a bridge.
+- [x] 4.3 Map runtime outcomes to Claude protocol without allow overrides, input mutation or native-ask approval; verify BLOCK/unavailable/ASK deny, ALLOW leaves native permissions intact and stdout contains only valid protocol output.
 - [ ] 4.4 Add privacy tests for observe reporting and denial reasons; verify observation findings never reach agent-consumed stdout/stderr/context and denial messages omit arguments and provider prose.
 - [ ] 4.5 Supply opt-in catch-all hook configuration and package entry points plus install/removal documentation; verify configuration in isolated settings, confirm no tool filters or async pre-tool hooks, and document initial macOS/Linux CLI scope and unsupported approval.
 

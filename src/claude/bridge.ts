@@ -20,10 +20,10 @@ const identity = (r: BridgeRequest): RuntimeIdentity => ({ host: 'claude-code', 
 const DENY: BridgeResponse = { version: 1, decision: 'deny' };
 export type BridgeRequest = { version: 1; event: 'start' | 'resume' | 'call' | 'result' | 'invalidate' | 'end' | 'status'; sessionId: string; contextId: string; cwd: string;
   callId?: string; toolName?: string; input?: unknown; content?: unknown; isError?: boolean };
-export type BridgeResponse = { version: 1; decision: 'pass' | 'deny'; mode?: 'observe' | 'enforce'; reason?: 'approval-unavailable';
+export type BridgeResponse = { version: 1; decision: 'pass' | 'deny'; mode?: 'observe' | 'enforce'; reason?: 'approval-unavailable'; generation?: string;
   status?: { sessions: number; coverage: 'unverified'; capture: { enabled: boolean; failed: number; dropped: number; pending: number };
     readiness?: { eligible: boolean; policy: 'ready' | 'unavailable'; reason?: string } } };
-export type LocalState = { cwd: string; eligible: boolean; deferred?: boolean };
+export type LocalState = { cwd: string; eligible: boolean; deferred?: boolean; generation?: string };
 async function secureDirectory(directory: string, create = false): Promise<void> {
   if (!isAbsolute(directory) || Buffer.byteLength(join(directory, 'bridge.sock')) > 100) throw new Error('unsafe-directory');
   const parts: string[] = [];
@@ -52,6 +52,7 @@ function statePath(directory: string, sessionId: string): string {
   if (!validId(sessionId)) throw new Error('invalid-session');
   return join(directory, `session-${createHash('sha256').update(sessionId).digest('hex')}.json`);
 }
+const validGeneration = (value: unknown): value is string => typeof value === 'string' && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(value);
 export async function readLocalState(directory: string, sessionId: string): Promise<LocalState | undefined> {
   await secureDirectory(directory);
   const path = statePath(directory, sessionId);
@@ -69,10 +70,13 @@ export async function readLocalState(directory: string, sessionId: string): Prom
     const row = value as Record<string, unknown>;
     const keys = Object.keys(row).sort().join(',');
     if (!((row.version === 1 && keys === 'cwd,eligible,sessionId,version')
-      || (row.version === 2 && keys === 'cwd,deferred,eligible,sessionId,version')) || row.sessionId !== sessionId
+      || (row.version === 2 && keys === 'cwd,deferred,eligible,sessionId,version')
+      || (row.version === 3 && keys === 'cwd,deferred,eligible,generation,sessionId,version')) || row.sessionId !== sessionId
       || typeof row.cwd !== 'string' || !isAbsolute(row.cwd) || typeof row.eligible !== 'boolean'
-      || (row.version === 2 && typeof row.deferred !== 'boolean')) throw new Error('invalid-state');
-    return { cwd: row.cwd, eligible: row.eligible, deferred: row.version === 2 && row.deferred === true };
+      || (row.version !== 1 && typeof row.deferred !== 'boolean')
+      || (row.version === 3 && row.generation !== null && !validGeneration(row.generation))) throw new Error('invalid-state');
+    return { cwd: row.cwd, eligible: row.eligible, deferred: row.version !== 1 && row.deferred === true,
+      ...(row.version === 3 && validGeneration(row.generation) ? { generation: row.generation } : {}) };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
     throw error;
@@ -80,14 +84,15 @@ export async function readLocalState(directory: string, sessionId: string): Prom
 }
 export async function writeLocalState(directory: string, sessionId: string, state: LocalState): Promise<void> {
   await secureDirectory(directory, true);
-  if (!isAbsolute(state.cwd) || typeof state.eligible !== 'boolean' || (state.deferred !== undefined && typeof state.deferred !== 'boolean')) throw new Error('invalid-state');
+  if (!isAbsolute(state.cwd) || typeof state.eligible !== 'boolean' || (state.deferred !== undefined && typeof state.deferred !== 'boolean')
+    || (state.generation !== undefined && !validGeneration(state.generation))) throw new Error('invalid-state');
   const path = statePath(directory, sessionId);
   try { const stat = await lstat(path); if (!privateFile(stat)) throw new Error('unsafe-state'); }
   catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
   const tmp = `${path}.${randomUUID()}.tmp`;
   try {
     const fd = await open(tmp, 'wx', 0o600);
-    try { await fd.writeFile(JSON.stringify({ version: 2, sessionId, cwd: state.cwd, eligible: state.eligible, deferred: state.deferred === true })); await fd.sync(); }
+    try { await fd.writeFile(JSON.stringify({ version: 3, sessionId, cwd: state.cwd, eligible: state.eligible, deferred: state.deferred === true, generation: state.generation ?? null })); await fd.sync(); }
     finally { await fd.close(); }
     await rename(tmp, path);
     const dir = await open(directory, 'r');
@@ -144,7 +149,8 @@ function validResponse(value: unknown): value is BridgeResponse {
   return r.version === 1 && (r.decision === 'pass' || r.decision === 'deny')
     && (r.reason === undefined || (r.decision === 'deny' && r.reason === 'approval-unavailable'))
     && (r.mode === undefined || r.mode === 'observe' || r.mode === 'enforce')
-    && Object.keys(r).every(k => ['version', 'decision', 'mode', 'reason', 'status'].includes(k));
+    && (r.generation === undefined || validGeneration(r.generation))
+    && Object.keys(r).every(k => ['version', 'decision', 'mode', 'reason', 'generation', 'status'].includes(k));
 }
 /** Read exactly one bounded UTF-8 JSON line, or fail before the caller's deadline. */
 function frame(socket: Socket, limit: number, deadline: number): Promise<unknown> {
@@ -176,8 +182,8 @@ function frame(socket: Socket, limit: number, deadline: number): Promise<unknown
     socket.on('data', data).once('end', end).once('error', failure);
   });
 }
-export async function exchange(directory: string, request: BridgeRequest, deadlineMs = 2000): Promise<BridgeResponse> {
-  if (!validRequest(request) || !Number.isSafeInteger(deadlineMs) || deadlineMs < 1 || deadlineMs > 3000) return DENY;
+export async function exchange(directory: string, request: BridgeRequest, deadlineMs = 3300): Promise<BridgeResponse> {
+  if (!validRequest(request) || !Number.isSafeInteger(deadlineMs) || deadlineMs < 1 || deadlineMs > 4000) return DENY;
   const bytes = Buffer.from(JSON.stringify(request) + '\n');
   if (bytes.length > MAX_FRAME) return DENY;
   let socket: Socket | undefined;
@@ -202,11 +208,13 @@ export async function startBridge(options: { directory: string; env: Record<stri
   catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
   const activation = new ActivationStore(options.env.TENET_CONTROL_PATH);
   const archive = new ArchiveWriter(recordingConfig(options.env));
+  const generation = randomUUID();
   const runtime = new GuardRuntime({ env: options.env, judge: options.judge, activation,
     bindRecording: id => archive.bind({ host: id.host, sessionId: id.sessionId, contextId: id.contextId,
       invocationId: id.invocationId, callId: id.callId, toolName: id.toolName, cwd: id.cwd, mode: id.mode }),
   }, capabilities);
   const sessions = new Map<string, string>();
+  const resuming = new Map<string, Promise<BridgeResponse>>();
   let connections = 0;
   const sockets = new Set<Socket>();
   const processRequest = async (r: unknown, signal: AbortSignal): Promise<BridgeResponse> => {
@@ -216,14 +224,14 @@ export async function startBridge(options: { directory: string; env: Record<stri
     if (r.event === 'status') {
       const readiness = previous ? runtime.coverageStatus(id).readiness : undefined;
       const health = archive.health();
-      return { version: 1, decision: 'pass', status: { sessions: sessions.size, coverage: 'unverified',
+      return { version: 1, decision: 'pass', generation, status: { sessions: sessions.size, coverage: 'unverified',
         capture: { enabled: health.enabled, failed: health.failed, dropped: health.dropped, pending: health.pending },
         ...(readiness ? { readiness: { eligible: readiness.eligible, policy: readiness.policy.available ? 'ready' : 'unavailable',
           ...(readiness.unavailable ? { reason: readiness.unavailable } : {}) } } : {}) } };
     }
     if (r.event === 'start') {
       const marker = await readLocalState(options.directory, r.sessionId).catch(() => undefined);
-      if (!marker?.eligible || marker.cwd !== r.cwd) return DENY;
+      if (!marker?.eligible || marker.cwd !== r.cwd || marker.generation !== generation) return DENY;
       if (!previous && sessions.size >= MAX_SESSIONS) return DENY;
       if (previous) runtime.shutdown(id);
       const ready = await runtime.start(id, r.cwd, options.hasJudge ?? true);
@@ -233,14 +241,20 @@ export async function startBridge(options: { directory: string; env: Record<stri
     }
     if (r.event === 'resume') {
       const marker = await readLocalState(options.directory, r.sessionId).catch(() => undefined);
-      if (!marker?.deferred || !marker.eligible || marker.cwd !== r.cwd || activation.refresh() !== 'on'
+      if (!marker?.eligible || marker.cwd !== r.cwd || marker.generation !== generation || activation.refresh() !== 'on'
         || (previous && previous !== r.cwd)) return DENY;
       if (previous) return { version: 1, decision: 'pass' }; // Concurrent hooks share the fresh generation.
+      if (!marker.deferred) return DENY; // A restart cannot reopen a previously live session.
       if (sessions.size >= MAX_SESSIONS) return DENY;
-      const ready = await runtime.start(id, r.cwd, options.hasJudge ?? true);
-      if (!ready?.eligible || activation.refresh() !== 'on') { runtime.shutdown(id); return DENY; }
-      sessions.set(r.sessionId, r.cwd);
-      return { version: 1, decision: 'pass' };
+      const inFlight = resuming.get(r.sessionId);
+      if (inFlight) return inFlight;
+      const attempt: Promise<BridgeResponse> = runtime.start(id, r.cwd, options.hasJudge ?? true).then(ready => {
+        if (!ready?.eligible || activation.refresh() !== 'on') { runtime.shutdown(id); return DENY; }
+        sessions.set(r.sessionId, r.cwd);
+        return { version: 1 as const, decision: 'pass' as const };
+      }).finally(() => { resuming.delete(r.sessionId); });
+      resuming.set(r.sessionId, attempt);
+      return attempt;
     }
     if (r.event === 'end') {
       if (!previous) return DENY;

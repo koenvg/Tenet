@@ -15,6 +15,12 @@ async function fixture(run: (root: string) => Promise<void>) {
   try { await run(root); } finally { await rm(root, { recursive: true, force: true }); }
 }
 const common = { sessionId: 'same', invocationId: 'same', callId: 'same', toolName: 'Bash', cwd: '/tmp', mode: 'observe' as const };
+async function registerSession(directory: string, sessionId: string, cwd: string) {
+  const response = await exchange(directory, { version: 1, event: 'status', sessionId, contextId: 'main', cwd });
+  assert.equal(response.decision, 'pass');
+  assert.ok(response.generation);
+  await writeLocalState(directory, sessionId, { cwd, eligible: true, generation: response.generation });
+}
 
 test('schema 1 links remain stable beside host/context qualified schema 2 and unsupported records stay visible', () => fixture(async root => {
   const writer = new ArchiveWriter({ enabled: true, directory: root });
@@ -77,7 +83,7 @@ test('Claude bridge records correlated success/failure, keeps missing results un
         { version: 1, event, sessionId, contextId: 'main', cwd, ...(callId ? { callId, toolName: 'Bash' } : {}),
           ...(event === 'call' ? { input: { command: 'echo ok', token: 'sensitive-123-xyz' } } : {}),
           ...(event === 'result' ? { content: { output: 'ok' }, isError } : {}) });
-      await writeLocalState(directory, sessionId, { cwd, eligible: true });
+      await registerSession(directory, sessionId, cwd);
       await send('start');
       for (const call of ['success', 'failure', 'missing']) {
         assert.equal((await send('call', call)).decision, 'pass');
@@ -102,7 +108,7 @@ test('same Claude call ID in parent and child remains independently correlated',
   const server = await startBridge({ directory, env: { TENET_MODE: 'observe', TENET_RECORDING_DIR: archive, TENET_CONTROL_PATH: join(root, 'control.json') },
     judge: async request => answer(request.policy) });
   try {
-    await writeLocalState(directory, 'same', { cwd, eligible: true });
+    await registerSession(directory, 'same', cwd);
     const send = (event: 'start' | 'call' | 'result', contextId: string, isError = false) => exchange(directory,
       { version: 1, event, sessionId: 'same', contextId, cwd, ...(event !== 'start' ? { callId: 'equal', toolName: 'Bash' } : {}),
         ...(event === 'call' ? { input: { command: 'echo ok' } } : {}), ...(event === 'result' ? { content: 'done', isError } : {}) });
@@ -133,13 +139,13 @@ test('off, dormant and failing archive paths never change a valid Claude permiss
     const call = (sessionId: string) => exchange(directory, { version: 1, event: 'call', sessionId, contextId: 'main', cwd, callId: 'c', toolName: 'Bash', input: {} });
     await writeLocalState(directory, 'dormant', { cwd, eligible: false });
     assert.equal((await start('dormant')).decision, 'deny');
-    await writeLocalState(directory, 'off', { cwd, eligible: true });
+    await registerSession(directory, 'off', cwd);
     assert.equal((await start('off')).decision, 'pass');
     const { ActivationStore } = await import('../src/runtime/activation.js');
     await new ActivationStore(env.TENET_CONTROL_PATH).write('off');
     assert.equal((await call('off')).decision, 'pass');
     await new ActivationStore(env.TENET_CONTROL_PATH).write('on');
-    await writeLocalState(directory, 'failed', { cwd, eligible: true });
+    await registerSession(directory, 'failed', cwd);
     await start('failed');
     assert.equal((await call('failed')).decision, 'pass');
   } finally { await server.close(); }

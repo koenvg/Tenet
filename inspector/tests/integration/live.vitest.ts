@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { sessionKey } from '../../../src/recording/archive.js';
+import { sessionKey, qualifiedSessionKey } from '../../../src/recording/archive.js';
 import { ArchiveWriter } from '../../../test/legacy-recording-fixture.js';
 import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
 
@@ -52,6 +52,23 @@ test('polling discovers another session and delayed execution without losing the
     expect(await page.locator('.rule-row[aria-pressed="true"]').textContent()).toBe(selectedRule);
     expect(await evidence.evaluate(el => el.scrollTop)).toBe(scroll);
     expect(await page.locator('.call-row[aria-pressed="true"] .call-id').textContent()).toBe('concerning');
+    const mixed = new ArchiveWriter({ enabled: true, directory });
+    const claude = mixed.bind({ host: 'claude-code', contextId: 'child', sessionId: 'live-session', invocationId: 'mixed-invocation',
+      callId: 'mixed-call', toolName: 'Bash', cwd: '/historical', mode: 'observe' });
+    claude('begin', { adapterCoverage: { version: null, limitations: ['actual-host-unverified', 'approval-unavailable'] } });
+    claude('decision', { decision: 'ALLOW', reason: 'all-rules-pass' });
+    claude('permission', { outcome: 'released' });
+    await mixed.close();
+    await expect.poll(() => page.locator('.session-row').allTextContents(), { timeout: 10_000 })
+      .toEqual(expect.arrayContaining([expect.stringContaining('claude-code / child')]));
+    await page.locator('.session-picker summary').click();
+    await page.locator('.session-row').filter({ hasText: 'claude-code / child' }).click();
+    await expect.poll(() => page.locator('.decision-summary').textContent()).toContain('claude-code / child');
+    expect(new URL(page.url()).searchParams.get('session')).toBe(qualifiedSessionKey('claude-code', 'live-session', 'child'));
+    expect(await page.locator('.map-notices').textContent()).toContain('actual-host-unverified');
+    await page.locator('.capture-details summary').click();
+    expect(await page.locator('.capture-details').textContent()).toMatch(/Would decide.*ALLOW.*Permission.*released.*Execution.*unknown/s);
+    expect(await page.locator('.capture-details').textContent()).toContain('approval-unavailable');
     expect(await page.getByRole('region', { name: 'Recording issues' }).count()).toBe(0);
   }, assets);
 });
