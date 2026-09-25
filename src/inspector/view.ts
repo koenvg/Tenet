@@ -1,10 +1,8 @@
+import { findingStage, foldFindingStages } from './finding-view.js';
 import type { ArchiveRecord } from '../recording/contract.js';
 export const object = (value: unknown): Record<string, any> => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const list = (value: unknown): Record<string, any>[] => Array.isArray(value) ? value.map(object) : [];
 const text = (value: unknown, fallback = 'unavailable'): string => typeof value === 'string' ? value : fallback;
-const failures = new Set(['missing-credentials', 'provider-error', 'invalid-response', 'timeout', 'cancelled',
-  'configuration', 'policy-unavailable', 'policy-format', 'policy-file-limit', 'policy-rule-count-limit', 'policy-rule-size-limit',
-  'guard-error', 'guard-state-changed', 'session-shutdown']);
 export function captureHealth(records: ArchiveRecord[]) {
   const latest = new Map<string, ArchiveRecord>();
   for (const record of records) if (record.stage === 'health' && record.sequence > (latest.get(record.writerId)?.sequence ?? 0)) latest.set(record.writerId, record);
@@ -13,6 +11,7 @@ export function captureHealth(records: ArchiveRecord[]) {
 }
 export type CaptureHealth = ReturnType<typeof captureHealth>;
 export function invocationView(records: ArchiveRecord[]) {
+  const findings = foldFindingStages(records.map(findingStage));
   const stage = (name: string) => object(records.findLast(r => r.stage === name)?.data);
   const begin = stage('begin'), request = stage('request'), response = stage('response');
   const assessment = object(stage('assessment').assessment ?? stage('validation').assessment);
@@ -23,26 +22,25 @@ export function invocationView(records: ArchiveRecord[]) {
   const config = object(stage('assessment').config ?? begin.config);
   const rules = [...list(policy.rules), ...(typeof integrity.id === 'string' ? [{ ...integrity, enforcement: 'BLOCK', line: null }] : [])];
   const validation = stage('validation');
-  // The decision deadline can cancel transport afterward. Preserve the recorded decision cause.
-  const failure = [stage('assessment').reason, decision.reason, validation.reason, permission.reason]
-    .find(reason => typeof reason === 'string' && failures.has(reason)) as string | undefined;
+  const lifecycle = stage('assessment-status');
   const notSubmitted = validation.request === 'not-submitted' || permission.requestStatus === 'not-submitted';
   const submitted = validation.request === 'submitted' || permission.requestStatus === 'submitted';
-  const assessmentStatus = failure || validation.valid === false ? 'failed'
-    : typeof assessment.model === 'string' && Array.isArray(assessment.rules) ? 'validated' : 'incomplete';
   return {
     identity: records[0] ? { host: records[0].host ?? 'pi', contextId: records[0].contextId ?? 'main',
+      schemas: [...new Set(records.map(r => r.schemaVersion))],
       schemaVersion: records[0].schemaVersion, sessionId: records[0].sessionId, invocationId: records[0].invocationId,
       callId: records[0].callId, toolName: records[0].toolName, cwd: records[0].cwd, mode: records[0].mode } : null,
-    decision: text(decision.decision), reason: text(decision.reason), permission: text(permission.outcome, 'unknown'),
+    categories: findings.categories,
+    decision: text(decision.decision), reason: text(decision.reason ?? lifecycle.reason), permission: text(permission.outcome, 'unknown'),
     execution: text(stage('execution').outcome, 'unknown'),
     approval: text(stage('approval').outcome, decision.decision === 'ASK'
       ? records[0]?.mode === 'observe' ? 'not requested (observe mode)'
         : permission.reason === 'approval-unavailable' ? 'unavailable (host cannot approve)' : 'unknown'
       : typeof decision.decision === 'string' ? 'not required' : 'unknown'),
-    adapterCoverage: records[0]?.schemaVersion === 2 ? object(begin.adapterCoverage) : { limitations: ['legacy-pi-coverage-not-recorded'] },
+    adapterCoverage: records[0]?.schemaVersion !== 1 ? object(begin.adapterCoverage) : { limitations: ['legacy-pi-coverage-not-recorded'] },
     config, questionVersion: request.questionVersion ?? begin.questionVersion ?? null,
-    failure: failure ?? (validation.valid === false ? 'validation-failed' : null), assessmentStatus,
+    assessmentProfile: findings.profile,
+    failure: findings.failure, assessmentStatus: findings.assessmentStatus,
     requestStatus: request.payload ? 'submitted application payload' : submitted ? 'submitted; payload unavailable'
       : notSubmitted ? 'not submitted' : 'payload unavailable; capture incomplete',
     captureHealth: captureHealth(records),

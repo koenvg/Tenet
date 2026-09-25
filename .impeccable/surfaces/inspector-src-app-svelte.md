@@ -30,6 +30,7 @@ Use recorded gates and distributions only. No new evaluator logic, model rationa
 
 Replace pane-width sliders with draggable, keyboard-operable separators. Use reusable semantic status chips, including green PASS without hiding its confidence gate. Default submitted questions to readable Markdown instructions and explicit answer choices, with a Rich / JSON toggle preserving the recorded object. Markdown is inert: no active HTML, navigation or remote images.
 
+TENET-1 owner feedback: session-wide uncertainty grouping made the call sidebar unreadable. Keep that sidebar for filtering and individual call navigation; move groups to an explicitly explained main-workspace view, with individual links and distinct captured policy identities. Make the map and archive-status area less cramped without hiding compatibility warnings.
 KVG-5215: Owner approved a less cluttered overview focused on understanding the latest decision. Separate the policy decision from actual execution, use visual status icons and exact confidence indicators, collapse technical data, and remove the always-open evidence pane. Keep all archived details reachable and incomplete assessments explicit. Preserve live updates and project filtering without expanding them.
 
 ## Approved replacement layout, implementation in progress

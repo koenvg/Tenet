@@ -326,7 +326,7 @@ class SessionGuard {
     }
   }
 
-  result(result: RuntimeIdentity & { callId: string; toolName: string; content?: unknown; details?: unknown; isError?: boolean }): void {
+  result(result: RuntimeIdentity & { callId: string; toolName: string; content?: unknown; details?: unknown; isError?: boolean }): { invocationId: string; outcome: 'executed' | 'failed' | 'unknown' } | undefined {
     if (!this.eligible || this.session?.host !== result.host || this.session.sessionId !== result.sessionId) return;
     const id = key(result, result.callId);
     if (this.options.activation.refresh() !== 'on' || this.disabled.has(id)) return;
@@ -338,9 +338,10 @@ class SessionGuard {
     const identity = this.released.get(id);
     if (!identity || identity.toolName !== result.toolName) return;
     const ambiguous = this.ambiguousResults.has(correlation);
-    this.record('execution', { ...identity, origin: ambiguous ? 'ambiguous-tool-result' : `${result.host}-tool-result`,
-      outcome: ambiguous ? 'unknown' : result.isError ? 'failed' : 'executed' });
+    const outcome = ambiguous ? 'unknown' : result.isError ? 'failed' : 'executed';
+    this.record('execution', { ...identity, origin: ambiguous ? 'ambiguous-tool-result' : `${result.host}-tool-result`, outcome });
     this.released.delete(id);
+    return { invocationId: identity.invocationId, outcome };
   }
 }
 
@@ -388,8 +389,8 @@ export class GuardRuntime {
     if (session) return session.call(call);
     return Promise.resolve(this.mode === 'enforce' ? { block: true, reason: 'TENET blocked: session-unavailable.' } : undefined);
   }
-  result(result: RuntimeIdentity & { callId: string; toolName: string; content?: unknown; details?: unknown; isError?: boolean }): void {
-    this.session(result)?.result(result);
+  result(result: RuntimeIdentity & { callId: string; toolName: string; content?: unknown; details?: unknown; isError?: boolean }): { invocationId: string; outcome: 'executed' | 'failed' | 'unknown' } | undefined {
+    return this.session(result)?.result(result);
   }
   invalidate(reason: string, context?: RuntimeIdentity): void {
     if (context) this.session(context)?.invalidate(reason, context);

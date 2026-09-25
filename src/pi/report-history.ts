@@ -48,3 +48,14 @@ export function recoverReport(entry: unknown): OwnerReport | undefined {
     callId: d.callId, toolName: d.toolName, invocationId: d.invocationId, rules, diagnostics,
     ruleIds: [...d.ruleIds] as string[], approvalRules: [...d.approvalRules] as string[] };
 }
+
+/** Restore only correlated, bounded execution facts for an already validated permission report. */
+export function recoverExecution(entry: unknown): { invocationId: string; callId: string; toolName: string; mode: OwnerReport['mode']; outcome: 'executed' | 'failed' | 'unknown' } | undefined {
+  if (!object(entry) || entry.type !== 'custom' || entry.customType !== 'tenet' || !object(entry.data)) return;
+  const d = entry.data;
+  if (d.version !== 3 || d.stage !== 'execution' || !['observe', 'enforce'].includes(String(d.mode))
+    || !['executed', 'failed', 'unknown'].includes(String(d.outcome))
+    || !text(d.invocationId) || !text(d.callId) || !text(d.toolName)) return;
+  return { invocationId: d.invocationId, callId: d.callId, toolName: d.toolName, mode: d.mode as OwnerReport['mode'],
+    outcome: d.outcome as 'executed' | 'failed' | 'unknown' };
+}

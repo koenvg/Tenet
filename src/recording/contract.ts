@@ -1,6 +1,8 @@
 // Recording is a one-way diagnostic channel, never a decision input.
 export const SCHEMA_VERSION = 2;
-export const STAGES = ['begin', 'request', 'response', 'validation', 'assessment', 'decision', 'approval', 'permission', 'execution', 'health'] as const;
+// The current writer remains schema 2. The reader can already inspect schema 3 lifecycle stages.
+export const READER_SCHEMAS = [1, 2, 3] as const;
+export const STAGES = ['begin', 'request', 'response', 'validation', 'assessment', 'assessment-status', 'decision', 'approval', 'permission', 'execution', 'health'] as const;
 export type Stage = typeof STAGES[number];
 export type RecordingSink = (stage: Stage, data: Record<string, unknown>) => void;
 export interface RecordingIdentity {
@@ -13,7 +15,7 @@ export type HostIdentity = { host: string; contextId: string };
 export type ArchiveRecord = RecordingIdentity & {
   writerId: string; sequence: number; eventId: string;
   timestamp: number; stage: Stage; data: Record<string, unknown>;
-} & ({ schemaVersion: 1; host?: never; contextId?: never } | { schemaVersion: 2; host: string; contextId: string });
+} & ({ schemaVersion: 1; host?: never; contextId?: never } | { schemaVersion: 2 | 3; host: string; contextId: string });
 export function capture(sink: RecordingSink | undefined, stage: Stage, data: () => Record<string, unknown>): void {
   try { sink?.(stage, data()); } catch { /* A diagnostic callback cannot affect the caller. */ }
 }
@@ -63,6 +65,9 @@ function validStage(r: ArchiveRecord): boolean {
     case 'response': return d.unavailable === true || (Number.isSafeInteger(d.bytes) && (d.bytes as number) >= 0
       && (d.truncated === true ? typeof d.preview === 'string' : d.truncated === false && Object.hasOwn(d, 'value')));
     case 'validation': return typeof d.valid === 'boolean';
+    case 'assessment-status': return r.schemaVersion === 3 && ['pending', 'completed', 'unavailable', 'dropped', 'cancelled'].includes(d.status as string)
+      && (d.reason === undefined || (typeof d.reason === 'string' && d.reason.length <= 256))
+      && (d.profile === undefined || (typeof d.profile === 'string' && d.profile.length > 0 && d.profile.length <= 128));
     case 'decision': return ['ALLOW', 'ASK', 'BLOCK'].includes(d.decision as string);
     case 'permission': return ['released', 'blocked'].includes(d.outcome as string);
     case 'execution': return ['executed', 'failed', 'unknown'].includes(d.outcome as string);
@@ -75,7 +80,7 @@ export function validRecord(value: unknown): value is ArchiveRecord {
   if (!value || typeof value !== 'object') return false;
   const r = value as ArchiveRecord;
   return (r.schemaVersion === 1 && r.host === undefined && r.contextId === undefined
-    || r.schemaVersion === SCHEMA_VERSION && typeof r.host === 'string' && r.host.length > 0 && r.host.length <= 256
+    || (r.schemaVersion === SCHEMA_VERSION || r.schemaVersion === 3) && typeof r.host === 'string' && r.host.length > 0 && r.host.length <= 256
       && typeof r.contextId === 'string' && r.contextId.length > 0 && r.contextId.length <= 256) && STAGES.includes(r.stage)
     && ['sessionId', 'invocationId', 'callId', 'toolName', 'cwd', 'writerId', 'eventId'].every(k => typeof (r as any)[k] === 'string' && (r as any)[k].length > 0)
     && (r.project === undefined || (typeof r.project === 'string' && r.project.length > 0))
