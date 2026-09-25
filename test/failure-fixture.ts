@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { ArchiveWriter, readArchive, sessionKey } from '../src/recording/archive.js';
+import { readArchive, sessionKey } from '../src/recording/archive.js';
+import { ArchiveWriter } from './legacy-recording-fixture.js';
 import { responseSnapshot } from '../src/recording/contract.js';
 import { createJevJudge } from '../src/decision/jev.js';
 import { decide } from '../src/decision/decide.js';

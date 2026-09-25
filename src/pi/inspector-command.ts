@@ -4,7 +4,7 @@ import { lstat, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { recordingConfig, sessionKey } from '../recording/archive.js';
+import { recordingConfig, qualifiedSessionKey } from '../recording/archive.js';
 import type { startInspector } from '../inspector/server.js';
 
 const execFileAsync = promisify(execFile);
@@ -62,7 +62,7 @@ export function registerInspectorCommand(pi: ExtensionAPI, options: {
         const app = await starting;
         if (closed) return;
         const url = new URL(app.url);
-        url.searchParams.set('session', sessionKey(ctx.sessionManager.getSessionId()));
+        url.searchParams.set('session', qualifiedSessionKey('pi', ctx.sessionManager.getSessionId(), 'main'));
         notify(ctx, `TENET inspector: ${url}`, 'info');
         try { await (options.openArc ?? launchArc)(url.toString()); }
         catch { notify(ctx, `Arc could not open. Use the TENET inspector URL above: ${url}`, 'warning'); }

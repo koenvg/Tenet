@@ -3,7 +3,8 @@ import { test } from 'node:test';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ArchiveWriter, readArchive } from '../src/recording/archive.js';
+import { readArchive } from '../src/recording/archive.js';
+import { ArchiveWriter } from './legacy-recording-fixture.js';
 import { startInspector } from '../src/inspector/server.js';
 
 test('independent server reads retained and delayed lifecycle stages without authentication', async () => {

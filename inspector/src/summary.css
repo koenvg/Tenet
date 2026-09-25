@@ -137,6 +137,7 @@ button.map-symbol[aria-pressed='true'] { outline: 1px solid currentColor; outlin
   .map-execution { left: 64%; }
 }
 @media (max-width: 900px) {
+  .app-bar { gap: 12px; }
   .workspace { display: flex; flex-direction: column; padding: 0; }
   .mobile-nav { display: flex; flex: none; background: var(--chrome); gap: 8px; border-bottom: 1px solid var(--line); padding: .4rem .6rem; }
   .workspace[data-mobile-view] > .pane-resizer { display: none; }

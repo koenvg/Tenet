@@ -247,18 +247,19 @@ TENET_RECORDING=off bun run pi --no-extensions
 
 Disabling capture does not delete old files. There is no automatic expiry. After stopping all Pi writers and the inspector, remove the archive directory yourself to delete retained evidence. For the default location, that directory is `~/.tenet/recordings`. Existing pre-feature Pi session files are not imported.
 
-Additional offline verification:
+Additional offline verification (Node 22.12+ or 24 and Bun 1.3.14+):
 
 ```sh
+bun install --frozen-lockfile
+bunx playwright install chromium
 bun run inspector:check
-bun run inspector:test
+CI=1 bun run inspector:test
 bun test test/standalone-workflow.test.ts
-bun run inspector:test:browser
 ```
 
-The UI test builds the production Svelte client and exercises it in a DOM against the local server, using scripted SDK transport and persisted pass, concern and failure records. It restarts the reader and checks incomplete history, truncation, unavailable responses, recording issues and capture health. It makes no live provider calls.
+On Linux CI, install Chromium's system libraries with `bunx playwright install --with-deps chromium`. The inspector command runs Vitest Browser Mode component tests, builds the production Svelte client, and runs real archive/HTTP tests in disposable headless Chromium. It needs no Arc debugging endpoint, signed-in profile, evaluator credentials, or live provider calls. Run `bun run inspector:test:components` or `bun run inspector:test:browser` for one suite; see [inspector test instructions](inspector/tests/README.md).
 
-The integrated workflow test records passes, concerns and provider failure with the reader closed, restarts the reader, resumes the same session and compares historical questions and evidence with the scripted SDK payload. It checks live permission and execution stages separately. The browser suite connects only to the owner's existing Arc debugging endpoint at `http://127.0.0.1:9222`, or `TENET_BROWSER_CDP_URL`. A connection failure blocks browser verification; DOM checks are not a visual substitute.
+Component tests mount inspector Svelte views with controlled API responses. The full-app suite serves the built client from a temporary loopback archive, checks live updates, pagination, deep links, failure history, truncation and capture health, and blocks non-local browser requests. The integrated workflow test records passes, concerns and provider failure with the reader closed, restarts it, resumes the same session, and compares historical questions and evidence with the scripted SDK payload. It checks permission and execution separately.
 
 ## Data disclosure and audit
 

@@ -1,30 +1,32 @@
 # Inspector tests
 
-`bun run inspector:test` builds the client and runs offline DOM/HTTP tests. It needs no browser or evaluator credentials.
+Use Node 22.12+ or 24 and Bun 1.3.14+. Install the locked dependencies and disposable Chromium before running UI tests:
 
-## Vitest + Playwright in Arc
+```sh
+bun install --frozen-lockfile
+bunx playwright install chromium
+```
 
-1. Use Node 22.12+ or Node 24. Install dependencies with `bun install`.
-2. Connect the owner's Arc with remote debugging available at `http://127.0.0.1:9222`.
-3. Run `bun run inspector:test:browser`.
+On Linux CI, install browser system libraries with `bunx playwright install --with-deps chromium`. Neither suite connects to Arc, needs a CDP endpoint, uses a signed-in profile, or calls the evaluator.
 
-Set `TENET_BROWSER_CDP_URL` if Arc uses a different CDP endpoint. A connection failure fails the suite; it never downloads or launches another browser. Vitest runs in Node and drives the existing Arc through `playwright-core`, rather than launching a Vitest Browser Mode provider.
+Run both suites with `CI=1 bun run inspector:test`. The command runs the component suite, builds the client, then runs the built-app suite.
 
-When the owner explicitly authorizes a separate Chrome debugging instance, run the same suite against its loopback endpoint, for example `TENET_BROWSER_CDP_URL=http://127.0.0.1:9223 bun run inspector:test:browser`. Use a temporary profile. The suite connects to that instance; it never launches a browser itself.
+## Component suite
 
-The suite builds the production client, creates an offline synthetic archive, and starts an ephemeral loopback inspector. Each test creates and closes its own tab in Arc's existing context. Other tabs and the signed-in profile are left in place. Non-local page requests are blocked and checked; no evaluator calls are made.
+```sh
+CI=1 bun run inspector:test:components
+```
 
-Coverage:
-- Explorer pointer dragging and keyboard resizing, bounds and persistence across calls.
-- Visual action, policy decision and actual execution sequence. Evidence, probability tables and other rules start collapsed.
-- Exact confidence values and thresholds. A low-confidence PASS remains distinct from a violation.
-- Rich Markdown instructions, answer choices, exact JSON toggling and inert hostile content.
-- Evidence scroll preservation and keyboard-accessible dock navigation.
-- Mobile Calls and Summary navigation, evidence focus, hidden splitters and horizontal overflow at 320, 390 and 768 pixels.
-- Missing captures and refresh failure/recovery.
+Vitest Browser Mode mounts Svelte components in headless Chromium without a production build. Browser-safe view fixtures and mocked same-origin API responses cover decisions, inert recorded Markdown, question formatting, evidence navigation, resizing, initial selection, deep links, and loading/error/recovery states. The API mock rejects unexpected or non-local requests; these tests do not claim to check archive security.
 
-Summary screenshots go to `.impeccable/review/desktop.png`, `mobile.png` and `user-2233.png`. They use a synthetic offline fixture reproducing a low-evidence-confidence decision in observe mode, not a real session. Failed-test captures go to `.impeccable/review/playwright/`. The archive is removed and the inspector stopped after the suite. Tests use the `.vitest.ts` suffix so `bun test` does not collect them.
+## Built-app suite
 
-The offline DOM suite also covers fresh-visit latest-call selection, direct links, stable selection during live updates, project filtering and pagination.
+```sh
+CI=1 bun run inspector:test:browser
+```
 
-Both suites include an archive-wide temporary-file warning outside the selected session. Unchanged background polls must not mutate the page or briefly show that warning in the selected session. Genuine selected-session recording issues remain visible.
+Node Vitest starts a temporary loopback inspector serving the production build and launches disposable headless Playwright Chromium. Synthetic archives, real local HTTP, and independent browser contexts cover layout at desktop/mobile widths, keyboard and pointer controls, and recorded assessment detail. Integration tests also exercise live session discovery, delayed execution, selected-session warning scoping, reconnecting polls, project filtering, cursor pagination, deep links beyond the first page, waiting sessions, corrupt/interrupted capture, and recovery after server errors. Each integration case cleans up its own archive, server, and context. Non-local browser requests are blocked and checked. No production evaluator request is made.
+
+Run Bun archive and security tests separately with `bun test --isolate --max-concurrency=1 --timeout=30000`. On Bun 1.3.14, the default all-file `bun test` can register `node:test` files inside another running test and time out long startup cases; the isolated serial run passes. These Vitest files use the `.vitest.ts` suffix so Bun does not collect them. `bun run typecheck` and `bun run inspector:check` cover static checks.
+
+Failure and synthetic summary screenshots go under ignored `coverage/inspector-artifacts/playwright/`; Vitest Browser Mode may also save failures under ignored `.vitest/attachments/`. A CI job can upload these directories on failure. Tests never overwrite the tracked `.impeccable/review/` reference images. The user-facing `/tenet-inspector` command still opens Arc; it is not a test dependency.

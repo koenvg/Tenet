@@ -1,19 +1,19 @@
 import { lstat, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { type ArchiveIssue, sessionKey } from '../recording/archive.js';
-import { type ArchiveRecord, validRecord } from '../recording/contract.js';
+import { type ArchiveIssue, sessionKey, recordSessionKey, recordInvocationKey } from '../recording/archive.js';
+import { SCHEMA_VERSION, type ArchiveRecord, validRecord } from '../recording/contract.js';
 import { directory, MAX_RECORD_BYTES, readPrivateFile } from '../recording/files.js';
 import { captureHealth, invocationView, type CaptureHealth } from './view.js';
 
 export interface PageOptions { limit?: number; cursor?: string; offset?: number }
 export interface InvocationSummary {
-  id: string; invocationId: string; callId: string; toolName: string;
+  id: string; invocationId: string; callId: string; toolName: string; host: string; contextId: string;
   timestamp: number; updated: number; decision: string; missing: string[];
   failure: string | null; assessmentStatus: string;
   mode: string; permission: string; execution: string;
 }
 export interface SessionSummary {
-  id: string; sessionId: string; projects: string[]; timestamp: number; started: number;
+  id: string; sessionId: string; host: string; contextId: string; projects: string[]; timestamp: number; started: number;
   invocations: number; concerns: number; unavailable: number; coverage: string;
 }
 type Metadata = Omit<ArchiveRecord, 'data'> & { decision?: string; outcome?: string; failure: string | null; assessmentStatus: string; health?: CaptureHealth[number] };
@@ -81,10 +81,10 @@ export class ArchiveIndex {
                 const text = await this.read(this.root, path);
                 reason = 'corrupt-record';
                 const record: unknown = JSON.parse(text);
-                if (record && typeof record === 'object' && 'schemaVersion' in record && record.schemaVersion !== 1) {
+                if (record && typeof record === 'object' && 'schemaVersion' in record && record.schemaVersion !== 1 && record.schemaVersion !== SCHEMA_VERSION) {
                   reason = 'unsupported-schema'; throw new Error(reason);
                 }
-                if (!validRecord(record) || sessionKey(record.sessionId) !== session) throw new Error('invalid-record');
+                if (!validRecord(record) || recordSessionKey(record) !== session) throw new Error('invalid-record');
                 const { data, ...metadata } = record;
                 const summary = invocationView([record]);
                 entry.metadata = { ...metadata, decision: record.stage === 'decision' ? String(data.decision) : undefined,
@@ -111,7 +111,7 @@ export class ArchiveIndex {
     const latest = new Map<string, Metadata>();
     for (const entry of this.entries.values()) {
       const record = entry.metadata;
-      if (!record?.health || (session && sessionKey(record.sessionId) !== session)) continue;
+      if (!record?.health || (session && recordSessionKey(record) !== session)) continue;
       if (record.sequence > (latest.get(record.writerId)?.sequence ?? 0)) latest.set(record.writerId, record);
     }
     return [...latest.values()].map(record => record.health!);
@@ -120,15 +120,17 @@ export class ArchiveIndex {
     const groups = new Map<string, Metadata[]>();
     for (const entry of this.entries.values()) {
       const record = entry.metadata;
-      if (!record || (session && sessionKey(record.sessionId) !== session)) continue;
-      const key = session ? record.invocationId : record.sessionId;
+      if (!record || (session && recordSessionKey(record) !== session)) continue;
+      const key = session ? recordInvocationKey(record) : recordSessionKey(record);
       const group = groups.get(key) ?? []; group.push(record); groups.set(key, group);
     }
     return groups;
   }
   sessions(options: PageOptions & { project?: string } = {}) {
     const rows: SessionSummary[] = [];
-    for (const [sessionId, records] of this.groups()) {
+    for (const [id, records] of this.groups()) {
+      const first = records[0]!;
+      const sessionId = first.sessionId;
       const projects = [...new Set(records.map(r => r.project ?? r.cwd))].sort();
       if (options.project && !projects.includes(options.project)) continue;
       const decisions = new Map<string, string>();
@@ -137,7 +139,7 @@ export class ArchiveIndex {
         timestamp = Math.max(timestamp, record.timestamp); started = Math.min(started, record.timestamp);
         if (!decisions.has(record.invocationId) || record.decision) decisions.set(record.invocationId, record.decision ?? 'unavailable');
       }
-      rows.push({ id: sessionKey(sessionId), sessionId, projects, timestamp, started, invocations: decisions.size,
+      rows.push({ id, sessionId, host: first.host ?? 'pi', contextId: first.contextId ?? 'main', projects, timestamp, started, invocations: decisions.size,
         concerns: [...decisions.values()].filter(d => d === 'ASK' || d === 'BLOCK').length,
         unavailable: [...decisions.values()].filter(d => d === 'unavailable').length, coverage: 'best-effort' });
     }
@@ -152,7 +154,8 @@ export class ArchiveIndex {
       const failure = ['assessment', 'decision', 'validation', 'permission']
         .map(stage => records.findLast(r => r.stage === stage)?.failure).find(Boolean) ?? null;
       const assessmentStatus = failure ? 'failed' : records.some(r => r.assessmentStatus === 'validated') ? 'validated' : 'incomplete';
-      rows.push({ id: sessionKey(invocationId), invocationId, callId: first.callId, toolName: first.toolName,
+      rows.push({ id: invocationId, invocationId: first.invocationId, callId: first.callId, toolName: first.toolName,
+        host: first.host ?? 'pi', contextId: first.contextId ?? 'main',
         timestamp: first.timestamp, updated: records.reduce((latest, r) => Math.max(latest, r.timestamp), first.timestamp),
         decision: records.find(r => r.decision)?.decision ?? 'unavailable',
         failure, assessmentStatus,
@@ -168,7 +171,7 @@ export class ArchiveIndex {
     let bytes = 0, count = 0;
     for (const [path, entry] of this.entries) {
       const metadata = entry.metadata;
-      if (!metadata || sessionKey(metadata.sessionId) !== session || sessionKey(metadata.invocationId) !== invocation) continue;
+      if (!metadata || recordSessionKey(metadata) !== session || recordInvocationKey(metadata) !== invocation) continue;
       if (++count > 64 || (bytes += entry.bytes) > 16 * 1024 * 1024) {
         issues.push({ session, file: '', reason: 'invocation-detail-limit' }); break;
       }
@@ -177,7 +180,7 @@ export class ArchiveIndex {
         bytes += Buffer.byteLength(text) - entry.bytes;
         if (bytes > 16 * 1024 * 1024) { issues.push({ session, file: '', reason: 'invocation-detail-limit' }); break; }
         const record: unknown = JSON.parse(text);
-        if (!validRecord(record) || record.eventId !== metadata.eventId || sessionKey(record.sessionId) !== session || sessionKey(record.invocationId) !== invocation) throw new Error('invalid-record');
+        if (!validRecord(record) || record.eventId !== metadata.eventId || recordSessionKey(record) !== session || recordInvocationKey(record) !== invocation) throw new Error('invalid-record');
         records.push(record);
       } catch { issues.push({ session, file: '', reason: 'record-unavailable' }); }
     }

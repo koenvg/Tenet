@@ -3,7 +3,8 @@ import { test } from 'node:test';
 import { mkdtemp, realpath, rm, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { ArchiveWriter, sessionKey } from '../src/recording/archive.js';
+import { sessionKey, qualifiedSessionKey } from '../src/recording/archive.js';
+import { ArchiveWriter } from './legacy-recording-fixture.js';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import tenet from '../src/pi/extension.js';
 import { launchArc, registerInspectorCommand } from '../src/pi/inspector-command.js';
@@ -59,7 +60,7 @@ test('deep link hashes the Pi session ID and the API still lists other projects'
   const directory = await realpath(await mkdtemp(join(tmpdir(), 'tenet-command-link-')));
   const writer = new ArchiveWriter({ enabled: true, directory });
   for (const [sessionId, cwd] of [['current-session', '/one'], ['other-session', '/two']] as const) {
-    const sink = writer.bind({ sessionId, invocationId: sessionId, callId: 'read', toolName: 'read', mode: 'observe', cwd });
+    const sink = writer.bind({ sessionId, ...(sessionId === 'current-session' ? { host: 'pi', contextId: 'main' } : {}), invocationId: sessionId, callId: 'read', toolName: 'read', mode: 'observe', cwd });
     sink('begin', {}); sink('decision', { decision: 'ALLOW', reason: 'all-rules-pass' });
   }
   await writer.close();
@@ -68,11 +69,12 @@ test('deep link hashes the Pi session ID and the API still lists other projects'
   try {
     await h.invoke();
     const link = new URL(h.notices[0]!.split('TENET inspector: ')[1]!);
-    assert.equal(link.searchParams.get('session'), sessionKey('current-session'));
+    assert.equal(link.searchParams.get('session'), qualifiedSessionKey('pi', 'current-session', 'main'));
     assert.ok(!link.href.includes('current-session'));
     const index: any = await (await fetch(new URL('/api/sessions', link))).json();
     assert.deepEqual(new Set(index.sessions.map((s: any) => s.sessionId)), new Set(['current-session', 'other-session']));
-    assert.equal((await fetch(new URL(`/api/sessions/${sessionKey('current-session')}`, link))).status, 200);
+    assert.equal((await fetch(new URL(`/api/sessions/${qualifiedSessionKey('pi', 'current-session', 'main')}`, link))).status, 200);
+    assert.equal((await fetch(new URL(`/api/sessions/${sessionKey('other-session')}`, link))).status, 200);
   } finally { await h.emit('session_shutdown'); await rm(directory, { recursive: true, force: true }); }
 });
 
