@@ -119,8 +119,11 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
       },
     });
   });
-  on('tool_result', (event, ctx) => runtime.result({ ...identity(ctx), callId: event.toolCallId, toolName: event.toolName,
-    content: event.content, details: event.details, isError: event.isError }));
+  on('tool_result', (event, ctx) => {
+    const execution = runtime.result({ ...identity(ctx), callId: event.toolCallId, toolName: event.toolName,
+      content: event.content, details: event.details, isError: event.isError });
+    if (execution) boundary.attempt(() => reports.markExecution(execution.invocationId, execution.outcome));
+  });
   on('agent_end', () => { runtime.invalidate('agent-end'); });
   on('session_before_switch', () => { runtime.invalidate('session-switch'); });
   on('session_before_fork', () => { runtime.invalidate('session-fork'); });

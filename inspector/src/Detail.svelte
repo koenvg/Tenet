@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { categoryLabels } from '../../src/decision/finding-triage';
   import { tick } from 'svelte';
   import type { InvocationView } from '../../src/inspector/view';
   import RuleDetail from './RuleDetail.svelte';
@@ -41,6 +42,7 @@
         <button on:click={() => reveal(allRules)}>All rules ({rules.length})</button>
         <button on:click={() => reveal(recordingDetails)}>Recording details</button>
       </div>
+      <p class="finding-tags">Recorded findings: {view.categories.length ? view.categories.map(c => categoryLabels[c]).join(' · ') : 'None recorded'}. Categories may overlap.</p>
     </header>
     <section id="assessment-pane" class="assessment-pane" aria-label="Assessment pane">
       <details class="rule-inspection disclosure" bind:open={ruleOpen}>
@@ -75,6 +77,8 @@
       <dl class="lifecycle">
         <div><dt>Host</dt><dd>{view.identity?.host ?? 'unknown'} / {view.identity?.contextId ?? 'unknown'}</dd></div>
         <div><dt>Adapter version</dt><dd>{view.adapterCoverage?.version ?? 'unverified'}</dd></div>
+        <div><dt>Recording schemas</dt><dd>{view.identity?.schemas.join(', ') ?? 'unknown'}</dd></div>
+        <div><dt>Assessment profile</dt><dd>{view.assessmentProfile}</dd></div>
         <div><dt>Assessment</dt><dd>{view.assessmentStatus}</dd></div>
         <div><dt>Would decide</dt><dd>{view.decision}</dd></div>
         <div><dt>Mode</dt><dd>{view.identity?.mode ?? 'unknown'}</dd></div>

@@ -66,6 +66,9 @@
     {#if view.identity?.mode === 'observe' && view.decision === 'ASK'}<p class="summary-note">Approval was not requested in observe mode.</p>{/if}
     {#if view.assessmentStatus !== 'validated'}
       <p class="assessment-status">{#if view.assessmentStatus === 'failed'}Assessment failed: {view.failure}.
+      {:else if view.assessmentStatus === 'unavailable'}Assessment unavailable: {view.failure}.
+      {:else if view.assessmentStatus === 'pending'}Assessment pending. No would-decision has been recorded yet.
+      {:else if view.assessmentStatus === 'dropped' || view.assessmentStatus === 'cancelled'}Assessment {view.assessmentStatus}: {view.reason}. No would-decision can be inferred.
       {:else}Assessment incomplete. No validated result was recorded; the call may still be in progress or recording may have stopped.{/if}</p>
     {/if}
     {#if view.missing.length}<p class="capture-warning">Recording incomplete. Some stages are missing; unknown does not mean passed.</p>{/if}

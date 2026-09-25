@@ -1,5 +1,8 @@
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, expect, test } from 'vitest';
-import { sessionKey, qualifiedSessionKey } from '../../../src/recording/archive.js';
+import { sessionKey, qualifiedSessionKey, recordInvocationKey } from '../../../src/recording/archive.js';
 import { ArchiveWriter } from '../../../test/legacy-recording-fixture.js';
 import { recordFailureFixture } from '../../../test/failure-fixture.js';
 import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
@@ -201,5 +204,115 @@ test('mixed schema-1 Pi and host-qualified Pi/Claude links keep evidence and out
       if (contextId === 'child') sink('execution', { outcome: 'failed' });
     }
     await writer.close();
+  } });
+});
+
+test('real archive filters overlapping categories, expands grouped calls and warns about newer records', async () => {
+  const key = sessionKey('triage-browser');
+  await withInspector('triage-browser', async ({ page, app, open }) => {
+    await page.locator('.invocation').waitFor();
+    const status = await (await fetch(`${app.origin}/api/status`)).json();
+    expect(status.reader.supportedSchemas).toEqual([1, 2, 3]);
+    expect(status.reader.unsupported).toBe(1);
+    expect(status.reader.newerUnsupported).toBe(1);
+    expect(status.reader.build).toMatch(/^tenet-reader-/);
+    const data = await (await fetch(`${app.origin}/api/sessions/${key}?category=uncertainty`)).json();
+    expect(data.invocations).toHaveLength(3);
+    expect(data.groups).toBeUndefined();
+    const grouped = await (await fetch(`${app.origin}/api/sessions/${key}/groups`)).json();
+    expect(grouped.groups.items).toHaveLength(2);
+    expect(grouped.groups.items.find((g: { count: number }) => g.count === 2)?.invocations).toHaveLength(2);
+    expect((await fetch(`${app.origin}/api/sessions/${key}?category=not-a-category`)).status).toBe(400);
+    await expect.poll(() => page.locator('.compatibility-warning').textContent()).toContain('1 unsupported schema records (1 newer)');
+    expect(await page.locator('.reader-status').textContent()).toContain('supported recording schemas 1, 2, 3');
+    await page.locator('#finding-category').selectOption('approval');
+    await expect.poll(() => page.locator('.call-row').count()).toBe(1);
+    expect(await page.locator('.explorer .uncertainty-groups').count()).toBe(0);
+    await page.getByRole('button', { name: 'Uncertainty groups' }).click();
+    await expect.poll(() => page.getByRole('region', { name: 'Uncertainty groups' }).isVisible()).toBe(true);
+    await expect.poll(() => page.locator('.uncertainty-group').count()).toBe(2);
+    await mkdir('coverage/inspector-artifacts', { recursive: true });
+    expect(new Set(await page.locator('.uncertainty-group > summary small').allTextContents())).toEqual(new Set([
+      'Rule r · legacy · Policy A · target /triage/TENET.md',
+      'Rule r · legacy · Policy A · target /triage/alternate/TENET.md',
+    ]));
+    await page.screenshot({ path: 'coverage/inspector-artifacts/triage-groups-desktop.png' });
+    await page.locator('.uncertainty-group').filter({ hasText: '2 calls' }).locator('summary').click();
+    expect(await page.locator('.uncertainty-group').filter({ hasText: '2 calls' }).locator('.pattern-context').textContent()).toContain('target /triage/TENET.md');
+    await page.locator('.uncertainty-group').filter({ hasText: '2 calls' }).getByRole('button', { name: /first/ }).click();
+    await expect.poll(() => page.getByRole('region', { name: 'Uncertainty groups' }).isVisible()).toBe(false);
+    await expect.poll(() => page.locator('.decision-title h2 span').textContent()).toBe('first');
+    await mkdir('coverage/inspector-artifacts', { recursive: true });
+    await page.screenshot({ path: 'coverage/inspector-artifacts/triage-desktop.png' });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Calls' }).click();
+    await expect.poll(() => page.locator('#finding-category').isVisible()).toBe(true);
+    expect(await page.locator('.mobile-upgrade').isVisible()).toBe(true);
+    await page.screenshot({ path: 'coverage/inspector-artifacts/triage-mobile.png' });
+    const link = page.url();
+    await page.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Patterns' }).click();
+    await expect.poll(() => page.getByRole('region', { name: 'Uncertainty groups' }).isVisible()).toBe(true);
+    await page.screenshot({ path: 'coverage/inspector-artifacts/triage-groups-mobile.png' });
+    expect(new URL(link).searchParams.get('session')).toBe(key);
+    const reopened = await open(new URL(link).pathname + new URL(link).search);
+    await expect.poll(() => reopened.locator('.decision-title h2 span').textContent()).toBe('first');
+    await reopened.close();
+    await page.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Calls' }).click();
+    await page.locator('#finding-category').selectOption('violation');
+    await expect.poll(() => page.locator('.call-row').count()).toBe(0);
+    await page.locator('.session-picker summary').click();
+    await page.locator('.session-row').first().click();
+    await expect.poll(() => page.locator('.call-list .empty-inline').textContent()).toBe('No calls match this finding category.');
+    await page.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Patterns' }).click();
+    await page.locator('.uncertainty-group').filter({ hasText: '2 calls' }).locator('summary').click();
+    await page.locator('.uncertainty-group').filter({ hasText: '2 calls' }).getByRole('button', { name: /first/ }).click();
+    await expect.poll(() => page.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Summary' }).evaluate(el => document.activeElement === el)).toBe(true);
+  }, { base: false, path: `/?session=${key}`, seed: async directory => {
+    const writer = new ArchiveWriter({ enabled: true, directory });
+    for (const [id, target] of [['first', '/triage/TENET.md'], ['second', '/triage/TENET.md'], ['third', '/triage/alternate/TENET.md']] as const) {
+      const sink = writer.bind({ sessionId: 'triage-browser', invocationId: id, callId: id, toolName: 'read', cwd: '/triage', mode: 'observe' });
+      const policy = { source: '/triage/TENET.md', digest: 'A', target, rules: [{ id: 'r', text: 'Rule', line: 1, enforcement: 'BLOCK' }] };
+      sink('begin', { policy, config: { assessmentProfile: 'legacy' } });
+      if (id === 'second') sink('validation', { valid: true, assessment: { model: 'offline', rules: [{ ruleId: 'r', outcome: { choice: 'APPROVAL_REQUIRED' } }] } });
+      else sink('assessment', { assessment: { model: 'offline', rules: [{ ruleId: 'r', outcome: { choice: 'PASS' } }] } });
+      sink('decision', { decision: 'BLOCK', reason: 'insufficient-evidence', contributions: [{ ruleId: 'r', gates: ['evidence-confidence-below-threshold'] }] });
+      sink('permission', { outcome: 'released' });
+      sink('execution', { outcome: 'executed' });
+    }
+    await writer.close();
+    await writeFile(join(directory, key, 'newer.json'), JSON.stringify({ schemaVersion: 4 }), { mode: 0o600 });
+  } });
+});
+
+test('schema 3 lifecycle deep links keep pending and dropped apart from permission and execution', async () => {
+  const key = qualifiedSessionKey('pi', 'lifecycle-browser', 'main');
+  await withInspector('lifecycle-browser', async ({ page, app, open }) => {
+    await page.locator('.invocation').waitFor();
+    const rows = (await (await fetch(`${app.origin}/api/sessions/${key}`)).json()).invocations;
+    expect(rows).toHaveLength(3);
+    for (const status of ['pending', 'dropped']) {
+      const row = rows.find((r: { callId: string }) => r.callId === status);
+      expect(row.categories).toEqual(['pending']);
+      const linked = await open(`/?session=${key}&invocation=${row.id}`);
+      await expect.poll(() => linked.locator('.finding-tags').textContent()).toContain('Observation pending or incomplete');
+      await expect.poll(() => linked.locator('.assessment-status').textContent()).toContain(status);
+      await linked.locator('.capture-details summary').click();
+      expect(await linked.locator('.capture-details').textContent()).toContain('Recording schemas3');
+      expect(await linked.locator('.capture-details').textContent()).toContain('Assessment profilelegacy');
+      expect(await linked.locator('.capture-details').textContent()).toContain('Would decideunavailable');
+      await linked.close();
+    }
+  }, { base: false, path: `/?session=${key}`, seed: async directory => {
+    const writer = new ArchiveWriter({ enabled: true, directory });
+    writer.bind({ sessionId: 'lifecycle-browser', invocationId: 'old', callId: 'old', toolName: 'read', cwd: '/p', mode: 'observe', host: 'pi', contextId: 'main' })('begin', {});
+    await writer.close();
+    const folder = join(directory, key), base = JSON.parse(await readFile(join(folder, (await readdir(folder))[0]!), 'utf8'));
+    for (const [id, status] of [['pending', 'pending'], ['dropped', 'dropped']] as const) {
+      const record = { ...base, schemaVersion: 3, invocationId: id, callId: id, eventId: randomUUID(),
+        stage: 'assessment-status', data: { status, reason: status === 'dropped' ? 'queue-capacity' : 'not-started', profile: 'legacy' } };
+      const idHash = recordInvocationKey(record);
+      expect(idHash).toMatch(/^[a-f0-9]{64}$/);
+      await writeFile(join(folder, `${id}.json`), JSON.stringify(record), { mode: 0o600 });
+    }
   } });
 });

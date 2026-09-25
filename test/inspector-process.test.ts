@@ -36,7 +36,8 @@ test('separate concurrent processes, reopen, resume and forks remain distinct th
     const get = async (path: string) => { const response = await fetch(app!.origin + path); assert.equal(response.status, 200); return response.json() as Promise<any>; };
     const sessions = await get('/api/sessions?project=%2Fproject-a');
     assert.equal(sessions.sessions.length, 1); assert.equal(sessions.sessions[0].sessionId, session);
-    assert.equal(sessions.sessions[0].invocations, 24); assert.equal(sessions.sessions[0].concerns, 12);
+    assert.equal(sessions.sessions[0].invocations, 24); assert.equal(sessions.sessions[0].concerns, 0);
+    assert.equal(sessions.sessions[0].categoryCounts.pending, 24, 'decision-only fixtures are incomplete, not classified as approval');
     const first = await get('/api/sessions?limit=1');
     const second = await get(`/api/sessions?limit=1&cursor=${first.next}`);
     assert.notEqual(first.sessions[0].id, second.sessions[0].id); assert.equal(second.next, null);

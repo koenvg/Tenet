@@ -58,6 +58,44 @@ test('unavailable evaluation and reporting failure never look like an all-clear'
   } finally { await h.close(); }
 });
 
+
+test('mixed approval and uncertainty stay separate from actual observe permission; invalid responses are unavailable', async () => {
+  const h = await guardHarness({ policy: 'Rule; BLOCK; Ask before publishing.\nRule; BLOCK; Avoid uncertain reads.', judge: async request => {
+    const raw = answer(request.policy);
+    raw.rules[0] = ruleAnswer(raw.rules[0]!.ruleId, 'APPROVAL_REQUIRED');
+    raw.rules[1] = ruleAnswer(raw.rules[1]!.ruleId, 'PASS', 0.65);
+    return raw;
+  } });
+  try {
+    await h.start(); await h.call('mixed');
+    assert.match(h.statuses.at(-1)!, /1 distinct calls \(categories overlap:.*1 assessment uncertainty.*1 approval condition/);
+    let selected = false;
+    h.ctx.ui.select = async (title, items) => { h.views.push({ title, items }); if (!selected) { selected = true; return items[0] as any; } return undefined; };
+    await h.commands.get('tenet').handler('', h.ctx);
+    assert.match(h.views[0].items[0], /Assessment uncertainty, Approval condition/);
+    assert.match(h.views[1].items.join('\n'), /TENET permission: released\nWould enforce: BLOCK/);
+    assert.match(h.views[1].items.join('\n'), /outcome-confidence-below-threshold/);
+    assert.equal(h.prompts.length, 0);
+  } finally { await h.close(); }
+});
+
+test('owner-only execution follows a correlated result and survives branch recovery', async () => {
+  const h = await guardHarness({ judge: async request => answer(request.policy, 'FAIL') });
+  try {
+    await h.start(); await h.call('observed');
+    await h.emit('tool_result', { toolCallId: 'unrelated', toolName: 'edit', content: 'ignored' });
+    await h.emit('tool_result', { toolCallId: 'observed', toolName: 'edit', content: 'secret-result', isError: true });
+    let selected = false;
+    h.ctx.ui.select = async (title, items) => { h.views.push({ title, items }); if (!selected) { selected = true; return items[0] as any; } return undefined; };
+    await h.commands.get('tenet').handler('', h.ctx);
+    assert.match(h.views[1].items.join('\n'), /Observed execution: failed/);
+    await h.emit('session_tree');
+    selected = false; h.views.length = 0;
+    await h.commands.get('tenet').handler('', h.ctx);
+    assert.match(h.views[1].items.join('\n'), /Observed execution: failed/);
+    assert.ok(!JSON.stringify(h.records).includes('secret-result'));
+  } finally { await h.close(); }
+});
 for (const recovery of ['live', 'session_start', 'session_tree', 'session_before_fork'] as const) {
   test(`owner findings survive ${recovery} without feeding evaluator evidence`, async () => {
     const requests: any[] = [];

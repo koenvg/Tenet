@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { readdir, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
-import { SCHEMA_VERSION, type ArchiveRecord, type HostIdentity, type RecordingIdentity, type RecordingSink, validRecord } from './contract.js';
+import { SCHEMA_VERSION, READER_SCHEMAS, type ArchiveRecord, type HostIdentity, type RecordingIdentity, type RecordingSink, validRecord } from './contract.js';
 import { directory, MAX_RECORD_BYTES, readPrivateFile, writeStageFile } from './files.js';
 
 export interface RecordingConfig { enabled: boolean; directory: string; issue?: string }
@@ -145,7 +145,7 @@ export async function readArchive(root: string, selectedSession?: string): Promi
         let record: unknown;
         try { record = JSON.parse(text); }
         catch { issues.push({ session, file, reason: 'corrupt-record' }); continue; }
-        if (record && typeof record === 'object' && 'schemaVersion' in record && record.schemaVersion !== 1 && record.schemaVersion !== SCHEMA_VERSION) {
+        if (record && typeof record === 'object' && 'schemaVersion' in record && !READER_SCHEMAS.includes(record.schemaVersion as typeof READER_SCHEMAS[number])) {
           issues.push({ session, file, reason: 'unsupported-schema' }); continue;
         }
         if (!validRecord(record) || recordSessionKey(record) !== session) {

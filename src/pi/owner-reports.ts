@@ -1,9 +1,10 @@
+import { classifyFinding, categoryLabels, type FindingCategory } from '../decision/finding-triage.js';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { display } from '../decision/evidence.js';
 import type { Permission } from './consequences.js';
 import type { Mode } from './config.js';
 import type { GuardBoundary } from './boundary.js';
-import { recoverReport } from './report-history.js';
+import { recoverReport, recoverExecution } from './report-history.js';
 import { INTEGRITY_ID, INTEGRITY_TEXT } from '../decision/policy.js';
 import type { ActivationStore } from './activation.js';
 export interface OwnerReport extends Permission {
@@ -11,6 +12,7 @@ export interface OwnerReport extends Permission {
   callId: string;
   toolName: string;
   invocationId: string;
+  execution?: 'executed' | 'failed' | 'unknown';
 }
 const LIMIT = 100;
 const text = (value: string, max = 80) => display(value).slice(0, max);
@@ -53,7 +55,7 @@ export class OwnerReports {
         const items = reports.map((r, i) => {
           const ids = [...new Set([...r.diagnostics.map(d => d.ruleId), ...r.approvalRules, ...r.ruleIds])];
           const rules = ids.map(id => ruleReference(r, id, true)).join(' | ');
-          return `${i + 1}. ${rules || text(r.reason)} | ${text(r.toolName, 20)} ${text(r.callId, 24)} | ${r.outcome} / would ${r.wouldDecision}`;
+          return `${i + 1}. ${this.categories(r).map(c => categoryLabels[c]).join(', ') || 'Category not recorded'} | ${rules || text(r.reason)} | ${text(r.toolName, 20)} ${text(r.callId, 24)} | ${r.outcome} / would ${r.wouldDecision}`;
         });
         const selected = await ctx.ui.select(`${this.label()} | ${this.coverage} | ${this.evicted} evicted`, items.length ? items : ['No recent concerns recorded.']);
         const report = reports[items.indexOf(selected ?? '')];
@@ -69,13 +71,24 @@ export class OwnerReports {
     for (const entry of entries ?? []) {
       const report = recoverReport(entry);
       if (report) this.add(report);
+      else { const execution = recoverExecution(entry); if (execution) this.markExecution(execution.invocationId, execution.outcome, execution); }
     }
+  }
+
+  private categories(report: OwnerReport): FindingCategory[] {
+    return classifyFinding({ assessmentStatus: report.assessmentAvailable ? 'validated' : 'failed', reason: report.reason,
+      rules: report.diagnostics.map(d => ({ ruleId: d.ruleId, outcome: d.outcome, gates: d.gates })), approvalRules: report.approvalRules });
   }
 
   add(report: OwnerReport): void {
     if (report.wouldDecision === 'ALLOW' && report.assessmentAvailable && !report.diagnostics.length && !report.approvalRules.length) return;
     this.recent.push(structuredClone(report));
     if (this.recent.length > LIMIT) { this.recent.shift(); this.evicted++; }
+  }
+  markExecution(invocationId: string, outcome: 'executed' | 'failed' | 'unknown', identity?: Pick<OwnerReport, 'callId' | 'toolName' | 'mode'>): void {
+    const report = this.recent.findLast(r => r.invocationId === invocationId && (!identity ||
+      r.callId === identity.callId && r.toolName === identity.toolName && r.mode === identity.mode));
+    if (report) report.execution = outcome;
   }
 
   private label(): string {
@@ -88,8 +101,10 @@ export class OwnerReports {
   status(ctx: ExtensionContext): void {
     if (!ctx.hasUI) return;
     const unavailable = this.recent.filter(r => !r.assessmentAvailable).length;
+    const counts = (Object.keys(categoryLabels) as FindingCategory[])
+      .map(c => `${this.recent.filter(r => this.categories(r).includes(c)).length} ${categoryLabels[c].toLowerCase()}`);
     this.boundary.attempt(() => ctx.ui.setStatus('tenet',
-      `${this.summary()} | ${this.recent.length - unavailable} concerns | ${unavailable} unavailable`
+      `${this.summary()} | ${this.recent.length - unavailable} concerns | ${unavailable} unavailable | ${this.recent.length} distinct calls (categories overlap: ${counts.join(', ')}) | ${this.evicted} evicted`
       + (this.boundary.failures ? ` | ${this.boundary.failures} reporting errors` : '')));
   }
 
@@ -103,8 +118,10 @@ export class OwnerReports {
     return [
       `Mode: ${report.mode.toUpperCase()}`, `Tool: ${text(report.toolName)}`, `Call: ${text(report.callId)}`,
       `TENET permission: ${report.outcome}`, `Would enforce: ${report.wouldDecision}`,
+      `Finding categories: ${this.categories(report).map(c => categoryLabels[c]).join(', ') || 'not recorded'} (may overlap)`,
       `Assessment: ${report.assessmentAvailable ? 'available' : 'UNAVAILABLE'}`, `Reason: ${text(report.reason)}`,
       'Permission is not proof of execution.',
+      `Observed execution: ${report.execution ?? 'unknown'}`,
       ...report.diagnostics.flatMap(d => [...rows(reference(d.ruleId)), `${d.outcome}: p=${d.outcomeProbability} threshold=${d.effectThreshold}`,
         `${d.evidence}: P(SUFFICIENT)=${d.evidenceProbability}`, `Evidence threshold: ${d.evidenceThreshold}`, ...d.gates]),
       ...report.approvalRules.flatMap(id => rows(`${reference(id)} APPROVAL_REQUIRED`)),

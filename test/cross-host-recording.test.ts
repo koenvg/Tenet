@@ -66,7 +66,7 @@ test('schema 1 links remain stable beside host/context qualified schema 2 and un
   assert.equal(await readFile(join(root, sessionKey('same'), (await readdir(join(root, sessionKey('same'))))[0]!), 'utf8'), legacy);
   const folder = join(root, sessions.find(s => s.host === 'claude-code')!.id);
   const file = (await readdir(folder))[0]!;
-  await writeFile(join(folder, 'unsupported.json'), JSON.stringify({ schemaVersion: 3 }), { mode: 0o600 });
+  await writeFile(join(folder, 'unsupported.json'), JSON.stringify({ schemaVersion: 4 }), { mode: 0o600 });
   await index.refresh();
   assert.ok(index.issues().some(i => i.reason === 'unsupported-schema'));
 }));

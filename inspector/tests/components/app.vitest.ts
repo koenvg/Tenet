@@ -11,19 +11,21 @@ const sessions = [{ id: sessionId, sessionId: 'offline-session', projects: ['/of
   invocations: 2, concerns: 1, unavailable: 0, coverage: 'best-effort' }];
 const calls = [
   { id: latestId, invocationId: 'latest', callId: 'latest', toolName: 'bash', timestamp: 200, updated: 200,
-    decision: 'BLOCK', missing: [], failure: null, assessmentStatus: 'validated', mode: 'observe', permission: 'blocked', execution: 'unknown' },
+    decision: 'BLOCK', missing: [], failure: null, assessmentStatus: 'validated', mode: 'observe', permission: 'released', execution: 'unknown', categories: ['uncertainty', 'approval'] },
   { id: olderId, invocationId: 'older', callId: 'older', toolName: 'read', timestamp: 100, updated: 100,
-    decision: 'ALLOW', missing: [], failure: null, assessmentStatus: 'validated', mode: 'observe', permission: 'released', execution: 'executed' },
+    decision: 'ALLOW', missing: [], failure: null, assessmentStatus: 'validated', mode: 'observe', permission: 'released', execution: 'executed', categories: ['uncertainty'] },
 ];
 
-function stubArchive(options: { fail?: () => boolean; hold?: Promise<void> } = {}) {
+function stubArchive(options: { fail?: () => boolean; hold?: Promise<void>; partial?: boolean } = {}) {
   const requests: string[] = [];
   vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
     const url = new URL(input, location.href);
     if (url.origin !== location.origin || !url.pathname.startsWith('/api/')) throw new Error(`Unexpected request ${url}`);
     if (init?.headers && 'Authorization' in init.headers) throw new Error('Unexpected authorization');
     const data = url.pathname === '/api/sessions' ? { sessions, next: null }
-      : url.pathname === `/api/sessions/${sessionId}` ? { invocations: calls, next: null }
+      : url.pathname === `/api/sessions/${sessionId}` ? { invocations: url.searchParams.get('category') ? calls.filter(c => c.categories.includes(url.searchParams.get('category')!)) : calls, next: null }
+      : url.pathname === `/api/sessions/${sessionId}/groups` ? { groups: { items: [{ policyIdentity: '["/offline/TENET.md","digest-a","/offline/TENET.md"]', profile: 'legacy', ruleId: 'rule-one', gate: 'evidence-confidence-below-threshold', count: 2,
+          first: 100, last: 200, omitted: 0, invocations: [{ id: latestId, callId: 'latest', timestamp: 200 }, { id: olderId, callId: 'older', timestamp: 100 }] }], omittedGroups: 0 } }
       : url.pathname === `/api/sessions/${sessionId}/invocations/${latestId}` ? { view: makeView({ callId: 'latest' }) }
       : url.pathname === `/api/sessions/${sessionId}/invocations/${olderId}` ? { view: makeView({ callId: 'older', decision: 'ALLOW', gate: null, execution: 'executed' }) }
       : null;
@@ -31,7 +33,7 @@ function stubArchive(options: { fail?: () => boolean; hold?: Promise<void> } = {
     requests.push(url.pathname);
     if (options.hold && url.pathname === '/api/sessions') await options.hold;
     if (options.fail?.()) return new Response('{}', { status: 503 });
-    return Response.json({ ...data, issues: [], captureHealth: [] });
+    return Response.json({ ...data, issues: [], captureHealth: [], reader: { build: 'test-reader/abc', supportedSchemas: [1, 2, 3], unsupported: options.partial ? 1 : 0, newerUnsupported: options.partial ? 1 : 0, corrupt: 0, indexing: !!options.partial, otherIssues: 0 } });
   }));
   return requests;
 }
@@ -89,4 +91,66 @@ test('loading state and manual failure recover without implying a pass', async (
   await screen.getByRole('button', { name: 'Refresh archive' }).click();
   await expect.element(screen.getByRole('alert')).not.toBeInTheDocument();
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
+});
+
+test('category filter, grouped references and partial reader coverage keep individual links usable', async () => {
+  await page.viewport(1280, 900);
+  const requests = stubArchive({ partial: true });
+  const screen = await render(App);
+  await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
+  await expect.element(screen.getByText(/Partial archive coverage: 1 unsupported schema records \(1 newer\)/)).toBeVisible();
+  await expect.element(screen.getByText(/restart the inspector process/)).toBeVisible();
+  await screen.getByRole('combobox', { name: 'Finding category' }).selectOptions('approval');
+  await vi.waitFor(() => expect(screen.container.querySelectorAll('.call-row')).toHaveLength(1));
+  expect(screen.container.querySelector('.explorer .uncertainty-groups')).toBeNull();
+  expect(requests.some(path => path.endsWith('/groups'))).toBe(false);
+  await screen.getByRole('button', { name: 'Uncertainty groups' }).click();
+  await expect.element(screen.getByRole('region', { name: 'Uncertainty groups' }).getByText('Low evidence confidence')).toBeVisible();
+  expect(requests.filter(path => path.endsWith('/groups'))).toHaveLength(1);
+  await screen.getByRole('region', { name: 'Uncertainty groups' }).getByText('Low evidence confidence').click();
+  await screen.getByRole('button', { name: /older ·/ }).click();
+  expect((screen.container.querySelector('.pattern-view') as HTMLElement).hidden).toBe(true);
+  await expect.element(screen.getByText('Actual execution / Ran')).toBeVisible();
+  expect(location.search).toContain(`invocation=${olderId}`);
+  await screen.getByRole('combobox', { name: 'Finding category' }).selectOptions('uncertainty');
+  await vi.waitFor(() => expect(screen.container.querySelectorAll('.call-row')).toHaveLength(2));
+});
+
+test('small screens keep calls, summary and session patterns as distinct views', async () => {
+  await page.viewport(390, 844);
+  stubArchive();
+  const screen = await render(App);
+  await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
+  await screen.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Calls' }).click();
+  expect(getComputedStyle(screen.container.querySelector('.inspection')!).display).toBe('none');
+  await screen.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Patterns' }).click();
+  await expect.element(screen.getByRole('region', { name: 'Uncertainty groups' }).getByText('Low evidence confidence')).toBeVisible();
+  expect(getComputedStyle(screen.container.querySelector('.explorer')!).display).toBe('none');
+  await screen.getByRole('region', { name: 'Uncertainty groups' }).getByText('Low evidence confidence').click();
+  await screen.getByRole('button', { name: /older ·/ }).click();
+  await expect.element(screen.getByText('Actual execution / Ran')).toBeVisible();
+  expect((screen.container.querySelector('.pattern-view') as HTMLElement).hidden).toBe(true);
+  await screen.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Calls' }).click();
+  await expect.element(screen.getByRole('navigation', { name: 'Invocations' })).toBeVisible();
+});
+
+test('session patterns stay reachable without a matching call and focus returns after navigation', async () => {
+  await page.viewport(1280, 900);
+  const requests = stubArchive();
+  const screen = await render(App);
+  await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
+  await screen.getByRole('combobox', { name: 'Finding category' }).selectOptions('violation');
+  await vi.waitFor(() => expect(screen.container.querySelectorAll('.call-row')).toHaveLength(0));
+  (screen.container.querySelector('.session-picker summary') as HTMLElement).click();
+  (screen.container.querySelector('.session-row') as HTMLButtonElement).click();
+  await expect.element(screen.getByText('No calls match this finding category.')).toBeVisible();
+  expect(requests.some(path => path.endsWith('/groups'))).toBe(false);
+  await screen.getByRole('button', { name: 'Uncertainty groups' }).click();
+  await expect.element(screen.getByRole('region', { name: 'Uncertainty groups' }).getByText('Low evidence confidence')).toBeVisible();
+  expect(requests.filter(path => path.endsWith('/groups'))).toHaveLength(1);
+  await screen.getByRole('region', { name: 'Uncertainty groups' }).getByText('Low evidence confidence').click();
+  await screen.getByRole('button', { name: /latest ·/ }).click();
+  await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
+  expect(location.search).toContain(`invocation=${latestId}`);
+  expect((document.activeElement as HTMLElement)?.textContent).toBe('Decision');
 });

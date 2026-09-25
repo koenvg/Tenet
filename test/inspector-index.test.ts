@@ -30,8 +30,9 @@ test('index filters projects, paginates, retains resumed sessions and reads only
   assert.equal(sessions.items.length, 1);
   assert.equal(sessions.items[0]!.sessionId, sessionId);
   assert.equal(sessions.items[0]!.invocations, 4);
-  assert.equal(sessions.items[0]!.concerns, 1);
-  assert.equal(sessions.items[0]!.unavailable, 1);
+  assert.equal(sessions.items[0]!.concerns, 0, 'a BLOCK decision without recorded gates is not a proven violation');
+  assert.equal(sessions.items[0]!.unavailable, 0, 'missing assessment stages are incomplete, not evaluator failures');
+  assert.equal(sessions.items[0]!.categoryCounts.pending, 4);
   assert.ok(!JSON.stringify(sessions).includes('evidence-not-a-summary'));
   const page = index.invocations(sessionKey(sessionId), { limit: 2 });
   assert.equal(page.items.length, 2);
