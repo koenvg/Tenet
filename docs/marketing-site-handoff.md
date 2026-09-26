@@ -1,0 +1,11 @@
+# Marketing site handoff
+
+The static site lives in `site/`. Serve it with `python3 -m http.server 5174 --directory site`; there is no build step. The homepage links to local setup notes in `site/docs.html`. Those notes link to the public TENET source and show how to clone it into a stable directory before installing it in Pi.
+
+The approved visual reference is `.impeccable/mocks/tenet-marketing-editorial-selected.png`. The page keeps its quiet split layout and the headline "Your policy. Their next action." The supporting copy now says what TENET does. The example shows that observe mode reports a concern while the call continues. Enforcement requires opt-in; only eligible Pi tool calls are in scope, and assessments can be wrong. The single hairline above the example draws once in 560ms; reduced motion shows it statically. `site/DESIGN.md` and `site/.impeccable/design.json` describe this marketing design without changing the root inspector design.
+
+Checks on the current PR base (`1d153f9`): `bun test test/marketing-site.test.mjs` passed 4 tests, `bun test/marketing-layout-check.mjs` passed six viewport checks plus reduced-motion behavior, and `bun run typecheck` passed. Browser captures at `.impeccable/review/marketing/animate-desktop.png` and `animate-mobile.png` show the final homepage. The design comparison scored 96.76% against the approved comp; the copy changes were requested after that image was selected. A full `bun test` run before the setup fix did not pass: 85 passed and 35 failed in existing `node:test`-based suites, including a timeout. It was not rerun after the docs-only fix.
+
+The one-pass completion review found that the first setup snippet used a missing placeholder directory. The docs now clone into `$HOME/Tenet` and install `$PWD`; a fresh temporary-home clone from the public source succeeded. `THIRD_PARTY_NOTICES.md` now lists Geist. Docs were checked at 320px, 390px, and 1440px without overflow or page errors. Browser text enlargement still needs a check before broad release.
+
+The PR includes only the site, tests, third-party notices, approved comp with prompt sidecar, surface brief, this handoff, and two final captures. Earlier choice images, logs, and intermediate screenshots remain local design work.

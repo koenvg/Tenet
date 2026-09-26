@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-26T02:35:27Z",
+  "title": "Design System: TENET marketing",
+  "extensions": {
+    "breakpoints": [
+      { "name": "stacked hero", "value": "1100px" },
+      { "name": "single-column reading", "value": "700px" }
+    ],
+    "motion": [
+      { "name": "example hairline", "value": "560ms cubic-bezier(.16, 1, .3, 1)", "purpose": "One left-to-right draw points to the illustrative call. The text stays visible; reduced motion shows a static line." },
+      { "name": "link arrow", "value": "220ms cubic-bezier(.2,.8,.2,1)", "purpose": "Small horizontal shift on link hover and focus; disabled for reduced motion." },
+      { "name": "primary hover", "value": "180ms ease-out", "purpose": "Darken the primary action on hover; disabled for reduced motion." }
+    ],
+    "typographyMeta": {
+      "display": { "displayName": "Editorial headline", "purpose": "Two-line promise in the first viewport." },
+      "body": { "displayName": "Explanatory copy", "purpose": "Short product and mode descriptions." }
+    }
+  },
+  "components": [
+    {
+      "name": "Primary action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The dark pill link to the local documentation.",
+      "html": "<a class=\"ds-primary\" href=\"#\">Read the docs</a>",
+      "css": ".ds-primary { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: .6em 1.5em; border-radius: 100px; background: #171717; color: #fff; font: 500 18px Geist, sans-serif; text-decoration: none; transition: background-color 180ms ease-out; } .ds-primary:hover { background: #303030; } .ds-primary:focus-visible { outline: 2px solid #171717; outline-offset: 5px; } @media (prefers-reduced-motion: reduce) { .ds-primary { transition: none; } }"
+    },
+    {
+      "name": "Text action",
+      "kind": "nav",
+      "description": "Plain text with a small arrow; underline and shift appear on interaction.",
+      "html": "<a class=\"ds-text-action\" href=\"#\">How it works <span>→</span></a>",
+      "css": ".ds-text-action { color: #171717; font: 400 18px Geist, sans-serif; text-decoration: none; } .ds-text-action span { display: inline-block; margin-left: 4px; transition: transform 220ms cubic-bezier(.2,.8,.2,1); } .ds-text-action:hover { text-decoration: underline; text-underline-offset: 5px; } .ds-text-action:hover span, .ds-text-action:focus-visible span { transform: translateX(4px); } .ds-text-action:focus-visible { outline: 2px solid #171717; outline-offset: 5px; } @media (prefers-reduced-motion: reduce) { .ds-text-action span { transition: none; } }"
+    },
+    {
+      "name": "Illustrative assessment",
+      "kind": "custom",
+      "description": "An unframed example of the observed tool call and opt-in qualifier.",
+      "html": "<div class=\"ds-assessment\"><small>Example tool call</small><p>Rule: Never publish code without approval</p><p>Call: git push origin main</p><p>Observe: TENET flags the call. It still runs.</p><aside>Enforcement is opt-in.</aside></div>",
+      "css": ".ds-assessment { position: relative; padding-top: 23px; color: #171717; font: 400 18px/1.5 Geist, sans-serif; } .ds-assessment::before { content: \"\"; position: absolute; top: 0; left: 0; right: 0; border-top: 1px solid #cacdd0; transform-origin: left center; } .ds-assessment small, .ds-assessment aside { color: #6b7077; font-size: 14px; } .ds-assessment p { margin: 8px 0 0; } .ds-assessment aside { margin-top: 24px; } @keyframes ds-assessment-rule-in { from { transform: scaleX(0); } to { transform: scaleX(1); } } @media (prefers-reduced-motion: no-preference) { .ds-assessment::before { animation: ds-assessment-rule-in 560ms cubic-bezier(.16, 1, .3, 1) both; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Editorial space",
+    "overview": "A white field, near-black type, measured hairlines, and one concrete assessment do the work. The approved split composition gives the promise and action room to breathe; the example is evidence, not a dashboard or decorative object. Keep the claims as restrained as the page.",
+    "keyCharacteristics": [
+      "White field, near-black type, and measured hairlines.",
+      "One unframed product example instead of decorative imagery.",
+      "A split first viewport that becomes a quiet reading column on mobile."
+    ],
+    "rules": [],
+    "dos": [
+      "Do preserve a readable product example and explicit mode distinction.",
+      "Do keep mobile copy in normal flow with no horizontal scrolling."
+    ],
+    "donts": [
+      "Don't imply that observation blocks or asks approval.",
+      "Don't add a decorative illustration, card grid, or faux inspector panel to this marketing surface."
+    ]
+  }
+}
