@@ -2,4 +2,8 @@ node_modules/
 .vitest/
 .env
 coverage/
+.env.*
+!.env.example
+.tenet/
 inspector/dist/
+delivery/
