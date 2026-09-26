@@ -26,11 +26,19 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - run: npm ci --prefix bb-plugin-tenet-status
       # Pi inspector command tests load the production frontend from inspector/dist.
       - run: bun run inspector:build
       # Isolate node:test-based Pi smoke tests from other Bun test files.
       - run: bun test --isolate --max-concurrency=1 --timeout=30000
       - run: bun run typecheck
+      - run: ./node_modules/.bin/tsc --noEmit
+        working-directory: bb-plugin-tenet-status
+      - run: ./node_modules/.bin/vitest run --config vitest.config.ts
+        working-directory: bb-plugin-tenet-status
 
   inspector:
     name: Inspector and browser
