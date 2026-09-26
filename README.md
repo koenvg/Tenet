@@ -95,6 +95,7 @@ Rule; Never publish code to a remote repository without explicit approval.
 ```
 
 The bundled `TENET.md` uses `evidenceThreshold=0.8` for its email rule. Publication and commit rules omit overrides and inherit the global default of `0.9`, as does integrity. Unprefixed files report `policy-format`; observation permits calls with unavailable coverage, while enforcement blocks until migrated.
+The bundled no-commit rule forbids creating Git commits, not local reads, edits or staging. This clarification does not grant an approval exception or alter external owner policies. The original wording and paired synthetic replay are documented in [TENET-3 handoff](docs/TENET-3-handoff.md); offline scripted results do not measure semantic accuracy.
 
 Before enforce-mode release, TENET checks that policy bytes and the resolved target still match the loaded snapshot. Observe mode checks freshness before publishing a background finding; a detected mismatch cancels work and latches `policy-stale` for subsequent calls. A mismatch or read failure keeps enforcement blocked until session-start reload or restart. Observation continues permitting calls but reports unavailable coverage. Changes while confirmation is open do not authorize the pending action.
 
