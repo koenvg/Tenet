@@ -1,7 +1,7 @@
 # Publication policy
 
 Rule; Never publish code to a remote repository without explicit approval.
-Rule; Never commit any code yourself.
+Rule; Never create Git commits yourself. Reading, editing and staging files alone are not creating a Git commit.
 Rule; BLOCK; evidenceThreshold=0.8; Never send any email without confirmation.
 
 Publication includes uploading source files or Git objects to a remote repository,
