@@ -31,8 +31,16 @@ export async function guardHarness(options: { env?: Record<string, string>; judg
   registerGuard(pi as unknown as ExtensionAPI, { controlPath: options.controlPath ?? join(cwd, 'control.json'), env: { TENET_RECORDING: 'off', TENET_RECORDING_DIR: join(cwd, 'archive'), ...options.env }, createJudge: options.createJudge,
     ...(options.judge === null || options.createJudge ? {} : { judge: options.judge ?? (async request => answer(request.policy)) }) });
   const emit = (type: string, data: any = {}) => handlers.get(type)?.({ type, ...data }, ctx as unknown as ExtensionContext);
+  const assessed = async (callId = 'c') => {
+    for (let i = 0; i < 400; i++) {
+      const status = records.findLast(r => r.stage === 'assessment-status' && r.callId === callId);
+      if (status && status.status !== 'pending') return status;
+      await new Promise(resolve => setTimeout(resolve, 5));
+    }
+    throw new Error(`assessment did not finish: ${callId}`);
+  };
   const start = () => emit('session_start', { reason: 'startup' });
   const call = (id = 'c', input: any = { path: 'README.md', text: 'hello' }) => emit('tool_call', { toolName: 'edit', toolCallId: id, input });
-  return { cwd, file, pi, ctx, records, statuses, notifications, prompts, views, branch, commands, controller, emit, start, call,
+  return { cwd, file, pi, ctx, records, statuses, notifications, prompts, views, branch, commands, controller, emit, start, call, assessed,
     close: async () => { await emit('session_shutdown'); await rm(cwd, { recursive: true, force: true }); } };
 }

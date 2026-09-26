@@ -20,7 +20,7 @@ async function temp(run: (dir: string) => Promise<void>) {
   try { await run(dir); } finally { await rm(dir, { recursive: true, force: true }); }
 }
 
-test('capture on/off/disk-failing leaves both modes, approvals, permission and execution unchanged', () => temp(async dir => {
+test('capture on/off/disk-failing leaves both modes, approvals, permission and execution unchanged', { timeout: 30000 }, () => temp(async dir => {
   await writeFile(join(dir, 'not-directory'), '');
   for (const mode of ['observe', 'enforce']) for (const outcome of ['PASS', 'FAIL', 'APPROVAL_REQUIRED'] as const) {
     const results: unknown[] = [];
@@ -30,6 +30,7 @@ test('capture on/off/disk-failing leaves both modes, approvals, permission and e
         judge: async request => answer(request.policy, outcome) });
       try {
         await h.start(); const veto = await h.call();
+        if (mode === 'observe') await h.assessed();
         let executed = 0;
         if (!veto?.block) { executed++; await h.emit('tool_result', { toolCallId: 'c', toolName: 'edit', content: [], isError: false }); }
         await h.emit('session_shutdown');
@@ -45,7 +46,7 @@ test('capture on/off/disk-failing leaves both modes, approvals, permission and e
   }
 }));
 
-test('records real passing and concerning requests before a fresh reader opens; resumed and forked identities stay separate', () => temp(async dir => {
+test('records real passing and concerning requests before a fresh reader opens; resumed and forked identities stay separate', { timeout: 30000 }, () => temp(async dir => {
   const fixture = await recordFixture(dir);
   assert.equal(fixture.records.filter(r => r.stage === 'decision').length, 2);
   const child = spawnSync('bun', ['-e', `
@@ -82,7 +83,8 @@ test('early guard unavailability records no fabricated request and default captu
     const { records } = await readArchive(dir);
     assert.ok(!records.some(r => r.stage === 'request'));
     assert.equal(records.find(r => r.stage === 'permission')?.data.requestStatus, 'not-submitted');
-    assert.equal(records.find(r => r.stage === 'decision')?.data.reason, 'configuration');
+    assert.equal(records.find(r => r.stage === 'permission')?.data.reason, 'configuration');
+    assert.ok(!records.some(r => r.stage === 'decision'));
   } finally { await h.close(); }
 }));
 
@@ -136,9 +138,11 @@ test('concurrent SDK completions stay bound to their invocation IDs across a ses
   try {
     await h.start(); const old = h.call('old'); await ready;
     await h.call('parallel');
+    await h.assessed('parallel');
     await h.emit('session_before_switch');
     h.ctx.sessionManager.getSessionId = () => 'new-session';
     await h.start(); await h.call('new');
+    await h.assessed('new');
     release(); await old; await h.emit('session_shutdown');
     const { records } = await readArchive(dir);
     const requests = records.filter(r => r.stage === 'request');

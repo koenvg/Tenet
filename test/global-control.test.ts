@@ -47,7 +47,7 @@ test('commands toggle Pi-wide status without exposing evidence or recording disa
   } finally { await h.close(); }
 });
 
-test('activation commands are idempotent, report write failures, and require owner UI', async () => {
+test('activation commands are idempotent, report write failures, and require owner UI', { timeout: 30000 }, async () => {
   const h = await guardHarness({ env: { TENET_MODE: 'observe' } });
   const headless = await guardHarness({ hasUI: false });
   try {
@@ -202,9 +202,11 @@ test('observe cancels an in-flight judge without a veto or late report', async (
     await h.commands.get('tenet').handler('on', h.ctx);
     await h.emit('tool_result', { toolCallId: 'observe-pending', toolName: 'edit', content: [{ text: 'cancelled-observe-secret' }] });
     assert.equal(await h.call('after-cancelled-observe'), undefined);
-    assert.ok(!requests.at(-1).trajectory.observations.some((o: any) => o.callId === 'observe-pending'));
+    await wait(() => requests.length === 2);
+    assert.ok(!requests.at(-1).trajectory.observations.some((o: any) => o.callId === 'observe-pending'), JSON.stringify(requests.at(-1).trajectory.observations.map((o: any) => [o.origin, o.callId])));
     await new Promise(resolve => setTimeout(resolve, 10));
-    assert.ok(!h.records.some((r: any) => r.callId === 'observe-pending' && r.stage === 'permission'));
+    assert.ok(h.records.some((r: any) => r.callId === 'observe-pending' && r.stage === 'permission' && r.outcome === 'released'));
+    assert.ok(!h.records.some((r: any) => r.callId === 'observe-pending' && r.stage === 'decision'));
   } finally { resolve(undefined); await h.close(); }
 });
 

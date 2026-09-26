@@ -394,7 +394,7 @@ test('lifecycle revocation takes effect even when the host cannot persist its au
   try {
     const pending = h.invoke(h.event('audit-failure'));
     await until(() => h.prompts.length === 1);
-    await assert.rejects(Promise.resolve().then(() => h.emit('session_before_tree')), /audit unavailable/);
+    await h.emit('session_before_tree'); // Audit failure cannot weaken revocation or escape to the host.
     h.prompts[0]!.reply.resolve(true);
     assert.equal((await pending).block, true);
     assert.equal(h.executed.length, 0);

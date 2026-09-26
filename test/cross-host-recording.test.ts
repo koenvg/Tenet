@@ -38,7 +38,7 @@ test('schema 1 links remain stable beside host/context qualified schema 2 and un
   const archive = await readArchive(root);
   assert.deepEqual(archive.issues, []);
   assert.equal(archive.records.filter(r => r.schemaVersion === 1).length, 2);
-  assert.equal(archive.records.filter(r => r.schemaVersion === 2).length, 9);
+  assert.equal(archive.records.filter(r => r.schemaVersion === 3).length, 9);
   assert.equal(recordSessionKey(archive.records[0]!), sessionKey('same'));
   const index = new ArchiveIndex(root); await index.refresh();
   const sessions = index.sessions().items;
@@ -95,7 +95,7 @@ test('Claude bridge records correlated success/failure, keeps missing results un
   const rows = (await readArchive(archive)).records;
   assert.deepEqual(['executed', 'failed', 'unknown'].sort(), ['success', 'failure', 'missing'].map(callId =>
     invocationView(rows.filter(r => r.callId === callId)).execution).sort());
-  assert.ok(rows.every(r => r.schemaVersion === 2 && r.host === 'claude-code'));
+  assert.ok(rows.every(r => r.schemaVersion === 3 && r.host === 'claude-code'));
   assert.ok(!JSON.stringify(rows).includes('sensitive-123-xyz'));
   await run({ ...env, TENET_RECORDING: 'off' }, 'two');
   assert.ok((await readArchive(archive)).records.every(r => r.sessionId === 'one'));

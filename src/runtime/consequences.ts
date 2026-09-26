@@ -3,7 +3,7 @@ import type { Mode } from './config.js';
 
 export interface Permission {
   outcome: 'released' | 'blocked';
-  wouldDecision: Decision['decision'];
+  wouldDecision?: Decision['decision'];
   reason: string;
   assessmentAvailable: boolean;
   ruleIds: string[];
@@ -21,7 +21,7 @@ export class Consequences {
 
   permission(failure?: string, ruleIds?: string[], diagnostics?: RuleDiagnostic[]): Permission {
     const result = this.assessment;
-    const wouldDecision = failure ? 'BLOCK' : result?.decision ?? 'BLOCK';
+    const wouldDecision = failure ? (this.mode === 'observe' ? undefined : 'BLOCK') : result?.decision ?? (this.mode === 'observe' ? undefined : 'BLOCK');
     return {
       outcome: this.mode === 'enforce' && failure ? 'blocked' : 'released',
       wouldDecision, reason: failure ?? result?.reason ?? 'guard-error',

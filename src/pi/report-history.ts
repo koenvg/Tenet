@@ -11,6 +11,7 @@ const reasons = new Set(['all-rules-pass', 'advisory-findings', 'rule-approval-r
   'policy-unavailable', 'policy-format', 'policy-file-limit', 'policy-rule-count-limit', 'policy-rule-size-limit', 'policy-stale',
   'guard-error', 'guard-state-changed', 'duplicate-call-identity', 'arguments-changed', 'session-start', 'session-switch',
   'session-fork', 'session-tree', 'session-shutdown', 'agent-end', 'not-started', 'starting',
+  'assessment-pending', 'queue-capacity', 'snapshot-capacity', 'queue-expired', 'generation-invalidated', 'host-cancelled',
   'approval-denied', 'approval-dismissed', 'approval-timeout', 'approval-unavailable', 'approval-cancelled', 'approval-stale']);
 
 /** Accept bounded contract fields, including snapshot rule text, but no extra payloads. */
@@ -18,7 +19,7 @@ export function recoverReport(entry: unknown): OwnerReport | undefined {
   if (!object(entry) || entry.type !== 'custom' || entry.customType !== 'tenet' || !object(entry.data)) return;
   const d = entry.data;
   if (d.version !== 3 || d.stage !== 'permission' || !['observe', 'enforce'].includes(String(d.mode))
-    || !['released', 'blocked'].includes(String(d.outcome)) || !['ALLOW', 'ASK', 'BLOCK'].includes(String(d.wouldDecision))
+    || !['released', 'blocked'].includes(String(d.outcome)) || d.wouldDecision !== undefined && !['ALLOW', 'ASK', 'BLOCK'].includes(String(d.wouldDecision))
     || typeof d.assessmentAvailable !== 'boolean' || !text(d.reason) || !reasons.has(d.reason)
     || !text(d.callId) || !text(d.toolName) || !text(d.invocationId)
     || !Array.isArray(d.rules) || d.rules.length > 16 || !Array.isArray(d.diagnostics) || d.diagnostics.length > 17

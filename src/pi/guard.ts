@@ -23,9 +23,14 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
     provider ??= options.createJudge ? options.createJudge() : createJevJudge({ apiKey: env.TYPESAFE_API_KEY });
     return provider(request, signal, recording);
   };
+  let activeContext: ExtensionContext | undefined;
   const runtime = new GuardRuntime({ env, activation, judge,
     bindRecording: identity => archive.bind({ sessionId: identity.sessionId, invocationId: identity.invocationId,
       host: identity.host, contextId: identity.contextId, callId: identity.callId, toolName: identity.toolName, cwd: identity.cwd, mode: identity.mode }),
+    onAssessment: (id, status, permission, reason) => {
+      boundary.attempt(() => reports.markAssessment(id.invocationId, status, permission, reason));
+      if (activeContext) reports.status(activeContext);
+    },
     emit: (stage, data) => boundary.attempt(() => pi.appendEntry('tenet', { version: 3, stage, time: Date.now(), ...data, mode: runtime.mode })),
   }, { host: 'pi', version: null, profile: 'native-extension', interception: true, resultCorrelation: false,
     lifecycleInvalidation: true, argumentStability: false, trustedApproval: true,
@@ -41,7 +46,7 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
       !adapter.lifecycleInvalidation && 'lifecycle', !adapter.interception && 'interception',
       !adapter.trustedApproval && 'trusted approval'].filter(Boolean).join(', ');
     return `${adapter.host} ${adapter.version ?? 'version unverified'} (${adapter.profile ?? 'profile unverified'}); coverage ${missing || 'declared'}; limits ${adapter.limitations.join(', ')}`;
-  });
+  }, () => runtime.observationQueue.health());
   const approvals = new ApprovalQueue();
   let commandsRegistered = false;
   const identity = (ctx: ExtensionContext): RuntimeIdentity => ({ host: 'pi', sessionId: ctx.sessionManager.getSessionId(), contextId: 'main' });
@@ -56,7 +61,8 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
       const entry = raw as { type?: unknown; customType?: unknown; data?: unknown };
       if (entry.type !== 'custom' || entry.customType !== 'tenet' || !entry.data || typeof entry.data !== 'object') continue;
       const data = entry.data as Record<string, unknown>;
-      if (data.stage === 'permission' && data.sessionId === session.sessionId && typeof data.callId === 'string'
+      if ((data.stage === 'permission' && typeof data.wouldDecision === 'string'
+        || data.stage === 'assessment-status' && data.status === 'completed') && data.sessionId === session.sessionId && typeof data.callId === 'string'
         && (data.mode === 'observe' || data.mode === 'enforce')) assessed.add(data.callId);
     }
     runtime.setObservations(session, recoverObservations(session.sessionId, branch, config.evidence, config.sensitiveFields, assessed));
@@ -83,6 +89,7 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
     activation.watch(value => {
       runtime.activationChanged(value);
       if (value === 'on' && runtime.readiness.config) recover(ctx);
+      if (value !== 'on') reports.cancelPending();
       reports.status(ctx);
       recordingStatus();
     });
@@ -102,6 +109,7 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
 
   on('tool_call', (event, ctx) => {
     const session = identity(ctx);
+    activeContext = ctx;
     return runtime.call({ ...session, cwd: ctx.cwd, callId: event.toolCallId, toolName: event.toolName, input: event.input,
       metadata: () => { const tool = pi.getAllTools().find(item => item.name === event.toolName);
         return { description: tool?.description, parameters: tool?.parameters }; }, signal: ctx.signal,
@@ -124,7 +132,7 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
       content: event.content, details: event.details, isError: event.isError });
     if (execution) boundary.attempt(() => reports.markExecution(execution.invocationId, execution.outcome));
   });
-  on('agent_end', () => { runtime.invalidate('agent-end'); });
+  on('agent_end', () => { runtime.endTurn(); });
   on('session_before_switch', () => { runtime.invalidate('session-switch'); });
   on('session_before_fork', () => { runtime.invalidate('session-fork'); });
   on('session_before_tree', () => { runtime.invalidate('session-tree'); });
@@ -137,6 +145,7 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
     reports.status(ctx);
   });
   on('session_shutdown', async (_event, ctx) => {
+    activeContext = undefined;
     if (!runtime.readiness.eligible) { activation.close(); return; }
     runtime.shutdown();
     activation.close();

@@ -28,7 +28,10 @@ export async function recordRuleFixture(directory: string) {
     } }) });
   try {
     await h.start();
-    for (const kind of ['low-pass', 'unknown', 'approval', 'evidence', 'evidence-confidence', 'warn', 'integrity']) await h.call(kind, { text: '<script>window.hostile=true</script>', token: 'secret' });
+    for (const kind of ['low-pass', 'unknown', 'approval', 'evidence', 'evidence-confidence', 'warn', 'integrity']) {
+      await h.call(kind, { text: '<script>window.hostile=true</script>', token: 'secret' });
+      await h.assessed(kind);
+    }
     await h.emit('session_shutdown');
     await writeFile(h.file, 'Rule; Changed current policy.');
     const archived = await readArchive(directory);

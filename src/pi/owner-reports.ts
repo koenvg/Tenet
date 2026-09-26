@@ -13,6 +13,7 @@ export interface OwnerReport extends Permission {
   toolName: string;
   invocationId: string;
   execution?: 'executed' | 'failed' | 'unknown';
+  assessmentStatus?: 'pending' | 'completed' | 'unavailable' | 'dropped' | 'cancelled';
 }
 const LIMIT = 100;
 const text = (value: string, max = 80) => display(value).slice(0, max);
@@ -27,11 +28,13 @@ const ruleReference = (report: OwnerReport, id: string, preview = false): string
 /** Owner-only UI, never messages, tools, or evaluator evidence. */
 export class OwnerReports {
   private recent: OwnerReport[] = [];
+  private pending = new Map<string, OwnerReport>();
   private evicted = 0;
   private coverage = 'not-started';
   constructor(private mode: Mode, private boundary: GuardBoundary, private activation: ActivationStore,
     private captureEnabled: () => boolean, private changed: (ctx: ExtensionContext) => void,
-    private adapterCoverage: () => string = () => 'unverified') {}
+    private adapterCoverage: () => string = () => 'unverified',
+    private observationHealth: () => { completed: number; unavailable: number; dropped: number; cancelled: number; limits: { running: number; waiting: number; bytes: number; ageMs: number } } = () => ({ completed: 0, unavailable: 0, dropped: 0, cancelled: 0, limits: { running: 2, waiting: 32, bytes: 1048576, ageMs: 5000 } })) {}
 
   register(pi: ExtensionAPI): void {
     pi.registerCommand('tenet', { description: 'TENET findings and global on/off/status', handler: async (args, ctx) => {
@@ -51,11 +54,11 @@ export class OwnerReports {
         return;
       }
       try {
-        const reports = [...this.recent].reverse();
+        const reports = [...this.recent, ...this.pending.values()].reverse();
         const items = reports.map((r, i) => {
           const ids = [...new Set([...r.diagnostics.map(d => d.ruleId), ...r.approvalRules, ...r.ruleIds])];
           const rules = ids.map(id => ruleReference(r, id, true)).join(' | ');
-          return `${i + 1}. ${this.categories(r).map(c => categoryLabels[c]).join(', ') || 'Category not recorded'} | ${rules || text(r.reason)} | ${text(r.toolName, 20)} ${text(r.callId, 24)} | ${r.outcome} / would ${r.wouldDecision}`;
+          return `${i + 1}. ${this.categories(r).map(c => categoryLabels[c]).join(', ') || r.assessmentStatus || 'Category not recorded'} | ${rules || text(r.reason)} | ${text(r.toolName, 20)} ${text(r.callId, 24)} | ${r.outcome} / would ${r.wouldDecision ?? 'unknown'} | assessment ${r.assessmentStatus ?? (r.assessmentAvailable ? 'completed' : 'unavailable')}`;
         });
         const selected = await ctx.ui.select(`${this.label()} | ${this.coverage} | ${this.evicted} evicted`, items.length ? items : ['No recent concerns recorded.']);
         const report = reports[items.indexOf(selected ?? '')];
@@ -64,29 +67,68 @@ export class OwnerReports {
     } });
   }
 
-  reset(coverage: string): void { this.recent = []; this.evicted = 0; this.coverage = coverage; }
+  reset(coverage: string): void { this.recent = []; this.pending.clear(); this.evicted = 0; this.coverage = coverage; }
   setCoverage(coverage: string): void { this.coverage = coverage; }
   restore(entries: readonly unknown[] | undefined): void {
-    this.recent = []; this.evicted = 0;
+    this.recent = []; this.pending.clear(); this.evicted = 0;
     for (const entry of entries ?? []) {
       const report = recoverReport(entry);
       if (report) this.add(report);
       else { const execution = recoverExecution(entry); if (execution) this.markExecution(execution.invocationId, execution.outcome, execution); }
     }
+    for (const entry of entries ?? []) {
+      if (!entry || typeof entry !== 'object' || (entry as any).type !== 'custom' || (entry as any).customType !== 'tenet') continue;
+      const d = (entry as any).data;
+      if (!d || typeof d.invocationId !== 'string') continue;
+      if (d.stage === 'decision' && ['ALLOW', 'ASK', 'BLOCK'].includes(d.decision)) {
+        const report = this.pending.get(d.invocationId) ?? this.recent.findLast(r => r.invocationId === d.invocationId);
+        if (report) {
+          const restored = recoverReport({ type: 'custom', customType: 'tenet', data: { ...report,
+            version: 3, stage: 'permission', wouldDecision: d.decision, reason: d.reason,
+            ruleIds: d.ruleIds, diagnostics: d.diagnostics, assessmentAvailable: true } });
+          if (restored) Object.assign(report, restored, { execution: report.execution, assessmentStatus: report.assessmentStatus });
+        }
+      }
+      if (d.stage === 'assessment-status' && ['pending', 'completed', 'unavailable', 'dropped', 'cancelled'].includes(d.status))
+        this.markAssessment(d.invocationId, d.status, undefined, typeof d.reason === 'string' ? d.reason : undefined);
+    }
   }
 
   private categories(report: OwnerReport): FindingCategory[] {
-    return classifyFinding({ assessmentStatus: report.assessmentAvailable ? 'validated' : 'failed', reason: report.reason,
+    return classifyFinding({ assessmentStatus: report.assessmentStatus ?? (report.assessmentAvailable ? 'validated' : 'failed'), reason: report.reason,
       rules: report.diagnostics.map(d => ({ ruleId: d.ruleId, outcome: d.outcome, gates: d.gates })), approvalRules: report.approvalRules });
   }
 
-  add(report: OwnerReport): void {
-    if (report.wouldDecision === 'ALLOW' && report.assessmentAvailable && !report.diagnostics.length && !report.approvalRules.length) return;
-    this.recent.push(structuredClone(report));
+  private retain(report: OwnerReport): void {
+    this.recent.push(report);
     if (this.recent.length > LIMIT) { this.recent.shift(); this.evicted++; }
   }
+  private concern(report: OwnerReport): boolean {
+    return report.wouldDecision !== 'ALLOW' || !!report.diagnostics.length || !!report.approvalRules.length;
+  }
+  add(report: OwnerReport): void {
+    const copy = structuredClone({ ...report, assessmentStatus: report.assessmentStatus ?? (report.reason === 'assessment-pending' ? 'pending' : report.assessmentAvailable ? 'completed' : 'unavailable') });
+    if (copy.assessmentStatus === 'pending') { this.pending.set(copy.invocationId, copy); return; }
+    if (copy.assessmentStatus === 'completed' && !this.concern(copy)) return;
+    this.retain(copy);
+  }
+  markAssessment(invocationId: string, status: NonNullable<OwnerReport['assessmentStatus']>, permission?: Permission, reason?: string): void {
+    const report = this.pending.get(invocationId) ?? this.recent.findLast(r => r.invocationId === invocationId);
+    if (!report) return;
+    if (status === 'pending') return;
+    this.pending.delete(invocationId);
+    report.assessmentStatus = status;
+    if (permission && status === 'completed') Object.assign(report, permission, { outcome: report.outcome, assessmentStatus: status });
+    else if (reason) report.reason = reason;
+    if (status === 'completed' && !this.concern(report)) return;
+    if (!this.recent.includes(report)) this.retain(report);
+  }
+  cancelPending(): void {
+    for (const report of this.pending.values()) { report.assessmentStatus = 'cancelled'; report.reason = 'tenet-off'; this.retain(report); }
+    this.pending.clear();
+  }
   markExecution(invocationId: string, outcome: 'executed' | 'failed' | 'unknown', identity?: Pick<OwnerReport, 'callId' | 'toolName' | 'mode'>): void {
-    const report = this.recent.findLast(r => r.invocationId === invocationId && (!identity ||
+    const report = this.pending.get(invocationId) ?? this.recent.findLast(r => r.invocationId === invocationId && (!identity ||
       r.callId === identity.callId && r.toolName === identity.toolName && r.mode === identity.mode));
     if (report) report.execution = outcome;
   }
@@ -96,15 +138,18 @@ export class OwnerReports {
     return state === 'off' ? 'TENET OFF' : state === 'unavailable' ? 'TENET CONTROL UNAVAILABLE' : `TENET ON ${this.mode.toUpperCase()}`;
   }
   private summary(): string {
-    return `${this.label()} | base ${this.mode.toUpperCase()} | policy ${this.coverage} | capture ${this.activation.read() === 'on' && this.captureEnabled() ? 'ON' : 'OFF'} | adapter ${this.adapterCoverage()}`;
+    const h = this.observationHealth();
+    const unavailable = this.recent.filter(r => r.assessmentStatus === 'unavailable').length;
+    return `${this.label()} | base ${this.mode.toUpperCase()} | policy ${this.coverage} | capture ${this.activation.read() === 'on' && this.captureEnabled() ? 'ON' : 'OFF'} | observation ${this.pending.size} pending, ${h.completed} completed, ${Math.max(unavailable, h.unavailable)} unavailable, ${h.dropped} dropped, ${h.cancelled} cancelled total; limits ${h.limits.running} running/${h.limits.waiting} waiting/${h.limits.bytes} bytes/${h.limits.ageMs}ms | adapter ${this.adapterCoverage()}`;
   }
   status(ctx: ExtensionContext): void {
     if (!ctx.hasUI) return;
-    const unavailable = this.recent.filter(r => !r.assessmentAvailable).length;
+    const unavailable = this.recent.filter(r => r.assessmentStatus === 'unavailable' || !r.assessmentStatus && !r.assessmentAvailable).length;
+    const reports = [...this.recent, ...this.pending.values()];
     const counts = (Object.keys(categoryLabels) as FindingCategory[])
-      .map(c => `${this.recent.filter(r => this.categories(r).includes(c)).length} ${categoryLabels[c].toLowerCase()}`);
+      .map(c => `${reports.filter(r => this.categories(r).includes(c)).length} ${categoryLabels[c].toLowerCase()}`);
     this.boundary.attempt(() => ctx.ui.setStatus('tenet',
-      `${this.summary()} | ${this.recent.length - unavailable} concerns | ${unavailable} unavailable | ${this.recent.length} distinct calls (categories overlap: ${counts.join(', ')}) | ${this.evicted} evicted`
+      `${this.summary()} | ${this.recent.filter(r => r.assessmentStatus === 'completed' && this.concern(r)).length} concerns | ${unavailable} unavailable | ${this.recent.length + this.pending.size} distinct calls (categories overlap: ${counts.join(', ')}) | ${this.evicted} evicted`
       + (this.boundary.failures ? ` | ${this.boundary.failures} reporting errors` : '')));
   }
 
@@ -119,7 +164,7 @@ export class OwnerReports {
       `Mode: ${report.mode.toUpperCase()}`, `Tool: ${text(report.toolName)}`, `Call: ${text(report.callId)}`,
       `TENET permission: ${report.outcome}`, `Would enforce: ${report.wouldDecision}`,
       `Finding categories: ${this.categories(report).map(c => categoryLabels[c]).join(', ') || 'not recorded'} (may overlap)`,
-      `Assessment: ${report.assessmentAvailable ? 'available' : 'UNAVAILABLE'}`, `Reason: ${text(report.reason)}`,
+      `Assessment: ${report.assessmentStatus ?? (report.assessmentAvailable ? 'completed' : 'unavailable')}`, `Reason: ${text(report.reason)}`,
       'Permission is not proof of execution.',
       `Observed execution: ${report.execution ?? 'unknown'}`,
       ...report.diagnostics.flatMap(d => [...rows(reference(d.ruleId)), `${d.outcome}: p=${d.outcomeProbability} threshold=${d.effectThreshold}`,

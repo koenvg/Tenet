@@ -23,10 +23,12 @@ for (const mode of ['observe', 'enforce'] as const) for (const failure of ['cred
       await h.start();
       const result = await h.call('failure', failure === 'capture' ? { invalid: undefined } : {});
       assert.equal(result?.block, mode === 'enforce' ? true : undefined);
+      if (mode === 'observe' && ['factory', 'invalid-response', 'provider', 'timeout'].includes(failure)) await h.assessed('failure');
       assert.equal(h.prompts.length, 0);
       const permission = h.records.find(r => r.stage === 'permission');
-      assert.equal(permission.wouldDecision, 'BLOCK');
-      if (failure === 'factory') assert.equal(permission.reason, 'provider-error');
+      const background = mode === 'observe' && ['factory', 'invalid-response', 'provider', 'timeout'].includes(failure);
+      assert.equal(permission.wouldDecision, mode === 'observe' ? undefined : 'BLOCK');
+      if (failure === 'factory') assert.equal(background ? h.records.findLast(r => r.stage === 'assessment-status')?.reason : permission.reason, 'provider-error');
       assert.equal(permission.assessmentAvailable, false);
       assert.deepEqual(permission.diagnostics, []);
       assert.ok(!JSON.stringify(h.records).includes('private '));
@@ -52,7 +54,11 @@ for (const event of ['agent_end', 'session_before_switch', 'session_before_fork'
       release();
       assert.equal(await pending, undefined);
       assert.equal(h.prompts.length, 0);
-      assert.ok(h.records.some(r => r.stage === 'permission' && r.outcome === 'released' && r.wouldDecision === 'BLOCK'));
+      assert.ok(h.records.some(r => r.stage === 'permission' && r.outcome === 'released' && r.wouldDecision === undefined));
+      if (event !== 'session_shutdown') {
+        const terminal = await h.assessed('pending');
+        assert.equal(terminal.status, ['agent_end', 'cancel', 'arguments'].includes(event) ? 'completed' : 'cancelled');
+      }
       if (event === 'policy') assert.equal(await h.call('stale'), undefined);
     } finally { release(); await h.close(); }
   });
@@ -116,9 +122,10 @@ test('observation checks policy freshness even when the assessment would block',
   } });
   try {
     await h.start(); assert.equal(await h.call('first'), undefined);
+    assert.equal((await h.assessed('first')).status, 'cancelled');
     assert.equal(await h.call('second'), undefined);
     const permissions = h.records.filter(r => r.stage === 'permission');
-    assert.deepEqual(permissions.map(r => r.reason), ['policy-stale', 'policy-stale']);
+    assert.deepEqual(permissions.map(r => r.reason), ['assessment-pending', 'policy-stale']);
     assert.equal(permissions[1].assessmentAvailable, false);
   } finally { await h.close(); }
 });

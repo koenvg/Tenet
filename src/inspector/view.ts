@@ -41,6 +41,8 @@ export function invocationView(records: ArchiveRecord[]) {
     config, questionVersion: request.questionVersion ?? begin.questionVersion ?? null,
     assessmentProfile: findings.profile,
     failure: findings.failure, assessmentStatus: findings.assessmentStatus,
+    queueWaitMs: typeof lifecycle.queueWaitMs === 'number' ? lifecycle.queueWaitMs : null,
+    providerDurationMs: typeof lifecycle.providerDurationMs === 'number' ? lifecycle.providerDurationMs : null,
     requestStatus: request.payload ? 'submitted application payload' : submitted ? 'submitted; payload unavailable'
       : notSubmitted ? 'not submitted' : 'payload unavailable; capture incomplete',
     captureHealth: captureHealth(records),
