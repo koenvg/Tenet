@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtemp, realpath, rm, symlink, mkdir, readdir, writeFile, chmod } from 'node:fs/promises';
+import { copyFile, mkdtemp, realpath, rm, rename, symlink, mkdir, readdir, writeFile, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sessionKey } from '../src/recording/archive.js';
@@ -120,4 +120,142 @@ test('large-stage indexing and invocation detail enforce byte budgets', () => fi
   const detail = await index.detail(sessionKey('large'), sessionKey('i'));
   assert.equal(detail.records.length, 5); assert.equal(reads, 11);
   assert.ok(detail.issues.some(i => i.reason === 'invocation-detail-limit'));
+}));
+
+test('metadata traversal is bounded and a deep session cannot starve another session', () => fixture(async root => {
+  const deep = sessionKey('deep'), shallow = sessionKey('shallow');
+  await mkdir(join(root, deep), { mode: 0o700 });
+  for (let n = 0; n < 1100; n++) await writeFile(join(root, deep, `${String(n).padStart(5, '0')}.tmp`), '');
+  const writer = new ArchiveWriter({ enabled: true, directory: root });
+  writer.bind({ sessionId: 'shallow', invocationId: 'i', callId: 'c', toolName: 'edit', cwd: '/p', mode: 'observe' })('begin', {});
+  await writer.close();
+  const index = new ArchiveIndex(root);
+  await index.refresh();
+  assert.equal(index.indexing, true, 'unfinished directory enumeration is partial coverage even without parsing');
+  assert.equal(index.sessions().items[0]?.sessionId, 'shallow', 'small sessions get a turn while deep ones are traversed');
+  for (let n = 0; n < 12 && index.indexing; n++) await index.refresh();
+  assert.equal(index.indexing, false);
+  await rm(join(root, shallow), { recursive: true });
+  for (let n = 0; n < 12 && index.sessions().items.length; n++) await index.refresh();
+  assert.equal(index.sessions().items.length, 0, 'deleted session is eventually removed after a bounded root sweep');
+}));
+
+test('bounded sweeps eventually invalidate changed, removed, and unsafe cached files', () => fixture(async root => {
+  const writer = new ArchiveWriter({ enabled: true, directory: root });
+  writer.bind({ sessionId: 'changing', invocationId: 'i', callId: 'c', toolName: 'edit', cwd: '/p', mode: 'observe' })('begin', {});
+  await writer.close();
+  const folder = join(root, sessionKey('changing'));
+  const file = join(folder, (await readdir(folder))[0]!);
+  for (let n = 0; n < 700; n++) await writeFile(join(folder, `${n}.noop`), '');
+  const index = new ArchiveIndex(root);
+  for (let n = 0; n < 8 && (n === 0 || index.indexing); n++) await index.refresh();
+  assert.equal(index.sessions().items.length, 1);
+  async function untilGone() {
+    for (let n = 0; n < 8 && index.sessions().items.length; n++) await index.refresh();
+    assert.equal(index.sessions().items.length, 0);
+  }
+  await chmod(file, 0o644); await untilGone();
+  await chmod(file, 0o600);
+  for (let n = 0; n < 8 && !index.sessions().items.length; n++) await index.refresh();
+  assert.equal(index.sessions().items.length, 1);
+  await writeFile(file, '{'); await untilGone();
+  await rm(file); await symlink('/etc/passwd', file);
+  for (let n = 0; n < 8; n++) await index.refresh();
+  assert.equal(index.sessions().items.length, 0);
+  assert.ok(index.issues().some(issue => issue.reason === 'unsafe-or-unreadable-record'));
+}));
+
+test('replacing a deep session directory drops its old cached metadata immediately', () => fixture(async root => {
+  const folder = join(root, sessionKey('replaced'));
+  const writer = new ArchiveWriter({ enabled: true, directory: root });
+  writer.bind({ sessionId: 'replaced', invocationId: 'i', callId: 'c', toolName: 'edit', cwd: '/p', mode: 'observe' })('begin', {});
+  await writer.close();
+  const source = join(folder, (await readdir(folder))[0]!);
+  for (let n = 0; n < 1200; n++) await copyFile(source, join(folder, `${n}.json`));
+  const index = new ArchiveIndex(root);
+  for (let n = 0; n < 8 && (n === 0 || index.indexing); n++) await index.refresh();
+  assert.equal(index.sessions().items.length, 1);
+  await rename(folder, join(root, 'retired'));
+  await mkdir(folder, { mode: 0o700 });
+  await index.refresh();
+  assert.equal(index.sessions().items.length, 0);
+}));
+
+test('replacing an archive root clears cached sessions before the new root sweep finishes', () => fixture(async root => {
+  const writer = new ArchiveWriter({ enabled: true, directory: root });
+  writer.bind({ sessionId: 'old', invocationId: 'i', callId: 'c', toolName: 'edit', cwd: '/p', mode: 'observe' })('begin', {});
+  await writer.close();
+  const index = new ArchiveIndex(root); await index.refresh();
+  assert.equal(index.sessions().items.length, 1);
+  const retired = `${root}-retired`;
+  await rename(root, retired);
+  try {
+    await mkdir(root, { mode: 0o700 });
+    for (let n = 0; n < 200; n++) await mkdir(join(root, sessionKey(`new-${n}`)), { mode: 0o700 });
+    await index.refresh();
+    assert.equal(index.sessions().items.length, 0);
+    assert.equal(index.indexing, true);
+  } finally { await rm(retired, { recursive: true, force: true }); }
+}));
+
+test('a session beyond the open-cursor cap still gets a turn', () => fixture(async root => {
+  const ids = Array.from({ length: 257 }, (_, n) => `many-${n}`);
+  for (const id of ids) {
+    const folder = join(root, sessionKey(id));
+    await mkdir(folder, { mode: 0o700 });
+    for (let n = 0; n < 32; n++) await writeFile(join(folder, `${n}.noop`), '');
+  }
+  const last = (await readdir(root)).at(-1)!;
+  const chosen = ids.find(id => sessionKey(id) === last)!;
+  await rm(join(root, last), { recursive: true });
+  await mkdir(join(root, last), { mode: 0o700 });
+  const writer = new ArchiveWriter({ enabled: true, directory: root });
+  writer.bind({ sessionId: chosen, invocationId: 'i', callId: 'c', toolName: 'edit', cwd: '/p', mode: 'observe' })('begin', {});
+  await writer.close();
+  const index = new ArchiveIndex(root);
+  for (let n = 0; n < 4; n++) await index.refresh();
+  assert.ok(index.sessions().items.some(row => row.sessionId === chosen));
+}));
+
+test('root deletion reconciliation advances in bounded rounds', () => fixture(async root => {
+  const ids = Array.from({ length: 300 }, (_, n) => `root-${n}`);
+  for (const id of ids) await mkdir(join(root, sessionKey(id)), { mode: 0o700 });
+  const last = (await readdir(root)).at(-1)!;
+  const chosen = ids.find(id => sessionKey(id) === last)!;
+  const writer = new ArchiveWriter({ enabled: true, directory: root });
+  writer.bind({ sessionId: chosen, invocationId: 'i', callId: 'c', toolName: 'edit', cwd: '/p', mode: 'observe' })('begin', {});
+  await writer.close();
+  const index = new ArchiveIndex(root);
+  for (let n = 0; n < 8 && (n === 0 || index.indexing); n++) await index.refresh();
+  assert.equal(index.sessions().items.length, 1);
+  for (const id of ids) await rm(join(root, sessionKey(id)), { recursive: true });
+  for (let n = 0; n < 8 && index.sessions().items.length; n++) await index.refresh();
+  assert.equal(index.sessions().items.length, 0);
+}));
+
+test('issue counts clear with a removed issue-heavy session', () => fixture(async root => {
+  const session = sessionKey('issues'), folder = join(root, session);
+  await mkdir(folder, { mode: 0o700 });
+  for (let n = 0; n < 700; n++) await writeFile(join(folder, `${n}.tmp`), '');
+  await writeFile(join(folder, 'newer.json'), '{"schemaVersion":999}', { mode: 0o600 });
+  await writeFile(join(folder, 'broken.json'), '{', { mode: 0o600 });
+  const index = new ArchiveIndex(root);
+  for (let n = 0; n < 8 && (n === 0 || index.indexing); n++) await index.refresh();
+  const before = index.status();
+  assert.deepEqual([before.otherIssues, before.unsupported, before.newerUnsupported, before.corrupt], [700, 1, 1, 1]);
+  await rm(folder, { recursive: true });
+  await index.refresh();
+  const after = index.status();
+  assert.deepEqual([after.otherIssues, after.unsupported, after.newerUnsupported, after.corrupt], [0, 0, 0, 0]);
+}));
+
+test('unsafe session directory stays reported across root reconciliation and recovers', () => fixture(async root => {
+  const folder = join(root, sessionKey('unsafe'));
+  await mkdir(folder, { mode: 0o755 });
+  const index = new ArchiveIndex(root);
+  await index.refresh(); await index.refresh();
+  assert.ok(index.issues().some(issue => issue.reason === 'unsafe-session-directory'));
+  assert.equal(index.status().otherIssues, 1);
+  await chmod(folder, 0o700); await index.refresh();
+  assert.equal(index.status().otherIssues, 0);
 }));
