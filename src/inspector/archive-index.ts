@@ -21,7 +21,8 @@ export interface SessionSummary {
 }
 export type UncertaintyGroup = { policyIdentity: string; profile: string; ruleId: string; gate: string; count: number; first: number; last: number;
   invocations: { id: string; callId: string; timestamp: number }[]; omitted: number };
-type Metadata = Omit<ArchiveRecord, 'data'> & { decision?: string; outcome?: string; finding: FindingStage; health?: CaptureHealth[number] };
+type Metadata = Omit<ArchiveRecord, 'data'> & { decision?: string; outcome?: string; finding: FindingStage; health?: CaptureHealth[number];
+  valid?: boolean; selectedFailIds?: string[]; policyRuleIds?: string[]; integrityRuleId?: string | null };
 type Entry = { fingerprint: string; bytes: number; metadata?: Metadata; issue?: ArchiveIssue; unsupportedVersion?: number };
 type Counts = { unsupported: number; newerUnsupported: number; corrupt: number; otherIssues: number };
 const counts = (): Counts => ({ unsupported: 0, newerUnsupported: 0, corrupt: 0, otherIssues: 0 });
@@ -32,6 +33,41 @@ function countIssue(target: Counts, reason: string, sign = 1): void {
   if (reason === 'unsupported-schema') target.unsupported += sign;
   else if (reason === 'corrupt-record') target.corrupt += sign;
   else target.otherIssues += sign;
+}
+export interface ThreadStatus {
+  coverage: 'unknown' | 'partial'; linkedCalls: number; failures: number; issues: string[];
+}
+
+/** Persist only bounded rule facts for the BB thread summary, never assessment evidence. */
+function bbFacts(record: ArchiveRecord): Pick<Metadata, 'valid' | 'policyRuleIds' | 'integrityRuleId' | 'selectedFailIds'> {
+  const { stage, data } = record;
+  const policy = data.policy && typeof data.policy === 'object' && !Array.isArray(data.policy)
+    ? data.policy as { rules?: unknown } : null;
+  const policyRuleIds = (stage === 'begin' || stage === 'request') && policy
+    ? Array.isArray(policy.rules)
+      ? policy.rules.filter((rule: any) => rule && typeof rule.id === 'string' && rule.id.length <= 256
+        && ['BLOCK', 'WARN'].includes(rule.enforcement)).slice(0, 64).map((rule: any) => rule.id) as string[]
+      : [] : undefined;
+  const payload = stage === 'request' && data.payload && typeof data.payload === 'object'
+    ? data.payload as { state?: unknown } : null;
+  const state = payload?.state && typeof payload.state === 'object' ? payload.state as { integrity?: unknown } : null;
+  const integrity = stage === 'begin' ? data.integrity : stage === 'request' ? state?.integrity : undefined;
+  const integrityRuleId = integrity === undefined || integrity === null ? undefined
+    : typeof integrity === 'object' && !Array.isArray(integrity) && typeof (integrity as { id?: unknown }).id === 'string'
+      && (integrity as { id: string }).id.length <= 256 ? (integrity as { id: string }).id : null;
+  const selected = stage === 'assessment' && data.assessment && typeof data.assessment === 'object'
+    ? data.assessment as { model?: unknown; rules?: unknown } : null;
+  let selectedFailIds: string[] | undefined;
+  if (typeof selected?.model === 'string' && Array.isArray(selected.rules)) {
+    selectedFailIds = [];
+    const seen = new Set<string>();
+    for (const rule of selected.rules) {
+      if (!rule || typeof rule.ruleId !== 'string' || rule.ruleId.length > 256 || seen.has(rule.ruleId)) continue;
+      seen.add(rule.ruleId);
+      if (rule.outcome?.choice === 'FAIL' && selectedFailIds.length < 64) selectedFailIds.push(rule.ruleId);
+    }
+  }
+  return { valid: stage === 'validation' ? data.valid === true : undefined, policyRuleIds, integrityRuleId, selectedFailIds };
 }
 const compare = (a: { timestamp: number; id: string }, b: { timestamp: number; id: string }) => b.timestamp - a.timestamp || a.id.localeCompare(b.id);
 
@@ -294,7 +330,7 @@ export class ArchiveIndex {
             }
             if (!validRecord(record) || recordSessionKey(record) !== session) throw new Error('invalid-record');
             const { data, ...metadata } = record;
-            entry.metadata = { ...metadata, finding: findingStage(record),
+            entry.metadata = { ...metadata, finding: findingStage(record), ...bbFacts(record),
               decision: record.stage === 'decision' ? String(data.decision) : undefined,
               health: captureHealth([record])[0] };
             if ((record.stage === 'permission' || record.stage === 'execution') && typeof record.data.outcome === 'string') entry.metadata.outcome = record.data.outcome;
@@ -422,12 +458,44 @@ export class ArchiveIndex {
     const sorted = [...groups.values()].sort((a, b) => b.last - a.last);
     return { items: sorted.slice(0, 100), omittedGroups: Math.max(0, sorted.length - 100) };
   }
-  async detail(session: string, invocation: string) {
+  /** Exact BB thread hint on the selected machine. Never infer historical links from session/cwd. */
+  threadStatus(bbThreadId: string): ThreadStatus {
+    if (!/^thr_[a-z0-9]{8,64}$/.test(bbThreadId)) throw new Error('invalid-thread-status-request');
+    const groups = new Map<string, Metadata[]>();
+    for (const [, entry] of this.allEntries()) {
+      const record = entry.metadata;
+      if (!record || record.schemaVersion !== 3 || record.host !== 'pi' || record.bbThreadId !== bbThreadId) continue;
+      const key = sessionKey(JSON.stringify([bbThreadId, recordSessionKey(record), recordInvocationKey(record)]));
+      const group = groups.get(key) ?? []; group.push(record); groups.set(key, group);
+    }
+    // Count selected FAILs only when validated metadata still matches a blocking or warning policy rule.
+    const failures = [...groups.values()].filter(records => {
+      records.sort((a, b) => a.writerId === b.writerId ? a.sequence - b.sequence : a.timestamp - b.timestamp || a.eventId.localeCompare(b.eventId));
+      const validated = records.some(r => r.stage === 'validation' && r.valid === true);
+      const failed = foldFindingStages(records.map(r => r.finding)).failure !== null;
+      if (!validated || failed) return false;
+      const begin = records.findLast(r => r.stage === 'begin');
+      const request = records.findLast(r => r.stage === 'request');
+      const assessment = records.findLast(r => r.stage === 'assessment');
+      const policyIds = new Set(request?.policyRuleIds ?? begin?.policyRuleIds ?? []);
+      const integrityId = request?.integrityRuleId === undefined ? begin?.integrityRuleId : request.integrityRuleId;
+      if (integrityId) policyIds.add(integrityId);
+      return assessment?.selectedFailIds?.some(id => policyIds.has(id)) === true;
+    }).length;
+    const issues = new Set(this.issues().map(issue => issue.reason));
+    if (this.captureHealth().some(h => h.failed || h.dropped || h.drainTimeouts)) issues.add('writer-loss');
+    if ([...groups.values()].some(records => !['begin', 'request', 'response', 'validation', 'assessment', 'decision', 'permission', 'execution']
+      .every(stage => records.some(r => r.stage === stage)))) issues.add('missing-stages');
+    return { coverage: groups.size ? 'partial' : 'unknown', linkedCalls: groups.size, failures, issues: [...issues].slice(0, 20) };
+  }
+
+  async detail(session: string, invocation: string, bbThreadId?: string) {
     const records: ArchiveRecord[] = [], issues = this.issues(session);
     let bytes = 0, count = 0;
     for (const [path, entry] of this.allEntries()) {
       const metadata = entry.metadata;
-      if (!metadata || recordSessionKey(metadata) !== session || recordInvocationKey(metadata) !== invocation) continue;
+      if (!metadata || recordSessionKey(metadata) !== session || recordInvocationKey(metadata) !== invocation
+        || (bbThreadId !== undefined && metadata.bbThreadId !== bbThreadId)) continue;
       if (++count > 64 || (bytes += entry.bytes) > 16 * 1024 * 1024) {
         issues.push({ session, file: '', reason: 'invocation-detail-limit' }); break;
       }
@@ -436,7 +504,8 @@ export class ArchiveIndex {
         bytes += Buffer.byteLength(text) - entry.bytes;
         if (bytes > 16 * 1024 * 1024) { issues.push({ session, file: '', reason: 'invocation-detail-limit' }); break; }
         const record: unknown = JSON.parse(text);
-        if (!validRecord(record) || record.eventId !== metadata.eventId || recordSessionKey(record) !== session || recordInvocationKey(record) !== invocation) throw new Error('invalid-record');
+        if (!validRecord(record) || record.eventId !== metadata.eventId || recordSessionKey(record) !== session
+          || recordInvocationKey(record) !== invocation || (bbThreadId !== undefined && record.bbThreadId !== bbThreadId)) throw new Error('invalid-record');
         records.push(record);
       } catch { issues.push({ session, file: '', reason: 'record-unavailable' }); }
     }

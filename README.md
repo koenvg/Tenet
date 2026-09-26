@@ -198,6 +198,12 @@ Example: `TENET_SENSITIVE_FIELDS='["customerSecret","internalPayload"]'`. Field 
 
 Retries are disabled. Cancellation reaches the SDK, and a late response cannot change a blocked decision. Requests use `jev-latest`, which is a provider alias rather than an immutable release. Audit entries retain requested and returned model identities. SDK logging is disabled and the destination is the official TypeSafe endpoint.
 
+## BB Pi thread rule status
+
+The optional [BB plugin](bb-plugin-tenet-status/README.md) lets the owner open **TENET rules** in a Pi thread header. It reads recorded, validated selected FAIL outcomes on that thread's machine. It does not start TENET or change policy, approval, permission, or execution. A blank thread has unknown coverage, not a pass.
+
+New Pi archive records include a BB thread ID when BB supplies a valid `BB_THREAD_ID`. This is an optional routing hint; it does not change Pi session keys or policy decisions. Older records remain available in the standalone inspector but cannot be assigned to BB threads by cwd, time or Pi session ID. Capture can be disabled with `TENET_RECORDING=off`; missing or unreadable archives leave BB coverage unknown or unavailable.
+
 ## Local decision inspector
 
 TENET records assessments by default in `~/.tenet/recordings`, independently of whether the inspector is running. `TENET_RECORDING_DIR=/absolute/path` selects another archive. Paths must be absolute and have no symlink components. Existing archive directories must be owner-only; unsafe paths disable writes rather than being repaired silently. Recording settings are separate from enforcement settings.

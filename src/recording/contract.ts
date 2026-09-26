@@ -10,6 +10,8 @@ export interface RecordingIdentity {
   cwd: string; mode: 'observe' | 'enforce';
   /** Canonical cwd captured by the writer; absent in older archives. */
   project?: string;
+  /** BB-provided routing hint for newly captured Pi records; never an authorization claim. */
+  bbThreadId?: string;
 }
 export type HostIdentity = { host: string; contextId: string };
 export type ArchiveRecord = RecordingIdentity & {
@@ -79,9 +81,11 @@ function validStage(r: ArchiveRecord): boolean {
 export function validRecord(value: unknown): value is ArchiveRecord {
   if (!value || typeof value !== 'object') return false;
   const r = value as ArchiveRecord;
-  return (r.schemaVersion === 1 && r.host === undefined && r.contextId === undefined
+  return (r.schemaVersion === 1 && r.host === undefined && r.contextId === undefined && r.bbThreadId === undefined
     || (r.schemaVersion === 2 || r.schemaVersion === 3) && typeof r.host === 'string' && r.host.length > 0 && r.host.length <= 256
-      && typeof r.contextId === 'string' && r.contextId.length > 0 && r.contextId.length <= 256) && STAGES.includes(r.stage)
+      && typeof r.contextId === 'string' && r.contextId.length > 0 && r.contextId.length <= 256
+      && (r.schemaVersion === 2 ? r.bbThreadId === undefined
+        : r.bbThreadId === undefined || typeof r.bbThreadId === 'string' && /^thr_[a-z0-9]{8,64}$/.test(r.bbThreadId))) && STAGES.includes(r.stage)
     && ['sessionId', 'invocationId', 'callId', 'toolName', 'cwd', 'writerId', 'eventId'].every(k => typeof (r as any)[k] === 'string' && (r as any)[k].length > 0)
     && (r.project === undefined || (typeof r.project === 'string' && r.project.length > 0))
     && /^[a-f0-9-]{36}$/.test(r.writerId) && /^[a-f0-9-]{36}$/.test(r.eventId)

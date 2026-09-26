@@ -9,7 +9,7 @@ import { ActivationStore } from '../runtime/activation.js';
 import { ApprovalQueue } from './approval.js';
 import { GuardBoundary } from './boundary.js';
 import { OwnerReports } from './owner-reports.js';
-import { ArchiveWriter, recordingConfig } from '../recording/archive.js';
+import { ArchiveWriter, parseBbThreadId, recordingConfig } from '../recording/archive.js';
 
 /** Translate native Pi events into the shared contract. Native UI and transcript parsing stay here. */
 export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; createJudge?: () => Judge; env?: Record<string, string | undefined>; controlPath?: string; onEligible?: () => void } = {}): void {
@@ -26,7 +26,8 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
   let activeContext: ExtensionContext | undefined;
   const runtime = new GuardRuntime({ env, activation, judge,
     bindRecording: identity => archive.bind({ sessionId: identity.sessionId, invocationId: identity.invocationId,
-      host: identity.host, contextId: identity.contextId, callId: identity.callId, toolName: identity.toolName, cwd: identity.cwd, mode: identity.mode }),
+      host: identity.host, contextId: identity.contextId, callId: identity.callId, toolName: identity.toolName, cwd: identity.cwd, mode: identity.mode,
+      bbThreadId: parseBbThreadId(env.BB_THREAD_ID) }),
     onAssessment: (id, status, permission, reason) => {
       boundary.attempt(() => reports.markAssessment(id.invocationId, status, permission, reason));
       if (activeContext) reports.status(activeContext);
