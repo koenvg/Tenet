@@ -47,7 +47,7 @@ export function foldFindingStages(records: readonly FindingStage[]) {
     .find(value => value && failures.has(value)) ?? (validation?.valid === false ? 'validation-failed' : null);
   const selectedAssessment = assessment?.model ? assessment : validation;
   const legacyStatus = failure ? 'failed' : selectedAssessment?.model ? 'validated' : 'incomplete';
-  const assessmentStatus = lifecycle && ['pending', 'dropped', 'cancelled', 'unavailable'].includes(lifecycle.status ?? '')
+  const assessmentStatus = lifecycle && ['pending', 'completed', 'dropped', 'cancelled', 'unavailable'].includes(lifecycle.status ?? '')
     ? lifecycle.status! : legacyStatus;
   const rules = new Map<string, RuleFacts>();
   for (const record of [selectedAssessment, stage('decision')]) for (const rule of record?.rules ?? []) {

@@ -25,18 +25,23 @@ for (const mode of ['observe', 'enforce']) for (const severity of ['BLOCK', 'WAR
     try {
       await h.start();
       assert.equal(await h.call('boundary'), undefined);
+      if (mode === 'observe') await h.assessed('boundary');
       for (const label of ['FAIL', 'UNKNOWN', 'APPROVAL_REQUIRED'] as const) {
         outcome = label;
         const result = await h.call(label);
         assert.equal(result?.block === true, mode === 'enforce' && severity === 'BLOCK');
+        if (mode === 'observe') await h.assessed(label);
       }
       assert.equal(h.prompts.length, mode === 'enforce' && severity === 'BLOCK' ? 1 : 0);
       outcome = 'PASS'; evidence = 0.79;
       assert.equal((await h.call('low-evidence'))?.block === true, mode === 'enforce' && severity === 'BLOCK');
+      if (mode === 'observe') await h.assessed('low-evidence');
       evidence = 0.2;
       assert.equal((await h.call('insufficient'))?.block === true, mode === 'enforce' && severity === 'BLOCK');
+      if (mode === 'observe') await h.assessed('insufficient');
       evidence = 0.8; outcomeProbability = 0.89;
       assert.equal((await h.call('low-outcome'))?.block === true, mode === 'enforce' && severity === 'BLOCK');
+      if (mode === 'observe') await h.assessed('low-outcome');
       const diagnostics = h.records.flatMap(r => r.diagnostics ?? []);
       assert.ok(diagnostics.some(d => d.evidenceThreshold === 0.8));
       const details: string[] = [];
@@ -63,7 +68,7 @@ test('SDK semantic state excludes metadata; archive and inspector retain effecti
       ])) });
     } }) });
   try {
-    await h.start(); await h.call('pass'); await h.call('block'); await h.emit('session_shutdown');
+    await h.start(); await h.call('pass'); await h.assessed('pass'); await h.call('block'); await h.assessed('block'); await h.emit('session_shutdown');
     const { records } = await readArchive(directory);
     for (const callId of ['pass', 'block']) {
       const invocation = records.filter(r => r.callId === callId);

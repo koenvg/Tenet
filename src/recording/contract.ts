@@ -1,6 +1,6 @@
 // Recording is a one-way diagnostic channel, never a decision input.
-export const SCHEMA_VERSION = 2;
-// The current writer remains schema 2. The reader can already inspect schema 3 lifecycle stages.
+export const SCHEMA_VERSION = 3;
+// Reader preserves historical schema-1 and schema-2 records.
 export const READER_SCHEMAS = [1, 2, 3] as const;
 export const STAGES = ['begin', 'request', 'response', 'validation', 'assessment', 'assessment-status', 'decision', 'approval', 'permission', 'execution', 'health'] as const;
 export type Stage = typeof STAGES[number];
@@ -80,7 +80,7 @@ export function validRecord(value: unknown): value is ArchiveRecord {
   if (!value || typeof value !== 'object') return false;
   const r = value as ArchiveRecord;
   return (r.schemaVersion === 1 && r.host === undefined && r.contextId === undefined
-    || (r.schemaVersion === SCHEMA_VERSION || r.schemaVersion === 3) && typeof r.host === 'string' && r.host.length > 0 && r.host.length <= 256
+    || (r.schemaVersion === 2 || r.schemaVersion === 3) && typeof r.host === 'string' && r.host.length > 0 && r.host.length <= 256
       && typeof r.contextId === 'string' && r.contextId.length > 0 && r.contextId.length <= 256) && STAGES.includes(r.stage)
     && ['sessionId', 'invocationId', 'callId', 'toolName', 'cwd', 'writerId', 'eventId'].every(k => typeof (r as any)[k] === 'string' && (r as any)[k].length > 0)
     && (r.project === undefined || (typeof r.project === 'string' && r.project.length > 0))

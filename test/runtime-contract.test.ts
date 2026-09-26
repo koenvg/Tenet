@@ -19,8 +19,10 @@ for (const [mode, outcome, expected, blocked] of [
     try {
       await h.start();
       assert.equal((await h.call())?.block === true, blocked);
+      if (mode === 'observe') await h.assessed();
       const permission = h.records.find(r => r.stage === 'permission');
-      assert.equal(permission.wouldDecision, expected);
+      assert.equal(permission.wouldDecision, mode === 'observe' ? undefined : expected);
+      assert.equal(h.records.find(r => r.stage === 'decision')?.decision, mode === 'enforce' && outcome === 'APPROVAL_REQUIRED' ? 'ASK' : expected);
       assert.equal(permission.outcome, blocked ? 'blocked' : 'released');
       assert.equal(h.prompts.length, 0);
     } finally { await h.close(); }
@@ -109,6 +111,11 @@ for (const mode of ['observe', 'enforce'] as const) {
         const piPermission = (await pi.call('fixture'), pi.records.find(r => r.stage === 'permission'));
         const block = await headless.call('fixture');
         const permission = headless.events.find(e => e.stage === 'permission')!.data;
+        if (mode === 'observe') {
+          await pi.assessed('fixture');
+          for (let i = 0; !headless.events.some(e => e.stage === 'assessment-status' && e.data.status === 'completed') && i < 400; i++)
+            await new Promise(resolve => setTimeout(resolve, 5));
+        }
         assert.equal(headless.events.find(e => e.stage === 'decision')!.data.decision, pi.records.find(r => r.stage === 'decision')!.decision);
         assert.deepEqual(permission.diagnostics, piPermission.diagnostics);
         assert.equal(permission.assessmentAvailable, piPermission.assessmentAvailable);

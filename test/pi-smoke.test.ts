@@ -314,9 +314,10 @@ test('pinned Pi observation executes concerns without delivering reports to mode
         pi.registerTool({ name: 'observation_dummy', label: 'Dummy', description: 'Offline dummy', parameters: Type.Object({ value: Type.String() }),
           async execute() { executed++; return { content: [{ type: 'text', text: 'ordinary-tool-result' }], details: {} }; } });
         registerGuard(pi, { env: { TENET_RECORDING: 'off' }, judge: async request => {
-          if (scenario === 'provider') throw new Error('provider-private-prose');
-          const raw = answer(request.policy, scenario === 'ASK' ? 'APPROVAL_REQUIRED' : 'FAIL');
-          if (scenario === 'integrity') raw.rules[raw.rules.length - 1] = ruleAnswer(INTEGRITY_ID, 'FAIL');
+          const selected = request.action.callId.replace('observe-', '');
+          if (selected === 'provider') throw new Error('provider-private-prose');
+          const raw = answer(request.policy, selected === 'ASK' ? 'APPROVAL_REQUIRED' : 'FAIL');
+          if (selected === 'integrity') raw.rules[raw.rules.length - 1] = ruleAnswer(INTEGRITY_ID, 'FAIL');
           return { ...raw, explanation: 'unsolicited-secret-prose' };
         } });
       }],
@@ -348,10 +349,16 @@ test('pinned Pi observation executes concerns without delivering reports to mode
       await session.prompt('Run the offline dummy.');
     }
     assert.equal(executed, 4);
+    for (let i = 0; i < 400; i++) {
+      const stages = session.sessionManager.getEntries().flatMap(e => e.type === 'custom' && e.customType === 'tenet' ? [e.data as any] : []);
+      if (stages.filter(r => r.stage === 'assessment-status' && r.status !== 'pending').length === 4) break;
+      await new Promise(resolve => setTimeout(resolve, 5));
+    }
     const records = session.sessionManager.getEntries().flatMap(e => e.type === 'custom' && e.customType === 'tenet' ? [e.data as any] : []);
     assert.equal(records.filter(r => r.stage === 'permission' && r.mode === 'observe' && r.outcome === 'released').length, 4);
     assert.equal(records.filter(r => r.stage === 'approval').length, 0);
-    assert.ok(records.some(r => r.stage === 'permission' && r.wouldDecision === 'ASK'));
+    assert.ok(records.some(r => r.stage === 'decision' && r.decision === 'ASK'));
+    assert.ok(records.every(r => r.stage !== 'permission' || r.wouldDecision === undefined));
     assert.ok(records.some(r => r.stage === 'permission' && !r.assessmentAvailable));
     assert.ok(!JSON.stringify(records).includes('private-prose'));
     assert.ok(!JSON.stringify(records).includes('unsolicited-secret-prose'));

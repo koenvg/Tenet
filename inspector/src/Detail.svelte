@@ -80,6 +80,8 @@
         <div><dt>Recording schemas</dt><dd>{view.identity?.schemas.join(', ') ?? 'unknown'}</dd></div>
         <div><dt>Assessment profile</dt><dd>{view.assessmentProfile}</dd></div>
         <div><dt>Assessment</dt><dd>{view.assessmentStatus}</dd></div>
+        <div><dt>Queue wait</dt><dd>{view.queueWaitMs === null ? 'unknown' : `${view.queueWaitMs} ms`}</dd></div>
+        <div><dt>Provider duration</dt><dd>{view.providerDurationMs === null ? 'unknown' : `${view.providerDurationMs} ms`}</dd></div>
         <div><dt>Would decide</dt><dd>{view.decision}</dd></div>
         <div><dt>Mode</dt><dd>{view.identity?.mode ?? 'unknown'}</dd></div>
         <div><dt>Permission</dt><dd>{view.permission}</dd></div>
@@ -88,7 +90,7 @@
       </dl>
       <p>Host coverage limitations: {Array.isArray(view.adapterCoverage?.limitations) && view.adapterCoverage.limitations.length ? view.adapterCoverage.limitations.join(', ') : 'not recorded'}. A policy pass does not certify host coverage.</p>
       <p>{view.requestStatus}. {view.coverage}</p>
-      {#if view.assessmentStatus === 'validated'}<p>Assessment validated.</p>{/if}
+      {#if view.assessmentStatus === 'validated' || view.assessmentStatus === 'completed'}<p>Assessment completed.</p>{/if}
       <p>Missing stages: {view.missing.join(', ') || 'none observed'}. Recorded reason: {view.reason}.</p>
       <p>Call {view.identity?.callId}<br />Session {view.identity?.sessionId}<br />Invocation {view.identity?.invocationId}</p>
     </details>

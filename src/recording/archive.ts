@@ -20,7 +20,7 @@ export const recordSessionKey = (record: Address) => record.schemaVersion === 1 
   : qualifiedSessionKey(record.host!, record.sessionId, record.contextId!);
 export const recordInvocationKey = (record: Address) => record.schemaVersion === 1 ? sessionKey(record.invocationId)
   : sessionKey(JSON.stringify([record.host, record.sessionId, record.contextId, record.invocationId]));
-type BoundIdentity = RecordingIdentity & ({ schemaVersion: 1; host?: never; contextId?: never } | ({ schemaVersion: 2 } & HostIdentity));
+type BoundIdentity = RecordingIdentity & ({ schemaVersion: 1; host?: never; contextId?: never } | ({ schemaVersion: 2 | 3 } & HostIdentity));
 type Pending = { text: string; bytes: number; record: ArchiveRecord };
 export class ArchiveWriter {
   private readonly writerId = randomUUID();

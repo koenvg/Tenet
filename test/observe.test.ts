@@ -42,18 +42,22 @@ for (const outcome of ['FAIL', 'APPROVAL_REQUIRED', 'UNKNOWN', 'integrity', 'sco
       assert.equal(await h.call('c', input), undefined);
       assert.deepEqual(input, { path: 'README.md', text: 'hello', token: 'hidden-credential' });
       assert.equal(h.prompts.length, 0);
+      const lifecycle = await h.assessed('c');
+      assert.equal(lifecycle.status, outcome === 'unavailable' ? 'unavailable' : 'completed');
       const report = h.records.find(r => r.stage === 'permission');
       assert.equal(report.version, 3);
       assert.equal(report.mode, 'observe');
       assert.equal(report.outcome, 'released');
-      assert.equal(report.wouldDecision, outcome === 'APPROVAL_REQUIRED' ? 'ASK' : outcome === 'boundary' ? 'ALLOW' : 'BLOCK');
-      assert.equal(report.assessmentAvailable, outcome !== 'unavailable');
+      assert.equal(report.wouldDecision, undefined);
+      assert.equal(report.assessmentAvailable, false);
+      const decision = h.records.find(r => r.stage === 'decision');
+      assert.equal(decision?.decision, outcome === 'unavailable' ? undefined : outcome === 'APPROVAL_REQUIRED' ? 'ASK' : outcome === 'boundary' ? 'ALLOW' : 'BLOCK');
       if (outcome === 'scores') {
-        assert.deepEqual(report.diagnostics.map((d: any) => d.gates), [['outcome-confidence-below-threshold'], ['evidence-confidence-below-threshold']]);
-        assert.equal(report.diagnostics[0].outcomeProbability, 0.63);
-        assert.equal(report.diagnostics[1].evidenceProbability, 0.89);
+        assert.deepEqual(decision.diagnostics.map((d: any) => d.gates), [['outcome-confidence-below-threshold'], ['evidence-confidence-below-threshold']]);
+        assert.equal(decision.diagnostics[0].outcomeProbability, 0.63);
+        assert.equal(decision.diagnostics[1].evidenceProbability, 0.89);
       }
-      if (outcome === 'unavailable' || outcome === 'boundary') assert.deepEqual(report.diagnostics, []);
+      if (outcome === 'unavailable' || outcome === 'boundary') assert.deepEqual(decision?.diagnostics ?? [], []);
       assert.ok(!JSON.stringify(h.records).includes('hidden-credential'));
       assert.ok(!JSON.stringify(h.records).includes('private-provider-secret'));
       assert.ok(!h.records.some(r => r.stage === 'execution'));

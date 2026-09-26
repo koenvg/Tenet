@@ -17,7 +17,7 @@ test('archive preserves every rule contribution even without an SDK request', as
     return result;
   } });
   try {
-    await h.start(); await h.call(); await h.emit('session_shutdown');
+    await h.start(); await h.call(); await h.assessed(); await h.emit('session_shutdown');
     const { records } = await readArchive(directory);
     const view = invocationView(records);
     assert.equal(view.rules.length, 2);

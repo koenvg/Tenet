@@ -92,7 +92,10 @@ for (const mode of ['observe', 'enforce'] as const) {
       await h.start();
       await unlink(h.file);
       assert.equal((await h.call('deleted'))?.block, mode === 'enforce' ? true : undefined);
-      assert.equal(h.records.find(r => r.stage === 'permission')?.reason, 'policy-stale');
+      if (mode === 'observe') {
+        assert.equal(h.records.find(r => r.stage === 'permission')?.reason, 'assessment-pending');
+        assert.equal((await h.assessed('deleted')).status, 'cancelled');
+      } else assert.equal(h.records.find(r => r.stage === 'permission')?.reason, 'policy-stale');
       assert.equal((await h.call('still-deleted'))?.block, mode === 'enforce' ? true : undefined);
       assert.equal(h.records.find(r => r.callId === 'still-deleted' && r.stage === 'permission')?.assessmentAvailable, false);
     } finally { await h.close(); }

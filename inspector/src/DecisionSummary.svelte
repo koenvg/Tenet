@@ -64,7 +64,7 @@
   <div class="map-notices">
     <p class="capture-warning">Host: {view.identity?.host ?? 'unknown'} / {view.identity?.contextId ?? 'unknown'}. Coverage: {Array.isArray(view.adapterCoverage?.limitations) && view.adapterCoverage.limitations.length ? view.adapterCoverage.limitations.join(', ') : 'not recorded'}. This is separate from the decision.</p>
     {#if view.identity?.mode === 'observe' && view.decision === 'ASK'}<p class="summary-note">Approval was not requested in observe mode.</p>{/if}
-    {#if view.assessmentStatus !== 'validated'}
+    {#if view.assessmentStatus !== 'validated' && view.assessmentStatus !== 'completed'}
       <p class="assessment-status">{#if view.assessmentStatus === 'failed'}Assessment failed: {view.failure}.
       {:else if view.assessmentStatus === 'unavailable'}Assessment unavailable: {view.failure}.
       {:else if view.assessmentStatus === 'pending'}Assessment pending. No would-decision has been recorded yet.

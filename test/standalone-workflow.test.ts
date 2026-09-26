@@ -45,6 +45,7 @@ test('closed inspector capture survives reader restart and same-session live res
     await h.start();
     for (const id of ['pass', 'concern', 'failure']) {
       assert.equal(await h.call(id, { text: '<script>window.hostile=true</script>', token: 'workflow-redacted-secret' }), undefined);
+      await h.assessed(id);
     }
     await h.emit('session_shutdown');
     app = await startInspector({ directory });
@@ -63,10 +64,10 @@ test('closed inspector capture survives reader restart and same-session live res
         assert.deepEqual(rule.questions.outcome, payload.questions[rule.mapping.outcomeKey]);
         assert.deepEqual(rule.questions.evidence, payload.questions[rule.mapping.evidenceKey]);
       }
-      assert.equal(view.decision, view.identity.callId === 'pass' ? 'ALLOW' : 'BLOCK');
+      assert.equal(view.decision, view.identity.callId === 'pass' ? 'ALLOW' : view.identity.callId === 'failure' ? 'unavailable' : 'BLOCK');
       assert.equal(view.permission, 'released');
       assert.equal(view.execution, 'unknown');
-      assert.equal(view.assessmentStatus, view.identity.callId === 'failure' ? 'failed' : 'validated');
+      assert.equal(view.assessmentStatus, view.identity.callId === 'failure' ? 'unavailable' : 'completed');
       assert.equal(view.failure, view.identity.callId === 'failure' ? 'provider-error' : null);
     }
     await app.close();
@@ -75,6 +76,7 @@ test('closed inspector capture survives reader restart and same-session live res
 
     await h.start();
     await h.call('resumed');
+    await h.assessed('resumed');
     let resumed: any;
     await eventually(async () => {
       resumed = (await get(callsPath)).invocations.find((call: any) => call.callId === 'resumed');

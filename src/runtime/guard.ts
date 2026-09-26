@@ -11,6 +11,9 @@ import { capture, STAGES, type RecordingSink, type Stage } from '../recording/co
 import { Consequences, type Permission } from './consequences.js';
 import { readConfig, readMode, type GuardConfig, type Mode } from './config.js';
 import type { Activation } from './activation.js';
+import { ObservationQueue, type ObservationLimits, type ObservationState } from './observation-queue.js';
+import { freeze } from '../decision/evidence.js';
+import { evidenceWithinBudget } from '../decision/evidence-budget.js';
 
 export interface RuntimeIdentity { host: string; sessionId: string; contextId: string }
 export interface Capabilities {
@@ -48,6 +51,8 @@ export interface RuntimeOptions {
   activation: { read(): Activation; refresh(): Activation };
   bindRecording?: (identity: InvocationIdentity & RuntimeIdentity & { cwd: string; mode: Mode }) => RecordingSink;
   emit?: (stage: string, data: Record<string, unknown>, archiveData?: Record<string, unknown>) => void;
+  observationLimits?: Partial<ObservationLimits>;
+  onAssessment?: (identity: InvocationIdentity, status: ObservationState, result?: ReturnType<Consequences['permission']>, reason?: string) => void;
 }
 export interface Readiness { eligible: boolean; policy: Policy; config?: GuardConfig; unavailable?: string; ruleCount: number }
 const sessionKey = (identity: RuntimeIdentity) => JSON.stringify([identity.host, identity.sessionId]);
@@ -74,11 +79,12 @@ class SessionGuard {
   private seen = new Set<string>();
   private released = new Map<string, InvocationIdentity & RuntimeIdentity>();
   private resultCallIds: Set<string>;
+  private resultTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private ambiguousResults: Set<string>;
   private disabled = new Set<string>();
-  private recordings = new Map<string, RecordingSink>();
+  private recordings = new Map<string, { sink: RecordingSink; assessmentDone: boolean; executionDone: boolean }>();
 
-  constructor(private options: RuntimeOptions, capabilities: Capabilities, shared: { resultCallIds: Set<string>; ambiguousResults: Set<string> }) {
+  constructor(private options: RuntimeOptions, capabilities: Capabilities, shared: { resultCallIds: Set<string>; ambiguousResults: Set<string> }, private queue: ObservationQueue) {
     const selected = readMode(options.env);
     this.mode = selected.mode;
     this.modeWarning = selected.warning;
@@ -101,10 +107,15 @@ class SessionGuard {
     if (!this.eligible || this.options.activation.read() !== 'on') return;
     const time = Date.now();
     if (typeof data.invocationId === 'string' && STAGES.includes(stage as Stage)) {
-      capture(this.recordings.get(data.invocationId), stage as Stage, () => ({ ...data, ...archiveData }));
-      if (stage === 'execution' || (stage === 'permission' && data.outcome !== 'released')) this.recordings.delete(data.invocationId);
+      capture(this.recordings.get(data.invocationId)?.sink, stage as Stage, () => ({ ...data, ...archiveData }));
+      const entry = this.recordings.get(data.invocationId);
+      if (entry) {
+        if (stage === 'execution' || (stage === 'permission' && data.outcome !== 'released')) entry.executionDone = true;
+        if (stage === 'assessment-status' && data.status !== 'pending' || stage === 'permission' && (this.mode === 'enforce' || data.reason !== 'assessment-pending')) entry.assessmentDone = true;
+        if (entry.executionDone && entry.assessmentDone) this.recordings.delete(data.invocationId);
+      }
     }
-    this.options.emit?.(stage, data, archiveData);
+    try { this.options.emit?.(stage, data, archiveData); } catch { /* Owner reporting cannot veto permission. */ }
     if (this.mode === 'enforce' && (stage === 'decision' || stage === 'approval')
       && typeof data.sessionId === 'string' && typeof data.contextId === 'string' && typeof data.host === 'string') {
       this.observations.get(scope(data as unknown as RuntimeIdentity))?.add(`tenet-${stage}`,
@@ -112,31 +123,52 @@ class SessionGuard {
     }
   }
 
+  private trackRelease(callKey: string, identity: InvocationIdentity & RuntimeIdentity): void {
+    this.released.set(callKey, identity);
+    const timer = setTimeout(() => {
+      if (this.released.get(callKey) === identity) {
+        this.released.delete(callKey);
+        this.record('execution', { ...identity, outcome: 'unknown', origin: 'result-timeout' });
+      }
+      this.resultTimers.delete(callKey);
+    }, 60_000);
+    timer.unref();
+    this.resultTimers.set(callKey, timer);
+  }
+  private clearResultTimer(callKey: string): void {
+    const timer = this.resultTimers.get(callKey);
+    if (timer) clearTimeout(timer);
+    this.resultTimers.delete(callKey);
+  }
   private unknownOutcomes(context?: string): void {
     for (const [id, identity] of this.released) {
       if (context && scope(identity) !== context) continue;
+      this.clearResultTimer(id);
       this.released.delete(id);
       this.record('execution', { ...identity, outcome: 'unknown', origin: 'no-tool-result-observed' });
     }
   }
 
+  endTurn(): void { if (this.mode === 'enforce') this.invalidate('agent-end'); else this.unknownOutcomes(); }
   /** Revoke before reporting; a failing audit callback cannot keep permission valid. */
   invalidate(reason: string, context?: RuntimeIdentity): void {
     if (!context && reason !== 'tenet-off' && reason !== 'control-unavailable') this.loadToken++;
     const selected = context ? scope(context) : undefined;
     if (selected) {
-      this.contexts.get(selected)?.abort();
+      this.contexts.get(selected)?.abort(reason);
       this.contexts.set(selected, new AbortController());
     } else {
-      this.generation.abort();
+      this.generation.abort(reason);
       this.generation = new AbortController();
-      for (const controller of this.contexts.values()) controller.abort();
+      for (const controller of this.contexts.values()) controller.abort(reason);
       this.contexts.clear();
     }
     try {
       for (const entry of this.pending.values()) if (!selected || entry.context === selected) entry.block(reason);
       if (this.options.activation.read() !== 'on') this.recordings.clear();
     } finally {
+      if (reason === 'tenet-off' || reason === 'control-unavailable')
+        for (const [id, identity] of this.released) if (!selected || scope(identity) === selected) this.disabled.add(id);
       this.unknownOutcomes(selected);
     }
   }
@@ -208,6 +240,7 @@ class SessionGuard {
     let contextController = this.contexts.get(context);
     if (!contextController) { contextController = new AbortController(); this.contexts.set(context, contextController); }
     const signal = AbortSignal.any([generation.signal, contextController.signal, ...(call.signal ? [call.signal] : [])]);
+    const observationSignal = AbortSignal.any([generation.signal, contextController.signal]);
     const identity: InvocationIdentity & RuntimeIdentity = { host: call.host, contextId: call.contextId, sessionId: call.sessionId,
       callId: call.callId, toolName: call.toolName, argumentDigest: '', policyDigest: selectedPolicy.available ? selectedPolicy.digest : null, invocationId: randomUUID() };
     let submitted = false;
@@ -215,11 +248,11 @@ class SessionGuard {
     try { sink = this.options.bindRecording?.({ ...identity, cwd: call.cwd, mode: this.mode }); }
     catch { /* Capture failure cannot change permission. */ }
     const recording: RecordingSink = (stage, data) => {
-      if (this.options.activation.read() !== 'on' || (stage !== 'execution' && (signal.aborted || generation !== this.generation))) return;
+      if (this.options.activation.read() !== 'on' || (stage !== 'execution' && ((this.mode === 'observe' ? observationSignal : signal).aborted || generation !== this.generation))) return;
       if (stage === 'request') submitted = true;
-      sink?.(stage, stage === 'permission' ? { ...data, requestStatus: submitted ? 'submitted' : 'not-submitted' } : data);
+      capture(sink, stage, () => stage === 'permission' ? { ...data, requestStatus: submitted ? 'submitted' : 'not-submitted' } : data);
     };
-    this.recordings.set(identity.invocationId, recording);
+    this.recordings.set(identity.invocationId, { sink: recording, assessmentDone: false, executionDone: false });
     capture(recording, 'begin', () => ({ policy: selectedPolicy, config: selectedConfig?.decision ?? null,
       integrity: { id: INTEGRITY_ID, text: INTEGRITY_TEXT }, evidenceLimits: selectedConfig?.evidence ?? null,
       questionVersion: QUESTION_VERSION, request: 'not-yet-submitted', adapterCoverage: this.capabilities }));
@@ -235,8 +268,8 @@ class SessionGuard {
         this.pending.delete(identity.invocationId);
         if (state === 'on') {
           this.record('permission', { ...identity, ...permission });
-          call.onPermission?.(identity, permission);
-          if (permission.outcome === 'released') this.released.set(callKey, identity);
+          try { call.onPermission?.(identity, permission); } catch { /* Owner UI cannot veto. */ }
+          if (permission.outcome === 'released') this.trackRelease(callKey, identity);
         }
       }
       return consequences.veto(permission);
@@ -246,9 +279,24 @@ class SessionGuard {
       return finish(reason, ruleIds, diagnostics, preserveAsk);
     };
     this.pending.set(identity.invocationId, { context, block });
-    const current = () => this.options.activation.refresh() === 'on' && !signal.aborted && generation === this.generation
+    const current = () => this.options.activation.refresh() === 'on' && !(this.mode === 'observe' ? observationSignal : signal).aborted && generation === this.generation
       && contextController === this.contexts.get(context) && !this.unavailable && this.policy === selectedPolicy
       && this.session?.host === identity.host && this.session.sessionId === identity.sessionId;
+    const dropOversized = () => {
+      const permission: Permission = { outcome: 'released', reason: 'snapshot-capacity', assessmentAvailable: false,
+        ruleIds: [], diagnostics: [], rules: selectedPolicy.available ? selectedPolicy.rules.map(({ id, line, enforcement, text }) => ({ id, line, enforcement, text })) : [], approvalRules: [] };
+      this.pending.delete(identity.invocationId);
+      permissionRecorded = true;
+      this.record('permission', { ...identity, ...permission });
+      try { call.onPermission?.(identity, permission); } catch { /* Owner UI cannot veto. */ }
+      this.trackRelease(callKey, identity);
+      this.queue.submit(Number.POSITIVE_INFINITY, observationSignal, async () => 'unavailable', (status, reason) => {
+        if (this.options.activation.read() !== 'on') return;
+        this.record('assessment-status', { ...identity, status, reason, profile: 'legacy', queueWaitMs: 0 });
+        try { this.options.onAssessment?.(identity, status, undefined, reason); } catch { /* Best effort. */ }
+      });
+      return undefined;
+    };
     try {
       if (this.seen.has(callKey)) {
         this.invalidate('duplicate-call-identity', call);
@@ -257,20 +305,24 @@ class SessionGuard {
       this.seen.add(callKey);
       if (this.unavailable || !selectedConfig || !selectedPolicy.available) {
         const reason = this.unavailable ?? 'policy-unavailable';
-        this.record('decision', { ...identity, decision: 'BLOCK', reason, assessment: null });
+        if (this.mode === 'enforce') this.record('decision', { ...identity, decision: 'BLOCK', reason, assessment: null });
         return block(reason);
       }
       if (!current()) return block('guard-state-changed');
+      if (this.mode === 'observe' && !evidenceWithinBudget([call.input], this.queue.limits.bytes))
+        return call.signal?.aborted ? block('guard-state-changed') : dropOversized();
       let action: Action;
       let metadata: { description?: string; parameters?: unknown } | undefined;
       try { metadata = call.metadata?.(); } catch { return block('guard-error'); }
+      if (this.mode === 'observe' && !evidenceWithinBudget([call.input, metadata?.description ?? call.description, metadata?.parameters ?? call.parameters], this.queue.limits.bytes))
+        return call.signal?.aborted ? block('guard-state-changed') : dropOversized();
       try {
         action = captureAction({ sessionId: identity.sessionId, callId: identity.callId, toolName: call.toolName,
           arguments: call.input, description: metadata?.description ?? call.description,
           parameters: metadata?.parameters ?? call.parameters }, selectedConfig.sensitiveFields);
       } catch {
         this.observations.get(context)?.add(`${call.host}-tool-call`, identity.callId, identity.toolName, { limitation: 'unsupported-current-action' });
-        this.record('decision', { ...identity, decision: 'BLOCK', reason: 'insufficient-evidence', outcome: 'UNKNOWN', limitation: 'unsupported-current-action' });
+        if (this.mode === 'enforce') this.record('decision', { ...identity, decision: 'BLOCK', reason: 'insufficient-evidence', outcome: 'UNKNOWN', limitation: 'unsupported-current-action' });
         return block('insufficient-evidence');
       }
       identity.argumentDigest = action.argumentDigest;
@@ -281,6 +333,58 @@ class SessionGuard {
       }
       const trajectory = observations.snapshot();
       observations.add(`${call.host}-tool-call`, identity.callId, identity.toolName, action);
+      if (this.mode === 'observe') {
+        if (call.signal?.aborted) return block('guard-state-changed');
+        const snapshot = freeze({ policy: structuredClone(selectedPolicy), action, trajectory,
+          config: structuredClone(selectedConfig.decision), evidence: structuredClone(selectedConfig.evidence),
+          cwd: call.cwd, profile: 'legacy', generation: this.loadToken });
+        let bytes: number;
+        try { bytes = Buffer.byteLength(JSON.stringify(snapshot)); } catch { bytes = Number.POSITIVE_INFINITY; }
+        const permission: Permission = { outcome: 'released', reason: 'assessment-pending', assessmentAvailable: false,
+          ruleIds: [], diagnostics: [], rules: selectedPolicy.rules.map(({ id, line, enforcement, text }) => ({ id, line, enforcement, text })), approvalRules: [] };
+        this.pending.delete(identity.invocationId);
+        permissionRecorded = true;
+        this.record('permission', { ...identity, ...permission });
+        try { call.onPermission?.(identity, permission); } catch { /* Owner UI cannot veto. */ }
+        this.trackRelease(callKey, identity);
+        let resultPermission: Permission | undefined;
+        let terminalReason: string | undefined;
+        let providerDuration = 0;
+        const status = (state: ObservationState, reason?: string, waitMs?: number) => {
+          if (state === 'pending' || this.options.activation.read() === 'on')
+            this.record('assessment-status', { ...identity, status: state, reason: reason ?? terminalReason,
+              profile: snapshot.profile, queueWaitMs: waitMs ?? 0, providerDurationMs: providerDuration });
+          if (state !== 'pending' && this.options.activation.read() === 'on')
+            try { this.options.onAssessment?.(identity, state, resultPermission, reason ?? terminalReason); } catch { /* Best effort. */ }
+        };
+        this.queue.submit(bytes, observationSignal, async () => {
+          if (!current()) return 'unavailable';
+          const result = await decide({ policy: snapshot.policy, action: snapshot.action, trajectory: snapshot.trajectory,
+            evidenceLimits: snapshot.evidence, cwd: snapshot.cwd, judge: this.options.judge, config: snapshot.config, signal: observationSignal, recording });
+          providerDuration = result.durationMs;
+          if (!current()) return 'unavailable';
+          if (!await policyIsCurrent(selectedPolicy)) {
+            if (current()) {
+              this.unavailable = 'policy-stale'; this.invalidate('policy-stale');
+              this.record('status', { status: 'unavailable', reason: 'policy-stale', policyDigest: selectedPolicy.digest });
+              try { call.onPolicyStale?.(); } catch { /* Best effort. */ }
+            }
+            return 'unavailable';
+          }
+          if (!current()) return 'unavailable';
+          this.record('assessment', { ...identity, assessment: result.assessment, reason: result.reason,
+            durationMs: result.durationMs, requestedModel: result.requestedModel, questionVersion: result.questionVersion,
+            config: result.config, evidenceLimits: snapshot.evidence, redactedFields: action.redactedFields, limitations: action.limitations });
+          terminalReason = result.reason;
+          if (!result.assessment) return 'unavailable';
+          this.record('decision', { ...identity, decision: result.decision, reason: result.reason, ruleIds: result.ruleIds,
+            diagnostics: result.diagnostics, questionVersion: result.questionVersion }, { contributions: ruleContributions(result, selectedPolicy) });
+          const outcome = new Consequences('observe', selectedPolicy); outcome.assessed(result);
+          resultPermission = outcome.permission();
+          return 'completed';
+        }, status);
+        return undefined;
+      }
       const result = await decide({ policy: selectedPolicy, action, trajectory, evidenceLimits: selectedConfig.evidence,
         cwd: call.cwd, judge: this.options.judge, config: selectedConfig.decision, signal, recording });
       consequences.assessed(result);
@@ -341,6 +445,7 @@ class SessionGuard {
     const outcome = ambiguous ? 'unknown' : result.isError ? 'failed' : 'executed';
     this.record('execution', { ...identity, origin: ambiguous ? 'ambiguous-tool-result' : `${result.host}-tool-result`, outcome });
     this.released.delete(id);
+    this.clearResultTimer(id);
     return { invocationId: identity.invocationId, outcome };
   }
 }
@@ -352,6 +457,7 @@ export class GuardRuntime {
   readonly capabilities: Capabilities;
   private sessions = new Map<string, SessionGuard>();
   private latest?: string;
+  readonly observationQueue: ObservationQueue;
   // Pi results have no invocation ID. Retain ambiguity across native session switches.
   private results = { resultCallIds: new Set<string>(), ambiguousResults: new Set<string>() };
   constructor(private options: RuntimeOptions, capabilities: Capabilities) {
@@ -359,6 +465,7 @@ export class GuardRuntime {
     this.mode = selected.mode;
     this.modeWarning = selected.warning;
     this.capabilities = Object.freeze({ ...capabilities, limitations: Object.freeze([...capabilities.limitations]) });
+    this.observationQueue = new ObservationQueue(options.observationLimits);
   }
   private session(identity: RuntimeIdentity): SessionGuard | undefined { return this.sessions.get(sessionKey(identity)); }
   get readiness(): Readiness {
@@ -373,7 +480,7 @@ export class GuardRuntime {
     if (identity.host !== this.capabilities.host) throw new Error('host-mismatch');
     const id = sessionKey(identity);
     let session = this.sessions.get(id);
-    if (!session) { session = new SessionGuard(this.options, this.capabilities, this.results); this.sessions.set(id, session); }
+    if (!session) { session = new SessionGuard(this.options, this.capabilities, this.results, this.observationQueue); this.sessions.set(id, session); }
     this.latest = id;
     return session.start(identity, cwd, hasJudge);
   }
@@ -392,6 +499,7 @@ export class GuardRuntime {
   result(result: RuntimeIdentity & { callId: string; toolName: string; content?: unknown; details?: unknown; isError?: boolean }): { invocationId: string; outcome: 'executed' | 'failed' | 'unknown' } | undefined {
     return this.session(result)?.result(result);
   }
+  endTurn(): void { for (const session of this.sessions.values()) session.endTurn(); }
   invalidate(reason: string, context?: RuntimeIdentity): void {
     if (context) this.session(context)?.invalidate(reason, context);
     else for (const session of this.sessions.values()) session.invalidate(reason);
