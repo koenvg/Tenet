@@ -5,6 +5,9 @@ import { isAbsolute, join, resolve } from 'node:path';
 import { SCHEMA_VERSION, READER_SCHEMAS, type ArchiveRecord, type HostIdentity, type RecordingIdentity, type RecordingSink, validRecord } from './contract.js';
 import { directory, MAX_RECORD_BYTES, readPrivateFile, writeStageFile } from './files.js';
 
+export function parseBbThreadId(value: unknown): string | undefined {
+  return typeof value === 'string' && /^thr_[a-z0-9]{8,64}$/.test(value) ? value : undefined;
+}
 export interface RecordingConfig { enabled: boolean; directory: string; issue?: string }
 export function recordingConfig(env: Record<string, string | undefined>): RecordingConfig {
   const path = env.TENET_RECORDING_DIR ?? join(homedir(), '.tenet', 'recordings');
@@ -50,7 +53,8 @@ export class ArchiveWriter {
       eventId: randomUUID(), timestamp: Date.now(), stage, data };
   }
   bind(identity: RecordingIdentity & HostIdentity): RecordingSink {
-    if (![identity.host, identity.contextId].every(value => typeof value === 'string' && value.length > 0 && value.length <= 256))
+    if (![identity.host, identity.contextId].every(value => typeof value === 'string' && value.length > 0 && value.length <= 256)
+      || (identity.bbThreadId !== undefined && parseBbThreadId(identity.bbThreadId) !== identity.bbThreadId))
       throw new Error('invalid-recording-identity');
     return this.bindRecord({ ...identity, schemaVersion: SCHEMA_VERSION });
   }

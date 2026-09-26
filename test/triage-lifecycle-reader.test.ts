@@ -22,9 +22,10 @@ test('read-only schema 3 lifecycle folds pending and dropped records with schema
     writer.bind({ sessionId: 'same', invocationId: 'old', callId: 'old', toolName: 'read', cwd: '/p', mode: 'observe', host: 'pi', contextId: 'main' })('begin', {});
     await writer.close();
     const folder = join(root, qualifiedSessionKey('pi', 'same', 'main'));
-    const base = JSON.parse(await readFile(join(folder, (await readdir(folder))[0]!), 'utf8'));
+    const original = (await readdir(folder))[0]!;
+    const base = JSON.parse(await readFile(join(folder, original), 'utf8'));
     await lifecycle(root, base, 'pending', 'pending');
-    await writeFile(join(folder, (await readdir(folder))[0]!), JSON.stringify({ ...base, schemaVersion: 2 }), { mode: 0o600 });
+    await writeFile(join(folder, original), JSON.stringify({ ...base, schemaVersion: 2 }), { mode: 0o600 });
     await lifecycle(root, base, 'dropped', 'dropped');
     const index = new ArchiveIndex(root); await index.refresh();
     const archive = await readArchive(root);
