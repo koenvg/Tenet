@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="description" content="Set up TENET in Pi, write a plain-text policy, and understand observe mode, opt-in enforcement, and recording limits." />
+    <title>Documentation | TENET</title>
+    <link rel="preload" href="./fonts/Geist-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Skip to content</a>
+    <header class="docs-header">
+      <a class="wordmark" href="./index.html" aria-label="TENET home">TENET</a>
+      <nav aria-label="Main navigation">
+        <a href="./index.html">Home</a>
+        <a href="./index.html#how-it-works">How it works</a>
+      </nav>
+    </header>
+
+    <main class="docs-page" id="content">
+      <h1>Use TENET in Pi.</h1>
+      <p class="docs-lead">TENET evaluates eligible tool calls against an owner-written policy. Start in observe mode, then decide whether to enable blocking.</p>
+
+      <section id="setup" aria-labelledby="setup-title">
+        <h2 id="setup-title">Set up a local checkout</h2>
+        <p>Clone the <a href="https://github.com/koenvg/Tenet">TENET source</a> into a directory you'll keep. Install its dependencies, then add it as a Pi package:</p>
+        <pre><code>git clone https://github.com/koenvg/Tenet.git "$HOME/Tenet"
+cd "$HOME/Tenet"
+bun install --frozen-lockfile
+pi install "$PWD"</code></pre>
+        <p>Set <code>TYPESAFE_API_KEY</code> using your normal secret manager. Put a <code>TENET.md</code> policy in the Pi session's working directory, or set <code>TENET_POLICY</code> to an absolute path. Start Pi and run <code>/tenet status</code>. Without a local or selected policy, TENET is dormant.</p>
+      </section>
+
+      <section aria-labelledby="policy-title">
+        <h2 id="policy-title">Write a rule</h2>
+        <p>Policies are plain text. A blocking rule can describe when approval is needed:</p>
+        <pre><code>Rule; BLOCK; Never publish code to a remote repository without explicit approval.</code></pre>
+        <p>Rules are evaluated individually. The assessment may be wrong or unavailable, so review findings and test a policy before relying on enforcement.</p>
+      </section>
+
+      <section aria-labelledby="modes-title">
+        <h2 id="modes-title">Observe or enforce</h2>
+        <p>Observe is the default. It reports findings to the owner, but never vetoes a call or opens an approval prompt. Use <code>/tenet</code> to review recent findings.</p>
+        <p>Enforcement needs an explicit new Pi process with <code>TENET_MODE=enforce</code>. BLOCK rules may stop a call or ask for native approval. WARN rules remain advisory. An unavailable assessment is not an all-clear.</p>
+      </section>
+
+      <section id="limits" aria-labelledby="limits-title">
+        <h2 id="limits-title">Records and limits</h2>
+        <p>In eligible sessions, TENET saves submitted assessment evidence locally by default, including passes. It may contain source code or secrets. Set <code>TENET_RECORDING=off</code> before starting Pi to opt out of new capture. Old records remain until you remove them separately.</p>
+        <p>TENET assesses tool calls exposed to its Pi extension. It does not inspect subprocesses or provide an OS sandbox. Semantic judgments are fallible, and reporting can fail. It cannot guarantee complete coverage or safety.</p>
+      </section>
+
+      <a class="docs-back" href="./index.html">Back to TENET</a>
+    </main>
+    <footer class="site-footer docs-footer"><span>TENET</span><a href="./index.html">Home</a></footer>
+  </body>
+</html>

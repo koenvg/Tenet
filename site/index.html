@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="description" content="Write the rules in plain text. TENET checks eligible Pi tool calls, reports findings in observe mode, and only enforces when you opt in." />
+    <title>TENET | Your policy. Their next action.</title>
+    <link rel="preload" href="./fonts/Geist-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main>
+      <section class="first-screen" id="top" aria-labelledby="headline">
+        <header class="site-header">
+          <a class="wordmark" href="#top" aria-label="TENET home">TENET</a>
+          <nav aria-label="Main navigation">
+            <a href="#how-it-works">How it works</a>
+            <a href="./docs.html">Docs</a>
+          </nav>
+        </header>
+
+        <div class="hero-copy">
+          <h1 id="headline"><span>Your policy.</span><span>Their next action.</span></h1>
+          <p>Write the rules. See when an agent's tool call might break one.</p>
+          <div class="hero-actions">
+            <a class="primary-action" href="./docs.html">Read the docs</a>
+            <a class="text-action" href="#how-it-works">How it works <span aria-hidden="true">→</span></a>
+          </div>
+        </div>
+
+        <aside class="assessment" aria-label="Illustrative tool call assessment">
+          <p class="assessment-label">Example tool call</p>
+          <div class="assessment-lines">
+            <p>Rule: Never publish code without approval</p>
+            <p>Call: <code>git push origin main</code></p>
+            <p>Observe: TENET flags the call. It still runs.</p>
+          </div>
+          <p class="assessment-note">Enforcement is opt-in.</p>
+        </aside>
+
+        <p class="hero-limit">TENET can be wrong. It isn't an OS sandbox.</p>
+      </section>
+
+      <section class="explanation" id="how-it-works" aria-labelledby="how-title">
+        <div class="explanation-intro">
+          <h2 id="how-title">Your policy is a text file.</h2>
+          <p>Put rules in <code>TENET.md</code> or select another policy file. TENET checks eligible Pi tool calls against them before they run.</p>
+        </div>
+        <div class="policy-line" aria-label="Example policy rule">
+          <span>Example rule</span>
+          <code>Rule; BLOCK; Never publish code to a remote repository without explicit approval.</code>
+        </div>
+        <div class="mode-list">
+          <div>
+            <h3>Observe</h3>
+            <p>Observe is the default. TENET reports what it finds to you. It does not stop the call or ask for approval.</p>
+          </div>
+          <div>
+            <h3>Enforce</h3>
+            <p>If you opt in to enforcement, a blocking rule can stop a call or ask for native approval. It depends on the assessment.</p>
+          </div>
+        </div>
+        <p class="coverage-note">TENET only checks tool calls it can see through Pi. It does not inspect subprocesses, and its judgments can be wrong. In eligible sessions, it saves submitted evidence locally by default, even when a call passes. That evidence may include code or secrets. Set <code>TENET_RECORDING=off</code> before starting Pi to opt out of new recordings.</p>
+        <a class="read-more" href="./docs.html#limits">See the limits <span aria-hidden="true">→</span></a>
+      </section>
+
+      <footer class="site-footer">
+        <span>TENET</span>
+        <a href="./docs.html">Documentation <span aria-hidden="true">→</span></a>
+      </footer>
+    </main>
+  </body>
+</html>
