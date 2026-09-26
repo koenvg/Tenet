@@ -1,12 +1,17 @@
 # TENET policy guard
 
-hello
 
 A TypeScript POC for Pi 0.85.1. Every exposed tool call follows the same rule-evaluation path through Jev using the official `@typesafe-ai/sdk` 0.6.0. No tool allowlists, tool-family mappings or replacement executors.
 
 **Persistence default:** In eligible sessions while TENET is on, it saves submitted assessment evidence locally, including passes. Strings can contain source code or secrets. Set `TENET_RECORDING=off` before starting Pi to opt out, or use `/tenet off` to stop both new assessment and capture. Sessions without a local or explicit policy are dormant and create no TENET records. Old records remain. See [Local decision inspector](#local-decision-inspector).
 
 The original KVG-5093 publication slice is extended by configurable policy rules, KVG-5094's bounded recent observations and KVG-5095's invocation-bound approval. No subprocess inspection or OS sandbox.
+
+For development checks, see [Contributing](CONTRIBUTING.md). The [CI workflow](.github/workflows/ci.yml) runs offline tests, type checks, and disposable Chromium inspector tests. It does not call the evaluator or publish a release.
+
+On a passing `main` build, CI saves a 14-day install archive as a GitHub Actions artifact. It does not publish to npm or create a public release.
+
+TENET source is [MIT-licensed](LICENSE). Bundled assets retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md).
 
 The [Claude Code command-hook prototype](docs/claude-code.md) is opt-in and has only offline protocol tests. No Claude CLI was available to verify a pinned host version. Do not treat Pi installation or `TENET_MODE=enforce` as Claude Code coverage.
 
