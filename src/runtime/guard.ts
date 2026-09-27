@@ -14,6 +14,7 @@ import type { Activation } from './activation.js';
 import { ObservationQueue, type ObservationLimits, type ObservationState } from './observation-queue.js';
 import { freeze } from '../decision/evidence.js';
 import { evidenceWithinBudget } from '../decision/evidence-budget.js';
+import { ActionResolution, type ActionResolver, type ResolvedInvocation } from './resolved-action.js';
 
 export interface RuntimeIdentity { host: string; sessionId: string; contextId: string }
 export interface Capabilities {
@@ -25,6 +26,7 @@ export interface Capabilities {
   lifecycleInvalidation: boolean;
   argumentStability: boolean;
   trustedApproval: boolean;
+  actionResolution?: 'host-supplied' | 'unsupported';
   limitations: readonly string[];
 }
 export interface Call extends RuntimeIdentity {
@@ -48,6 +50,7 @@ export interface InvocationIdentity extends Pick<Action, 'sessionId' | 'callId' 
 export interface RuntimeOptions {
   env: Record<string, string | undefined>;
   judge: Judge;
+  actionResolver?: ActionResolver;
   activation: { read(): Activation; refresh(): Activation };
   bindRecording?: (identity: InvocationIdentity & RuntimeIdentity & { cwd: string; mode: Mode }) => RecordingSink;
   emit?: (stage: string, data: Record<string, unknown>, archiveData?: Record<string, unknown>) => void;
@@ -84,7 +87,7 @@ class SessionGuard {
   private disabled = new Set<string>();
   private recordings = new Map<string, { sink: RecordingSink; assessmentDone: boolean; executionDone: boolean }>();
 
-  constructor(private options: RuntimeOptions, capabilities: Capabilities, shared: { resultCallIds: Set<string>; ambiguousResults: Set<string> }, private queue: ObservationQueue) {
+  constructor(private options: RuntimeOptions, capabilities: Capabilities, shared: { resultCallIds: Set<string>; ambiguousResults: Set<string> }, private queue: ObservationQueue, private resolution: ActionResolution) {
     const selected = readMode(options.env);
     this.mode = selected.mode;
     this.modeWarning = selected.warning;
@@ -331,11 +334,18 @@ class SessionGuard {
         observations = new Observations(identity.sessionId, selectedConfig.evidence, selectedConfig.sensitiveFields, ['history-unavailable']);
         this.observations.set(context, observations);
       }
+      // Preserve invocation order and exclude events that arrive while resolution awaits.
       const trajectory = observations.snapshot();
       observations.add(`${call.host}-tool-call`, identity.callId, identity.toolName, action);
+      const { policyDigest: _policyDigest, ...binding } = identity;
+      let resolved: ResolvedInvocation;
+      try {
+        resolved = await this.resolution.capture({ ...binding, cwd: call.cwd }, call.input, selectedConfig.sensitiveFields, signal);
+      } catch { return block('action-resolution-unavailable'); }
+      if (!current()) return block('guard-state-changed');
       if (this.mode === 'observe') {
         if (call.signal?.aborted) return block('guard-state-changed');
-        const snapshot = freeze({ policy: structuredClone(selectedPolicy), action, trajectory,
+        const snapshot = freeze({ policy: structuredClone(selectedPolicy), action, trajectory, resolvedAction: resolved.evidence,
           config: structuredClone(selectedConfig.decision), evidence: structuredClone(selectedConfig.evidence),
           cwd: call.cwd, profile: 'legacy', generation: this.loadToken });
         let bytes: number;
@@ -359,7 +369,7 @@ class SessionGuard {
         };
         this.queue.submit(bytes, observationSignal, async () => {
           if (!current()) return 'unavailable';
-          const result = await decide({ policy: snapshot.policy, action: snapshot.action, trajectory: snapshot.trajectory,
+          const result = await decide({ policy: snapshot.policy, action: snapshot.action, trajectory: snapshot.trajectory, resolvedAction: snapshot.resolvedAction,
             evidenceLimits: snapshot.evidence, cwd: snapshot.cwd, judge: this.options.judge, config: snapshot.config, signal: observationSignal, recording });
           providerDuration = result.durationMs;
           if (!current()) return 'unavailable';
@@ -374,7 +384,7 @@ class SessionGuard {
           if (!current()) return 'unavailable';
           this.record('assessment', { ...identity, assessment: result.assessment, reason: result.reason,
             durationMs: result.durationMs, requestedModel: result.requestedModel, questionVersion: result.questionVersion,
-            config: result.config, evidenceLimits: snapshot.evidence, redactedFields: action.redactedFields, limitations: action.limitations });
+            config: result.config, evidenceLimits: snapshot.evidence, redactedFields: action.redactedFields, limitations: action.limitations, resolvedAction: snapshot.resolvedAction });
           terminalReason = result.reason;
           if (!result.assessment) return 'unavailable';
           this.record('decision', { ...identity, decision: result.decision, reason: result.reason, ruleIds: result.ruleIds,
@@ -385,13 +395,13 @@ class SessionGuard {
         }, status);
         return undefined;
       }
-      const result = await decide({ policy: selectedPolicy, action, trajectory, evidenceLimits: selectedConfig.evidence,
+      const result = await decide({ policy: selectedPolicy, action, trajectory, resolvedAction: resolved.evidence, evidenceLimits: selectedConfig.evidence,
         cwd: call.cwd, judge: this.options.judge, config: selectedConfig.decision, signal, recording });
       consequences.assessed(result);
       if (!current()) return block('guard-state-changed');
       this.record('assessment', { ...identity, assessment: result.assessment, reason: result.reason,
         durationMs: result.durationMs, requestedModel: result.requestedModel, questionVersion: result.questionVersion,
-        config: result.config, evidenceLimits: selectedConfig.evidence, redactedFields: action.redactedFields, limitations: action.limitations });
+        config: result.config, evidenceLimits: selectedConfig.evidence, redactedFields: action.redactedFields, limitations: action.limitations, resolvedAction: resolved.evidence });
       this.record('decision', { ...identity, decision: result.decision, reason: result.reason, ruleIds: result.ruleIds,
         diagnostics: result.diagnostics, questionVersion: result.questionVersion }, { contributions: ruleContributions(result, selectedPolicy) });
       const fresh = async () => {
@@ -422,6 +432,10 @@ class SessionGuard {
         if (approval !== 'approved') return block(`approval-${approval}`);
       }
       if (result.decision === 'ASK' && !await fresh()) return block('policy-stale');
+      if (!current()) return block('guard-state-changed');
+      if (!unchanged()) return block('arguments-changed');
+      if (!await resolved.revalidate(signal)) return block('action-resolution-stale');
+      if (!await fresh()) return block('policy-stale');
       if (!current()) return block('guard-state-changed');
       if (!unchanged()) return block('arguments-changed');
       return finish();
@@ -455,6 +469,7 @@ export class GuardRuntime {
   readonly mode: Mode;
   readonly modeWarning?: string;
   readonly capabilities: Capabilities;
+  private readonly resolution: ActionResolution;
   private sessions = new Map<string, SessionGuard>();
   private latest?: string;
   readonly observationQueue: ObservationQueue;
@@ -464,7 +479,9 @@ export class GuardRuntime {
     const selected = readMode(options.env);
     this.mode = selected.mode;
     this.modeWarning = selected.warning;
-    this.capabilities = Object.freeze({ ...capabilities, limitations: Object.freeze([...capabilities.limitations]) });
+    this.resolution = new ActionResolution(options.actionResolver);
+    this.capabilities = Object.freeze({ ...capabilities, actionResolution: this.resolution.supported ? 'host-supplied' : 'unsupported',
+      limitations: Object.freeze([...capabilities.limitations, ...(!this.resolution.supported ? ['target-resolution-unavailable'] : [])]) });
     this.observationQueue = new ObservationQueue(options.observationLimits);
   }
   private session(identity: RuntimeIdentity): SessionGuard | undefined { return this.sessions.get(sessionKey(identity)); }
@@ -480,7 +497,7 @@ export class GuardRuntime {
     if (identity.host !== this.capabilities.host) throw new Error('host-mismatch');
     const id = sessionKey(identity);
     let session = this.sessions.get(id);
-    if (!session) { session = new SessionGuard(this.options, this.capabilities, this.results, this.observationQueue); this.sessions.set(id, session); }
+    if (!session) { session = new SessionGuard(this.options, this.capabilities, this.results, this.observationQueue, this.resolution); this.sessions.set(id, session); }
     this.latest = id;
     return session.start(identity, cwd, hasJudge);
   }

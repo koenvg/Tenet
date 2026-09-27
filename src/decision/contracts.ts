@@ -1,3 +1,4 @@
+import type { ResolvedAction } from '../runtime/resolved-action.js';
 import type { RecordingSink } from '../recording/contract.js';
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 export type Outcome = 'PASS' | 'APPROVAL_REQUIRED' | 'FAIL' | 'UNKNOWN';
@@ -52,6 +53,8 @@ export interface Config { effectThreshold: number; evidenceThreshold: number; de
 export interface JudgeRequest {
   policy: PolicySet;
   action: Action;
+  /** Only the configured host resolver can populate this evidence. */
+  resolvedAction?: ResolvedAction;
   /** Host-supplied, never inferred from tool arguments. */
   cwd: string;
   deadlineMs: number;

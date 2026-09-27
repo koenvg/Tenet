@@ -40,6 +40,7 @@ test('Pi owner status distinguishes configured mode from coverage limits', async
     assert.match(summary, /adapter pi version unverified/);
     assert.match(summary, /coverage result correlation, argument stability/);
     assert.match(summary, /native-result-has-no-invocation-id/);
+    assert.match(summary, /target-resolution-unavailable/);
   } finally { await h.close(); }
 });
 test('Pi baseline WARN cannot veto; missing judge and stale policy remain unavailable', async () => {
