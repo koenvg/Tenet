@@ -12,7 +12,7 @@ export interface FindingFacts {
   approvalRules?: readonly string[];
 }
 const uncertaintyGates = new Set(['outcome-unknown', 'outcome-confidence-below-threshold',
-  'evidence-insufficient', 'evidence-confidence-below-threshold']);
+  'evidence-insufficient', 'evidence-confidence-below-threshold', 'applicability-unresolved']);
 export function uncertaintyKeys(facts: FindingFacts): { ruleId: string; gate: string }[] {
   return facts.rules.flatMap(rule => rule.gates.filter(gate => uncertaintyGates.has(gate))
     .map(gate => ({ ruleId: rule.ruleId, gate })));

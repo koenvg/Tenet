@@ -11,6 +11,7 @@ export const gateLabels: Record<string, string> = {
   'outcome-confidence-below-threshold': 'Low outcome confidence',
   'evidence-insufficient': 'Insufficient evidence',
   'evidence-confidence-below-threshold': 'Low evidence confidence',
+  'applicability-unresolved': 'Unsupported non-applicability',
 };
 export const contributions: Record<string, string> = {
   pass: 'No gate or approval requirement',
@@ -25,6 +26,7 @@ export function gateExplanation(gate: string, rule: RuleView): string {
     case 'rule-fail': return 'The evaluator selected FAIL for this rule.';
     case 'outcome-unknown': return 'The evaluator could not determine the rule outcome.';
     case 'outcome-confidence-below-threshold': return `${outcome?.choice ?? 'Outcome unavailable'} selected at ${outcome?.probabilities?.[outcome?.choice] ?? 'unavailable'}; required confidence ${rule.thresholds.effectThreshold ?? 'not recorded'}.`;
+    case 'applicability-unresolved': return 'Current authenticated facts do not support an exemption for the entire invocation.';
     case 'evidence-insufficient': return 'The evaluator selected INSUFFICIENT evidence.';
     case 'evidence-confidence-below-threshold': return `SUFFICIENT probability ${rule.result?.evidence?.probabilities?.SUFFICIENT ?? 'unavailable'}; required confidence ${rule.thresholds.evidenceThreshold ?? 'not recorded'}.`;
     default: return `Unrecognized recorded gate: ${gate}`;

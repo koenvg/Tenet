@@ -1,7 +1,11 @@
 import type { Decision, Policy, RuleDiagnostic } from '../decision/contracts.js';
 import type { Mode } from './config.js';
+import { ASSESSMENT_METADATA } from '../decision/assessment-contract.js';
 
 export interface Permission {
+  /** Recorded contract identity; historical reports may contain older values. */
+  profile?: string;
+  questionVersion?: string;
   outcome: 'released' | 'blocked';
   wouldDecision?: Decision['decision'];
   reason: string;
@@ -23,6 +27,7 @@ export class Consequences {
     const result = this.assessment;
     const wouldDecision = failure ? (this.mode === 'observe' ? undefined : 'BLOCK') : result?.decision ?? (this.mode === 'observe' ? undefined : 'BLOCK');
     return {
+      ...ASSESSMENT_METADATA,
       outcome: this.mode === 'enforce' && failure ? 'blocked' : 'released',
       wouldDecision, reason: failure ?? result?.reason ?? 'guard-error',
       assessmentAvailable: !!result?.assessment,
@@ -43,7 +48,8 @@ export class Consequences {
     // WARN findings are owner-only even when another rule blocks the invocation.
     const details = permission.diagnostics.filter(d => d.enforcement === 'BLOCK').map(d =>
       `${this.location(d.ruleId)}: ${d.gates.join(', ')}; outcome=${d.outcome} p=${d.outcomeProbability} threshold=${d.effectThreshold}; `
-      + `evidence=${d.evidence} p(SUFFICIENT)=${d.evidenceProbability} threshold=${d.evidenceThreshold}`).join('\n');
+      + (d.evidence === null ? 'evidence score absent; evidence-confidence gate not evaluated'
+        : `evidence=${d.evidence} p(SUFFICIENT)=${d.evidenceProbability} threshold=${d.evidenceThreshold}`)).join('\n');
     return { block: true, reason: `TENET blocked: ${permission.reason}.${locations.length ? ` Rules: ${locations.join(', ')}.` : ''}`
       + (permission.reason === 'policy-stale' ? ' Reload or restart to load the changed policy.' : '') + (details ? `\n${details}` : '') };
   }

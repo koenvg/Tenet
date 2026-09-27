@@ -4,7 +4,7 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { guardHarness } from './guard-harness.js';
-import { answer } from './helpers.js';
+import { answer, sdkAnswers } from './helpers.js';
 import { createJevJudge } from '../src/decision/jev.js';
 import { readArchive } from '../src/recording/archive.js';
 import { invocationView } from '../src/inspector/view.js';
@@ -62,10 +62,7 @@ test('SDK semantic state excludes metadata; archive and inspector retain effecti
       assert.ok(!JSON.stringify(payload).includes('evidenceThreshold'));
       const a = answer(payload.state.policy);
       a.rules[0]!.evidence = { choice: 'SUFFICIENT', probabilities: { SUFFICIENT: submitted.length === 1 ? 0.85 : 0.75, INSUFFICIENT: submitted.length === 1 ? 0.15 : 0.25 } };
-      return Response.json({ model: 'offline', answers: Object.fromEntries(a.rules.flatMap((r, i) => [
-        [`rule_${i}_outcome`, { type: 'choice', ...r.outcome, confidence: 1 }],
-        [`rule_${i}_evidence`, { type: 'choice', ...r.evidence, confidence: 1 }],
-      ])) });
+      return Response.json({ model: 'offline', answers: sdkAnswers(a) });
     } }) });
   try {
     await h.start(); await h.call('pass'); await h.assessed('pass'); await h.call('block'); await h.assessed('block'); await h.emit('session_shutdown');

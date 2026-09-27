@@ -167,7 +167,7 @@ test('PASS chips are green while confidence gates remain distinct and readable',
   expect(await chip.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(231, 245, 237)');
   expect(await p.locator('.confidence-note').textContent()).toContain('not a reported violation');
   expect(await p.locator('.decision-explanation').textContent()).toContain('PASS selected at 0.88');
-  expect(await p.locator('.rule-detail tbody tr').count()).toBe(6);
+  expect(await p.locator('.rule-detail tbody tr').count()).toBe(7);
   await pickCall('unknown');
   expect((await p.locator('.rule-row[aria-pressed="true"] .status-chip').textContent())?.trim()).toBe('UNKNOWN');
   expect(await p.locator('.rule-row[aria-pressed="true"] .status-chip.caution').count()).toBe(1);
@@ -188,7 +188,7 @@ test('contributing rule selection distinguishes confidence, evidence, advice and
     await pickCall(id);
     const selected = p.locator('[aria-label="Selected rule"]');
     expect(await selected.textContent(), `${id} selects the contributing rule`).toContain(label);
-    expect(await selected.locator('tbody tr').count()).toBe(6);
+    expect(await selected.locator('tbody tr').count()).toBe(id === 'integrity' ? 6 : 7);
     expect(await selected.textContent()).toContain('0.9');
     if (id === 'low-pass') expect(await selected.textContent()).toContain('not a reported violation');
     if (id === 'unknown') expect(await p.locator('.map-check').first().textContent()).toContain('Unknown does not mean passed.');

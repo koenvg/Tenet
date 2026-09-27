@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createJevJudge } from '../src/decision/jev.js';
 import { guardHarness } from './guard-harness.js';
-import { answer } from './helpers.js';
+import { answer, sdkAnswers } from './helpers.js';
 import { readArchive } from '../src/recording/archive.js';
 
 export async function recordFixture(directory: string) {
@@ -10,10 +10,7 @@ export async function recordFixture(directory: string) {
     createJudge: () => createJevJudge({ apiKey: 'fixture-transport-secret', fetch: async (_url, init) => {
       const payload = JSON.parse(init!.body as string); submitted.push(payload);
       const assessment = answer(payload.state.policy, submitted.length === 1 ? 'PASS' : 'FAIL');
-      return Response.json({ model: 'scripted-offline', answers: Object.fromEntries(assessment.rules.flatMap((r, i) => [
-        [`rule_${i}_outcome`, { type: 'choice', ...r.outcome, confidence: 1 }],
-        [`rule_${i}_evidence`, { type: 'choice', ...r.evidence, confidence: 1 }],
-      ])) });
+      return Response.json({ model: 'scripted-offline', answers: sdkAnswers(assessment) });
     } }) });
   try {
     await h.start();

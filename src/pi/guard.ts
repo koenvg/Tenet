@@ -1,6 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import type { Judge } from '../decision/contracts.js';
-import { QUESTION_VERSION } from '../decision/decide.js';
 import { display } from '../decision/evidence.js';
 import { createJevJudge } from '../decision/jev.js';
 import { recoverObservations } from '../decision/trajectory.js';
@@ -96,7 +95,7 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
       recordingStatus();
     });
     if (activation.read() === 'on') recover(ctx);
-    reports.reset(ready.unavailable ?? `ready: ${ready.ruleCount} rules [${QUESTION_VERSION}]`);
+    reports.reset(ready.unavailable ?? `ready: ${ready.ruleCount} rules [${ready.profile}; ${ready.questionVersion}]`);
     boundary.attempt(() => reports.restore(ctx.sessionManager.getBranch?.()));
     runtime.status();
     if (ctx.hasUI) {
@@ -104,7 +103,7 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
       recordingStatus();
       if (activation.read() === 'on') {
         reportRecording(() => ctx.ui.notify(`TENET recording ${archive.config.enabled ? 'ON' : 'OFF'}: ${display(archive.config.directory)}. Submitted evidence may contain secrets. TENET_RECORDING=off disables capture.${archive.config.issue ? ` ${archive.config.issue}` : ''}`, 'info'));
-        ctx.ui.notify(`TENET ${mode.toUpperCase()} ${modeWarning ?? ''} ${ready.unavailable ? `unavailable (${ready.unavailable}); ${mode === 'enforce' ? 'intercepted calls BLOCK' : 'observation unavailable'}.` : `ready: ${ready.ruleCount} rules plus policy integrity.`} Judge questions: ${QUESTION_VERSION}. ${ready.policy.available ? `Policy ${display(ready.policy.source)}, SHA-256 ${ready.policy.digest}.` : 'Load a UTF-8 policy with nonempty Rule; declarations, then reload or restart.'} Rule text, selected tool evidence and bounded recent observations reach TypeSafe. No filesystem sandbox or subprocess observation.`, ready.unavailable || modeWarning ? 'error' : 'info');
+        ctx.ui.notify(`TENET ${mode.toUpperCase()} ${modeWarning ?? ''} ${ready.unavailable ? `unavailable (${ready.unavailable}); ${mode === 'enforce' ? 'intercepted calls BLOCK' : 'observation unavailable'}.` : `ready: ${ready.ruleCount} rules plus policy integrity.`} Assessment profile: ${ready.profile}. Judge questions: ${ready.questionVersion}. ${ready.policy.available ? `Policy ${display(ready.policy.source)}, SHA-256 ${ready.policy.digest}.` : 'Load a UTF-8 policy with nonempty Rule; declarations, then reload or restart.'} Rule text, selected tool evidence and bounded recent observations reach TypeSafe. No filesystem sandbox or subprocess observation.`, ready.unavailable || modeWarning ? 'error' : 'info');
       }
     }
   });

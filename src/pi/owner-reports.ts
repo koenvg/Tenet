@@ -162,13 +162,16 @@ export class OwnerReports {
     };
     return [
       `Mode: ${report.mode.toUpperCase()}`, `Tool: ${text(report.toolName)}`, `Call: ${text(report.callId)}`,
+      `Assessment profile: ${report.profile ?? 'legacy (historical)'}`,
+      `Judge questions: ${report.questionVersion ?? 'not recorded'}`,
       `TENET permission: ${report.outcome}`, `Would enforce: ${report.wouldDecision}`,
       `Finding categories: ${this.categories(report).map(c => categoryLabels[c]).join(', ') || 'not recorded'} (may overlap)`,
       `Assessment: ${report.assessmentStatus ?? (report.assessmentAvailable ? 'completed' : 'unavailable')}`, `Reason: ${text(report.reason)}`,
       'Permission is not proof of execution.',
       `Observed execution: ${report.execution ?? 'unknown'}`,
       ...report.diagnostics.flatMap(d => [...rows(reference(d.ruleId)), `${d.outcome}: p=${d.outcomeProbability} threshold=${d.effectThreshold}`,
-        `${d.evidence}: P(SUFFICIENT)=${d.evidenceProbability}`, `Evidence threshold: ${d.evidenceThreshold}`, ...d.gates]),
+        ...(d.evidence === null ? ['Evidence score absent; evidence-confidence gate not evaluated.']
+          : [`${d.evidence}: P(SUFFICIENT)=${d.evidenceProbability}`, `Evidence threshold: ${d.evidenceThreshold}`]), ...d.gates]),
       ...report.approvalRules.flatMap(id => rows(`${reference(id)} APPROVAL_REQUIRED`)),
     ];
   }

@@ -2,8 +2,8 @@
 
 ## ADDED Requirements
 
-### Requirement: Explicit applicability-aware assessment profile
-TENET SHALL retain the legacy assessment profile as the default and offer a separately selected, versioned applicability-aware profile. Profile selection SHALL be process-level, captured per invocation and independent of observe/enforce mode. The new profile SHALL add NOT_APPLICABLE without removing PASS, APPROVAL_REQUIRED, FAIL or UNKNOWN. It SHALL assess the entire invocation independently against each complete rule, without domain-specific shared prompt branches or tool-name exemptions. A NOT_APPLICABLE result SHALL contribute no blocking or approval gate only when its selected-outcome probability meets the existing outcome threshold and authenticated, fresh action facts cover all effects material to that rule. That supported result SHALL not require a separate evidence-confidence score. Scores below the threshold, incomplete facts, unsupported semantics or material rule ambiguity SHALL not obtain this exemption. Irrelevance remains a fallible assessment, not a safety proof.
+### Requirement: Single applicability-aware assessment contract
+TENET SHALL use one versioned applicability-aware assessment contract for new invocations. Tenet is in alpha; the owner has explicitly authorized replacing the legacy-default and opt-in split. There SHALL be no runtime profile selector or parallel legacy evaluator. Each invocation SHALL record its contract identity independently of observe/enforce mode. The contract SHALL add NOT_APPLICABLE without removing PASS, APPROVAL_REQUIRED, FAIL or UNKNOWN. It SHALL assess the entire invocation independently against each complete rule, without domain-specific shared prompt branches or tool-name exemptions. A NOT_APPLICABLE result SHALL contribute no blocking or approval gate only when its selected-outcome probability meets the existing outcome threshold and authenticated, fresh action facts cover all effects material to that rule. That supported result SHALL not require a separate evidence-confidence score. Scores below the threshold, incomplete facts, unsupported semantics or material rule ambiguity SHALL not obtain this exemption. Irrelevance remains a fallible assessment, not a safety proof.
 
 #### Scenario: Supported read under a non-triggering rule
 - **WHEN** the applicability profile classifies a fully described, authenticated file read as NOT_APPLICABLE to a Git-commit prohibition at or above the outcome threshold
@@ -25,9 +25,9 @@ TENET SHALL retain the legacy assessment profile as the default and offer a sepa
 - **WHEN** a BLOCK rule has missing material facts, a selected FAIL or UNKNOWN, or unresolved policy integrity
 - **THEN** enforcement remains blocked and neither prior approval nor an unrelated NOT_APPLICABLE result clears the blocker
 
-#### Scenario: Explicit profile rollback
-- **WHEN** the owner restarts with the legacy profile
-- **THEN** existing legacy labels and gates apply to new calls and historical applicability decisions are not reinterpreted
+#### Scenario: Code rollback preserves historical decisions
+- **WHEN** the owner restores an earlier code revision and restarts the process
+- **THEN** that revision's labels and gates apply to new calls; recorded decisions retain their original contract identities and are not reinterpreted
 
 ### Requirement: Safe probability precision handling
 TENET SHALL diagnose invalid response shape, labels, ranges, sums and selected-choice ordering separately with bounded structured reason codes. Only a versioned provider adapter backed by a verified precision contract SHALL accept rounding-scale deviations from a unit probability sum. It SHALL retain the original response and precision metadata, reject missing/nonfinite/negative/out-of-range values and incompatible labels, and avoid renormalizing scores into passing a decision threshold. Where documented rounding leaves threshold or selected-choice ordering ambiguous, the result SHALL remain uncertain or unavailable rather than an all-clear. Without a verified contract, strict rejection SHALL remain in place with a clear precision-incompatibility diagnostic. A precision accommodation SHALL not clear unrelated blocking gates.
@@ -47,6 +47,8 @@ TENET SHALL diagnose invalid response shape, labels, ranges, sums and selected-c
 ### Requirement: Friction regression evidence and promotion
 TENET SHALL maintain sanitized fixtures for the reported file reads, brace insertion, code and documentation edits, staging without committing, actual commits, merges with known and unknown commit effects, compound edit-and-commit, active-policy mutation, approval-required publication, opaque execution, forged facts and provider precision cases. Expected labels SHALL be authored before evaluating a candidate. Reports SHALL distinguish semantic misclassification, uncertainty-only blocks, unavailable assessments, unnecessary approvals and unsafe allows with explicit denominators. Every comparison SHALL retain policy, profile, question and fixture identities, thresholds, returned model, evidence coverage and omissions. Offline scripted responses SHALL not establish semantic accuracy. No fixture action SHALL execute. Live replay and promotion of the new profile to the default SHALL require separate explicit owner authorization; this proposal supplies neither.
 
+The owner's subsequent alpha decision authorizes the single current contract above, not live replay. No comparison report SHALL select or promote a runtime contract automatically.
+
 #### Scenario: Regression suite is offline
 - **WHEN** the ordinary test suite runs without live authorization
 - **THEN** it verifies deterministic mechanics and fixture contracts without contacting TypeSafe or executing any proposed action
@@ -62,11 +64,11 @@ TENET SHALL maintain sanitized fixtures for the reported file reads, brace inser
 ## MODIFIED Requirements
 
 ### Requirement: Generic evaluator compatibility and validation
-TENET SHALL retain the legacy PASS, APPROVAL_REQUIRED, FAIL and UNKNOWN outcomes, separate evidence sufficiency assessments, existing confidence thresholds and enforcement-mode aggregation under the legacy profile. The explicitly selected applicability-aware profile SHALL extend this contract only as specified by Explicit applicability-aware assessment profile. Changed evaluator instructions and response schemas SHALL have distinct versions. Domain-specific scenarios SHALL remain evaluation data or owner-authored policy text rather than shared evaluator instructions. Whole-response validation SHALL remain mandatory, subject only to Safe probability precision handling. Offline scripted verification SHALL NOT be represented as evidence of live semantic accuracy.
+TENET SHALL retain PASS, APPROVAL_REQUIRED, FAIL and UNKNOWN, with separate evidence sufficiency assessments and existing thresholds wherever the evidence gate applies. The single current contract SHALL support NOT_APPLICABLE only as specified by Single applicability-aware assessment contract. Historical four-outcome records SHALL remain readable, but old response schemas SHALL not be accepted for new assessments. Changed evaluator instructions and response schemas SHALL have distinct versions. Domain-specific scenarios SHALL remain evaluation data or owner-authored policy text rather than shared evaluator instructions. Whole-response validation SHALL remain mandatory, subject only to Safe probability precision handling. Offline scripted verification SHALL NOT be represented as evidence of live semantic accuracy.
 
 #### Scenario: Stable enforcement for identical assessments
-- **WHEN** the same validated legacy per-rule assessments and configuration are supplied before and after this change
-- **THEN** aggregate decisions, diagnostics, advisory handling and invocation-local approval behavior remain unchanged
+- **WHEN** the same validated non-NOT_APPLICABLE per-rule assessments and configuration are supplied under the current response schema
+- **THEN** their aggregate decisions, diagnostics, advisory handling and invocation-local approval behavior remain unchanged
 
 #### Scenario: Cross-domain evaluation
 - **WHEN** the generic evaluator is validated
@@ -77,12 +79,12 @@ TENET SHALL retain the legacy PASS, APPROVAL_REQUIRED, FAIL and UNKNOWN outcomes
 - **WHEN** only offline verification is authorized
 - **THEN** no live provider requests or fixture actions execute and semantic accuracy remains explicitly unverified
 
-#### Scenario: Response profile mismatch
-- **WHEN** a response uses applicability-only labels for an invocation captured with the legacy profile
+#### Scenario: Response contract mismatch
+- **WHEN** a new invocation receives a four-outcome user-rule distribution or a response identifying an incompatible contract
 - **THEN** TENET rejects the response rather than silently changing that invocation's decision semantics
 
 ### Requirement: Independent effective evidence thresholds
-For each user rule assessed with an evidence-confidence gate, TENET SHALL use its declared override when present, otherwise the global evidence threshold. The global evidence threshold SHALL continue to default to 0.90 and remain configurable through `TENET_EVIDENCE_THRESHOLD`. Built-in integrity SHALL use the global evidence threshold and SHALL NOT inherit any user rule's override. The selected-outcome threshold SHALL remain global and unchanged. Exact scores equal to their effective thresholds SHALL pass their confidence gates; documented precision intervals SHALL follow Safe probability precision handling. A supported NOT_APPLICABLE result in the explicit applicability-aware profile SHALL have no evidence-confidence gate and SHALL record that gate as not applicable, not as a fabricated passing probability.
+For each user rule assessed with an evidence-confidence gate, TENET SHALL use its declared override when present, otherwise the global evidence threshold. The global evidence threshold SHALL continue to default to 0.90 and remain configurable through `TENET_EVIDENCE_THRESHOLD`. Built-in integrity SHALL use the global evidence threshold and SHALL NOT inherit any user rule's override. The selected-outcome threshold SHALL remain global and unchanged. Exact scores equal to their effective thresholds SHALL pass their confidence gates; documented precision intervals SHALL follow Safe probability precision handling. A supported NOT_APPLICABLE result SHALL have no evidence-confidence gate and SHALL record that gate as not applicable, not as a fabricated passing probability.
 
 Overrides SHALL NOT change selected FAIL, UNKNOWN or INSUFFICIENT gates, approval requirements, BLOCK/WARN consequences, observe/enforce behavior, or response validation. Threshold settings SHALL NOT change generic evaluator question text or be supplied as semantic rule instructions. Thresholds SHALL NOT be presented as calibrated correctness guarantees.
 

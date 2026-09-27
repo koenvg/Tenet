@@ -5,7 +5,7 @@ import { buildQuestions } from '../src/decision/questions.js';
 import { decide, DEFAULTS } from '../src/decision/decide.js';
 import { captureAction } from '../src/decision/evidence.js';
 import { INTEGRITY_ID, INTEGRITY_TEXT } from '../src/decision/policy.js';
-import { answer, policy } from './helpers.js';
+import { answer, policy, sdkAnswers } from './helpers.js';
 import { Observations } from '../src/decision/trajectory.js';
 
 const selected = { ...policy, rules: [...policy.rules, { id: 'second', line: 2, text: 'Never delete files outside the project directory.', enforcement: 'BLOCK' as const }] };
@@ -13,11 +13,7 @@ const action = captureAction({ sessionId: 's', callId: 'c', toolName: 'new-tool'
 const base = { policy: selected, action, cwd: '/project' };
 function response() {
   const assessment = answer(selected);
-  const answers: Record<string, any> = {};
-  assessment.rules.forEach((r, i) => {
-    answers[`rule_${i}_outcome`] = { type: 'choice', ...r.outcome, confidence: 0.1 };
-    answers[`rule_${i}_evidence`] = { type: 'choice', ...r.evidence, confidence: 0.1 };
-  });
+  const answers = sdkAnswers(assessment, 0.1);
   return { model: 'jev-returned', answers, usage: { input_tokens: 12, output_tokens: 2 } };
 }
 
@@ -33,10 +29,10 @@ test('one official SDK request assesses every rule with generic evidence and tru
   assert.equal(capturedUrl, 'https://api.typesafe.ai/v1/systemone'); assert.ok(capturedInit?.signal);
   const body = JSON.parse(capturedInit!.body as string);
   assert.deepEqual(body.questions, buildQuestions(selected));
-  assert.deepEqual(Object.keys(body.questions), ['rule_0_outcome', 'rule_0_evidence', 'rule_1_outcome', 'rule_1_evidence', 'rule_2_outcome', 'rule_2_evidence']);
+  assert.deepEqual(Object.keys(body.questions), ['rule_0_outcome', 'rule_0_evidence', 'rule_0_facts', 'rule_1_outcome', 'rule_1_evidence', 'rule_1_facts', 'rule_2_outcome', 'rule_2_evidence']);
   for (const [i, reference] of ['state.policy.rules[0].text', 'state.policy.rules[1].text', 'state.integrity.text'].entries()) {
     const outcome = body.questions[`rule_${i}_outcome`], evidence = body.questions[`rule_${i}_evidence`];
-    assert.deepEqual(Object.keys(outcome.criteria), ['PASS', 'APPROVAL_REQUIRED', 'FAIL', 'UNKNOWN']);
+    assert.deepEqual(Object.keys(outcome.criteria), ['PASS', 'APPROVAL_REQUIRED', 'FAIL', 'UNKNOWN', ...(i < selected.rules.length ? ['NOT_APPLICABLE'] : [])]);
     assert.deepEqual(Object.keys(evidence.criteria), ['SUFFICIENT', 'INSUFFICIENT']);
     for (const question of [outcome, evidence]) {
       assert.equal(question.type, 'choice');

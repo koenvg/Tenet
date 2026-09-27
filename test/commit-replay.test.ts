@@ -96,7 +96,7 @@ test('diagnostics distinguish label errors, uncertainty-only blocks, approval, u
 test('confidence-only blocking is counted without a wrong semantic label', async () => {
   const report = await runReplay({ fixtures: COMMIT_SETS.clarified.slice(0, 1), judge: async request => {
     const response = await scripted(request);
-    response.rules[1]!.outcome = { choice: 'PASS', probabilities: { PASS: 0.88, FAIL: 0.08, APPROVAL_REQUIRED: 0.02, UNKNOWN: 0.02 } };
+    response.rules[1]!.outcome = { choice: 'PASS', probabilities: { PASS: 0.88, FAIL: 0.08, APPROVAL_REQUIRED: 0.02, UNKNOWN: 0.02, NOT_APPLICABLE: 0 } };
     return response;
   } });
   assert.equal(report.rows[0]!.result.reason, 'insufficient-evidence');

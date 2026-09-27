@@ -4,7 +4,7 @@ import { mkdtemp, realpath, rm, writeFile, readdir, readFile } from 'node:fs/pro
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { guardHarness } from './guard-harness.js';
-import { answer } from './helpers.js';
+import { answer, sdkAnswers } from './helpers.js';
 import { readArchive, sessionKey } from '../src/recording/archive.js';
 import { ArchiveWriter } from './legacy-recording-fixture.js';
 import { responseSnapshot } from '../src/recording/contract.js';
@@ -130,10 +130,7 @@ test('concurrent SDK completions stay bound to their invocation IDs across a ses
       const payload = JSON.parse(init!.body as string);
       if (payload.state.action.callId === 'old') { started(); await held; }
       const result = answer(payload.state.policy);
-      return Response.json({ model: 'offline', answers: Object.fromEntries(result.rules.flatMap((r, i) => [
-        [`rule_${i}_outcome`, { type: 'choice', ...r.outcome, confidence: 1 }],
-        [`rule_${i}_evidence`, { type: 'choice', ...r.evidence, confidence: 1 }],
-      ])) });
+      return Response.json({ model: 'offline', answers: sdkAnswers(result) });
     } }) });
   try {
     await h.start(); const old = h.call('old'); await ready;

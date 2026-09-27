@@ -5,8 +5,10 @@ import { blockingDiagnostics } from './diagnostics.js';
 import { boundEvidence } from './judge-evidence.js';
 import type { Trajectory, EvidenceLimits } from './contracts.js';
 import type { RecordingSink } from '../recording/contract.js';
+import { ASSESSMENT_METADATA, ASSESSMENT_PROFILE, supportsExemption } from './assessment-contract.js';
+import type { JudgeRequest } from './contracts.js';
 
-export const QUESTION_VERSION = 'policy-rules-v5-resolved-action';
+export { QUESTION_VERSION } from './assessment-contract.js';
 export const MODEL = 'jev-latest';
 export const DEFAULTS: Readonly<Config> = Object.freeze({ effectThreshold: 0.90, evidenceThreshold: 0.90, deadlineMs: 2500 });
 const clockDefault: Clock = {
@@ -19,7 +21,7 @@ export function validConfig(config: Config): boolean {
 }
 function object(value: unknown): value is Record<string, unknown> { return !!value && typeof value === 'object' && !Array.isArray(value); }
 export function probability(value: unknown): value is number { return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1; }
-function validChoice(value: unknown, labels: string[]): boolean {
+export function validChoice(value: unknown, labels: string[]): boolean {
   if (!object(value) || typeof value.choice !== 'string' || !labels.includes(value.choice) || !object(value.probabilities)) return false;
   const ps = value.probabilities;
   if (Object.keys(ps).length !== labels.length || !labels.every(label => probability(ps[label]))) return false;
@@ -27,24 +29,32 @@ function validChoice(value: unknown, labels: string[]): boolean {
   return Math.abs(values.reduce((a, b) => a + b, 0) - 1) <= 0.000001
     && (ps[value.choice] as number) >= Math.max(...values);
 }
-export function validateAssessment(value: unknown, policy: PolicySet): Assessment {
+export function validateAssessment(value: unknown, policy: PolicySet, request?: JudgeRequest): Assessment {
   const expected = [...policy.rules.map(r => r.id), INTEGRITY_ID];
   if (!object(value) || typeof value.model !== 'string' || !value.model.trim() || !Array.isArray(value.rules)
+      || (value.profile !== undefined && value.profile !== ASSESSMENT_PROFILE)
       || !policy.rules.length || new Set(expected).size !== expected.length || value.rules.length !== expected.length) throw new JudgeFailure('invalid-response');
   const remaining = new Set(expected);
   const byId = new Map<string, RuleAssessment>();
   for (const rule of value.rules) {
-    if (!object(rule) || typeof rule.ruleId !== 'string' || !remaining.delete(rule.ruleId)
-        || !validChoice(rule.outcome, ['PASS', 'APPROVAL_REQUIRED', 'FAIL', 'UNKNOWN'])
-        || !validChoice(rule.evidence, ['SUFFICIENT', 'INSUFFICIENT'])) throw new JudgeFailure('invalid-response');
+    if (!object(rule) || typeof rule.ruleId !== 'string' || !remaining.delete(rule.ruleId)) throw new JudgeFailure('invalid-response');
+    if (!validChoice(rule.outcome, ['PASS', 'APPROVAL_REQUIRED', 'FAIL', 'UNKNOWN', ...(rule.ruleId !== INTEGRITY_ID ? ['NOT_APPLICABLE'] : [])])) throw new JudgeFailure('invalid-response');
     const r = rule as unknown as RuleAssessment;
+    const notApplicable = r.outcome.choice === 'NOT_APPLICABLE';
     if (r.ruleId === INTEGRITY_ID && r.outcome.choice === 'APPROVAL_REQUIRED') throw new JudgeFailure('invalid-response');
-    // Copy only contract fields; never propagate provider prose.
+    if (notApplicable) {
+      const refs = rule.factReferences;
+      if (rule.evidence !== null || !object(refs) || typeof refs.digest !== 'string' || refs.digest.length > 128
+        || !Array.isArray(refs.operationIds) || refs.operationIds.length > 64
+        || !refs.operationIds.every(id => typeof id === 'string' && id.length > 0 && id.length <= 4096)) throw new JudgeFailure('invalid-response');
+    } else if (!validChoice(rule.evidence, ['SUFFICIENT', 'INSUFFICIENT']) || rule.factReferences !== undefined) throw new JudgeFailure('invalid-response');
+    const refs = notApplicable ? { digest: r.factReferences!.digest, operationIds: [...r.factReferences!.operationIds] } : undefined;
     byId.set(r.ruleId, { ruleId: r.ruleId,
       outcome: { choice: r.outcome.choice, probabilities: { ...r.outcome.probabilities } },
-      evidence: { choice: r.evidence.choice, probabilities: { ...r.evidence.probabilities } } });
+      evidence: r.evidence === null ? null : { choice: r.evidence.choice, probabilities: { ...r.evidence.probabilities } },
+      ...(refs ? { factReferences: refs, applicabilitySupported: supportsExemption(refs, request) } : {}) });
   }
-  return { model: value.model, rules: expected.map(id => byId.get(id)!) };
+  return { model: value.model, rules: expected.map(id => byId.get(id)!), profile: ASSESSMENT_PROFILE };
 }
 
 export async function decide(options: {
@@ -57,7 +67,7 @@ export async function decide(options: {
   const config = { ...DEFAULTS, ...options.config };
   const result = (decision: Decision['decision'], reason: Reason, assessment: Assessment | null = null, ruleIds: string[] = [], diagnostics: Decision['diagnostics'] = []): Decision => ({
     decision, reason, assessment, ruleIds, diagnostics, durationMs: Math.max(0, clock.now() - start), config,
-    questionVersion: QUESTION_VERSION, requestedModel: MODEL,
+    ...ASSESSMENT_METADATA, requestedModel: MODEL,
   });
   if (!policy.available) return result('BLOCK', policy.reason);
   if (!validConfig(config) || typeof cwd !== 'string' || !cwd.trim()) return result('BLOCK', 'configuration');
@@ -65,7 +75,7 @@ export async function decide(options: {
   if (signal?.aborted) return result('BLOCK', 'cancelled');
   if (options.evidenceLimits && (!Number.isSafeInteger(options.evidenceLimits.recentEvents) || options.evidenceLimits.recentEvents < 0
     || !Number.isSafeInteger(options.evidenceLimits.maxBytes) || options.evidenceLimits.maxBytes < 1)) return result('BLOCK', 'configuration');
-  const request = boundEvidence({ policy, action, cwd, deadlineMs: config.deadlineMs, trajectory: options.trajectory, resolvedAction: options.resolvedAction }, options.evidenceLimits);
+  const request = boundEvidence({ profile: ASSESSMENT_PROFILE, policy, action, cwd, deadlineMs: config.deadlineMs, trajectory: options.trajectory, resolvedAction: options.resolvedAction }, options.evidenceLimits);
   if (!request) return result('BLOCK', 'insufficient-evidence');
   const controller = new AbortController();
   let stopTimer = () => {};
@@ -82,7 +92,7 @@ export async function decide(options: {
     })]);
     if (signal?.aborted) return result('BLOCK', 'cancelled');
     if (clock.now() - start >= config.deadlineMs) { controller.abort(); return result('BLOCK', 'timeout'); }
-    const assessment = validateAssessment(raw, policy);
+    const assessment = validateAssessment(raw, policy, request);
     const diagnostics = blockingDiagnostics(assessment, config, policy);
     const blocked = diagnostics.filter(r => r.enforcement === 'BLOCK');
     if (blocked.length) {

@@ -4,7 +4,7 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { guardHarness } from './guard-harness.js';
-import { answer } from './helpers.js';
+import { answer, sdkAnswers } from './helpers.js';
 import { createJevJudge } from '../src/decision/jev.js';
 import { startInspector } from '../src/inspector/server.js';
 import { qualifiedSessionKey } from '../src/recording/archive.js';
@@ -20,10 +20,7 @@ test('closed inspector capture survives reader restart and same-session live res
       submitted.set(id, payload);
       if (id === 'failure') return new Response('private-provider-body', { status: 503 });
       const assessment = answer(payload.state.policy, id === 'concern' ? 'FAIL' : 'PASS');
-      return Response.json({ model: 'offline-workflow', answers: Object.fromEntries(assessment.rules.flatMap((r, i) => [
-        [`rule_${i}_outcome`, { type: 'choice', ...r.outcome, confidence: 1 }],
-        [`rule_${i}_evidence`, { type: 'choice', ...r.evidence, confidence: 1 }],
-      ])) });
+      return Response.json({ model: 'offline-workflow', answers: sdkAnswers(assessment) });
     } }) });
   let app: Awaited<ReturnType<typeof startInspector>> | undefined;
   const get = async (path: string) => {
