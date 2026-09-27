@@ -7,6 +7,7 @@ import { type ArchiveIssue, sessionKey, recordSessionKey, recordInvocationKey } 
 import { READER_SCHEMAS, type ArchiveRecord, validRecord } from '../recording/contract.js';
 import { directory, MAX_RECORD_BYTES, readPrivateFile } from '../recording/files.js';
 import { captureHealth, invocationView, type CaptureHealth } from './view.js';
+import { projectThreadFinding, type ThreadFinding } from './bb-findings.js';
 
 export interface PageOptions { limit?: number; cursor?: string; offset?: number }
 export interface InvocationSummary {
@@ -459,57 +460,96 @@ export class ArchiveIndex {
     return { items: sorted.slice(0, 100), omittedGroups: Math.max(0, sorted.length - 100) };
   }
   /** Exact BB thread hint on the selected machine. Never infer historical links from session/cwd. */
-  threadStatus(bbThreadId: string): ThreadStatus {
+  private linkedGroups(bbThreadId: string) {
     if (!/^thr_[a-z0-9]{8,64}$/.test(bbThreadId)) throw new Error('invalid-thread-status-request');
-    const groups = new Map<string, Metadata[]>();
+    const groups = new Map<string, Metadata[]>(), latestHealth = new Map<string, Metadata>();
     for (const [, entry] of this.allEntries()) {
       const record = entry.metadata;
-      if (!record || record.schemaVersion !== 3 || record.host !== 'pi' || record.bbThreadId !== bbThreadId) continue;
+      if (!record) continue;
+      if (record.health && record.sequence > (latestHealth.get(record.writerId)?.sequence ?? 0)) latestHealth.set(record.writerId, record);
+      if (record.schemaVersion !== 3 || record.host !== 'pi' || record.bbThreadId !== bbThreadId) continue;
       const key = sessionKey(JSON.stringify([bbThreadId, recordSessionKey(record), recordInvocationKey(record)]));
       const group = groups.get(key) ?? []; group.push(record); groups.set(key, group);
     }
-    // Count selected FAILs only when validated metadata still matches a blocking or warning policy rule.
-    const failures = [...groups.values()].filter(records => {
-      records.sort((a, b) => a.writerId === b.writerId ? a.sequence - b.sequence : a.timestamp - b.timestamp || a.eventId.localeCompare(b.eventId));
-      const validated = records.some(r => r.stage === 'validation' && r.valid === true);
-      const failed = foldFindingStages(records.map(r => r.finding)).failure !== null;
-      if (!validated || failed) return false;
-      const begin = records.findLast(r => r.stage === 'begin');
-      const request = records.findLast(r => r.stage === 'request');
-      const assessment = records.findLast(r => r.stage === 'assessment');
-      const policyIds = new Set(request?.policyRuleIds ?? begin?.policyRuleIds ?? []);
-      const integrityId = request?.integrityRuleId === undefined ? begin?.integrityRuleId : request.integrityRuleId;
-      if (integrityId) policyIds.add(integrityId);
-      return assessment?.selectedFailIds?.some(id => policyIds.has(id)) === true;
-    }).length;
-    const issues = new Set(this.issues().map(issue => issue.reason));
-    if (this.captureHealth().some(h => h.failed || h.dropped || h.drainTimeouts)) issues.add('writer-loss');
-    if ([...groups.values()].some(records => !['begin', 'request', 'response', 'validation', 'assessment', 'decision', 'permission', 'execution']
-      .every(stage => records.some(r => r.stage === stage)))) issues.add('missing-stages');
-    return { coverage: groups.size ? 'partial' : 'unknown', linkedCalls: groups.size, failures, issues: [...issues].slice(0, 20) };
+    return { groups, writerLoss: [...latestHealth.values()].some(r => {
+      const h = r.health!; return h.failed || h.dropped || h.drainTimeouts;
+    }) };
   }
-
+  private selectedFailure(records: Metadata[]): boolean {
+    records.sort((a, b) => a.writerId === b.writerId ? a.sequence - b.sequence : a.timestamp - b.timestamp || a.eventId.localeCompare(b.eventId));
+    if (!records.some(r => r.stage === 'validation' && r.valid === true)
+      || foldFindingStages(records.map(r => r.finding)).failure !== null) return false;
+    const begin = records.findLast(r => r.stage === 'begin');
+    const request = records.findLast(r => r.stage === 'request');
+    const assessment = records.findLast(r => r.stage === 'assessment');
+    const policyIds = new Set(request?.policyRuleIds ?? begin?.policyRuleIds ?? []);
+    const integrityId = request?.integrityRuleId === undefined ? begin?.integrityRuleId : request.integrityRuleId;
+    if (integrityId) policyIds.add(integrityId);
+    return assessment?.selectedFailIds?.some(id => policyIds.has(id)) === true;
+  }
+  private threadSnapshot(bbThreadId: string) {
+    const { groups, writerLoss } = this.linkedGroups(bbThreadId);
+    const issues = new Set(this.issues().map(issue => issue.reason));
+    if (writerLoss) issues.add('writer-loss');
+    const candidates: { id: string; timestamp: number; session: string; invocation: string; expectedEvents: Set<string> }[] = [];
+    for (const [id, records] of groups) {
+      if (!['begin', 'request', 'response', 'validation', 'assessment', 'decision', 'permission', 'execution']
+        .every(stage => records.some(r => r.stage === stage))) issues.add('missing-stages');
+      if (this.selectedFailure(records)) candidates.push({ id, timestamp: records[0]!.timestamp,
+        session: recordSessionKey(records[0]!), invocation: recordInvocationKey(records[0]!),
+        expectedEvents: new Set(records.map(r => r.eventId)) });
+    }
+    const status: ThreadStatus = { coverage: groups.size ? 'partial' : 'unknown', linkedCalls: groups.size,
+      failures: candidates.length, issues: [...issues].slice(0, 20) };
+    return { status, candidates };
+  }
+  threadStatus(bbThreadId: string): ThreadStatus { return this.threadSnapshot(bbThreadId).status; }
+  /** At most five candidate calls per page, each re-read by detail's 64-stage / 16-MiB cap. */
+  async threadFindings(bbThreadId: string, cursor?: string): Promise<{ coverage: ThreadStatus['coverage']; linkedCalls: number;
+    issues: string[]; items: ThreadFinding[]; next: string | null }> {
+    const { status, candidates } = this.threadSnapshot(bbThreadId);
+    const selection = page(candidates, { limit: 5, cursor }, `thread-findings:${bbThreadId}`);
+    const issues = new Set(status.issues);
+    const items: ThreadFinding[] = [];
+    for (const candidate of selection.items) {
+      const detail = await this.detail(candidate.session, candidate.invocation, bbThreadId);
+      const observed = new Set(detail.records.map(r => r.eventId));
+      if (detail.readIssues.length || [...candidate.expectedEvents].some(id => !observed.has(id))) {
+        issues.add('detail-unavailable');
+        continue;
+      }
+      const projected = projectThreadFinding(detail.records, candidate.id, bbThreadId);
+      for (const gap of projected.gaps) issues.add(gap);
+      if (projected.item) items.push(projected.item);
+    }
+    return { coverage: status.coverage, linkedCalls: status.linkedCalls, issues: [...issues].slice(0, 20),
+      items, next: selection.next };
+  }
   async detail(session: string, invocation: string, bbThreadId?: string) {
-    const records: ArchiveRecord[] = [], issues = this.issues(session);
+    const records: ArchiveRecord[] = [], issues = this.issues(session), readIssues: ArchiveIssue[] = [];
+    const readIssue = (reason: string) => {
+      const issue = { session, file: '', reason };
+      readIssues.push(issue); issues.push(issue);
+    };
     let bytes = 0, count = 0;
-    for (const [path, entry] of this.allEntries()) {
+    for (const [path, entry] of this.sessionScans.get(session)?.files ?? []) {
       const metadata = entry.metadata;
       if (!metadata || recordSessionKey(metadata) !== session || recordInvocationKey(metadata) !== invocation
         || (bbThreadId !== undefined && metadata.bbThreadId !== bbThreadId)) continue;
       if (++count > 64 || (bytes += entry.bytes) > 16 * 1024 * 1024) {
-        issues.push({ session, file: '', reason: 'invocation-detail-limit' }); break;
+        readIssue('invocation-detail-limit'); break;
       }
       try {
         const text = await this.read(this.root, path);
         bytes += Buffer.byteLength(text) - entry.bytes;
-        if (bytes > 16 * 1024 * 1024) { issues.push({ session, file: '', reason: 'invocation-detail-limit' }); break; }
+        if (bytes > 16 * 1024 * 1024) { readIssue('invocation-detail-limit'); break; }
         const record: unknown = JSON.parse(text);
         if (!validRecord(record) || record.eventId !== metadata.eventId || recordSessionKey(record) !== session
           || recordInvocationKey(record) !== invocation || (bbThreadId !== undefined && record.bbThreadId !== bbThreadId)) throw new Error('invalid-record');
         records.push(record);
-      } catch { issues.push({ session, file: '', reason: 'record-unavailable' }); }
+      } catch { readIssue('record-unavailable'); }
     }
     records.sort((a, b) => a.writerId === b.writerId ? a.sequence - b.sequence : a.timestamp - b.timestamp || a.eventId.localeCompare(b.eventId));
-    return { records, issues: issues.slice(0, 100) };
+    return { records, issues: issues.slice(0, 100), readIssues };
   }
 }
