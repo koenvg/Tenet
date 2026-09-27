@@ -6,7 +6,7 @@ import { boundEvidence } from './judge-evidence.js';
 import type { Trajectory, EvidenceLimits } from './contracts.js';
 import type { RecordingSink } from '../recording/contract.js';
 
-export const QUESTION_VERSION = 'policy-rules-v4-generic';
+export const QUESTION_VERSION = 'policy-rules-v5-resolved-action';
 export const MODEL = 'jev-latest';
 export const DEFAULTS: Readonly<Config> = Object.freeze({ effectThreshold: 0.90, evidenceThreshold: 0.90, deadlineMs: 2500 });
 const clockDefault: Clock = {
@@ -49,7 +49,7 @@ export function validateAssessment(value: unknown, policy: PolicySet): Assessmen
 
 export async function decide(options: {
   policy: Policy; action: Action; cwd: string; judge: Judge; config?: Partial<Config>; clock?: Clock; signal?: AbortSignal;
-  trajectory?: Trajectory; evidenceLimits?: EvidenceLimits; recording?: RecordingSink;
+  trajectory?: Trajectory; evidenceLimits?: EvidenceLimits; recording?: RecordingSink; resolvedAction?: import('../runtime/resolved-action.js').ResolvedAction;
 }): Promise<Decision> {
   const { policy, action, cwd, judge, signal } = options;
   const clock = options.clock ?? clockDefault;
@@ -65,7 +65,7 @@ export async function decide(options: {
   if (signal?.aborted) return result('BLOCK', 'cancelled');
   if (options.evidenceLimits && (!Number.isSafeInteger(options.evidenceLimits.recentEvents) || options.evidenceLimits.recentEvents < 0
     || !Number.isSafeInteger(options.evidenceLimits.maxBytes) || options.evidenceLimits.maxBytes < 1)) return result('BLOCK', 'configuration');
-  const request = boundEvidence({ policy, action, cwd, deadlineMs: config.deadlineMs, trajectory: options.trajectory }, options.evidenceLimits);
+  const request = boundEvidence({ policy, action, cwd, deadlineMs: config.deadlineMs, trajectory: options.trajectory, resolvedAction: options.resolvedAction }, options.evidenceLimits);
   if (!request) return result('BLOCK', 'insufficient-evidence');
   const controller = new AbortController();
   let stopTimer = () => {};

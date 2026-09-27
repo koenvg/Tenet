@@ -73,6 +73,7 @@ if (process.argv[2] === 'bridge') {
         `mode: ${readMode(process.env).mode} (this CLI; running processes keep their own mode)`,
         `bridge: ${bridge ? 'running' : 'unavailable (stopped, unreachable, or incompatible)'}`,
         'coverage: unverified (Claude actual-host profile not established)',
+        'action resolution: unsupported (no authenticated executor integration)',
         `bridge mode: ${bridge?.mode ?? 'unknown'}`,
         `session eligibility: ${readiness ? readiness.eligible ? 'eligible' : 'dormant' : 'unknown'}`,
         `policy readiness: ${readiness ? readiness.reason ?? readiness.policy : 'unknown (no selected running session)'}`,

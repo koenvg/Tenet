@@ -16,7 +16,10 @@ async function fixture(outcome: 'PASS' | 'FAIL' | 'APPROVAL_REQUIRED', mode: 'en
   await mkdir(cwd);
   await writeFile(join(cwd, 'TENET.md'), 'Rule; BLOCK; Never publish.');
   const env = { TENET_MODE: mode, TENET_CONTROL_PATH: join(dir, 'control.json'), TENET_RECORDING_DIR: join(dir, 'recordings') };
-  const server = await startBridge({ directory: dir, env, judge: async r => answer(r.policy, outcome) });
+  const server = await startBridge({ directory: dir, env, judge: async r => {
+    assert.equal(r.resolvedAction?.status, 'unsupported', 'stock Claude has no executor resolver');
+    return answer(r.policy, outcome);
+  } });
   const hook = (event: Record<string, unknown>) => handleHook(JSON.stringify({ ...event, cwd }), { directory: dir, env, deadlineMs: 1200 });
   return { dir, cwd, env, server, hook, close: async () => { await server.close(); await rm(dir, { recursive: true, force: true }); } };
 }

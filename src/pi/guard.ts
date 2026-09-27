@@ -10,9 +10,10 @@ import { ApprovalQueue } from './approval.js';
 import { GuardBoundary } from './boundary.js';
 import { OwnerReports } from './owner-reports.js';
 import { ArchiveWriter, parseBbThreadId, recordingConfig } from '../recording/archive.js';
+import type { ActionResolver } from '../runtime/resolved-action.js';
 
 /** Translate native Pi events into the shared contract. Native UI and transcript parsing stay here. */
-export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; createJudge?: () => Judge; env?: Record<string, string | undefined>; controlPath?: string; onEligible?: () => void } = {}): void {
+export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; createJudge?: () => Judge; actionResolver?: ActionResolver; env?: Record<string, string | undefined>; controlPath?: string; onEligible?: () => void } = {}): void {
   const env = { ...(options.env ?? process.env) };
   const activation = new ActivationStore(options.controlPath ?? env.TENET_CONTROL_PATH);
   const reportRecording = (work: () => void) => { try { work(); } catch { /* Capture UI must not veto. */ } };
@@ -24,7 +25,7 @@ export function registerGuard(pi: ExtensionAPI, options: { judge?: Judge; create
     return provider(request, signal, recording);
   };
   let activeContext: ExtensionContext | undefined;
-  const runtime = new GuardRuntime({ env, activation, judge,
+  const runtime = new GuardRuntime({ env, activation, judge, actionResolver: options.actionResolver,
     bindRecording: identity => archive.bind({ sessionId: identity.sessionId, invocationId: identity.invocationId,
       host: identity.host, contextId: identity.contextId, callId: identity.callId, toolName: identity.toolName, cwd: identity.cwd, mode: identity.mode,
       bbThreadId: parseBbThreadId(env.BB_THREAD_ID) }),
