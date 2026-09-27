@@ -91,4 +91,94 @@ describe('Pi thread rule action', () => {
       expect(reads).toBe(2);
     } finally { vi.useRealTimers(); slot.lifecycle.unmount(); }
   });
+  it('opens the thread details page from the compact header with a keyboard-operable button', async () => {
+    const app = await loadPluginApp(() => import('./app'));
+    const slot = renderSlot(app.threadHeaderActions[0]!, { threadId, projectId: 'project', isCompactViewport: true },
+      { sdk: { threads: { get: async () => ({ providerId: 'pi' }) as any } }, rpc: { status: () => linked } });
+    try {
+      fireEvent.click(await slot.findByRole('button', { name: 'TENET rule status' }));
+      const details = await slot.findByRole('button', { name: 'Open TENET details' });
+      details.focus(); expect(document.activeElement).toBe(details);
+      fireEvent.keyDown(details, { key: 'Enter' }); fireEvent.click(details);
+      expect(slot.inspection.navigateCalls.length).toBe(1);
+    } finally { slot.lifecycle.unmount(); }
+  });
+  it('paginates linked details and recovers from a rejected cursor with page-one Refresh', async () => {
+    const app = await loadPluginApp(() => import('./app'));
+    let reads = 0;
+    const row = { id: 'a', callId: 'edit-1', toolName: 'edit', timestamp: 100, mode: 'observe',
+      rules: [{ ruleId: 'r1', severity: 'BLOCK', policyText: '<img src=x onerror=alert(1)>', confidence: 0.72 }],
+      wouldDecision: 'BLOCK', actualPermission: 'released', observedExecution: 'unknown', missingStages: ['execution'] };
+    const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, {
+      rpc: { findings: ({ cursor }: { cursor?: string }) => { reads++; if (cursor) throw new Error('invalid-page');
+        return { coverage: 'partial', linkedCalls: 1, issues: ['indexing-in-progress', 'writer-loss'], items: [row], next: 'cursor-2' }; } } });
+    try {
+      expect(await slot.findByText('edit-1')).toBeTruthy();
+      expect(slot.getByRole('heading', { name: 'edit' })).toBeTruthy();
+      expect(slot.getByText('<img src=x onerror=alert(1)>')).toBeTruthy();
+      expect(document.querySelector('img')).toBeNull();
+      expect(slot.getByText(/Linked recordings only/)).toBeTruthy();
+      expect(slot.getByText(/Recording gaps \(2\)/)).toBeTruthy();
+      for (const extra of ['Would-decision', 'Actual permission', 'Observed execution', 'Confidence:', 'Severity:', 'Missing stages:', 'Back to thread', threadId]) {
+        expect(slot.queryByText(extra, { exact: false })).toBeNull();
+      }
+      const more = slot.getByRole('button', { name: 'Load more findings' });
+      fireEvent.click(more);
+      expect(await slot.findByRole('alert')).toHaveProperty('textContent', expect.stringContaining('Could not load the next page'));
+      expect(slot.queryByRole('button', { name: 'Load more findings' })).toBeNull();
+      const refresh = slot.getByRole('button', { name: 'Refresh findings' });
+      refresh.focus(); fireEvent.click(refresh);
+      expect(document.activeElement).toBe(refresh);
+      expect(await slot.findByRole('button', { name: 'Load more findings' })).toBeTruthy();
+      expect(reads).toBe(3);
+      const main = slot.getByRole('main');
+      expect(main.className).toContain('max-w');
+      expect(main.className).toContain('min-w-0');
+    } finally { slot.lifecycle.unmount(); }
+  });
+  it('groups selected rule text under the matching tool call and falls back to rule ID', async () => {
+    const app = await loadPluginApp(() => import('./app'));
+    const finding = (id: string, callId: string, ruleId: string, policyText: string | null) => ({
+      id, callId, toolName: 'edit', timestamp: 100, mode: 'observe', rules: [{ ruleId, severity: 'BLOCK', policyText, confidence: 0.8 }],
+      wouldDecision: 'BLOCK', actualPermission: 'released', observedExecution: 'unknown', missingStages: [] });
+    const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: () => ({ coverage: 'partial', linkedCalls: 2, issues: [],
+      items: [finding('a', 'edit-1', 'r1', 'Do not edit secrets'), finding('b', 'edit-2', 'r2', null)], next: null }) } });
+    try {
+      const first = (await slot.findByText('edit-1')).closest('ol > li');
+      const second = slot.getByText('edit-2').closest('ol > li');
+      expect(first?.textContent).toContain('Do not edit secrets');
+      expect(first?.textContent).not.toContain('r2');
+      expect(second?.textContent).toContain('Rule r2 (text unavailable)');
+      expect(second?.textContent).not.toContain('Do not edit secrets');
+    } finally { slot.lifecycle.unmount(); }
+  });
+  it('does not request details from malformed deep links', async () => {
+    const app = await loadPluginApp(() => import('./app'));
+    const slot = renderSlot(app.navPanels[0]!, { subPath: 'not-a-thread' }, { rpc: { findings: () => { throw new Error('must not call'); } } });
+    try { expect(slot.getByText('Invalid thread link.')).toBeTruthy(); expect(slot.inspection.rpcCalls.length).toBe(0); }
+    finally { slot.lifecycle.unmount(); }
+  });
+  it('keeps earlier detail gaps visible across successful pages and clears them on Refresh', async () => {
+    const app = await loadPluginApp(() => import('./app'));
+    let first = 0;
+    const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: ({ cursor }: { cursor?: string }) => cursor
+      ? { coverage: 'partial', linkedCalls: 2, issues: [], items: [{ id: 'b', callId: 'edit-2', toolName: 'edit', timestamp: 200,
+        mode: 'observe', rules: [], wouldDecision: 'unknown', actualPermission: 'unknown', observedExecution: 'unknown', missingStages: [] }], next: null }
+      : { coverage: 'partial', linkedCalls: 2, issues: first++ === 0 ? ['detail-unavailable'] : [], items: [], next: 'next' } } });
+    try {
+      expect(await slot.findByText(/flagged call changed or could not be read/)).toBeTruthy();
+      fireEvent.click(slot.getByRole('button', { name: 'Load more findings' }));
+      expect(await slot.findByText('edit-2')).toBeTruthy();
+      expect(await slot.findByText(/flagged call changed or could not be read/)).toBeTruthy();
+      fireEvent.click(slot.getByRole('button', { name: 'Refresh findings' }));
+      expect(await slot.findByRole('button', { name: 'Load more findings' })).toBeTruthy();
+      expect(slot.queryByText(/flagged call changed or could not be read/)).toBeNull();
+    } finally { slot.lifecycle.unmount(); }
+  });
+  it('explains how to reach details from the sidebar root without an RPC', async () => {
+    const app = await loadPluginApp(() => import('./app'));
+    const slot = renderSlot(app.navPanels[0]!, { subPath: '' }, { rpc: { findings: () => { throw new Error('must not call'); } } });
+    try { expect(slot.getByText(/Open a Pi thread/)).toBeTruthy(); expect(slot.inspection.rpcCalls.length).toBe(0); }
+    finally { slot.lifecycle.unmount(); }
+  });
 });

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { definePluginApp, useRpc, useSdk } from '@get-bb/plugin-sdk/app';
+import { definePluginApp, useBbNavigate, useRpc, useSdk } from '@get-bb/plugin-sdk/app';
+import { DetailsPage } from './details-page';
 import type { Status, rpcContract } from './contract';
 
 function ThreadRules({ threadId, isCompactViewport }: { threadId: string; isCompactViewport: boolean }) {
   const sdk = useSdk();
+  const navigate = useBbNavigate();
   const rpc = useRpc<typeof rpcContract>();
   const [isPi, setIsPi] = useState(false);
   const [open, setOpen] = useState(false);
@@ -64,6 +66,8 @@ function ThreadRules({ threadId, isCompactViewport }: { threadId: string; isComp
         {updating && gaps ? 'Still checking. Some records may be missing.'
           : updating ? 'Still checking recordings.' : 'Some records may be missing.'}
       </p>}
+      <button type="button" className="rounded-md border border-border px-3 py-2 text-xs hover:bg-accent focus-visible:outline focus-visible:outline-2"
+        aria-label="Open TENET details" onClick={() => { setOpen(false); navigate.toPluginPanel('findings', { subPath: threadId }); }}>Details</button>
     </section>}
   </div>;
 }
@@ -71,4 +75,5 @@ function ThreadRules({ threadId, isCompactViewport }: { threadId: string; isComp
 export default definePluginApp(app => {
   // The action is absent on non-Pi threads, rather than opening an empty panel there.
   app.slots.experimental_threadHeaderAction({ id: 'tenet-rules', title: 'TENET rules', component: ThreadRules });
+  app.slots.navPanel({ id: 'tenet-findings', title: 'TENET findings', icon: 'ShieldAlert', path: 'findings', component: DetailsPage });
 });
