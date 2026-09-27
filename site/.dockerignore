@@ -1,0 +1,9 @@
+*
+!Dockerfile
+!Caddyfile
+!index.html
+!docs.html
+!style.css
+!fonts/
+!fonts/Geist-latin.woff2
+!fonts/OFL-Geist.txt
