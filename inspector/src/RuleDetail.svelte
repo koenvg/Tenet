@@ -10,6 +10,7 @@
   <div class="rule-detail-title"><h3>{rule.builtin ? 'Built-in integrity' : `Rule at line ${rule.line}`}</h3><span class="setting">{rule.enforcement}</span></div>
   <p class="snapshot-text">{rule.text}</p>
   {#if rule.result?.outcome}<p class="rule-outcome">Rule outcome <StatusChip value={rule.result.outcome.choice ?? 'Unavailable'} /></p>{/if}
+  {#if rule.evidenceGate === 'not-applicable'}<p class="muted">Evidence-confidence gate does not apply. No evidence score was recorded.</p>{/if}
   {#if rule.contribution.includes('approval')}<p class="contribution">{contributions[rule.contribution]}</p>{/if}
   {#if rule.gateIds === null}<p class="missing-data">Gate coverage unavailable: not recorded.</p>
   {:else if !rule.gateIds.length}<p class="muted">No gates triggered.</p>
@@ -31,9 +32,9 @@
         <tbody>
           {#each Object.entries(rule.result?.[kind]?.probabilities ?? {}) as [label, probability]}
             <tr class:selected-label={label === rule.result?.[kind]?.choice}><th scope="row">{#if label === rule.result?.[kind]?.choice}<StatusChip value={label} /><small>selected</small>{:else}{label}{/if}</th><td>{String(probability)}</td></tr>
-          {:else}<tr><td colspan="2">Assessment unavailable.</td></tr>{/each}
+          {:else}<tr><td colspan="2">{kind === 'evidence' && rule.evidenceGate === 'not-applicable' ? 'Not applicable. No evidence score.' : 'Assessment unavailable.'}</td></tr>{/each}
         </tbody>
-        <tfoot><tr><th scope="row">{kind === 'outcome' ? 'Selected outcome threshold' : 'SUFFICIENT threshold'}</th><td>{kind === 'outcome' ? rule.thresholds.effectThreshold ?? 'Not recorded' : rule.thresholds.evidenceThreshold ?? 'Not recorded'}</td></tr></tfoot>
+        <tfoot><tr><th scope="row">{kind === 'outcome' ? 'Selected outcome threshold' : 'SUFFICIENT threshold'}</th><td>{kind === 'outcome' ? rule.thresholds.effectThreshold ?? 'Not recorded' : rule.evidenceGate === 'not-applicable' ? 'Not applicable' : rule.thresholds.evidenceThreshold ?? 'Not recorded'}</td></tr></tfoot>
       </table>
     {/each}
   </div>

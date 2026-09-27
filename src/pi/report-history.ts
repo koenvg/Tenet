@@ -5,7 +5,7 @@ import { POLICY_LIMITS } from '../decision/policy.js';
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown): v is string => typeof v === 'string' && v.length <= 256;
 const probability = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1;
-const gates = new Set(['rule-fail', 'outcome-unknown', 'outcome-confidence-below-threshold', 'evidence-insufficient', 'evidence-confidence-below-threshold']);
+const gates = new Set(['rule-fail', 'outcome-unknown', 'outcome-confidence-below-threshold', 'evidence-insufficient', 'evidence-confidence-below-threshold', 'applicability-unresolved']);
 const reasons = new Set(['all-rules-pass', 'advisory-findings', 'rule-approval-required', 'rule-failed', 'policy-integrity',
   'insufficient-evidence', 'configuration', 'missing-credentials', 'invalid-response', 'provider-error', 'timeout', 'cancelled',
   'policy-unavailable', 'policy-format', 'policy-file-limit', 'policy-rule-count-limit', 'policy-rule-size-limit', 'policy-stale',
@@ -35,16 +35,19 @@ export function recoverReport(entry: unknown): OwnerReport | undefined {
   const diagnostics: RuleDiagnostic[] = [];
   for (const r of d.diagnostics) {
     if (!object(r) || !text(r.ruleId) || (r.enforcement !== 'BLOCK' && r.enforcement !== 'WARN')
-      || !['PASS', 'FAIL', 'UNKNOWN', 'APPROVAL_REQUIRED'].includes(String(r.outcome))
-      || (r.evidence !== 'SUFFICIENT' && r.evidence !== 'INSUFFICIENT')
-      || !probability(r.outcomeProbability) || !probability(r.evidenceProbability)
-      || !probability(r.effectThreshold) || !probability(r.evidenceThreshold)
-      || !Array.isArray(r.gates) || r.gates.length > 5 || !r.gates.every(g => typeof g === 'string' && gates.has(g))) return;
+      || !['PASS', 'FAIL', 'UNKNOWN', 'APPROVAL_REQUIRED', 'NOT_APPLICABLE'].includes(String(r.outcome))
+      || !probability(r.outcomeProbability) || !probability(r.effectThreshold)
+      || (r.outcome === 'NOT_APPLICABLE'
+        ? d.profile !== 'applicability-v1' || r.evidence !== null || r.evidenceProbability !== null || r.evidenceThreshold !== null
+        : (r.evidence !== 'SUFFICIENT' && r.evidence !== 'INSUFFICIENT') || !probability(r.evidenceProbability) || !probability(r.evidenceThreshold))
+      || !Array.isArray(r.gates) || r.gates.length > 6 || !r.gates.every(g => typeof g === 'string' && gates.has(g))) return;
     diagnostics.push({ ruleId: r.ruleId, enforcement: r.enforcement, outcome: r.outcome as RuleDiagnostic['outcome'],
-      evidence: r.evidence, outcomeProbability: r.outcomeProbability, evidenceProbability: r.evidenceProbability,
-      effectThreshold: r.effectThreshold, evidenceThreshold: r.evidenceThreshold, gates: [...r.gates] as BlockingGate[] });
+      evidence: r.evidence as RuleDiagnostic['evidence'], outcomeProbability: r.outcomeProbability, evidenceProbability: r.evidenceProbability as number | null,
+      effectThreshold: r.effectThreshold, evidenceThreshold: r.evidenceThreshold as number | null, gates: [...r.gates] as BlockingGate[] });
   }
   return { mode: d.mode as OwnerReport['mode'], outcome: d.outcome as OwnerReport['outcome'],
+    ...(d.profile === 'legacy' || d.profile === 'applicability-v1' ? { profile: d.profile } : {}),
+    ...(text(d.questionVersion) ? { questionVersion: d.questionVersion } : {}),
     wouldDecision: d.wouldDecision as OwnerReport['wouldDecision'], reason: d.reason, assessmentAvailable: d.assessmentAvailable,
     callId: d.callId, toolName: d.toolName, invocationId: d.invocationId, rules, diagnostics,
     ruleIds: [...d.ruleIds] as string[], approvalRules: [...d.approvalRules] as string[] };

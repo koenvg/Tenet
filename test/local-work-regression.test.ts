@@ -7,7 +7,7 @@ import { createJevJudge } from '../src/decision/jev.js';
 import { decide, DEFAULTS, QUESTION_VERSION } from '../src/decision/decide.js';
 import { captureAction } from '../src/decision/evidence.js';
 import { FIXTURES, FIXTURE_CWD, fixturePolicy, REPORTED_FIXTURES } from '../eval/generic-rule-fixtures.js';
-import { ruleAnswer } from './helpers.js';
+import { ruleAnswer, sdkAnswers } from './helpers.js';
 import { reportedAssessment } from './reported-assessments.js';
 
 for (const index of [0, 1] as const) {
@@ -35,11 +35,7 @@ for (const fixture of Object.values(FIXTURES).flat()) {
       const body = JSON.parse(init!.body as string);
       assert.deepEqual(body.state.policy.rules, policy.rules.map(({ id, line, text }) => ({ id, line, text })));
       assert.deepEqual(body.state.action, action);
-      const answers = Object.fromEntries(outcomes.flatMap((outcome, i) => {
-        const r = ruleAnswer('unused', outcome);
-        return [[`rule_${i}_outcome`, { type: 'choice', confidence: 1, ...r.outcome }],
-          [`rule_${i}_evidence`, { type: 'choice', confidence: 1, ...r.evidence }]];
-      }));
+      const answers = sdkAnswers({ model: 'scripted-not-live', rules: outcomes.map((outcome, i) => ruleAnswer(i < policy.rules.length ? policy.rules[i]!.id : 'builtin:policy-integrity', outcome)) });
       return Response.json({ model: 'scripted-not-live', answers });
     } });
     const result = await decide({ policy, action, cwd: FIXTURE_CWD, judge });
@@ -51,7 +47,7 @@ for (const fixture of Object.values(FIXTURES).flat()) {
 }
 
 test('generic questions have a distinct version; old live reports remain historical and unchanged', () => {
-  assert.equal(QUESTION_VERSION, 'policy-rules-v5-resolved-action');
+  assert.equal(QUESTION_VERSION, 'policy-rules-v6-applicability');
   assert.equal(DEFAULTS.effectThreshold, 0.90); assert.equal(DEFAULTS.evidenceThreshold, 0.90);
   for (const name of ['current-probe.json', 'candidate-probe.json', 'v3-probe.json', 'v3-holdout.json']) {
     const report = JSON.parse(readFileSync(new URL(`../eval/${name}`, import.meta.url), 'utf8'));

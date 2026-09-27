@@ -1,4 +1,4 @@
-import { confidenceReadings, gateLabels, type RuleView } from './presentation';
+import { confidenceReadings, gateLabels, type RuleView } from './presentation.js';
 
 export interface MapCheck {
   id: string;
@@ -17,7 +17,7 @@ export function mapChecks(rule: RuleView | undefined): MapCheck[] {
   const checks: MapCheck[] = [{
     id: 'outcome', label: 'Rule outcome', value: typeof outcome === 'string' ? outcome : 'Not recorded',
     gate: !!gates?.some(g => g === 'rule-fail' || g === 'outcome-unknown'),
-    unknown: !['PASS', 'FAIL', 'APPROVAL_REQUIRED'].includes(outcome ?? ''),
+    unknown: !['PASS', 'FAIL', 'APPROVAL_REQUIRED'].includes(outcome ?? '') && !(outcome === 'NOT_APPLICABLE' && rule.evidenceGate === 'not-applicable'),
   }];
   const readings = confidenceReadings(rule);
   for (const gate of gates ?? []) {
@@ -33,7 +33,7 @@ export function mapChecks(rule: RuleView | undefined): MapCheck[] {
   }
   if (gates === null) {
     checks.push({ id: 'coverage', label: 'Gate coverage', value: 'Not recorded', gate: false, unknown: true });
-  } else if (checks.length === 1) {
+  } else if (checks.length === 1 && rule.evidenceGate !== 'not-applicable') {
     const evidence = rule.result?.evidence?.choice;
     checks.push({ id: 'evidence', label: 'Evidence outcome', value: typeof evidence === 'string' ? evidence : 'Not recorded', gate: false, unknown: !evidence });
   }

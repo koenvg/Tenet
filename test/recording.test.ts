@@ -9,7 +9,7 @@ import { ArchiveWriter } from './legacy-recording-fixture.js';
 import { createJevJudge } from '../src/decision/jev.js';
 import { decide } from '../src/decision/decide.js';
 import { captureAction } from '../src/decision/evidence.js';
-import { answer, policy } from './helpers.js';
+import { answer, policy, sdkAnswers } from './helpers.js';
 
 const identity = { sessionId: '../session', invocationId: 'invocation', callId: 'call', toolName: 'edit', cwd: '/project', mode: 'observe' as const };
 async function temporary(run: (dir: string) => Promise<void>) {
@@ -71,10 +71,7 @@ test('SDK submitted payload is captured exactly after redaction, with response a
   const writer = new ArchiveWriter({ enabled: true, directory: dir });
   let outbound: any;
   const assessment = answer(policy);
-  const answers = Object.fromEntries(assessment.rules.flatMap((r, i) => [
-    [`rule_${i}_outcome`, { type: 'choice', ...r.outcome, confidence: 1 }],
-    [`rule_${i}_evidence`, { type: 'choice', ...r.evidence, confidence: 1 }],
-  ]));
+  const answers = sdkAnswers(assessment);
   const judge = createJevJudge({ apiKey: 'transport-secret', fetch: async (_url, init) => {
     outbound = JSON.parse(init!.body as string);
     return Response.json({ model: 'scripted', answers });

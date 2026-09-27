@@ -15,25 +15,27 @@ const ruleFacts = (v: unknown): RuleFacts[] => Array.isArray(v) ? v.slice(0, 17)
 /** Only bounded, non-evidence fields survive in the summary index. Detail uses the same projection. */
 export function findingStage(record: Pick<ArchiveRecord, 'stage' | 'data' | 'timestamp'>): FindingStage {
   const { stage, timestamp, data } = record;
+  const profile = typeof data.profile === 'string' && data.profile.length <= 128 ? data.profile : undefined;
   if (stage === 'begin') {
     const policy = object(data.policy), config = object(data.config);
     const source = typeof policy.source === 'string' && policy.source.length <= 8192 ? policy.source : null;
     const target = typeof policy.target === 'string' && policy.target.length <= 8192 ? policy.target : null;
     return { stage, timestamp, policyIdentity: typeof policy.digest === 'string' && policy.digest.length <= 256
       && source !== null ? JSON.stringify([source, policy.digest, target]) : undefined,
-      profile: typeof config.assessmentProfile === 'string' && config.assessmentProfile.length <= 128 ? config.assessmentProfile : 'legacy (historical)' };
+      profile: typeof data.profile === 'string' && data.profile.length <= 128 ? data.profile
+        : typeof config.assessmentProfile === 'string' && config.assessmentProfile.length <= 128 ? config.assessmentProfile : 'legacy (historical)' };
   }
   if (stage === 'assessment' || stage === 'validation') {
     const assessment = object(data.assessment);
-    return { stage, timestamp, reason: reason(data.reason), valid: stage === 'validation' ? data.valid === true : undefined,
+    return { stage, timestamp, profile, reason: reason(data.reason), valid: stage === 'validation' ? data.valid === true : undefined,
       model: typeof assessment.model === 'string' && Array.isArray(assessment.rules) ? 'recorded' : undefined,
       rules: ruleFacts(assessment.rules) };
   }
-  if (stage === 'decision') return { stage, timestamp, reason: reason(data.reason), rules: ruleFacts(data.contributions ?? data.diagnostics) };
-  if (stage === 'permission') return { stage, timestamp, reason: reason(data.reason) };
+  if (stage === 'decision') return { stage, timestamp, profile, reason: reason(data.reason), rules: ruleFacts(data.contributions ?? data.diagnostics) };
+  if (stage === 'permission') return { stage, timestamp, profile, reason: reason(data.reason) };
   if (stage === 'assessment-status') return { stage, timestamp, status: String(data.status), reason: reason(data.reason),
     profile: typeof data.profile === 'string' && data.profile.length <= 128 ? data.profile : undefined };
-  return { stage, timestamp };
+  return { stage, timestamp, profile };
 }
 
 const failures = new Set(['missing-credentials', 'provider-error', 'invalid-response', 'timeout', 'cancelled',
@@ -60,6 +62,6 @@ export function foldFindingStages(records: readonly FindingStage[]) {
   return { assessmentStatus, failure: lifecycle?.status === 'unavailable' ? lifecycle.reason ?? 'assessment-unavailable' : failure,
     categories: classifyFinding(facts), uncertainty: uncertaintyKeys(facts),
     policyIdentity: begin?.policyIdentity ?? 'unrecorded policy identity',
-    profile: lifecycle?.profile ?? begin?.profile ?? 'legacy (historical)',
+    profile: lifecycle?.profile ?? records.findLast(r => r.profile && r.profile !== 'legacy (historical)')?.profile ?? begin?.profile ?? 'legacy (historical)',
     occurrence: stage('decision')?.timestamp ?? selectedAssessment?.timestamp ?? records[0]?.timestamp ?? 0 };
 }

@@ -13,7 +13,7 @@ test('archive preserves every rule contribution even without an SDK request', as
   const h = await guardHarness({ env: { TENET_RECORDING: 'on', TENET_RECORDING_DIR: directory }, judge: async request => {
     const result = answer(request.policy);
     assert.ok(result.rules[0]);
-    result.rules[0].outcome = { choice: 'PASS', probabilities: { PASS: .88, FAIL: .04, UNKNOWN: .04, APPROVAL_REQUIRED: .04 } };
+    result.rules[0].outcome = { choice: 'PASS', probabilities: { PASS: .88, FAIL: .04, UNKNOWN: .04, APPROVAL_REQUIRED: .04, NOT_APPLICABLE: 0 } };
     return result;
   } });
   try {
@@ -65,7 +65,7 @@ test('offline SDK archive and restarted HTTP reader retain all-rule distribution
           for (const rule of view.rules) {
             assert.deepEqual(rule.questions.outcome, payload.questions[rule.mapping.outcomeKey]);
             assert.deepEqual(rule.questions.evidence, payload.questions[rule.mapping.evidenceKey]);
-            assert.equal(Object.keys(rule.result.outcome.probabilities).length, 4);
+            assert.equal(Object.keys(rule.result.outcome.probabilities).length, rule.builtin ? 4 : 5);
             assert.equal(Object.keys(rule.result.evidence.probabilities).length, 2);
             assert.equal(rule.thresholds.effectThreshold, .9);
           }

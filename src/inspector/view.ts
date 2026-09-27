@@ -62,7 +62,9 @@ export function invocationView(records: ArchiveRecord[]) {
         gates: diagnostic ?? null, gateIds: Array.isArray(recorded?.gates) ? recorded.gates.filter((g: unknown): g is string => typeof g === 'string') : null,
         contribution: text(contribution?.contribution),
         thresholds: { effectThreshold: recorded?.effectThreshold ?? config.effectThreshold ?? null,
-          evidenceThreshold: recorded?.evidenceThreshold ?? config.evidenceThreshold ?? null },
+          evidenceThreshold: recorded && Object.hasOwn(recorded, 'evidenceThreshold') ? recorded.evidenceThreshold : config.evidenceThreshold ?? null },
+        evidenceGate: text(contribution?.evidenceGate, 'unavailable'),
+        profile: text(contribution?.profile, findings.profile),
         mapping: mapping ?? null,
         questions: mapping ? { outcome: questions[mapping.outcomeKey] ?? null, evidence: questions[mapping.evidenceKey] ?? null } : null };
     }),

@@ -66,12 +66,12 @@ export const scriptedJudge: Judge = async request => {
   const effect = contextRequired && !request.trajectory?.observations.length ? 'UNKNOWN' : fixture.expectedEffect;
   const outcome: Outcome = effect === 'UNKNOWN' ? 'UNKNOWN' : effect === 'PUBLICATION' ? 'APPROVAL_REQUIRED' : 'PASS';
   return { model: 'scripted-v1', rules: [
-    { ruleId: request.policy.rules[0]!.id, outcome: distribution(outcome), evidence: { choice: effect === 'UNKNOWN' ? 'INSUFFICIENT' : 'SUFFICIENT', probabilities: { SUFFICIENT: effect === 'UNKNOWN' ? 0 : 1, INSUFFICIENT: effect === 'UNKNOWN' ? 1 : 0 } } },
+    { ruleId: request.policy.rules[0]!.id, outcome: distribution(outcome, true), evidence: { choice: effect === 'UNKNOWN' ? 'INSUFFICIENT' : 'SUFFICIENT', probabilities: { SUFFICIENT: effect === 'UNKNOWN' ? 0 : 1, INSUFFICIENT: effect === 'UNKNOWN' ? 1 : 0 } } },
     { ruleId: INTEGRITY_ID, outcome: distribution('PASS'), evidence: { choice: 'SUFFICIENT', probabilities: { SUFFICIENT: 1, INSUFFICIENT: 0 } } },
   ] };
 };
-function distribution(choice: Outcome) {
-  return { choice, probabilities: Object.fromEntries(['PASS', 'APPROVAL_REQUIRED', 'FAIL', 'UNKNOWN'].map(k => [k, k === choice ? 1 : 0])) };
+function distribution(choice: Outcome, userRule = false) {
+  return { choice, probabilities: Object.fromEntries(['PASS', 'APPROVAL_REQUIRED', 'FAIL', 'UNKNOWN', ...(userRule ? ['NOT_APPLICABLE'] : [])].map(k => [k, k === choice ? 1 : 0])) };
 }
 export async function replaySemantic(options: {
   cases: readonly SemanticCase[]; judge: Judge; clock?: Clock; live?: boolean;

@@ -48,7 +48,7 @@ const scriptedJudge: Judge = async request => {
   const outcomes = [...fixture.outcomes, fixture.integrity];
   return { model: 'scripted-not-live', rules: outcomes.map((choice, i) => ({
     ruleId: i === fixture.rules.length ? INTEGRITY_ID : request.policy.rules[i]!.id,
-    outcome: { choice, probabilities: Object.fromEntries(['PASS', 'APPROVAL_REQUIRED', 'FAIL', 'UNKNOWN'].map(k => [k, k === choice ? 1 : 0])) },
+    outcome: { choice, probabilities: Object.fromEntries(['PASS', 'APPROVAL_REQUIRED', 'FAIL', 'UNKNOWN', ...(i < fixture.rules.length ? ['NOT_APPLICABLE'] : [])].map(k => [k, k === choice ? 1 : 0])) },
     evidence: { choice: 'SUFFICIENT', probabilities: { SUFFICIENT: 1, INSUFFICIENT: 0 } },
   })) };
 };

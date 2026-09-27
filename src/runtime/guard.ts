@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { lstat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Action, Judge, Policy, RuleDiagnostic } from '../decision/contracts.js';
-import { decide, QUESTION_VERSION } from '../decision/decide.js';
+import { decide } from '../decision/decide.js';
 import { argumentDigest, captureAction } from '../decision/evidence.js';
 import { loadPolicy, policyIsCurrent, INTEGRITY_ID, INTEGRITY_TEXT } from '../decision/policy.js';
 import { Observations } from '../decision/trajectory.js';
@@ -15,6 +15,7 @@ import { ObservationQueue, type ObservationLimits, type ObservationState } from 
 import { freeze } from '../decision/evidence.js';
 import { evidenceWithinBudget } from '../decision/evidence-budget.js';
 import { ActionResolution, type ActionResolver, type ResolvedInvocation } from './resolved-action.js';
+import { ASSESSMENT_METADATA } from '../decision/assessment-contract.js';
 
 export interface RuntimeIdentity { host: string; sessionId: string; contextId: string }
 export interface Capabilities {
@@ -46,6 +47,7 @@ export interface ApprovalRequest {
 }
 export interface InvocationIdentity extends Pick<Action, 'sessionId' | 'callId' | 'toolName' | 'argumentDigest'> {
   invocationId: string; policyDigest: string | null;
+  profile: string; questionVersion: string;
 }
 export interface RuntimeOptions {
   env: Record<string, string | undefined>;
@@ -57,7 +59,7 @@ export interface RuntimeOptions {
   observationLimits?: Partial<ObservationLimits>;
   onAssessment?: (identity: InvocationIdentity, status: ObservationState, result?: ReturnType<Consequences['permission']>, reason?: string) => void;
 }
-export interface Readiness { eligible: boolean; policy: Policy; config?: GuardConfig; unavailable?: string; ruleCount: number }
+export interface Readiness { profile: string; questionVersion: string; eligible: boolean; policy: Policy; config?: GuardConfig; unavailable?: string; ruleCount: number }
 const sessionKey = (identity: RuntimeIdentity) => JSON.stringify([identity.host, identity.sessionId]);
 const scope = (identity: RuntimeIdentity) => JSON.stringify([identity.host, identity.sessionId, identity.contextId]);
 const key = (identity: RuntimeIdentity, callId: string) => JSON.stringify([scope(identity), callId]);
@@ -67,6 +69,8 @@ const resultKey = (identity: RuntimeIdentity, callId: string, correlated: boolea
 /** Policy and invocation state for one host/native session. */
 class SessionGuard {
   readonly mode: Mode;
+  private readonly metadata = ASSESSMENT_METADATA;
+  private get profile() { return this.metadata.profile; }
   readonly modeWarning?: string;
   readonly capabilities: Capabilities;
   private eligible = true; // Unknown before start is never a bypass.
@@ -96,7 +100,7 @@ class SessionGuard {
     this.ambiguousResults = shared.ambiguousResults;
   }
 
-  get readiness(): Readiness { return { eligible: this.eligible, policy: this.policy, config: this.config, unavailable: this.unavailable,
+  get readiness(): Readiness { return { ...this.metadata, eligible: this.eligible, policy: this.policy, config: this.config, unavailable: this.unavailable,
     ruleCount: this.policy.available ? this.policy.rules.length : 0 }; }
   coverageStatus(): { adapter: Capabilities; activation: Activation; mode: Mode; readiness: Readiness } {
     return { adapter: this.capabilities, activation: this.options.activation.read(), mode: this.mode, readiness: this.readiness };
@@ -107,6 +111,7 @@ class SessionGuard {
   }
 
   private record(stage: string, data: Record<string, unknown>, archiveData: Record<string, unknown> = {}): void {
+    data = { ...data, ...this.metadata };
     if (!this.eligible || this.options.activation.read() !== 'on') return;
     const time = Date.now();
     if (typeof data.invocationId === 'string' && STAGES.includes(stage as Stage)) {
@@ -220,7 +225,7 @@ class SessionGuard {
   status(): void {
     const { policy, config, unavailable, ruleCount } = this.readiness;
     this.record('status', { status: unavailable ? 'unavailable' : 'ready', reason: unavailable ?? null, modeWarning: this.modeWarning ?? null,
-      policy, ruleCount, questionVersion: QUESTION_VERSION, config: config?.decision ?? null, scope: 'configured-rules',
+      policy, ruleCount, ...this.metadata, config: config?.decision ?? null, scope: 'configured-rules',
       evidence: config?.evidence ?? null, approvalTimeoutMs: config?.approvalTimeoutMs ?? null });
   }
 
@@ -244,7 +249,7 @@ class SessionGuard {
     if (!contextController) { contextController = new AbortController(); this.contexts.set(context, contextController); }
     const signal = AbortSignal.any([generation.signal, contextController.signal, ...(call.signal ? [call.signal] : [])]);
     const observationSignal = AbortSignal.any([generation.signal, contextController.signal]);
-    const identity: InvocationIdentity & RuntimeIdentity = { host: call.host, contextId: call.contextId, sessionId: call.sessionId,
+    const identity: InvocationIdentity & RuntimeIdentity = { ...ASSESSMENT_METADATA, host: call.host, contextId: call.contextId, sessionId: call.sessionId,
       callId: call.callId, toolName: call.toolName, argumentDigest: '', policyDigest: selectedPolicy.available ? selectedPolicy.digest : null, invocationId: randomUUID() };
     let submitted = false;
     let sink: RecordingSink | undefined;
@@ -252,13 +257,14 @@ class SessionGuard {
     catch { /* Capture failure cannot change permission. */ }
     const recording: RecordingSink = (stage, data) => {
       if (this.options.activation.read() !== 'on' || (stage !== 'execution' && ((this.mode === 'observe' ? observationSignal : signal).aborted || generation !== this.generation))) return;
+      data = { ...data, ...this.metadata };
       if (stage === 'request') submitted = true;
       capture(sink, stage, () => stage === 'permission' ? { ...data, requestStatus: submitted ? 'submitted' : 'not-submitted' } : data);
     };
     this.recordings.set(identity.invocationId, { sink: recording, assessmentDone: false, executionDone: false });
     capture(recording, 'begin', () => ({ policy: selectedPolicy, config: selectedConfig?.decision ?? null,
       integrity: { id: INTEGRITY_ID, text: INTEGRITY_TEXT }, evidenceLimits: selectedConfig?.evidence ?? null,
-      questionVersion: QUESTION_VERSION, request: 'not-yet-submitted', adapterCoverage: this.capabilities }));
+      ...this.metadata, request: 'not-yet-submitted', adapterCoverage: this.capabilities }));
     const consequences = new Consequences(this.mode, selectedPolicy);
     let permissionRecorded = false;
     const finish = (failure?: string, ruleIds?: string[], diagnostics?: RuleDiagnostic[], preserveAsk = false) => {
@@ -286,7 +292,7 @@ class SessionGuard {
       && contextController === this.contexts.get(context) && !this.unavailable && this.policy === selectedPolicy
       && this.session?.host === identity.host && this.session.sessionId === identity.sessionId;
     const dropOversized = () => {
-      const permission: Permission = { outcome: 'released', reason: 'snapshot-capacity', assessmentAvailable: false,
+      const permission: Permission = { ...this.metadata, outcome: 'released', reason: 'snapshot-capacity', assessmentAvailable: false,
         ruleIds: [], diagnostics: [], rules: selectedPolicy.available ? selectedPolicy.rules.map(({ id, line, enforcement, text }) => ({ id, line, enforcement, text })) : [], approvalRules: [] };
       this.pending.delete(identity.invocationId);
       permissionRecorded = true;
@@ -295,7 +301,7 @@ class SessionGuard {
       this.trackRelease(callKey, identity);
       this.queue.submit(Number.POSITIVE_INFINITY, observationSignal, async () => 'unavailable', (status, reason) => {
         if (this.options.activation.read() !== 'on') return;
-        this.record('assessment-status', { ...identity, status, reason, profile: 'legacy', queueWaitMs: 0 });
+        this.record('assessment-status', { ...identity, status, reason, profile: this.profile, queueWaitMs: 0 });
         try { this.options.onAssessment?.(identity, status, undefined, reason); } catch { /* Best effort. */ }
       });
       return undefined;
@@ -347,10 +353,10 @@ class SessionGuard {
         if (call.signal?.aborted) return block('guard-state-changed');
         const snapshot = freeze({ policy: structuredClone(selectedPolicy), action, trajectory, resolvedAction: resolved.evidence,
           config: structuredClone(selectedConfig.decision), evidence: structuredClone(selectedConfig.evidence),
-          cwd: call.cwd, profile: 'legacy', generation: this.loadToken });
+          cwd: call.cwd, profile: this.profile, generation: this.loadToken });
         let bytes: number;
         try { bytes = Buffer.byteLength(JSON.stringify(snapshot)); } catch { bytes = Number.POSITIVE_INFINITY; }
-        const permission: Permission = { outcome: 'released', reason: 'assessment-pending', assessmentAvailable: false,
+        const permission: Permission = { ...this.metadata, outcome: 'released', reason: 'assessment-pending', assessmentAvailable: false,
           ruleIds: [], diagnostics: [], rules: selectedPolicy.rules.map(({ id, line, enforcement, text }) => ({ id, line, enforcement, text })), approvalRules: [] };
         this.pending.delete(identity.invocationId);
         permissionRecorded = true;
@@ -467,6 +473,7 @@ class SessionGuard {
 /** Embeddable owner of independent host/session policies and generations. */
 export class GuardRuntime {
   readonly mode: Mode;
+  readonly assessmentMetadata = ASSESSMENT_METADATA;
   readonly modeWarning?: string;
   readonly capabilities: Capabilities;
   private readonly resolution: ActionResolution;
@@ -476,6 +483,7 @@ export class GuardRuntime {
   // Pi results have no invocation ID. Retain ambiguity across native session switches.
   private results = { resultCallIds: new Set<string>(), ambiguousResults: new Set<string>() };
   constructor(private options: RuntimeOptions, capabilities: Capabilities) {
+    this.options = { ...options, env: Object.freeze({ ...options.env }) };
     const selected = readMode(options.env);
     this.mode = selected.mode;
     this.modeWarning = selected.warning;
@@ -487,11 +495,11 @@ export class GuardRuntime {
   private session(identity: RuntimeIdentity): SessionGuard | undefined { return this.sessions.get(sessionKey(identity)); }
   get readiness(): Readiness {
     return this.latest && this.sessions.get(this.latest)?.readiness
-      || { eligible: true, policy: { available: false, source: '', reason: 'policy-unavailable' }, unavailable: 'not-started', ruleCount: 0 };
+      || { ...this.assessmentMetadata, eligible: true, policy: { available: false, source: '', reason: 'policy-unavailable' }, unavailable: 'not-started', ruleCount: 0 };
   }
   coverageStatus(identity?: RuntimeIdentity): { adapter: Capabilities; activation: Activation; mode: Mode; readiness: Readiness } {
     return { adapter: this.capabilities, activation: this.options.activation.read(), mode: this.mode,
-      readiness: identity ? this.session(identity)?.readiness ?? { eligible: true, policy: { available: false, source: '', reason: 'policy-unavailable' }, unavailable: 'session-unavailable', ruleCount: 0 } : this.readiness };
+      readiness: identity ? this.session(identity)?.readiness ?? { ...this.assessmentMetadata, eligible: true, policy: { available: false, source: '', reason: 'policy-unavailable' }, unavailable: 'session-unavailable', ruleCount: 0 } : this.readiness };
   }
   async start(identity: RuntimeIdentity, cwd: string, hasJudge = true): Promise<Readiness | undefined> {
     if (identity.host !== this.capabilities.host) throw new Error('host-mismatch');

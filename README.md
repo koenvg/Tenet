@@ -146,16 +146,22 @@ Offline tests cover shared-file propagation in a separate process and two guard 
 
 To remove global loading, run `pi remove "$TENET_DIR"` with the same stable path you installed and restart Pi. Removing the package does not remove the control file or old evidence. A rollback to the previous extension restores missing-policy unavailability: in enforce mode, policy-free sessions block calls. Unload that version or provide a valid policy before launching Pi in other projects. Older TENET versions also ignore the control file; use that version's startup controls. The switch also applies to an explicitly installed local Claude bridge and hooks, but Pi loading alone does not install or verify Claude coverage. See [owner control and status](docs/claude-code.md#owner-control-and-status).
 
+## Assessment contract
+
+Tenet is in alpha and uses one applicability-aware assessment contract, `applicability-v1`. There is no profile switch. Only complete, current host-authenticated facts can support `NOT_APPLICABLE`; its selected-outcome threshold still applies, but its evidence-confidence gate does not. Integrity, WARN and approval remain independent.
+
+Stock adapters currently report action resolution as unsupported, so ordinary reads and edits do not automatically qualify for exemptions. Historical records retain their recorded contract versions and scores. See [assessment behavior, limitations and offline comparisons](docs/assessment-contract.md).
+
 ## Enforcement decisions and approval
 
-The following blocking and approval behavior applies only in enforce mode. Observe mode reports the counterfactual decision without vetoes or prompts.
+The table below describes enforce mode. Observe mode reports the counterfactual decision without vetoes or prompts.
 
-One bounded Jev request contains outcome and evidence-sufficiency questions for each user rule plus integrity. Settings do not change semantic assessment. TENET validates the complete response and applies deterministic aggregation to BLOCK rules and integrity; WARN findings are owner-only and do not vote in that aggregation:
+One bounded Jev request contains outcome and evidence-sufficiency questions for every rule, plus fact-reference questions for user-rule applicability. Threshold settings do not change semantic instructions. TENET validates the complete response and applies deterministic aggregation to BLOCK rules and integrity; WARN findings are owner-only and do not vote in that aggregation:
 
 | Results | Decision |
 | --- | --- |
-| Every BLOCK rule and integrity constraint confidently PASS | ALLOW; WARN findings remain advisory |
-| At least one BLOCK rule APPROVAL_REQUIRED, other blocking rules confidently PASS | ASK |
+| Every BLOCK rule confidently PASS or supported NOT_APPLICABLE, and integrity confidently PASS | ALLOW; WARN findings remain advisory |
+| At least one BLOCK rule APPROVAL_REQUIRED, other blocking rules confidently PASS or supported NOT_APPLICABLE, and integrity confidently PASS | ASK |
 | Any BLOCK rule or integrity FAIL | BLOCK; no approval override |
 | Any blocking rule UNKNOWN, low probability or insufficient evidence | BLOCK |
 | Configuration, credential, provider, response, deadline or cancellation failure | BLOCK |
@@ -187,7 +193,7 @@ Details contain bounded rule locations, validated labels and numeric scores, not
 | `TENET_MODE` | `observe` | `observe` never vetoes; exact `enforce` enables blocking. Restart to switch. Invalid values warn and observe. |
 | `TENET_POLICY` | unset | When set, selects an absolute or session-cwd-relative policy and activates TENET even if the file is missing; empty values are invalid. When unset, only a local `TENET.md` activates TENET. |
 | `TENET_EFFECT_THRESHOLD` | `0.90` | Minimum selected per-rule outcome probability; retained name |
-| `TENET_EVIDENCE_THRESHOLD` | `0.90` | Minimum sufficient-evidence probability for every rule |
+| `TENET_EVIDENCE_THRESHOLD` | `0.90` | Minimum sufficient-evidence probability where an evidence-confidence gate applies |
 | `TENET_JUDGE_DEADLINE_MS` | `2500` | Overall judge deadline, not per-rule; human approval time is separate |
 | `TENET_APPROVAL_TIMEOUT_MS` | `60000` | Approval deadline including queue time; integer from 1 through 2147483647 |
 | `TENET_RECENT_EVENTS` | `12` | Maximum recent observations; nonnegative integer, zero omits all history |

@@ -2,14 +2,17 @@ import type { ResolvedAction } from '../runtime/resolved-action.js';
 import type { RecordingSink } from '../recording/contract.js';
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 export type Outcome = 'PASS' | 'APPROVAL_REQUIRED' | 'FAIL' | 'UNKNOWN';
+export type AssessmentOutcome = Outcome | 'NOT_APPLICABLE';
 export type Sufficiency = 'SUFFICIENT' | 'INSUFFICIENT';
 export interface Choice<T extends string> { choice: T; probabilities: Record<T, number> }
 export interface RuleAssessment {
   ruleId: string;
-  outcome: Choice<Outcome>;
-  evidence: Choice<Sufficiency>;
+  outcome: { choice: AssessmentOutcome; probabilities: Record<Outcome, number> & Partial<Record<'NOT_APPLICABLE', number>> };
+  evidence: Choice<Sufficiency> | null;
+  factReferences?: import('./assessment-contract.js').FactReferences;
+  applicabilitySupported?: boolean;
 }
-export interface Assessment { model: string; rules: RuleAssessment[] }
+export interface Assessment { model: string; rules: RuleAssessment[]; profile?: import('./assessment-contract.js').AssessmentProfile }
 export type Enforcement = 'BLOCK' | 'WARN';
 export interface Rule { readonly id: string; readonly line: number; readonly text: string; readonly enforcement: Enforcement; readonly evidenceThreshold?: number }
 export type PolicyFailure = 'policy-unavailable' | 'policy-format' | 'policy-file-limit' | 'policy-rule-count-limit' | 'policy-rule-size-limit';
@@ -51,6 +54,7 @@ export interface Trajectory {
 export interface EvidenceLimits { recentEvents: number; maxBytes: number }
 export interface Config { effectThreshold: number; evidenceThreshold: number; deadlineMs: number }
 export interface JudgeRequest {
+  profile?: import('./assessment-contract.js').AssessmentProfile;
   policy: PolicySet;
   action: Action;
   /** Only the configured host resolver can populate this evidence. */
@@ -70,20 +74,21 @@ export type Reason = PolicyFailure | 'all-rules-pass' | 'advisory-findings' | 'r
   | 'insufficient-evidence' | 'configuration' | 'missing-credentials'
   | 'invalid-response' | 'provider-error' | 'timeout' | 'cancelled';
 export type BlockingGate = 'rule-fail' | 'outcome-unknown' | 'outcome-confidence-below-threshold'
-  | 'evidence-insufficient' | 'evidence-confidence-below-threshold';
+  | 'evidence-insufficient' | 'evidence-confidence-below-threshold' | 'applicability-unresolved';
 export interface RuleDiagnostic {
   ruleId: string;
   enforcement: Enforcement;
   gates: BlockingGate[];
-  outcome: Outcome;
+  outcome: AssessmentOutcome;
   outcomeProbability: number;
-  evidence: Sufficiency;
-  /** Probability of SUFFICIENT, even when INSUFFICIENT is selected. */
-  evidenceProbability: number;
+  evidence: Sufficiency | null;
+  /** Probability of SUFFICIENT, absent when no evidence assessment applies. */
+  evidenceProbability: number | null;
   effectThreshold: number;
-  evidenceThreshold: number;
+  evidenceThreshold: number | null;
 }
 export interface Decision {
+  profile?: import('./assessment-contract.js').AssessmentProfile;
   decision: 'ALLOW' | 'ASK' | 'BLOCK';
   reason: Reason;
   ruleIds: string[];

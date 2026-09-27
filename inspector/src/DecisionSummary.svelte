@@ -41,6 +41,7 @@
               {#if check.id === 'outcome' && rule}
                 <p class="map-rule-text" title={rule.text}>{rule.text}</p>
                 <p class="map-rule-location">{rule.builtin ? 'Built-in integrity' : `Rule at line ${rule.line ?? 'unavailable'}`}</p>
+                {#if rule.evidenceGate === 'not-applicable'}<p class="map-check-note">Evidence-confidence gate does not apply. No evidence score.</p>{/if}
               {/if}
               {#if check.reading}<ConfidenceMeter {...check.reading} />{/if}
               {#if check.unknown}<p class="map-check-note">Unknown does not mean passed.</p>

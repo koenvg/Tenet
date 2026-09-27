@@ -65,3 +65,23 @@ test('resizer clamps pointer and keyboard updates at desktop and mobile widths',
   }
   await page.viewport(1280, 720);
 });
+
+test('applicability displays absent evidence without inventing a confidence score', async () => {
+  const view = makeView();
+  view.assessmentProfile = 'applicability-v1';
+  view.decision = 'ALLOW';
+  const rule = view.rules[0]!;
+  rule.result = { outcome: { choice: 'NOT_APPLICABLE', probabilities: { NOT_APPLICABLE: 0.95, PASS: 0.05 } }, evidence: null };
+  rule.gateIds = [];
+  rule.evidenceGate = 'not-applicable';
+  rule.contribution = 'pass';
+  rule.thresholds.evidenceThreshold = null;
+  view.rules = [rule];
+  const screen = await render(Detail, { view });
+  await screen.getByText('Selected check details', { exact: true }).click();
+  await expect.element(screen.getByText('Evidence-confidence gate does not apply. No evidence score was recorded.')).toBeVisible();
+  await screen.getByText('Probabilities and rule details', { exact: true }).click();
+  await expect.element(screen.getByText('Not applicable. No evidence score.', { exact: true })).toBeVisible();
+  await expect.element(screen.getByText('Evidence-confidence gate does not apply. No evidence score.', { exact: true })).toBeVisible();
+  expect(screen.container.querySelectorAll('.confidence-meter')).toHaveLength(0);
+});

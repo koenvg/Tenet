@@ -73,7 +73,7 @@ test('live-labeled canonical failure cannot validate a POC', async () => {
   const report = await replaySemantic({ cases: semanticCases, clock, live: true, judge: async (request, signal) => {
     const response = await scriptedJudge(request, signal) as { model: string; rules: Array<{ outcome: { choice: string; probabilities: Record<string, number> } }> };
     response.model = 'test-only-live-stand-in';
-    if (request.action.callId === 'unfamiliar-publish') response.rules[0]!.outcome = { choice: 'PASS', probabilities: { PASS: 1, APPROVAL_REQUIRED: 0, FAIL: 0, UNKNOWN: 0 } };
+    if (request.action.callId === 'unfamiliar-publish') response.rules[0]!.outcome = { choice: 'PASS', probabilities: { PASS: 1, APPROVAL_REQUIRED: 0, FAIL: 0, UNKNOWN: 0, NOT_APPLICABLE: 0 } };
     return response;
   } });
   assert.equal(report.canonicalPassed, false);
