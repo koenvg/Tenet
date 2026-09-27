@@ -1,0 +1,39 @@
+name: Website
+
+on:
+  push:
+    branches: [main]
+    paths: ['site/**', '.github/workflows/site.yml']
+  pull_request:
+    paths: ['site/**', '.github/workflows/site.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  website:
+    name: Website container
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Build and start static website
+        run: |
+          docker build -t tenet-site:check site
+          docker run --rm -d --name tenet-site-check -e PORT=9090 -p 127.0.0.1:18765:9090 tenet-site:check
+      - name: Verify public HTTP behavior
+        run: |
+          curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 1 --max-time 5 --retry-max-time 30 http://127.0.0.1:18765/ > /dev/null
+          node site/smoke.mjs http://127.0.0.1:18765
+      - name: Container logs
+        if: failure()
+        run: docker logs tenet-site-check
+      - name: Stop container
+        if: always()
+        run: docker rm -f tenet-site-check

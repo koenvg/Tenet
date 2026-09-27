@@ -1,0 +1,10 @@
+{
+	auto_https off
+	admin off
+}
+
+:{$PORT:8080} {
+	root * /srv/site
+	encode gzip
+	file_server
+}
