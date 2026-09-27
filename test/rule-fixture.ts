@@ -5,6 +5,16 @@ import { createJevJudge } from '../src/decision/jev.js';
 import { answer } from './helpers.js';
 import { readArchive } from '../src/recording/archive.js';
 
+async function waitForRecordedAssessment(directory: string, cwd: string, callId: string): Promise<void> {
+  const deadline = Date.now() + 5000;
+  do {
+    const archived = await readArchive(directory);
+    if (archived.records.some(r => r.cwd === cwd && r.callId === callId && r.stage === 'assessment-status' && r.data.status === 'completed')) return;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  } while (Date.now() < deadline);
+  throw new Error(`Fixture assessment was not persisted: ${callId}`);
+}
+
 export async function recordRuleFixture(directory: string) {
   const submitted: any[] = [];
   const h = await guardHarness({ policy: 'Rule; Never commit. <img src=x onerror="window.hostile=true">\nRule; WARN; Never publish.',
@@ -31,6 +41,9 @@ export async function recordRuleFixture(directory: string) {
     for (const kind of ['low-pass', 'unknown', 'approval', 'evidence', 'evidence-confidence', 'warn', 'integrity']) {
       await h.call(kind, { text: '<script>window.hostile=true</script>', token: 'secret' });
       await h.assessed(kind);
+      // Assessment callbacks do not drain the bounded archive writer. Keep this
+      // loss-free fixture independent of local/CI filesystem throughput.
+      await waitForRecordedAssessment(directory, h.cwd, kind);
     }
     await h.emit('session_shutdown');
     await writeFile(h.file, 'Rule; Changed current policy.');
