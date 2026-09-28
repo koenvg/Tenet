@@ -1,3 +1,4 @@
+import { validationIssue } from '../decision/response-validation.js';
 import { findingStage, foldFindingStages } from './finding-view.js';
 import type { ArchiveRecord } from '../recording/contract.js';
 export const object = (value: unknown): Record<string, any> => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -41,6 +42,7 @@ export function invocationView(records: ArchiveRecord[]) {
     config, questionVersion: request.questionVersion ?? begin.questionVersion ?? null,
     assessmentProfile: findings.profile,
     failure: findings.failure, assessmentStatus: findings.assessmentStatus,
+    validationIssue: validationIssue(decision.validationIssue ?? stage('assessment').validationIssue ?? validation.validationIssue ?? lifecycle.validationIssue),
     queueWaitMs: typeof lifecycle.queueWaitMs === 'number' ? lifecycle.queueWaitMs : null,
     providerDurationMs: typeof lifecycle.providerDurationMs === 'number' ? lifecycle.providerDurationMs : null,
     requestStatus: request.payload ? 'submitted application payload' : submitted ? 'submitted; payload unavailable'

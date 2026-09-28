@@ -12,6 +12,7 @@ export interface Permission {
   assessmentAvailable: boolean;
   ruleIds: string[];
   diagnostics: RuleDiagnostic[];
+  validationIssue?: Decision['validationIssue'];
   rules: { id: string; line: number; enforcement: 'BLOCK' | 'WARN'; text?: string }[];
   approvalRules: string[];
 }
@@ -32,6 +33,7 @@ export class Consequences {
       wouldDecision, reason: failure ?? result?.reason ?? 'guard-error',
       assessmentAvailable: !!result?.assessment,
       ruleIds: ruleIds ?? result?.ruleIds ?? [], diagnostics: diagnostics ?? result?.diagnostics ?? [],
+      ...(result?.validationIssue ? { validationIssue: result.validationIssue } : {}),
       rules: this.policy.available ? this.policy.rules.map(({ id, line, enforcement, text }) => ({ id, line, enforcement, text })) : [],
       approvalRules: result?.assessment?.rules.filter(r => r.outcome.choice === 'APPROVAL_REQUIRED').map(r => r.ruleId) ?? [],
     };
