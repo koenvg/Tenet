@@ -50,7 +50,8 @@ test('owner details paginate only validated linked selected FAILs and project no
     assert.equal(second.items.length, 2); assert.equal(second.next, null);
     assert.deepEqual([...first.items, ...second.items].map(item => item.callId).sort(), Array.from({ length: 7 }, (_, n) => `flagged-${n}`));
     const item = first.items[0];
-    assert.deepEqual(item.rules, [{ ruleId: 'r1', severity: 'WARN', policyText: '<img src=x onerror=alert(1)>', confidence: 0.72 }]);
+    assert.deepEqual(item.rules, [{ ruleId: 'r1', severity: 'WARN', policyText: '<img src=x onerror=alert(1)>', confidence: 0.72, uncertain: true, kind: 'policy' }]);
+    assert.match(item.snapshot, /^[a-f0-9]{64}$/);
     assert.equal(item.wouldDecision, 'ALLOW'); assert.equal(item.actualPermission, 'released'); assert.equal(item.observedExecution, 'executed');
     assert.ok(item.missingStages.includes('response'));
     assert.ok(!JSON.stringify(first).includes('secret-bearing-action'));

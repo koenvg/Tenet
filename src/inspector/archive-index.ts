@@ -37,6 +37,7 @@ function countIssue(target: Counts, reason: string, sign = 1): void {
 }
 export interface ThreadStatus {
   coverage: 'unknown' | 'partial'; linkedCalls: number; failures: number; issues: string[];
+  notices: { approvals: number; uncertain: number; incomplete: number };
 }
 
 /** Persist only bounded rule facts for the BB thread summary, never assessment evidence. */
@@ -491,6 +492,7 @@ export class ArchiveIndex {
     const { groups, writerLoss } = this.linkedGroups(bbThreadId);
     const issues = new Set(this.issues().map(issue => issue.reason));
     if (writerLoss) issues.add('writer-loss');
+    const notices = { approvals: 0, uncertain: 0, incomplete: 0 };
     const candidates: { id: string; timestamp: number; session: string; invocation: string; expectedEvents: Set<string> }[] = [];
     for (const [id, records] of groups) {
       if (!['begin', 'request', 'response', 'validation', 'assessment', 'decision', 'permission', 'execution']
@@ -498,15 +500,19 @@ export class ArchiveIndex {
       if (this.selectedFailure(records)) candidates.push({ id, timestamp: records[0]!.timestamp,
         session: recordSessionKey(records[0]!), invocation: recordInvocationKey(records[0]!),
         expectedEvents: new Set(records.map(r => r.eventId)) });
+      const facts = foldFindingStages(records.map(r => r.finding));
+      if (facts.categories.includes('approval')) notices.approvals++;
+      if (facts.categories.includes('uncertainty') || records.some(r => r.stage === 'assessment' && r.finding.rules?.some(rule => rule.outcome === 'UNKNOWN'))) notices.uncertain++;
+      if (facts.failure || facts.categories.includes('pending')) notices.incomplete++;
     }
     const status: ThreadStatus = { coverage: groups.size ? 'partial' : 'unknown', linkedCalls: groups.size,
-      failures: candidates.length, issues: [...issues].slice(0, 20) };
+      failures: candidates.length, notices, issues: [...issues].slice(0, 20) };
     return { status, candidates };
   }
   threadStatus(bbThreadId: string): ThreadStatus { return this.threadSnapshot(bbThreadId).status; }
   /** At most five candidate calls per page, each re-read by detail's 64-stage / 16-MiB cap. */
   async threadFindings(bbThreadId: string, cursor?: string): Promise<{ coverage: ThreadStatus['coverage']; linkedCalls: number;
-    issues: string[]; items: ThreadFinding[]; next: string | null }> {
+    notices: ThreadStatus['notices']; issues: string[]; items: ThreadFinding[]; next: string | null }> {
     const { status, candidates } = this.threadSnapshot(bbThreadId);
     const selection = page(candidates, { limit: 5, cursor }, `thread-findings:${bbThreadId}`);
     const issues = new Set(status.issues);
@@ -522,7 +528,7 @@ export class ArchiveIndex {
       for (const gap of projected.gaps) issues.add(gap);
       if (projected.item) items.push(projected.item);
     }
-    return { coverage: status.coverage, linkedCalls: status.linkedCalls, issues: [...issues].slice(0, 20),
+    return { coverage: status.coverage, linkedCalls: status.linkedCalls, notices: status.notices, issues: [...issues].slice(0, 20),
       items, next: selection.next };
   }
   async detail(session: string, invocation: string, bbThreadId?: string) {

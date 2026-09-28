@@ -22,13 +22,13 @@ describe('Pi thread rule action', () => {
       { sdk: { threads: { get: async () => ({ providerId: 'pi' }) as any } }, rpc: { status: () => linked } });
     try {
       const button = await slot.findByRole('button', { name: 'TENET rule status' });
-      expect(button.textContent).toBe('T');
+      expect(button.textContent).toMatch(/^T/);
       fireEvent.click(button);
       const region = await slot.findByRole('region', { name: 'TENET rule status' });
       expect(await slot.findByText('1 flagged call')).toBeTruthy();
-      expect(slot.getByText('Among 2 recorded calls in this thread.')).toBeTruthy();
+      expect(slot.getByText('Some calls may be missing.')).toBeTruthy();
       expect(region.className).toContain('fixed inset-x-2');
-      expect(region.textContent).toContain('This is not an all-clear.');
+      expect(region.textContent).toContain('It does not mean the call was blocked.');
       for (const detail of ['policy:4', 'edit-1', 'native-session', 'BLOCK', 'released', '<img']) {
         expect(region.textContent).not.toContain(detail);
       }
@@ -45,10 +45,27 @@ describe('Pi thread rule action', () => {
         rpc: { status: () => ({ coverage: 'unknown', linkedCalls: 0, failures: 0, issues: ['temporary-record', 'indexing-in-progress'] }) } });
     try {
       fireEvent.click(await slot.findByRole('button', { name: 'TENET rule status' }));
-      expect(await slot.findByText('No recordings for this thread yet.')).toBeTruthy();
-      expect(slot.getByText('Coverage is unknown, not a pass.')).toBeTruthy();
-      expect(slot.getByText('Still checking. Some records may be missing.')).toBeTruthy();
-      expect(slot.queryByText(/archive|indexing|BB_THREAD_ID|start a new BB Pi process/i)).toBeNull();
+      expect(await slot.findByText('No recordings linked to this thread yet.')).toBeTruthy();
+      expect(slot.getByText('Rule status is unknown.')).toBeTruthy();
+      expect(slot.getByText('Archive warnings').closest('details')?.open).toBe(false);
+      expect(slot.getByText('These warnings may include records from other threads.')).toBeTruthy();
+      expect(slot.queryByText(/A flag means/)).toBeNull();
+      expect(slot.queryByText(/0 saved calls/)).toBeNull();
+      expect(slot.getByText(/Still reading saved calls/).closest('details')?.open).toBe(false);
+    } finally { slot.lifecycle.unmount(); }
+  });
+  it('keeps an empty details page separate from shared archive warnings', async () => {
+    const app = await loadPluginApp(() => import('./app'));
+    const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: () => ({
+      coverage: 'unknown', linkedCalls: 0, items: [], next: null,
+      issues: ['corrupt-record', 'temporary-record', 'additional-archive-issues'],
+    }) } });
+    try {
+      expect(await slot.findByText('No recordings linked to this thread yet. Rule status is unknown.')).toBeTruthy();
+      expect(slot.getByText('Archive warnings').closest('details')?.open).toBe(false);
+      expect(slot.getByText('These warnings may include records from other threads.')).toBeTruthy();
+      expect(slot.getByText('Some archive warnings could not be listed.')).toBeTruthy();
+      expect(slot.queryByText(/A flag means|0 saved calls|additional archive issues|still being saved/)).toBeNull();
     } finally { slot.lifecycle.unmount(); }
   });
   it('does not suggest an all-clear when recorded calls have no flags', async () => {
@@ -59,8 +76,8 @@ describe('Pi thread rule action', () => {
     try {
       fireEvent.click(await slot.findByRole('button', { name: 'TENET rule status' }));
       expect(await slot.findByText('No flagged calls in 1 recorded call.')).toBeTruthy();
-      expect(slot.getByText('Only recorded calls are shown. This is not an all-clear.')).toBeTruthy();
-      expect(slot.getByText('Still checking recordings.')).toBeTruthy();
+      expect(slot.getByText('Some calls may be missing.')).toBeTruthy();
+      expect(slot.getByText('Archive warnings')).toBeTruthy();
     } finally { slot.lifecycle.unmount(); }
   });
   it('shows a plain-language unavailable state', async () => {
@@ -77,12 +94,13 @@ describe('Pi thread rule action', () => {
   it('refreshes the summary while open', async () => {
     const app = await loadPluginApp(() => import('./app'));
     let reads = 0;
+    vi.useFakeTimers();
     const slot = renderSlot(app.threadHeaderActions[0]!, { threadId, projectId: 'project', isCompactViewport: false },
       { sdk: { threads: { get: async () => ({ providerId: 'pi' }) as any } },
         rpc: { status: () => reads++ === 0 ? linked : { ...linked, failures: 0 } } });
     try {
-      const button = await slot.findByRole('button', { name: 'TENET rule status' });
-      vi.useFakeTimers();
+      await act(async () => { await Promise.resolve(); });
+      const button = slot.getByRole('button', { name: 'TENET rule status' });
       fireEvent.click(button);
       await act(async () => { await Promise.resolve(); });
       expect(slot.getByText('1 flagged call')).toBeTruthy();
@@ -97,7 +115,7 @@ describe('Pi thread rule action', () => {
       { sdk: { threads: { get: async () => ({ providerId: 'pi' }) as any } }, rpc: { status: () => linked } });
     try {
       fireEvent.click(await slot.findByRole('button', { name: 'TENET rule status' }));
-      const details = await slot.findByRole('button', { name: 'Open TENET details' });
+      const details = await slot.findByRole('button', { name: 'View flagged rules' });
       details.focus(); expect(document.activeElement).toBe(details);
       fireEvent.keyDown(details, { key: 'Enter' }); fireEvent.click(details);
       expect(slot.inspection.navigateCalls.length).toBe(1);
@@ -114,11 +132,11 @@ describe('Pi thread rule action', () => {
         return { coverage: 'partial', linkedCalls: 1, issues: ['indexing-in-progress', 'writer-loss'], items: [row], next: 'cursor-2' }; } } });
     try {
       expect(await slot.findByText('edit-1')).toBeTruthy();
-      expect(slot.getByRole('heading', { name: 'edit' })).toBeTruthy();
+      expect(slot.getByText('edit')).toBeTruthy();
       expect(slot.getByText('<img src=x onerror=alert(1)>')).toBeTruthy();
       expect(document.querySelector('img')).toBeNull();
-      expect(slot.getByText(/Linked recordings only/)).toBeTruthy();
-      expect(slot.getByText(/Recording gaps \(2\)/)).toBeTruthy();
+      expect(slot.getByText('Some calls may be missing.')).toBeTruthy();
+      expect(slot.getByText('These warnings may include records from other threads.')).toBeTruthy();
       for (const extra of ['Would-decision', 'Actual permission', 'Observed execution', 'Confidence:', 'Severity:', 'Missing stages:', 'Back to thread', threadId]) {
         expect(slot.queryByText(extra, { exact: false })).toBeNull();
       }
@@ -163,16 +181,16 @@ describe('Pi thread rule action', () => {
     let first = 0;
     const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: ({ cursor }: { cursor?: string }) => cursor
       ? { coverage: 'partial', linkedCalls: 2, issues: [], items: [{ id: 'b', callId: 'edit-2', toolName: 'edit', timestamp: 200,
-        mode: 'observe', rules: [], wouldDecision: 'unknown', actualPermission: 'unknown', observedExecution: 'unknown', missingStages: [] }], next: null }
+        mode: 'observe', rules: [{ ruleId: 'r1', policyText: 'Rule', severity: 'WARN', confidence: 0.9 }], wouldDecision: 'unknown', actualPermission: 'unknown', observedExecution: 'unknown', missingStages: [] }], next: null }
       : { coverage: 'partial', linkedCalls: 2, issues: first++ === 0 ? ['detail-unavailable'] : [], items: [], next: 'next' } } });
     try {
-      expect(await slot.findByText(/flagged call changed or could not be read/)).toBeTruthy();
+      expect(await slot.findByText(/Some flagged calls could not be read/)).toBeTruthy();
       fireEvent.click(slot.getByRole('button', { name: 'Load more findings' }));
       expect(await slot.findByText('edit-2')).toBeTruthy();
-      expect(await slot.findByText(/flagged call changed or could not be read/)).toBeTruthy();
+      expect(await slot.findByText(/Some flagged calls could not be read/)).toBeTruthy();
       fireEvent.click(slot.getByRole('button', { name: 'Refresh findings' }));
       expect(await slot.findByRole('button', { name: 'Load more findings' })).toBeTruthy();
-      expect(slot.queryByText(/flagged call changed or could not be read/)).toBeNull();
+      expect(slot.queryByText(/Some flagged calls could not be read/)).toBeNull();
     } finally { slot.lifecycle.unmount(); }
   });
   it('explains how to reach details from the sidebar root without an RPC', async () => {
@@ -180,5 +198,118 @@ describe('Pi thread rule action', () => {
     const slot = renderSlot(app.navPanels[0]!, { subPath: '' }, { rpc: { findings: () => { throw new Error('must not call'); } } });
     try { expect(slot.getByText(/Open a Pi thread/)).toBeTruthy(); expect(slot.inspection.rpcCalls.length).toBe(0); }
     finally { slot.lifecycle.unmount(); }
+  });
+  it('polls while closed and removes the finding indicator after a failed read', async () => {
+    const app = await loadPluginApp(() => import('./app'));
+    let reads = 0;
+    vi.useFakeTimers();
+    const slot = renderSlot(app.threadHeaderActions[0]!, { threadId, projectId: 'project', isCompactViewport: true },
+      { sdk: { threads: { get: async () => ({ providerId: 'pi' }) as any } },
+        rpc: { status: () => { if (++reads > 1) throw new Error('disconnected'); return linked; } } });
+    try {
+      await act(async () => { await Promise.resolve(); });
+      expect(slot.getByLabelText('1 recorded FAIL call')).toBeTruthy();
+      expect(slot.queryByRole('region')).toBeNull();
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      expect(slot.queryByLabelText('1 recorded FAIL call')).toBeNull();
+      fireEvent.click(slot.getByRole('button', { name: 'TENET rule status' }));
+      expect(slot.getByText('Status unavailable right now.')).toBeTruthy();
+      expect(slot.inspection.navigateCalls).toHaveLength(0);
+    } finally { vi.useRealTimers(); slot.lifecycle.unmount(); }
+  });
+  it('groups repeated calls by snapshot and keeps uncertain FAIL and integrity visible', async () => {
+    const app = await loadPluginApp(() => import('./app'));
+    const row = (id: string, snapshot: string, kind = 'policy') => ({
+      id, snapshot, callId: id, toolName: 'edit', rules: [{ ruleId: 'r1', policyText: 'Recorded rule', severity: 'WARN', confidence: 0.6, uncertain: true, kind }],
+    });
+    const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: () => ({
+      coverage: 'partial', linkedCalls: 4, issues: [], next: null, notices: { approvals: 1, uncertain: 2, incomplete: 1 },
+      items: [row('one', 'a'.repeat(64)), row('two', 'a'.repeat(64)), row('three', 'b'.repeat(64)), row('four', 'c'.repeat(64), 'integrity')],
+    }) } });
+    try {
+      await slot.findByText('one');
+      expect(slot.getAllByRole('heading', { name: 'Recorded rule' })).toHaveLength(3);
+      expect(slot.getByText('2 calls shown')).toBeTruthy();
+      expect(slot.getByText('Rule protection')).toBeTruthy();
+      expect(slot.getAllByText('Uncertain', { exact: true })).toHaveLength(3);
+      expect(slot.getByText(/1 call needed approval/)).toBeTruthy();
+    } finally { slot.lifecycle.unmount(); }
+  });
+  it('clears stale details on a hung live read and disposes polling', async () => {
+    const app = await loadPluginApp(() => import('./app'));
+    vi.useFakeTimers();
+    let reads = 0;
+    const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: () => ++reads === 1
+      ? { coverage: 'partial', linkedCalls: 1, issues: [], next: null, items: [] } : new Promise(() => {}) } });
+    try {
+      await act(async () => { await Promise.resolve(); });
+      expect(slot.getByText('No flagged calls to show.')).toBeTruthy();
+      await act(async () => { await vi.advanceTimersByTimeAsync(18_000); });
+      expect(slot.getByRole('alert').textContent).toContain('Recordings unavailable');
+      expect(slot.queryByText('No flagged calls to show.')).toBeNull();
+      expect(slot.inspection.navigateCalls).toHaveLength(0);
+      slot.lifecycle.unmount();
+      await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+      expect(reads).toBe(2);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+  it('keeps older loaded pages across polling ticks until explicit refresh, but clears them when unavailable', async () => {
+    const app = await loadPluginApp(() => import('./app'));
+    vi.useFakeTimers();
+    let unavailable = false;
+    const row = (id: string) => ({ id, snapshot: 'a'.repeat(64), callId: id, toolName: 'edit',
+      rules: [{ ruleId: 'r1', policyText: 'Rule', severity: 'WARN', confidence: 0.9, uncertain: false, kind: 'policy' }] });
+    const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: ({ cursor }: { cursor?: string }) =>
+      unavailable ? { coverage: 'unavailable', linkedCalls: 0, issues: [], items: [], next: null }
+        // Nine linked calls include seven without selected FAILs; only two findings are paginated.
+        : { coverage: 'partial', linkedCalls: 9, issues: [], items: [row(cursor ? 'older' : 'newer')], next: cursor ? null : 'next' } } });
+    try {
+      await act(async () => { await Promise.resolve(); });
+      expect(slot.getByText('9 saved calls in this thread. Rule counts include only the calls shown.')).toBeTruthy();
+      expect(slot.getByText('1 call shown')).toBeTruthy();
+      fireEvent.click(slot.getByRole('button', { name: 'Load more findings' }));
+      await act(async () => { await Promise.resolve(); });
+      expect(slot.getByText('older')).toBeTruthy();
+      expect(slot.getByText('9 saved calls in this thread. Rule counts include only the calls shown.')).toBeTruthy();
+      expect(slot.getByText('2 calls shown')).toBeTruthy();
+      const opened = slot.getByText('older').closest('details')!;
+      fireEvent.click(opened.querySelector('summary')!);
+      expect(opened.open).toBe(true);
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      expect(slot.getByText('older')).toBeTruthy();
+      expect(slot.getByText('older').closest('details')).toBe(opened);
+      expect(opened.open).toBe(true);
+      expect(slot.getByText(/Browsing older findings/)).toBeTruthy();
+      fireEvent.click(slot.getByRole('button', { name: 'Refresh findings' }));
+      await act(async () => { await Promise.resolve(); });
+      expect(slot.queryByText('older')).toBeNull();
+      fireEvent.click(slot.getByRole('button', { name: 'Load more findings' }));
+      await act(async () => { await Promise.resolve(); });
+      unavailable = true;
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      expect(slot.queryByText('older')).toBeNull();
+      expect(slot.getByText('Cannot read saved calls. Try Refresh.')).toBeTruthy();
+    } finally { slot.lifecycle.unmount(); vi.useRealTimers(); }
+  });
+  it('keeps rule uncertainty visible but hides calls and recording mechanics until requested', async () => {
+    const app = await loadPluginApp(() => import('./app'));
+    const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: () => ({
+      coverage: 'partial', linkedCalls: 1, issues: ['writer-loss'], next: null, notices: { approvals: 1, uncertain: 1, incomplete: 0 },
+      items: [{ id: 'a', snapshot: 'a'.repeat(64), callId: 'private-call-id', toolName: 'edit', rules: [
+        { ruleId: 'r1', policyText: 'Do not edit secrets', severity: 'WARN', confidence: 0.6, uncertain: true, kind: 'policy' },
+      ] }],
+    }) } });
+    try {
+      const title = await slot.findByRole('heading', { name: 'Do not edit secrets' });
+      const disclosure = title.closest('details');
+      expect(disclosure).not.toBeNull();
+      expect(disclosure?.open).toBe(false);
+      expect(disclosure?.querySelector('summary')?.textContent).toContain('Uncertain');
+      expect(slot.getByText('private-call-id').closest('details')?.open).toBe(false);
+      expect(slot.getByText('Some calls were not saved.').closest('details')?.open).toBe(false);
+      fireEvent.click(disclosure!.querySelector('summary')!);
+      expect(disclosure?.open).toBe(true);
+    } finally { slot.lifecycle.unmount(); }
   });
 });

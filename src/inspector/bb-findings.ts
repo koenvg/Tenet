@@ -1,9 +1,11 @@
 import type { ArchiveRecord } from '../recording/contract.js';
 import { findingStage, foldFindingStages } from './finding-view.js';
+import { createHash } from 'node:crypto';
 
 export interface ThreadFinding {
   id: string; callId: string; toolName: string; timestamp: number; mode: 'observe' | 'enforce';
-  rules: { ruleId: string; severity: 'BLOCK' | 'WARN'; policyText: string | null; confidence: number | null }[];
+  snapshot: string;
+  rules: { ruleId: string; severity: 'BLOCK' | 'WARN'; policyText: string | null; confidence: number | null; uncertain: boolean; kind: 'policy' | 'integrity' }[];
   wouldDecision: 'ALLOW' | 'ASK' | 'BLOCK' | 'unknown';
   actualPermission: 'released' | 'blocked' | 'unknown';
   observedExecution: 'executed' | 'failed' | 'unknown';
@@ -19,7 +21,8 @@ export function projectThreadFinding(records: ArchiveRecord[], id: string, threa
   if (!records.length || records.some(r => r.schemaVersion !== 3 || r.host !== 'pi' || r.bbThreadId !== threadId))
     return { item: null, gaps: ['detail-unavailable'] };
   const stage = (name: string) => object(records.findLast(r => r.stage === name)?.data);
-  if (stage('validation').valid !== true || foldFindingStages(records.map(findingStage)).failure !== null)
+  const facts = foldFindingStages(records.map(findingStage));
+  if (stage('validation').valid !== true || facts.failure !== null)
     return { item: null, gaps: ['detail-unavailable'] };
   const assessment = object(stage('assessment').assessment);
   if (typeof assessment.model !== 'string' || !Array.isArray(assessment.rules)) return { item: null, gaps: ['detail-unavailable'] };
@@ -28,7 +31,9 @@ export function projectThreadFinding(records: ArchiveRecord[], id: string, threa
   const integrity = object(Object.keys(request).length ? object(object(request.payload).state).integrity : begin.integrity);
   const rules = [...(Array.isArray(policy.rules) ? policy.rules : []),
     ...(typeof integrity.id === 'string' ? [{ ...integrity, enforcement: 'BLOCK' }] : [])];
-  const selected = new Map<string, { ruleId: string; severity: 'BLOCK' | 'WARN'; policyText: string | null; confidence: number | null }>();
+  const selected = new Map<string, ThreadFinding['rules'][number]>();
+  const diagnostics = stage('decision').contributions ?? stage('decision').diagnostics;
+  const threshold = object(stage('assessment').config ?? begin.config).effectThreshold;
   for (const result of assessment.rules) {
     if (result?.outcome?.choice !== 'FAIL' || typeof result.ruleId !== 'string' || selected.has(result.ruleId)) continue;
     const rule = rules.find(r => r?.id === result.ruleId && (r.enforcement === 'BLOCK' || r.enforcement === 'WARN'));
@@ -39,12 +44,17 @@ export function projectThreadFinding(records: ArchiveRecord[], id: string, threa
     const confidence = result.outcome.probabilities?.FAIL;
     selected.set(result.ruleId, { ruleId: result.ruleId, severity: rule.enforcement,
       policyText: text !== null && text.length <= 2048 ? text : null,
-      confidence: typeof confidence === 'number' && Number.isFinite(confidence) && confidence >= 0 && confidence <= 1 ? confidence : null });
+      confidence: typeof confidence === 'number' && Number.isFinite(confidence) && confidence >= 0 && confidence <= 1 ? confidence : null,
+      kind: result.ruleId === integrity.id ? 'integrity' : 'policy',
+      uncertain: !Number.isFinite(confidence) || !Number.isFinite(threshold) || confidence < threshold
+        || !Array.isArray(diagnostics) || !diagnostics.some(d => d?.ruleId === result.ruleId && Array.isArray(d.gates))
+        || facts.uncertainty.some(value => value.ruleId === result.ruleId) });
   }
   if (!selected.size) return { item: null, gaps: ['detail-unavailable'] };
   const decision = stage('decision').decision, permission = stage('permission').outcome, execution = stage('execution').outcome;
   const first = records[0]!;
   return { item: { id, callId: first.callId.slice(0, 256), toolName: first.toolName.slice(0, 256), timestamp: first.timestamp, mode: first.mode,
+    snapshot: createHash('sha256').update(JSON.stringify([policy, integrity])).digest('hex'),
     rules: [...selected.values()], wouldDecision: ['ALLOW', 'ASK', 'BLOCK'].includes(decision) ? decision : 'unknown',
     actualPermission: ['released', 'blocked'].includes(permission) ? permission : 'unknown',
     observedExecution: ['executed', 'failed'].includes(execution) ? execution : 'unknown',
