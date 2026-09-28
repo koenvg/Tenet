@@ -58,7 +58,7 @@ test('linked selected FAILs exclude unlinked history and invalid assessments', (
   assert.equal(summary.coverage, 'partial');
   assert.equal(summary.linkedCalls, 5);
   assert.equal(summary.failures, 2);
-  assert.deepEqual(Object.keys(summary).sort(), ['coverage', 'failures', 'issues', 'linkedCalls']);
+  assert.deepEqual(Object.keys(summary).sort(), ['coverage', 'failures', 'issues', 'linkedCalls', 'notices']);
   const unmonitored = index.threadStatus('thr_000000001234');
   assert.equal(unmonitored.coverage, 'unknown');
   assert.equal(unmonitored.linkedCalls, 0);
@@ -104,7 +104,7 @@ test('a recent linked FAIL becomes visible as a bounded cold index catches up', 
   const status = index.threadStatus(thread);
   assert.equal(status.linkedCalls, 1);
   assert.equal(status.failures, 1);
-  assert.deepEqual(Object.keys(status).sort(), ['coverage', 'failures', 'issues', 'linkedCalls']);
+  assert.deepEqual(Object.keys(status).sort(), ['coverage', 'failures', 'issues', 'linkedCalls', 'notices']);
 }));
 
 test('a sparse linked session is indexed before dense newer sessions consume the read budget', () => fixture(async root => {
@@ -127,7 +127,7 @@ test('a sparse linked session is indexed before dense newer sessions consume the
   const status = await index.threadStatus(thread);
   assert.equal(status.linkedCalls, 1);
   assert.equal(status.failures, 1);
-  assert.deepEqual(Object.keys(status).sort(), ['coverage', 'failures', 'issues', 'linkedCalls']);
+  assert.deepEqual(Object.keys(status).sort(), ['coverage', 'failures', 'issues', 'linkedCalls', 'notices']);
   assert.ok(status.issues.includes('indexing-in-progress'));
 }));
 test('the summary counts only validated policy FAILs without rereading detailed evidence', () => fixture(async root => {
@@ -161,7 +161,7 @@ test('the summary counts only validated policy FAILs without rereading detailed 
   assert.equal(status.linkedCalls, 7);
   assert.equal(status.failures, 1);
   assert.equal(reads, readsAfterScan);
-  assert.deepEqual(Object.keys(status).sort(), ['coverage', 'failures', 'issues', 'linkedCalls']);
+  assert.deepEqual(Object.keys(status).sort(), ['coverage', 'failures', 'issues', 'linkedCalls', 'notices']);
   assert.ok(!JSON.stringify(status).includes('Policy text stays on the host'));
 }));
 
