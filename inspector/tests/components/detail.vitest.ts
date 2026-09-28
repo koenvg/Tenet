@@ -7,6 +7,24 @@ import { makeView, recordedQuestion } from './fixtures.js';
 import '../../src/style.css';
 import '../../src/summary.css';
 
+test('precision rejection is readable at desktop and mobile widths without implying a violation', async () => {
+  for (const width of [1280, 390]) {
+    await page.viewport(width, 844);
+    const view = makeView({ failure: 'invalid-response', gate: null });
+    view.validationIssue = 'unit-sum';
+    const screen = await render(Detail, { view });
+    const notice = screen.getByText(/unit-sum: Evaluator probabilities/);
+    await expect.element(notice).toBeVisible();
+    const message = screen.container.textContent!;
+    expect(message).toContain('Precision accommodation is unsupported');
+    expect(message).toContain('not a semantic violation');
+    const box = screen.container.querySelectorAll('.assessment-status');
+    for (const el of box) expect(el.getBoundingClientRect().right).toBeLessThanOrEqual(width);
+    await screen.unmount();
+  }
+  await page.viewport(1280, 720);
+});
+
 test('questions toggle between safe Rich text and exact recorded JSON', async () => {
   const screen = await render(Detail, { view: makeView() });
   await screen.getByRole('button', { name: 'View submitted questions' }).click();

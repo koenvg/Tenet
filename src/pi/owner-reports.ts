@@ -1,3 +1,4 @@
+import { validationMessages, validationIssue } from '../decision/response-validation.js';
 import { classifyFinding, categoryLabels, type FindingCategory } from '../decision/finding-triage.js';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { display } from '../decision/evidence.js';
@@ -89,8 +90,12 @@ export class OwnerReports {
           if (restored) Object.assign(report, restored, { execution: report.execution, assessmentStatus: report.assessmentStatus });
         }
       }
-      if (d.stage === 'assessment-status' && ['pending', 'completed', 'unavailable', 'dropped', 'cancelled'].includes(d.status))
+      if (d.stage === 'assessment-status' && ['pending', 'completed', 'unavailable', 'dropped', 'cancelled'].includes(d.status)) {
         this.markAssessment(d.invocationId, d.status, undefined, typeof d.reason === 'string' ? d.reason : undefined);
+        const report = this.recent.findLast(r => r.invocationId === d.invocationId);
+        const issue = validationIssue(d.validationIssue);
+        if (report && d.status === 'unavailable' && d.reason === 'invalid-response' && issue) report.validationIssue = issue;
+      }
     }
   }
 
@@ -118,7 +123,7 @@ export class OwnerReports {
     if (status === 'pending') return;
     this.pending.delete(invocationId);
     report.assessmentStatus = status;
-    if (permission && status === 'completed') Object.assign(report, permission, { outcome: report.outcome, assessmentStatus: status });
+    if (permission && (status === 'completed' || status === 'unavailable')) Object.assign(report, permission, { outcome: report.outcome, assessmentStatus: status });
     else if (reason) report.reason = reason;
     if (status === 'completed' && !this.concern(report)) return;
     if (!this.recent.includes(report)) this.retain(report);
@@ -167,6 +172,7 @@ export class OwnerReports {
       `TENET permission: ${report.outcome}`, `Would enforce: ${report.wouldDecision}`,
       `Finding categories: ${this.categories(report).map(c => categoryLabels[c]).join(', ') || 'not recorded'} (may overlap)`,
       `Assessment: ${report.assessmentStatus ?? (report.assessmentAvailable ? 'completed' : 'unavailable')}`, `Reason: ${text(report.reason)}`,
+      ...(report.validationIssue ? rows(`${report.validationIssue}: ${validationMessages[report.validationIssue]}`) : []),
       'Permission is not proof of execution.',
       `Observed execution: ${report.execution ?? 'unknown'}`,
       ...report.diagnostics.flatMap(d => [...rows(reference(d.ruleId)), `${d.outcome}: p=${d.outcomeProbability} threshold=${d.effectThreshold}`,

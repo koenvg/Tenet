@@ -1,3 +1,4 @@
+import { choiceIssue, object, probability, validationIssue } from './response-validation.js';
 import { performance } from 'node:perf_hooks';
 import { JudgeFailure, type Assessment, type Action, type Clock, type Config, type Decision, type Judge, type Policy, type PolicySet, type Reason, type RuleAssessment } from './contracts.js';
 import { INTEGRITY_ID } from './policy.js';
@@ -19,15 +20,11 @@ export function validConfig(config: Config): boolean {
   return [config.effectThreshold, config.evidenceThreshold].every(p => Number.isFinite(p) && p >= 0 && p <= 1)
     && Number.isFinite(config.deadlineMs) && config.deadlineMs > 0 && config.deadlineMs <= 2_147_483_647;
 }
-function object(value: unknown): value is Record<string, unknown> { return !!value && typeof value === 'object' && !Array.isArray(value); }
-export function probability(value: unknown): value is number { return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1; }
-export function validChoice(value: unknown, labels: string[]): boolean {
-  if (!object(value) || typeof value.choice !== 'string' || !labels.includes(value.choice) || !object(value.probabilities)) return false;
-  const ps = value.probabilities;
-  if (Object.keys(ps).length !== labels.length || !labels.every(label => probability(ps[label]))) return false;
-  const values = labels.map(label => ps[label] as number);
-  return Math.abs(values.reduce((a, b) => a + b, 0) - 1) <= 0.000001
-    && (ps[value.choice] as number) >= Math.max(...values);
+export { probability } from './response-validation.js';
+export function validChoice(value: unknown, labels: string[]): boolean { return !choiceIssue(value, labels); }
+export function requireChoice(value: unknown, labels: string[]): void {
+  const issue = choiceIssue(value, labels);
+  if (issue) throw new JudgeFailure('invalid-response', issue);
 }
 export function validateAssessment(value: unknown, policy: PolicySet, request?: JudgeRequest): Assessment {
   const expected = [...policy.rules.map(r => r.id), INTEGRITY_ID];
@@ -38,16 +35,19 @@ export function validateAssessment(value: unknown, policy: PolicySet, request?: 
   const byId = new Map<string, RuleAssessment>();
   for (const rule of value.rules) {
     if (!object(rule) || typeof rule.ruleId !== 'string' || !remaining.delete(rule.ruleId)) throw new JudgeFailure('invalid-response');
-    if (!validChoice(rule.outcome, ['PASS', 'APPROVAL_REQUIRED', 'FAIL', 'UNKNOWN', ...(rule.ruleId !== INTEGRITY_ID ? ['NOT_APPLICABLE'] : [])])) throw new JudgeFailure('invalid-response');
+    requireChoice(rule.outcome, ['PASS', 'APPROVAL_REQUIRED', 'FAIL', 'UNKNOWN', ...(rule.ruleId !== INTEGRITY_ID ? ['NOT_APPLICABLE'] : [])]);
     const r = rule as unknown as RuleAssessment;
     const notApplicable = r.outcome.choice === 'NOT_APPLICABLE';
-    if (r.ruleId === INTEGRITY_ID && r.outcome.choice === 'APPROVAL_REQUIRED') throw new JudgeFailure('invalid-response');
+    if (r.ruleId === INTEGRITY_ID && r.outcome.choice === 'APPROVAL_REQUIRED') throw new JudgeFailure('invalid-response', 'selected-choice');
     if (notApplicable) {
       const refs = rule.factReferences;
       if (rule.evidence !== null || !object(refs) || typeof refs.digest !== 'string' || refs.digest.length > 128
         || !Array.isArray(refs.operationIds) || refs.operationIds.length > 64
         || !refs.operationIds.every(id => typeof id === 'string' && id.length > 0 && id.length <= 4096)) throw new JudgeFailure('invalid-response');
-    } else if (!validChoice(rule.evidence, ['SUFFICIENT', 'INSUFFICIENT']) || rule.factReferences !== undefined) throw new JudgeFailure('invalid-response');
+    } else {
+      requireChoice(rule.evidence, ['SUFFICIENT', 'INSUFFICIENT']);
+      if (rule.factReferences !== undefined) throw new JudgeFailure('invalid-response');
+    }
     const refs = notApplicable ? { digest: r.factReferences!.digest, operationIds: [...r.factReferences!.operationIds] } : undefined;
     byId.set(r.ruleId, { ruleId: r.ruleId,
       outcome: { choice: r.outcome.choice, probabilities: { ...r.outcome.probabilities } },
@@ -105,7 +105,9 @@ export async function decide(options: {
     return approvals.length ? result('ASK', 'rule-approval-required', assessment, approvals, diagnostics)
       : result('ALLOW', diagnostics.length || assessment.rules.some(r => r.outcome.choice === 'APPROVAL_REQUIRED') ? 'advisory-findings' : 'all-rules-pass', assessment, [], diagnostics);
   } catch (error) {
-    return result('BLOCK', signal?.aborted ? 'cancelled' : error instanceof JudgeFailure ? error.reason : 'provider-error');
+    const failure = result('BLOCK', signal?.aborted ? 'cancelled' : error instanceof JudgeFailure ? error.reason : 'provider-error');
+    if (failure.reason === 'invalid-response') failure.validationIssue = validationIssue(error instanceof JudgeFailure ? error.validationIssue : undefined) ?? 'response-shape';
+    return failure;
   } finally {
     stopTimer();
     signal?.removeEventListener('abort', cancel);

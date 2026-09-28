@@ -1,3 +1,4 @@
+import type { ValidationIssue } from './response-validation.js';
 import type { ResolvedAction } from '../runtime/resolved-action.js';
 import type { RecordingSink } from '../recording/contract.js';
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
@@ -94,11 +95,12 @@ export interface Decision {
   ruleIds: string[];
   assessment: Assessment | null;
   diagnostics: RuleDiagnostic[];
+  validationIssue?: ValidationIssue;
   durationMs: number;
   config: Config;
   questionVersion: string;
   requestedModel: string;
 }
 export class JudgeFailure extends Error {
-  constructor(readonly reason: Reason) { super(reason); }
+  constructor(readonly reason: Reason, readonly validationIssue?: ValidationIssue) { super(reason); }
 }

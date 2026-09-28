@@ -5,7 +5,7 @@ import { judgeState } from './judge-evidence.js';
 import { assessmentEntries, buildQuestions } from './questions.js';
 import { capture, responseSnapshot } from '../recording/contract.js';
 import { freeze } from './evidence.js';
-import { validChoice } from './decide.js';
+import { requireChoice } from './decide.js';
 import { ASSESSMENT_METADATA, currentFactReferences } from './assessment-contract.js';
 import { INTEGRITY_ID } from './policy.js';
 
@@ -34,12 +34,15 @@ export function createJevJudge(options: { apiKey?: string; fetch?: Fetch }): Jud
           || !Object.keys(questions).every(key => Object.hasOwn(raw.answers, key))) throw new JudgeFailure('invalid-response');
       const rules = entries.map(entry => {
         const outcome = raw.answers[entry.outcomeKey], evidence = raw.answers[entry.evidenceKey];
-        if (outcome?.type !== 'choice' || evidence?.type !== 'choice'
-            || !probability(outcome.confidence) || !probability(evidence.confidence)) throw new JudgeFailure('invalid-response');
+        if (outcome?.type !== 'choice' || evidence?.type !== 'choice') throw new JudgeFailure('invalid-response', 'response-shape');
+        if (!probability(outcome.confidence) || !probability(evidence.confidence)) throw new JudgeFailure('invalid-response', 'score-range');
         const facts = raw.answers[entry.factsKey];
-        if (!validChoice(evidence, ['SUFFICIENT', 'INSUFFICIENT'])) throw new JudgeFailure('invalid-response');
-        if (entry.id !== INTEGRITY_ID && (facts?.type !== 'choice' || !probability(facts.confidence)
-          || !validChoice(facts, ['NONE', ...(refs ? [refs.digest] : [])]))) throw new JudgeFailure('invalid-response');
+        requireChoice(evidence, ['SUFFICIENT', 'INSUFFICIENT']);
+        if (entry.id !== INTEGRITY_ID) {
+          if (facts?.type !== 'choice') throw new JudgeFailure('invalid-response', 'response-shape');
+          if (!probability(facts.confidence)) throw new JudgeFailure('invalid-response', 'score-range');
+          requireChoice(facts, ['NONE', ...(refs ? [refs.digest] : [])]);
+        }
         return outcome.choice === 'NOT_APPLICABLE' ? { ruleId: entry.id, outcome, evidence: null,
           factReferences: facts?.type === 'choice' && facts.choice === refs?.digest && refs ? refs : { digest: 'NONE', operationIds: [] } }
           : { ruleId: entry.id, outcome, evidence };
@@ -51,7 +54,9 @@ export function createJevJudge(options: { apiKey?: string; fetch?: Fetch }): Jud
       const failure = error instanceof JudgeFailure ? error
         : new JudgeFailure(signal.aborted || error instanceof APIUserAbortError ? 'cancelled'
           : error instanceof APITimeoutError ? 'timeout' : 'provider-error');
-      capture(recording, 'validation', () => ({ valid: false, reason: failure.reason, request: submitted ? 'submitted' : 'not-submitted' }));
+      capture(recording, 'validation', () => ({ valid: false, reason: failure.reason,
+        ...(failure.reason === 'invalid-response' ? { validationIssue: failure.validationIssue ?? 'response-shape' } : {}),
+        request: submitted ? 'submitted' : 'not-submitted' }));
       throw failure;
     }
   };

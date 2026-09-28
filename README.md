@@ -186,6 +186,10 @@ The aggregate reason is retained for compatibility. The detail identifies the ac
 
 Details contain bounded rule locations, validated labels and numeric scores, not action arguments or provider explanations. Failed or invalid assessments have no invented rule scores. A new debug flag or raw request log is not required.
 
+Precision accommodation is unsupported for `@typesafe-ai/sdk` 0.6.0 and `jev-latest`. The provider's [Choice documentation](https://docs.typesafe.ai/primitives/choice) requires probabilities to sum to 1 and the chosen label to have the highest probability. No normative rounding precision or error-bound contract was verified. TENET retains its existing absolute unit-sum check of `0.000001`, including for injected judges; a total of `0.99` is rejected, not normalized.
+
+New unavailable assessments carry one bounded `validationIssue` code: `response-shape`, `labels`, `score-range`, `unit-sum`, or `selected-choice`. The owner detail and inspector explain the code without including provider prose, labels or raw values. `unit-sum` explicitly reports unsupported precision accommodation. Codes identify the first validation failure, not every defect. Historical records without these codes keep their recorded decisions and show no inferred precision diagnosis. See [TENET-6 handoff](docs/TENET-6-handoff.md) for checked sources and verification.
+
 ## Configuration
 
 | Environment variable | Default | Meaning |

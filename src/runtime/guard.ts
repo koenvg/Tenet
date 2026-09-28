@@ -369,6 +369,7 @@ class SessionGuard {
         const status = (state: ObservationState, reason?: string, waitMs?: number) => {
           if (state === 'pending' || this.options.activation.read() === 'on')
             this.record('assessment-status', { ...identity, status: state, reason: reason ?? terminalReason,
+              ...(resultPermission?.validationIssue ? { validationIssue: resultPermission.validationIssue } : {}),
               profile: snapshot.profile, queueWaitMs: waitMs ?? 0, providerDurationMs: providerDuration });
           if (state !== 'pending' && this.options.activation.read() === 'on')
             try { this.options.onAssessment?.(identity, state, resultPermission, reason ?? terminalReason); } catch { /* Best effort. */ }
@@ -389,10 +390,16 @@ class SessionGuard {
           }
           if (!current()) return 'unavailable';
           this.record('assessment', { ...identity, assessment: result.assessment, reason: result.reason,
+            ...(result.validationIssue ? { validationIssue: result.validationIssue } : {}),
             durationMs: result.durationMs, requestedModel: result.requestedModel, questionVersion: result.questionVersion,
             config: result.config, evidenceLimits: snapshot.evidence, redactedFields: action.redactedFields, limitations: action.limitations, resolvedAction: snapshot.resolvedAction });
           terminalReason = result.reason;
-          if (!result.assessment) return 'unavailable';
+          if (!result.assessment) {
+            const outcome = new Consequences('observe', selectedPolicy); outcome.assessed(result);
+            resultPermission = outcome.permission();
+            resultPermission.wouldDecision = undefined;
+            return 'unavailable';
+          }
           this.record('decision', { ...identity, decision: result.decision, reason: result.reason, ruleIds: result.ruleIds,
             diagnostics: result.diagnostics, questionVersion: result.questionVersion }, { contributions: ruleContributions(result, selectedPolicy) });
           const outcome = new Consequences('observe', selectedPolicy); outcome.assessed(result);
@@ -406,9 +413,11 @@ class SessionGuard {
       consequences.assessed(result);
       if (!current()) return block('guard-state-changed');
       this.record('assessment', { ...identity, assessment: result.assessment, reason: result.reason,
+        ...(result.validationIssue ? { validationIssue: result.validationIssue } : {}),
         durationMs: result.durationMs, requestedModel: result.requestedModel, questionVersion: result.questionVersion,
         config: result.config, evidenceLimits: selectedConfig.evidence, redactedFields: action.redactedFields, limitations: action.limitations, resolvedAction: resolved.evidence });
       this.record('decision', { ...identity, decision: result.decision, reason: result.reason, ruleIds: result.ruleIds,
+        ...(result.validationIssue ? { validationIssue: result.validationIssue } : {}),
         diagnostics: result.diagnostics, questionVersion: result.questionVersion }, { contributions: ruleContributions(result, selectedPolicy) });
       const fresh = async () => {
         const upToDate = await policyIsCurrent(selectedPolicy);

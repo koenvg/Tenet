@@ -1,3 +1,4 @@
+import { validationIssue } from '../decision/response-validation.js';
 import type { BlockingGate, RuleDiagnostic } from '../decision/contracts.js';
 import type { OwnerReport } from './owner-reports.js';
 import { POLICY_LIMITS } from '../decision/policy.js';
@@ -48,6 +49,7 @@ export function recoverReport(entry: unknown): OwnerReport | undefined {
   return { mode: d.mode as OwnerReport['mode'], outcome: d.outcome as OwnerReport['outcome'],
     ...(d.profile === 'legacy' || d.profile === 'applicability-v1' ? { profile: d.profile } : {}),
     ...(text(d.questionVersion) ? { questionVersion: d.questionVersion } : {}),
+    ...(d.reason === 'invalid-response' && validationIssue(d.validationIssue) ? { validationIssue: validationIssue(d.validationIssue) } : {}),
     wouldDecision: d.wouldDecision as OwnerReport['wouldDecision'], reason: d.reason, assessmentAvailable: d.assessmentAvailable,
     callId: d.callId, toolName: d.toolName, invocationId: d.invocationId, rules, diagnostics,
     ruleIds: [...d.ruleIds] as string[], approvalRules: [...d.approvalRules] as string[] };
