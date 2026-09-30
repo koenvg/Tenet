@@ -5,6 +5,7 @@ const base = new URL(process.argv[2] ?? 'http://127.0.0.1:8080');
 assert(['http:', 'https:'].includes(base.protocol), 'Expected an HTTP(S) base URL');
 const assets = new Map([
   ['/style.css', 'text/css'],
+  ['/hero.js', 'text/javascript'],
   ['/fonts/Geist-latin.woff2', 'font/woff2'],
   ['/fonts/OFL-Geist.txt', 'text/plain'],
 ]);
@@ -23,8 +24,8 @@ async function request(path, status, type) {
 
 try {
   for (const [path, title] of [
-    ['/', 'TENET | Your policy. Their next action.'],
-    ['/index.html', 'TENET | Your policy. Their next action.'],
+    ['/', 'TENET | Your rules. Their next move.'],
+    ['/index.html', 'TENET | Your rules. Their next move.'],
     ['/docs.html', 'Documentation | TENET'],
   ]) {
     const html = await (await request(path, 200, 'text/html')).text();

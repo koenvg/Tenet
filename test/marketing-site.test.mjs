@@ -31,17 +31,42 @@ test("every local navigation link resolves to a shipped page or section", () => 
   }
 });
 
-test("the homepage shows the observe result without implying a block", () => {
+test("the keypress hero applies an owner-written rule before deletion", () => {
   const html = page("index.html");
-  expect(html).toContain("Your policy.");
-  expect(html).toContain("Their next action.");
-  expect(html).toContain("Write the rules. See when an agent's tool call might break one.");
-  expect(html).toContain("Observe: TENET flags the call. It still runs.");
+  expect(html).toContain("Some actions");
+  expect(html).toContain("never land.");
+  expect(html).toContain("You write the rules. TENET checks the agent's tool calls against them.");
+  expect(html).toContain("Your rule, for example");
+  expect(html).toContain("Never delete production data.");
+  expect(html).toContain("<strong>Delete blocked</strong> before execution.");
+  expect(html).toContain(">Blocked</text>");
+  expect(html).toContain("Illustrative opt-in enforcement. Observe mode only reports.");
   expect(html).toContain("TENET can be wrong. It isn't an OS sandbox.");
-  expect(html).toContain("Enforcement is opt-in.");
   expect(html).toContain("Observe is the default.");
   expect(html).toContain("If you opt in to enforcement,");
+  expect(html).toContain("Coverage &amp; recording");
+  expect(html).toContain("even when a call passes");
+  expect(html).toContain("code or secrets");
   expect(html).toContain("TENET_RECORDING=off");
+});
+
+test("the homepage uses only neutral black, white and grey colors", () => {
+  for (const name of ["index.html", "style.css"]) {
+    const colors = [...page(name).matchAll(/#([\da-f]{6}|[\da-f]{3})\b/gi)];
+    expect(colors.length).toBeGreaterThan(0);
+    for (const [, hex] of colors) {
+      const rgb = hex.length === 3 ? [...hex].map((channel) => channel.repeat(2)) : hex.match(/../g);
+      expect(new Set(rgb.map((channel) => channel.toLowerCase())).size).toBe(1);
+    }
+  }
+});
+
+test("the animation script is shipped with the static site", () => {
+  const html = page("index.html");
+  expect(html).toContain('<script src="./hero.js" defer></script>');
+  expect(page("hero.js").length).toBeGreaterThan(0);
+  expect(page("Dockerfile")).toContain("style.css hero.js /srv/site/");
+  expect(page(".dockerignore")).toContain("!hero.js");
 });
 
 test("docs explain the policy syntax, setup, and limits", () => {

@@ -1,20 +1,18 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-26T02:35:27Z",
   "title": "Design System: TENET marketing",
   "extensions": {
     "breakpoints": [
-      { "name": "stacked hero", "value": "1100px" },
-      { "name": "single-column reading", "value": "700px" }
+      { "name": "single-column explanation", "value": "700px" }
     ],
     "motion": [
-      { "name": "example hairline", "value": "560ms cubic-bezier(.16, 1, .3, 1)", "purpose": "One left-to-right draw points to the illustrative call. The text stays visible; reduced motion shows a static line." },
-      { "name": "link arrow", "value": "220ms cubic-bezier(.2,.8,.2,1)", "purpose": "Small horizontal shift on link hover and focus; disabled for reduced motion." },
+      { "name": "unpressed key", "value": "4 seconds, one play", "purpose": "A Delete key stops above the production contact plate, then a blocked finding appears. Pause, resume and replay are explicit controls. Reduced motion and no JavaScript show the completed scene." },
+      { "name": "attempted press", "value": "480ms, on click, tap, Enter or Space", "purpose": "The key dips and returns while remaining blocked. Rapid attempts restart from the current position rather than queuing. A live region reports each attempt. Reduced motion reports the block without moving the key." },
       { "name": "primary hover", "value": "180ms ease-out", "purpose": "Darken the primary action on hover; disabled for reduced motion." }
     ],
     "typographyMeta": {
-      "display": { "displayName": "Editorial headline", "purpose": "Two-line promise in the first viewport." },
-      "body": { "displayName": "Explanatory copy", "purpose": "Short product and mode descriptions." }
+      "display": { "displayName": "Editorial headline", "purpose": "Georgia headline with a charcoal italic second line." },
+      "body": { "displayName": "Explanatory copy", "purpose": "Self-hosted Geist for the owner's rule, outcome and mode distinctions." }
     }
   },
   "components": [
@@ -22,41 +20,41 @@
       "name": "Primary action",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "The dark pill link to the local documentation.",
+      "description": "The dark documentation link beneath the illustration and written rule.",
       "html": "<a class=\"ds-primary\" href=\"#\">Read the docs</a>",
-      "css": ".ds-primary { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: .6em 1.5em; border-radius: 100px; background: #171717; color: #fff; font: 500 18px Geist, sans-serif; text-decoration: none; transition: background-color 180ms ease-out; } .ds-primary:hover { background: #303030; } .ds-primary:focus-visible { outline: 2px solid #171717; outline-offset: 5px; } @media (prefers-reduced-motion: reduce) { .ds-primary { transition: none; } }"
+      "css": ".ds-primary { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 12px 24px; border-radius: 4px; background: #171717; color: #fff; font: 500 14px Geist, sans-serif; text-decoration: none; } .ds-primary:focus-visible { outline: 2px solid #171717; outline-offset: 5px; }"
     },
     {
-      "name": "Text action",
-      "kind": "nav",
-      "description": "Plain text with a small arrow; underline and shift appear on interaction.",
-      "html": "<a class=\"ds-text-action\" href=\"#\">How it works <span>→</span></a>",
-      "css": ".ds-text-action { color: #171717; font: 400 18px Geist, sans-serif; text-decoration: none; } .ds-text-action span { display: inline-block; margin-left: 4px; transition: transform 220ms cubic-bezier(.2,.8,.2,1); } .ds-text-action:hover { text-decoration: underline; text-underline-offset: 5px; } .ds-text-action:hover span, .ds-text-action:focus-visible span { transform: translateX(4px); } .ds-text-action:focus-visible { outline: 2px solid #171717; outline-offset: 5px; } @media (prefers-reduced-motion: reduce) { .ds-text-action span { transition: none; } }"
-    },
-    {
-      "name": "Illustrative assessment",
+      "name": "Unpressed key",
       "kind": "custom",
-      "description": "An unframed example of the observed tool call and opt-in qualifier.",
-      "html": "<div class=\"ds-assessment\"><small>Example tool call</small><p>Rule: Never publish code without approval</p><p>Call: git push origin main</p><p>Observe: TENET flags the call. It still runs.</p><aside>Enforcement is opt-in.</aside></div>",
-      "css": ".ds-assessment { position: relative; padding-top: 23px; color: #171717; font: 400 18px/1.5 Geist, sans-serif; } .ds-assessment::before { content: \"\"; position: absolute; top: 0; left: 0; right: 0; border-top: 1px solid #cacdd0; transform-origin: left center; } .ds-assessment small, .ds-assessment aside { color: #6b7077; font-size: 14px; } .ds-assessment p { margin: 8px 0 0; } .ds-assessment aside { margin-top: 24px; } @keyframes ds-assessment-rule-in { from { transform: scaleX(0); } to { transform: scaleX(1); } } @media (prefers-reduced-motion: no-preference) { .ds-assessment::before { animation: ds-assessment-rule-in 560ms cubic-bezier(.16, 1, .3, 1) both; } }"
+      "description": "An Apple-keyboard-inspired white key with rounded light-grey side faces and dark lowercase lettering, held above its contact plate. A charcoal Blocked label appears beside it. JavaScript adds a native button for a harmless attempted press, with visible keyboard focus and a screen-reader announcement. Without JavaScript it remains a static illustration. Implemented in site/index.html and site/hero.js."
+    },
+    {
+      "name": "Owner-written rule",
+      "kind": "custom",
+      "description": "Centered readable HTML beneath the key. Labels the policy as the owner's example, not a built-in restriction.",
+      "html": "<div class=\"ds-rule\"><small>Your rule, for example</small><p>Never delete production data.</p></div>",
+      "css": ".ds-rule { color: #171717; font: 400 24px/1.35 Geist, sans-serif; text-align: center; } .ds-rule small { color: #626262; font: 12px/1.6 monospace; text-transform: uppercase; letter-spacing: .1em; } .ds-rule p { margin: 11px 0 0; }"
     }
   ],
   "narrative": {
-    "northStar": "Editorial space",
-    "overview": "A white field, near-black type, measured hairlines, and one concrete assessment do the work. The approved split composition gives the promise and action room to breathe; the example is evidence, not a dashboard or decorative object. Keep the claims as restrained as the page.",
+    "northStar": "Some actions never land.",
+    "overview": "The owner writes the rules. TENET checks eligible tool calls against them. A descending key stops short of execution; the blocked finding appears beneath the written example.",
     "keyCharacteristics": [
-      "White field, near-black type, and measured hairlines.",
-      "One unframed product example instead of decorative imagery.",
-      "A split first viewport that becomes a quiet reading column on mobile."
+      "An uninterrupted white page with charcoal text and a white key. All shades are neutral greys.",
+      "A centered composition without a boxed panel or side illustration.",
+      "A four-second single play and a compact coverage disclosure."
     ],
     "rules": [],
     "dos": [
-      "Do preserve a readable product example and explicit mode distinction.",
-      "Do keep mobile copy in normal flow with no horizontal scrolling."
+      "Make owner-written rules explicit.",
+      "Label the block as illustrative opt-in enforcement.",
+      "Keep the rule, action and qualifiers readable without motion or JavaScript."
     ],
     "donts": [
-      "Don't imply that observation blocks or asks approval.",
-      "Don't add a decorative illustration, card grid, or faux inspector panel to this marketing surface."
+      "Don't imply that observe mode stops calls.",
+      "Don't imply universal database protection, physical keyboard interception or restoration after deletion.",
+      "Don't add a colored hero panel, looping motion or changing headlines."
     ]
   }
 }
