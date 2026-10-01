@@ -190,8 +190,17 @@ test('SDK result, status and owner-event snapshots freeze nested public data', a
     assert.ok(h.events.some(event => event.type === 'permission'));
     for (const event of h.events) {
       assert.ok(Object.isFrozen(event));
-      if (event.type !== 'activation') assert.ok(Object.isFrozen(event.identity));
+      if ('identity' in event) assert.ok(Object.isFrozen(event.identity));
       if (event.type === 'permission') assert.ok(Object.isFrozen(event.result.assessment));
+      if (event.type === 'capture') assert.ok(Object.isFrozen(event.capture));
+      if ((event.type === 'permission' || event.type === 'assessment') && event.report) {
+        for (const value of [event.report, event.report.ruleIds, event.report.diagnostics,
+          event.report.approvalRules, event.report.rules, ...event.report.rules]) assert.ok(Object.isFrozen(value));
+        for (const diagnostic of event.report.diagnostics) {
+          assert.ok(Object.isFrozen(diagnostic));
+          assert.ok(Object.isFrozen(diagnostic.gates));
+        }
+      }
       if (event.type === 'assessment') {
         assert.ok(Object.isFrozen(event.assessment));
         if (event.assessment.status === 'completed') assert.ok(['ALLOW', 'ASK', 'BLOCK'].includes(event.assessment.wouldDecision));

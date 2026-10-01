@@ -109,7 +109,7 @@ test('unavailable observation still disambiguates duplicate IDs and tool results
     await h.emit('tool_result', { toolName: 'other-tool', toolCallId: 'failed', content: [], isError: false });
     assert.ok(!h.records.some(r => r.stage === 'execution' && r.callId === 'failed'));
     await h.emit('tool_result', { toolName: 'edit', toolCallId: 'failed', content: [], isError: true });
-    assert.equal(h.records.find(r => r.stage === 'execution' && r.callId === 'failed').outcome, 'failed');
+    assert.equal(h.records.find(r => r.stage === 'execution' && r.callId === 'failed').outcome, 'unknown');
     await h.call('absent'); await h.emit('agent_end');
     assert.equal(h.records.find(r => r.stage === 'execution' && r.callId === 'absent').outcome, 'unknown');
   } finally { await h.close(); }

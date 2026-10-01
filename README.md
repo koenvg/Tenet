@@ -9,7 +9,7 @@ The original KVG-5093 publication slice is extended by configurable policy rules
 
 For development checks, see [Contributing](CONTRIBUTING.md). The [CI workflow](.github/workflows/ci.yml) runs offline tests, type checks, and disposable Chromium inspector tests. It does not call the evaluator or publish a release.
 
-Embedding applications can use the compiled [alpha SDK](docs/sdk.md) under Node 22.12+ or Bun 1.3.14+, without Pi. Its session handles own the existing guard mechanics; the embedding owns trusted UI and executor dispatch.
+Embedding applications can use the compiled [alpha SDK](docs/sdk.md) under Node 22.12+ or Bun 1.3.14+, without Pi. Pi uses this same compiled SDK. Its session handles own the existing guard mechanics; each host owns trusted UI and executor dispatch.
 
 On a passing `main` build, CI saves a 14-day install archive as a GitHub Actions artifact. It does not publish to npm or create a public release.
 
@@ -42,6 +42,8 @@ Use Bun 1.3.14 or newer. The repository pins Bun 1.3.14 and runs the Pi CLI with
 
 ```sh
 bun install --frozen-lockfile
+bun run sdk:build
+bun run inspector:build
 bun test
 bun run smoke
 bun run typecheck
@@ -109,6 +111,7 @@ Before rolling back per-rule threshold support, remove threshold metadata from d
 
 ## Enable in Pi
 
+Build the SDK with `bun run sdk:build` before loading the extension from a checkout. `bun run pi` and `bun run smoke` build it automatically.
 1. Review and, if necessary, migrate the selected policy externally as above.
 2. Set `TYPESAFE_API_KEY` using your normal secret-management method. Never put secrets in policy text or the repository.
 3. Start the pinned Pi process with only this explicitly selected extension:
@@ -134,6 +137,7 @@ Install the package from a stable checkout, not a disposable worktree. A local P
 TENET_DIR=/absolute/path/to/stable/Tenet
 cd "$TENET_DIR"
 bun install --frozen-lockfile
+bun run sdk:build
 pi install "$TENET_DIR"       # user-level package; do not add -l
 pi list
 ```

@@ -52,6 +52,8 @@ export async function useResult(session: GuardSession, event: OwnerEvent) {
   const decision: Decision | undefined = result.assessment.wouldDecision;
   // @ts-expect-error snapshots cannot be reassigned
   result.permission = 'released';
+  // @ts-expect-error shared veto details are immutable
+  result.blockReason = 'changed';
   // @ts-expect-error decision cannot be changed after narrowing
   if (result.assessment.status === 'completed') result.assessment.wouldDecision = 'ALLOW';
   // @ts-expect-error reasons are immutable
@@ -105,7 +107,7 @@ export async function useStatus(guard: Guard, session: GuardSession, event: Owne
   if (event.type === 'activation') {
     // @ts-expect-error activation events are immutable
     event.activation = 'off';
-  } else {
+  } else if (event.type !== 'capture') {
     // @ts-expect-error event identity is immutable
     event.identity.sessionId = 'other';
     // @ts-expect-error event correlation is immutable
@@ -117,7 +119,40 @@ export async function useStatus(guard: Guard, session: GuardSession, event: Owne
       // @ts-expect-error execution event outcomes are immutable
       event.outcome = 'executed';
     }
+  } else {
+    if (event.capture.kind !== 'external') {
+      // @ts-expect-error local capture event health is immutable
+      event.capture.failed = 0;
+    } else {
+      // @ts-expect-error external capture health is immutable
+      event.capture.health = 'unknown';
+    }
+    // @ts-expect-error capture event kind is immutable
+    event.capture.kind = 'disabled';
   }
   // @ts-expect-error owner event discriminants are immutable
   event.type = 'activation';
+}
+
+export function readOwnerReport(event: OwnerEvent) {
+  if ((event.type !== 'permission' && event.type !== 'assessment') || !event.report) return;
+  const report = event.report;
+  // @ts-expect-error owner report snapshots cannot be replaced
+  event.report = undefined;
+  // @ts-expect-error owner report fields are immutable
+  report.reason = 'changed';
+  // @ts-expect-error owner report rule IDs are immutable
+  report.ruleIds.push('new');
+  // @ts-expect-error owner report diagnostic collections are immutable
+  report.diagnostics.push();
+  // @ts-expect-error owner report approval rules are immutable
+  report.approvalRules.push('new');
+  for (const rule of report.rules) {
+    // @ts-expect-error owner report rule snapshots are immutable
+    rule.text = 'changed';
+  }
+  for (const diagnostic of report.diagnostics) {
+    // @ts-expect-error owner report diagnostic gate arrays are immutable
+    diagnostic.gates.push('rule-fail');
+  }
 }

@@ -13,6 +13,7 @@ const reasons = new Set(['all-rules-pass', 'advisory-findings', 'rule-approval-r
   'guard-error', 'guard-state-changed', 'duplicate-call-identity', 'arguments-changed', 'session-start', 'session-switch',
   'session-fork', 'session-tree', 'session-shutdown', 'agent-end', 'not-started', 'starting',
   'assessment-pending', 'queue-capacity', 'snapshot-capacity', 'queue-expired', 'generation-invalidated', 'host-cancelled',
+  'approval-denied-or-dismissed', 'approval-ui-error', 'approval-invalidated', 'action-resolution-unavailable', 'action-resolution-stale',
   'approval-denied', 'approval-dismissed', 'approval-timeout', 'approval-unavailable', 'approval-cancelled', 'approval-stale']);
 
 /** Accept bounded contract fields, including snapshot rule text, but no extra payloads. */
@@ -26,7 +27,7 @@ export function recoverReport(entry: unknown): OwnerReport | undefined {
     || !Array.isArray(d.rules) || d.rules.length > 16 || !Array.isArray(d.diagnostics) || d.diagnostics.length > 17
     || !Array.isArray(d.ruleIds) || d.ruleIds.length > 17 || !d.ruleIds.every(text)
     || !Array.isArray(d.approvalRules) || d.approvalRules.length > 16 || !d.approvalRules.every(text)) return;
-  const rules: OwnerReport['rules'] = [];
+  const rules: OwnerReport['rules'][number][] = [];
   for (const r of d.rules) {
     if (!object(r) || !text(r.id) || typeof r.line !== 'number' || !Number.isSafeInteger(r.line) || r.line < 1 || r.line > 65536
       || (r.enforcement !== 'BLOCK' && r.enforcement !== 'WARN')) return;

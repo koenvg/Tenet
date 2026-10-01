@@ -17,6 +17,18 @@ export interface Permission {
   approvalRules: string[];
 }
 
+export function permissionVeto(permission: Permission): { block: true; reason: string } | undefined {
+  if (permission.outcome !== 'blocked') return undefined;
+  const location = (id: string) => { const rule = permission.rules.find(r => r.id === id); return rule ? `line ${rule.line}` : 'built-in policy integrity'; };
+  const locations = permission.ruleIds.map(location);
+  // WARN findings are owner-only even when another rule blocks the invocation.
+  const details = permission.diagnostics.filter(d => d.enforcement === 'BLOCK').map(d =>
+    `${location(d.ruleId)}: ${d.gates.join(', ')}; outcome=${d.outcome} p=${d.outcomeProbability} threshold=${d.effectThreshold}; `
+    + (d.evidence === null ? 'evidence score absent; evidence-confidence gate not evaluated'
+      : `evidence=${d.evidence} p(SUFFICIENT)=${d.evidenceProbability} threshold=${d.evidenceThreshold}`)).join('\n');
+  return { block: true, reason: `TENET blocked: ${permission.reason}.${locations.length ? ` Rules: ${locations.join(', ')}.` : ''}`
+    + (permission.reason === 'policy-stale' ? ' Reload or restart to load the changed policy.' : '') + (details ? `\n${details}` : '') };
+}
 /** One invocation's evidence and consequences. Observation never returns a veto. */
 export class Consequences {
   private assessment: Decision | undefined;
@@ -45,14 +57,6 @@ export class Consequences {
   }
 
   veto(permission: Permission): { block: true; reason: string } | undefined {
-    if (permission.outcome !== 'blocked') return undefined;
-    const locations = permission.ruleIds.map(id => this.location(id));
-    // WARN findings are owner-only even when another rule blocks the invocation.
-    const details = permission.diagnostics.filter(d => d.enforcement === 'BLOCK').map(d =>
-      `${this.location(d.ruleId)}: ${d.gates.join(', ')}; outcome=${d.outcome} p=${d.outcomeProbability} threshold=${d.effectThreshold}; `
-      + (d.evidence === null ? 'evidence score absent; evidence-confidence gate not evaluated'
-        : `evidence=${d.evidence} p(SUFFICIENT)=${d.evidenceProbability} threshold=${d.evidenceThreshold}`)).join('\n');
-    return { block: true, reason: `TENET blocked: ${permission.reason}.${locations.length ? ` Rules: ${locations.join(', ')}.` : ''}`
-      + (permission.reason === 'policy-stale' ? ' Reload or restart to load the changed policy.' : '') + (details ? `\n${details}` : '') };
+    return permissionVeto(permission);
   }
 }

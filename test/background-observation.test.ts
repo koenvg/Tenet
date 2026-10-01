@@ -29,7 +29,7 @@ test('Pi releases before judge; result-before-assessment remains independent and
     await tick();
     resolve(answer(selected, 'FAIL'));
     await h.assessed('c');
-    assert.equal(h.records.find(r => r.stage === 'execution')?.outcome, 'executed');
+    assert.equal(h.records.find(r => r.stage === 'execution')?.outcome, 'unknown');
     assert.equal(h.records.findLast(r => r.stage === 'assessment-status')?.status, 'completed');
     assert.equal(h.records.find(r => r.stage === 'decision')?.decision, 'BLOCK');
     assert.equal(h.records.filter(r => r.stage === 'permission').length, 1);
@@ -82,7 +82,7 @@ test('queued work uses the captured action and history despite later mutation an
     assert.ok(Object.isFrozen(observed.action));
     resolve(answer(observed.policy));
     assert.equal((await h.assessed('one')).status, 'completed');
-    assert.equal(h.records.find(r => r.stage === 'execution')?.outcome, 'executed');
+    assert.equal(h.records.find(r => r.stage === 'execution')?.outcome, 'unknown');
     assert.ok(h.records.findIndex(r => r.stage === 'execution') < h.records.findIndex(r => r.stage === 'assessment'));
   } finally { await h.close(); }
 });

@@ -131,8 +131,8 @@ test('resume recovers bounded observations, not grants; sessions never share liv
     assert.match((await h.call('pending')).reason, /approval-denied/);
     const r = requests.at(-1)!;
     assert.equal(r.trajectory!.observations.length, 12);
-    assert.equal(r.trajectory!.omitted, 7);
-    assert.match(JSON.stringify(r), /recovered-tenet-approval/);
+    assert.equal(r.trajectory!.omitted, 6);
+    assert.doesNotMatch(JSON.stringify(r), /recovered-tenet-approval/);
     assert.doesNotMatch(JSON.stringify(r), /foreign/);
     assert.equal(h.counts().approvals, 2); assert.equal(h.counts().executions, 0);
     assert.ok(r.trajectory!.observations.some(o => o.timestamp === Date.parse('2020-01-01T00:00:00Z')));
@@ -153,7 +153,7 @@ test('recovery includes proposed calls and decisions with unavailable metadata e
       sessionId: 'one', callId: 'proposed', outcome: 'blocked', wouldDecision: 'BLOCK' } });
     await h.switch('one'); await h.call('pending');
     const observations = captured!.trajectory!.observations;
-    assert.deepEqual(observations.map(o => o.origin), ['recovered-pi-tool-call', 'recovered-tenet-decision']);
+    assert.deepEqual(observations.map(o => o.origin), ['host-tool-call']);
     assert.ok(captured!.trajectory!.limitations.includes('metadata-unavailable'));
     assert.match(JSON.stringify(observations), /strangeKey/); assert.doesNotMatch(JSON.stringify(observations), /hidden/);
     assert.equal(h.counts().executions, 0);

@@ -2,20 +2,13 @@ import { validationMessages, validationIssue } from '../decision/response-valida
 import { classifyFinding, categoryLabels, type FindingCategory } from '../decision/finding-triage.js';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { display } from '../decision/evidence.js';
-import type { Permission } from './consequences.js';
-import type { Mode } from './config.js';
+import type { OwnerReport as SharedOwnerReport, Activation, Mode } from 'tenet';
 import type { GuardBoundary } from './boundary.js';
 import { recoverReport, recoverExecution } from './report-history.js';
 import { INTEGRITY_ID, INTEGRITY_TEXT } from '../decision/policy.js';
-import type { ActivationStore } from './activation.js';
-export interface OwnerReport extends Permission {
-  mode: Mode;
-  callId: string;
-  toolName: string;
-  invocationId: string;
+export type OwnerReport = { -readonly [Key in keyof SharedOwnerReport]: SharedOwnerReport[Key] } & {
   execution?: 'executed' | 'failed' | 'unknown';
-  assessmentStatus?: 'pending' | 'completed' | 'unavailable' | 'dropped' | 'cancelled';
-}
+};
 const LIMIT = 100;
 const text = (value: string, max = 80) => display(value).slice(0, max);
 const ruleReference = (report: OwnerReport, id: string, preview = false): string => {
@@ -32,7 +25,7 @@ export class OwnerReports {
   private pending = new Map<string, OwnerReport>();
   private evicted = 0;
   private coverage = 'not-started';
-  constructor(private mode: Mode, private boundary: GuardBoundary, private activation: ActivationStore,
+  constructor(private mode: Mode, private boundary: GuardBoundary, private activation: { read(): Activation; write(value: 'on' | 'off'): Promise<Activation> },
     private captureEnabled: () => boolean, private changed: (ctx: ExtensionContext) => void,
     private adapterCoverage: () => string = () => 'unverified',
     private observationHealth: () => { completed: number; unavailable: number; dropped: number; cancelled: number; limits: { running: number; waiting: number; bytes: number; ageMs: number } } = () => ({ completed: 0, unavailable: 0, dropped: 0, cancelled: 0, limits: { running: 2, waiting: 32, bytes: 1048576, ageMs: 5000 } })) {}
@@ -83,7 +76,7 @@ export class OwnerReports {
       if (!d || typeof d.invocationId !== 'string') continue;
       if (d.stage === 'decision' && ['ALLOW', 'ASK', 'BLOCK'].includes(d.decision)) {
         const report = this.pending.get(d.invocationId) ?? this.recent.findLast(r => r.invocationId === d.invocationId);
-        if (report) {
+        if (report?.mode === 'observe') {
           const restored = recoverReport({ type: 'custom', customType: 'tenet', data: { ...report,
             version: 3, stage: 'permission', wouldDecision: d.decision, reason: d.reason,
             ruleIds: d.ruleIds, diagnostics: d.diagnostics, assessmentAvailable: true } });
@@ -112,12 +105,16 @@ export class OwnerReports {
     return report.wouldDecision !== 'ALLOW' || !!report.diagnostics.length || !!report.approvalRules.length;
   }
   add(report: OwnerReport): void {
+    // A prepared permission can be superseded by the SDK's final revalidation.
+    this.pending.delete(report.invocationId);
+    const previous = this.recent.findIndex(r => r.invocationId === report.invocationId);
+    if (previous !== -1) this.recent.splice(previous, 1);
     const copy = structuredClone({ ...report, assessmentStatus: report.assessmentStatus ?? (report.reason === 'assessment-pending' ? 'pending' : report.assessmentAvailable ? 'completed' : 'unavailable') });
     if (copy.assessmentStatus === 'pending') { this.pending.set(copy.invocationId, copy); return; }
     if (copy.assessmentStatus === 'completed' && !this.concern(copy)) return;
     this.retain(copy);
   }
-  markAssessment(invocationId: string, status: NonNullable<OwnerReport['assessmentStatus']>, permission?: Permission, reason?: string): void {
+  markAssessment(invocationId: string, status: NonNullable<OwnerReport['assessmentStatus']>, permission?: SharedOwnerReport, reason?: string): void {
     const report = this.pending.get(invocationId) ?? this.recent.findLast(r => r.invocationId === invocationId);
     if (!report) return;
     if (status === 'pending') return;

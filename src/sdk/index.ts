@@ -3,14 +3,15 @@ import { freeze } from '../decision/evidence.js';
 import { evidenceWithinBudget } from '../decision/evidence-budget.js';
 import { Observations } from '../decision/trajectory.js';
 import type { Decision } from '../decision/contracts.js';
-import type { Permission } from '../runtime/consequences.js';
+import { permissionVeto, type Permission } from '../runtime/consequences.js';
 import { createRuntimeResources } from '../runtime/resources.js';
 import type { AuthorizationHandoff, RuntimeIdentity } from '../runtime/guard.js';
-import type { AssessmentStatus, BeforeToolResult, CaptureStatus, Guard, GuardOptions, GuardSession, OwnerEvent, SessionIdentity, SessionStatus } from './types.js';
+import type { AssessmentStatus, BeforeToolResult, CaptureStatus, Guard, GuardOptions, GuardSession, OwnerEvent, OwnerReport, OwnerRecord, SessionIdentity, SessionStatus } from './types.js';
 import { declaredCapabilities } from './capabilities.js';
 export type * from './types.js';
 
 export const SDK_VERSION = 'alpha-1';
+const ownerStages: readonly OwnerRecord['stage'][] = ['status', 'assessment', 'decision', 'approval', 'permission', 'assessment-status', 'execution'];
 const immutable = <T>(value: T): T => freeze(structuredClone(value));
 const unavailableAssessment = (reason: string): AssessmentStatus => ({ status: 'unavailable', reason, diagnostics: [], ruleIds: [] });
 const notRequested = (): AssessmentStatus => ({ status: 'not-requested', diagnostics: [], ruleIds: [] });
@@ -22,6 +23,10 @@ const assessmentStatus = (status: AssessmentStatus['status'], permission?: Permi
     : { status, ...details };
 };
 const text = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 256;
+const ownerReport = (binding: Pick<OwnerReport, 'invocationId' | 'callId' | 'toolName'>, permission: Permission,
+  mode: OwnerReport['mode'], assessmentStatus?: OwnerReport['assessmentStatus']): OwnerReport => ({
+  ...permission, mode, invocationId: binding.invocationId, callId: binding.callId, toolName: binding.toolName, assessmentStatus,
+});
 
 /** The application owns event translation, trusted UI and executor dispatch. */
 export function createGuard(options: GuardOptions): Guard {
@@ -36,14 +41,19 @@ export function createGuard(options: GuardOptions): Guard {
     try { options.onOwnerEvent?.(immutable(event)); } catch { /* Owner delivery cannot authorize or veto. */ }
   };
   const resources = createRuntimeResources({ ...options, capabilities, env: { ...(options.env ?? process.env) },
+    onCaptureHealth: () => deliver({ type: 'capture', capture: captureStatus() }),
     onAssessment: (id, status, permission, reason) => {
       // Runtime generations suppress late assessments after invalidation or closure.
       const session = sessions.get(id.sessionId);
       if (!session || session.closed || closed) return;
       deliver({ type: 'assessment', identity: session.identity, invocationId: id.invocationId, callId: id.callId,
-        assessment: assessmentStatus(status, permission, reason) });
+        assessment: assessmentStatus(status, permission, reason),
+        report: permission ? ownerReport(id, permission, runtime.mode, status) : undefined });
     },
     emit: (stage, data) => {
+      const ownerStage = ownerStages.find(item => item === stage);
+      try { if (ownerStage) options.onOwnerRecord?.(immutable({ stage: ownerStage,
+        data: { ...data, mode: runtime.mode } })); } catch { /* Transcript delivery cannot authorize or veto. */ }
       if (stage !== 'execution' || closed || typeof data.sessionId !== 'string') return;
       const session = sessions.get(data.sessionId);
       if (!session || session.closed) return;
@@ -54,6 +64,11 @@ export function createGuard(options: GuardOptions): Guard {
     },
   });
   const { runtime, activation, archive } = resources;
+  const captureStatus = (): CaptureStatus => {
+    if (!archive) return { kind: 'external', health: 'unknown' };
+    const { enabled, ...health } = archive.health();
+    return { kind: enabled ? 'local-archive' : 'disabled', ...health };
+  };
   const syncWatch = () => {
     const needed = !closed && [...sessions.values()].some(s => !s.closed && s.initialized && runtime.coverageStatus(s.identity).readiness.eligible);
     if (needed && !watching) {
@@ -68,6 +83,7 @@ export function createGuard(options: GuardOptions): Guard {
       if (sessions.has(identity.sessionId)) throw new Error('session-already-open');
       const id: RuntimeIdentity = immutable({ host: runtime.capabilities.host, sessionId: identity.sessionId, contextId: identity.contextId });
       let sessionClosing: Promise<boolean> | undefined;
+      const bypassed = new Set<string>();
       const entry = { handle: undefined as unknown as GuardSession, identity: id, initialized: false, closed: false };
       const status = (): SessionStatus => {
         const coverage = runtime.coverageStatus(id);
@@ -80,11 +96,11 @@ export function createGuard(options: GuardOptions): Guard {
           policy: { source: ready.policy.source, digest: ready.policy.available ? ready.policy.digest : null, ruleCount: ready.ruleCount } });
       };
       const unavailable = (reason: string): BeforeToolResult => immutable({
-        permission: runtime.mode === 'enforce' ? 'blocked' : 'released', reason, assessment: unavailableAssessment(reason), execution: 'unknown' });
+        permission: runtime.mode === 'enforce' ? 'blocked' : 'released', reason, ...(runtime.mode === 'enforce' ? { blockReason: `TENET blocked: ${reason}.` } : {}), assessment: unavailableAssessment(reason), execution: 'unknown' });
       // Register before starting so closure and callbacks can find the owned handle.
       sessions.set(id.sessionId, entry);
       const ready = runtime.start(id, cwd, resources.hasJudge).then(() => {
-        if (!entry.closed && !closed) { entry.initialized = true; syncWatch(); }
+        if (!entry.closed && !closed) { entry.initialized = true; syncWatch(); runtime.status(id); }
         return status();
       });
       const handle: GuardSession = {
@@ -96,10 +112,14 @@ export function createGuard(options: GuardOptions): Guard {
           const initial = status();
           if (initial.state === 'dormant') return immutable({ permission: 'released', reason: 'dormant', bypassReason: 'dormant', assessment: notRequested(), execution: 'unknown' });
           const control = activation.refresh();
-          if (control === 'off') return immutable({ permission: 'released', reason: 'off', bypassReason: 'off', assessment: notRequested(), execution: 'unknown' });
-          if (control === 'unavailable') return unavailable('control-unavailable');
+          if (control !== 'on') {
+            bypassed.add(invocation.callId);
+            if (control === 'off') return immutable({ permission: 'released', reason: 'off', bypassReason: 'off', assessment: notRequested(), execution: 'unknown' });
+            return unavailable('control-unavailable');
+          }
           let permission: Permission | undefined;
           let invocationId: string | undefined;
+          let reportBinding: Pick<OwnerReport, 'invocationId' | 'callId' | 'toolName'> | undefined;
           let decision: Decision | undefined;
           let observation: AssessmentStatus | undefined;
           let authorization: AuthorizationHandoff | undefined;
@@ -108,7 +128,7 @@ export function createGuard(options: GuardOptions): Guard {
             onDecision: result => { decision = result; },
             onAuthorization: handoff => { authorization = handoff; },
             onAssessment: (_binding, state, assessed, reason) => { observation = assessmentStatus(state, assessed, reason); },
-            onPermission: (binding, result) => { invocationId = binding.invocationId; permission = result; },
+            onPermission: (binding, result) => { invocationId = binding.invocationId; reportBinding = binding; permission = result; },
           });
           let assessment: AssessmentStatus;
           if (decision?.assessment) assessment = { status: 'completed', wouldDecision: decision.decision,
@@ -125,6 +145,7 @@ export function createGuard(options: GuardOptions): Guard {
             try { return await authorization!.revalidate() && live(); } catch { return false; }
           };
           const snapshot = (released: boolean): BeforeToolResult => immutable({ permission: released ? 'released' : 'blocked',
+            ...(!released ? { blockReason: permission ? permissionVeto({ ...permission, outcome: 'blocked' })?.reason : veto?.reason ?? 'TENET blocked: guard-state-changed.' } : {}),
             reason: permission?.reason ?? decision?.reason ?? 'guard-state-changed', invocationId, assessment, execution: 'unknown' });
           let released = !veto;
           if (runtime.mode === 'enforce' && released && !await revalidate()) {
@@ -132,7 +153,9 @@ export function createGuard(options: GuardOptions): Guard {
           }
           let result = snapshot(released);
           const report = () => {
-            if (!entry.closed && !closed && activation.read() === 'on') deliver({ type: 'permission', identity: id, callId: invocation.callId, result });
+            if (!entry.closed && !closed && activation.read() === 'on') deliver({ type: 'permission', identity: id, callId: invocation.callId, result,
+              report: permission && reportBinding ? ownerReport(reportBinding, { ...permission, outcome: result.permission, reason: result.reason }, runtime.mode,
+                result.assessment.status === 'not-requested' ? undefined : result.assessment.status) : undefined });
           };
           report();
           // Owner delivery and the runtime await can both revoke a prepared release.
@@ -145,8 +168,8 @@ export function createGuard(options: GuardOptions): Guard {
           return result;
         },
         afterTool(result) {
-          if (entry.closed || closed || !entry.initialized || !runtime.capabilities.resultCorrelation) return { outcome: 'unknown' };
-          return runtime.result({ ...result, ...id }) ?? { outcome: 'unknown' };
+          if (entry.closed || closed || !entry.initialized || bypassed.has(result.callId)) return { outcome: 'unknown' };
+          return runtime.result({ ...result, ...id, ...(!runtime.capabilities.resultCorrelation ? { correlation: 'unknown' as const } : {}) }) ?? { outcome: 'unknown' };
         },
         setHistory(history) {
           if (entry.closed || closed || !entry.initialized || !Array.isArray(history)) return;
@@ -189,14 +212,9 @@ export function createGuard(options: GuardOptions): Guard {
       return result;
     },
     status() {
-      let capture: CaptureStatus = { kind: 'external', health: 'unknown' };
-      if (archive) {
-        const { enabled, ...health } = archive.health();
-        capture = { kind: enabled ? 'local-archive' : 'disabled', ...health };
-      }
       return immutable({ closed, sessions: sessions.size, mode: runtime.mode, activation: activation.read(),
         observations: runtime.observationQueue.health(),
-        capture });
+        capture: captureStatus() });
     },
     close() {
       if (closing) return closing;

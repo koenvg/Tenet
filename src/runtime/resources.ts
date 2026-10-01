@@ -10,10 +10,11 @@ export function createRuntimeResources(options: Omit<RuntimeOptions, 'judge' | '
   createJudge?: () => Judge;
   controlPath?: string;
   bindRecording?: RuntimeOptions['bindRecording'];
+  onCaptureHealth?: () => void;
 }) {
   const env = Object.freeze({ ...options.env });
   const activation = new ActivationStore(options.controlPath ?? env.TENET_CONTROL_PATH);
-  const archive = options.bindRecording ? undefined : new ArchiveWriter(recordingConfig(env));
+  const archive = options.bindRecording ? undefined : new ArchiveWriter(recordingConfig(env), undefined, options.onCaptureHealth);
   let provider = options.judge;
   const judge: Judge = async (request, signal, recording) => {
     if (!provider) {

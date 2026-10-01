@@ -46,8 +46,10 @@ try {
       { name: 'invalid-setting', env: { TENET_RECORDING: 'invalid', TENET_RECORDING_DIR: join(cwd, `invalid-${mode}`) }, kind: 'disabled', issue: 'invalid-recording-setting' },
       { name: 'failed-local', env: { TENET_RECORDING_DIR: failedDirectory }, kind: 'local-archive' },
     ]) {
+      const captureEvents = [];
       const local = createGuard({ host: 'capture-consumer', judge, env: { TENET_MODE: mode, ...scenario.env },
-        controlPath: join(cwd, `control-${mode}-${scenario.name}`, 'state.json') });
+        controlPath: join(cwd, `control-${mode}-${scenario.name}`, 'state.json'),
+        onOwnerEvent: event => { if (event.type === 'capture') captureEvents.push(event.capture); } });
       try {
         const initial = local.status().capture;
         assert.equal(initial.kind, scenario.kind);
@@ -72,6 +74,12 @@ try {
         if (scenario.name === 'default-local') assert.ok(final.written > 0);
         else if (scenario.name === 'failed-local') assert.ok(final.failed > 0);
         else assert.equal(final.written, 0);
+        if (scenario.name === 'default-local' || scenario.name === 'failed-local') assert.ok(captureEvents.length > 0);
+        for (const capture of captureEvents) {
+          assert.equal(capture.kind, scenario.kind);
+          assert.equal('enabled' in capture, false);
+          assert.ok(Object.isFrozen(capture));
+        }
       } finally { await local.close(); }
     }
     for (const failure of ['binder', 'sink']) {
