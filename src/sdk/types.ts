@@ -84,7 +84,7 @@ export interface GuardOptions {
   createJudge?: () => Judge;
   actionResolver?: ActionResolver;
   controlPath?: string;
-  /** Replaces local archive capture. The SDK owns no resources in this caller-owned sink. */
+  /** Replaces local archive capture, even when TENET_RECORDING=off. External health stays unknown; the caller owns disposal. */
   bindRecording?: (identity: InvocationIdentity & SessionIdentity & { host: string; cwd: string; mode: Mode }) => RecordingSink;
   /** Owner-only. Callbacks must be bounded; never forward findings into agent history. */
   onOwnerEvent?: (event: OwnerEvent) => void;
@@ -103,6 +103,11 @@ export interface GuardSession {
   status(): SessionStatus;
   close(): Promise<boolean>;
 }
+/** Configured recording destination, not proof of current capture or durability. */
+export type CaptureStatus =
+  | { readonly kind: 'local-archive' | 'disabled'; readonly directory: string; readonly issue?: string; readonly failed: number; readonly dropped: number;
+      readonly written: number; readonly pending: number; readonly drainTimeouts: number }
+  | { readonly kind: 'external'; readonly health: 'unknown' };
 export interface GuardStatus {
   readonly closed: boolean;
   readonly sessions: number;
@@ -111,8 +116,7 @@ export interface GuardStatus {
   readonly observations: { readonly running: number; readonly waiting: number; readonly retainedBytes: number; readonly completed: number;
     readonly unavailable: number; readonly dropped: number; readonly cancelled: number;
     readonly limits: Readonly<{ running: number; waiting: number; bytes: number; ageMs: number }> };
-  readonly capture: { readonly enabled: boolean; readonly directory?: string; readonly issue?: string; readonly failed: number;
-    readonly dropped: number; readonly pending: number; readonly drainTimeouts: number };
+  readonly capture: CaptureStatus;
 }
 export interface Guard {
   /** One handle per host session. Close the old handle before replacing its context. */

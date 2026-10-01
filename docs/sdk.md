@@ -77,7 +77,23 @@ Status separates `state`, activation and configured mode. Dormant and off releas
 
 Public result and status fields, owner events and their nested data are readonly, matching frozen snapshots. Narrow `assessment.status` to `completed` to read a required `wouldDecision`. Every other state excludes a would-decision. This type distinction does not link assessment to permission: a completed ASK can be blocked or released after trusted approval, and an unavailable observe assessment can accompany release.
 
-Observe releases after bounded snapshot capture without awaiting the judge. Background work retains the current defaults: two running, 32 waiting, 1 MiB total snapshots and five-second queue age. Terminal owner assessment events distinguish completed, unavailable, dropped and cancelled work. Pending, dropped and unavailable work has no passing assessment. Guard status exposes aggregate queue and capture health; neither guarantees complete interception or durable recording.
+Observe releases after bounded snapshot capture without awaiting the judge. Background work retains the current defaults: two running, 32 waiting, 1 MiB total snapshots and five-second queue age. Terminal owner assessment events distinguish completed, unavailable, dropped and cancelled work. Pending, dropped and unavailable work has no passing assessment. Guard status exposes aggregate queue health and the configured recording destination. Neither guarantees complete interception or durable recording.
+
+## Recording status
+
+`guard.status().capture` is a `CaptureStatus` union. Check `kind` before reading health fields:
+
+| `kind` | Meaning | Reported fields |
+| --- | --- | --- |
+| `local-archive` | The SDK's local archive is configured on. | `directory`, optional `issue`, and measured `failed`, `dropped`, `written`, `pending`, `drainTimeouts` counters. |
+| `disabled` | Local recording is configured off or its configuration is invalid. | The same local archive fields, including an `issue` for invalid configuration. |
+| `external` | `bindRecording` replaces the local archive with a caller-owned sink. | Only `health: 'unknown'`. No local archive path or invented loss counters. |
+
+`kind` describes configuration, not whether a record is being captured now. Check guard `closed`, `activation` and session readiness separately. Off suppresses new capture without changing the configured destination; queued local writes may finish. Archive write failures remain `local-archive` with measured losses, rather than masquerading as disabled recording. Local counters describe only this guard's writer. `written` counts completed stage-file writes, not durable or complete invocation coverage.
+
+Supplying `bindRecording` takes precedence over `TENET_RECORDING=off`, which disables only the local archive. External health stays unknown even when the SDK calls the sink successfully or catches a binder/sink error. The SDK has no external health-reporting contract and does not drain or dispose external sinks. A successful `close()` with an external sink says nothing about that sink's durability.
+
+Recording configuration and health never determine permission. A failed archive or sink cannot block an otherwise permitted call or release an otherwise blocked call. Dispatch only from the fresh `beforeTool` result's `permission`.
 
 ## Host obligations and approval
 
@@ -101,6 +117,6 @@ In enforce mode, the runtime commits a prepared release only after the SDK's che
 
 `endTurn` marks unmatched releases unknown. Valid background observations survive turn end; enforcement pending work is invalidated. Context replacement, off, detected policy staleness and close cancel applicable background work. Closing one session leaves unrelated sessions alive; closing the last eligible session stops control watches. Repeated close is safe. Guard close revokes all sessions and closes its archive with a bounded drain, default one second, configurable from zero to five seconds. A false close result means the archive drain was incomplete, not that permission remains valid. SDK disposal does not await a provider or trusted UI, and cannot release caller-owned external resources that ignore cancellation.
 
-For hermetic embedding/tests, pass a complete `env` object, an injected `judge` or lazy `createJudge`, an isolated absolute `controlPath`, and `TENET_RECORDING: 'off'` or an isolated recording directory. `bindRecording` replaces the local archive with a caller-owned best-effort sink. The caller must dispose that sink's resources; the SDK owns no sink drain. No production credential or changes to the owner's home are required.
+For hermetic embedding/tests, pass a complete `env` object, an injected `judge` or lazy `createJudge`, an isolated absolute `controlPath`, and `TENET_RECORDING: 'off'` or an isolated recording directory. `bindRecording` replaces the local archive with a caller-owned best-effort sink, reported as `capture.kind: 'external'` with unknown health. The caller must dispose that sink's resources; the SDK owns no sink drain. No production credential or changes to the owner's home are required.
 
 The extraction retains `applicability-v1`, the current question version, thresholds, built-in integrity and capture defaults. Historical readers continue using each record's contract rather than reevaluating old findings under today's policy.

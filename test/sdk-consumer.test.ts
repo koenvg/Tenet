@@ -57,6 +57,13 @@ console.log('side-effect-free import');
       await assert.rejects(readFile(join(h.root, 'node_modules/@earendil-works/pi-coding-agent/package.json')));
     } finally { await h.close(); }
   });
+  test(`compiled capture status distinguishes local, external and disabled recording under isolated ${runtime}`, async () => {
+    const h = await consumer();
+    try {
+      await cp(join(repo, 'test/sdk-capture-fixture.mjs'), join(h.root, 'capture.mjs'));
+      assert.match(execFileSync(runtime, ['capture.mjs'], { cwd: h.root, env: h.env, encoding: 'utf8', timeout: 10000 }), /SDK capture status passed/);
+    } finally { await h.close(); }
+  });
 }
 
 test('isolated TypeScript consumer resolves public declarations without source, Pi or frontend tooling', async () => {
@@ -81,8 +88,37 @@ const unknown: GuardOptions = { host: 'consumer', capabilities: ['trust-everythi
 const noHost: GuardOptions = { capabilities };
 void [minimal, declared, legacy, unknown, noHost];
 `);
+    await writeFile(join(h.root, 'capture.ts'), `
+import type { CaptureStatus, GuardStatus } from 'tenet';
+declare const status: GuardStatus;
+const capture: CaptureStatus = status.capture;
+if (capture.kind === 'external') {
+  const health: 'unknown' = capture.health;
+  // @ts-expect-error external sinks have no measured loss counters
+  capture.failed;
+  // @ts-expect-error external sinks have no SDK-owned archive path
+  capture.directory;
+  // @ts-expect-error external health is a readonly snapshot
+  capture.health = 'unknown';
+  void health;
+} else {
+  const kind: 'local-archive' | 'disabled' = capture.kind;
+  const directory: string = capture.directory;
+  const counters: number[] = [capture.failed, capture.dropped, capture.written, capture.pending, capture.drainTimeouts];
+  // @ts-expect-error local writer counters are readonly snapshots
+  capture.failed = 0;
+  // @ts-expect-error local writer paths are readonly snapshots
+  capture.directory = 'changed';
+  void [kind, directory, counters];
+}
+// @ts-expect-error capture no longer confuses local enablement with external health
+capture.enabled;
+// @ts-expect-error external health cannot imply durability
+const durable: CaptureStatus = { kind: 'external', health: 'healthy' };
+void durable;
+`);
     await writeFile(join(h.root, 'tsconfig.json'), JSON.stringify({ compilerOptions: { target: 'ES2023', module: 'NodeNext',
-      moduleResolution: 'NodeNext', strict: true, noEmit: true, skipLibCheck: false }, include: ['consumer.ts', 'capabilities.ts', 'assessment-types.ts'] }));
+      moduleResolution: 'NodeNext', strict: true, noEmit: true, skipLibCheck: false }, include: ['consumer.ts', 'capabilities.ts', 'assessment-types.ts', 'capture.ts'] }));
     execFileSync('node', [join(repo, 'node_modules/typescript/bin/tsc'), '-p', h.root], { cwd: h.root, env: h.env, encoding: 'utf8', timeout: 20000 });
     execFileSync('node', [join(repo, 'node_modules/typescript/bin/tsc'), '-p', h.root, '--exactOptionalPropertyTypes'],
       { cwd: h.root, env: h.env, encoding: 'utf8', timeout: 20000 });

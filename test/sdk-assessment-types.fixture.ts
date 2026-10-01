@@ -101,7 +101,7 @@ export async function useStatus(guard: Guard, session: GuardSession, event: Owne
   // @ts-expect-error observation limits are immutable
   health.observations.limits.bytes = 0;
   // @ts-expect-error capture health is immutable
-  health.capture.enabled = false;
+  health.capture.kind = 'external';
   if (event.type === 'activation') {
     // @ts-expect-error activation events are immutable
     event.activation = 'off';
