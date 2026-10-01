@@ -6,7 +6,7 @@ import type { Decision } from '../decision/contracts.js';
 import type { Permission } from '../runtime/consequences.js';
 import { createRuntimeResources } from '../runtime/resources.js';
 import type { AuthorizationHandoff, RuntimeIdentity } from '../runtime/guard.js';
-import type { AssessmentStatus, BeforeToolResult, Guard, GuardOptions, GuardSession, OwnerEvent, SessionIdentity, SessionStatus } from './types.js';
+import type { AssessmentStatus, BeforeToolResult, CaptureStatus, Guard, GuardOptions, GuardSession, OwnerEvent, SessionIdentity, SessionStatus } from './types.js';
 import { declaredCapabilities } from './capabilities.js';
 export type * from './types.js';
 
@@ -189,9 +189,14 @@ export function createGuard(options: GuardOptions): Guard {
       return result;
     },
     status() {
+      let capture: CaptureStatus = { kind: 'external', health: 'unknown' };
+      if (archive) {
+        const { enabled, ...health } = archive.health();
+        capture = { kind: enabled ? 'local-archive' : 'disabled', ...health };
+      }
       return immutable({ closed, sessions: sessions.size, mode: runtime.mode, activation: activation.read(),
         observations: runtime.observationQueue.health(),
-        capture: archive?.health() ?? { enabled: false, failed: 0, dropped: 0, pending: 0, drainTimeouts: 0 } });
+        capture });
     },
     close() {
       if (closing) return closing;
