@@ -32,7 +32,8 @@ test('pinned Pi dispatch gates built-in, extension and dynamically registered to
     let executorFailure = false;
     let approved = false;
     let confirmations = 0;
-    let pendingConfirmation: (() => Promise<boolean>) | undefined;
+    let pendingConfirmation: ((body: string) => Promise<boolean>) | undefined;
+    let pendingAssessment: ((action: Action) => Promise<void>) | undefined;
     let extensionAPI!: ExtensionAPI;
     const assessed: Action[] = [];
     const executed: unknown[] = [];
@@ -59,6 +60,7 @@ test('pinned Pi dispatch gates built-in, extension and dynamically registered to
           } });
         registerGuard(pi, { env: { TENET_RECORDING: 'off', TENET_MODE: 'enforce' }, judge: async request => {
           assessed.push(request.action);
+          await pendingAssessment?.(request.action);
           if (judgeFailure) throw new Error('scripted provider failure');
           const raw = answer(request.policy, outcome);
           raw.rules[raw.rules.length - 1] = ruleAnswer(INTEGRITY_ID, integrity);
@@ -82,7 +84,7 @@ test('pinned Pi dispatch gates built-in, extension and dynamically registered to
         assert.ok(body.includes(RULE));
         assert.ok(body.includes('Ask before installing dependencies.'));
         assert.ok(!body.includes('hidden-credential'));
-        return pendingConfirmation ? pendingConfirmation() : approved;
+        return pendingConfirmation ? pendingConfirmation(body) : approved;
       },
     } as unknown as ExtensionUIContext });
     let pendingCalls: ToolCall[] = [];
@@ -216,9 +218,7 @@ test('pinned Pi dispatch gates built-in, extension and dynamically registered to
     assert.equal(executed.length, 7);
     assert.deepEqual(executed.at(-1), { payload: { value: 'before-approval' } });
 
-    replies = []; session.agent.toolExecution = 'parallel';
-    pendingConfirmation = () => new Promise(resolve => { replies.push(resolve); });
-    const beforeConcurrent = assessed.length;
+    session.agent.toolExecution = 'parallel';
     // Pi 0.85.1 prepares calls serially even in parallel executor mode. Exercise
     // overlapping native hooks directly, then dispatch through its loaded dummy tool.
     const nativeInvoke = async (args: Record<string, unknown>) => {
@@ -226,21 +226,39 @@ test('pinned Pi dispatch gates built-in, extension and dynamically registered to
       const veto = await session!.extensionRunner.emitToolCall({ type: 'tool_call', toolCallId: id, toolName: 'dummy', input: args });
       if (!veto?.block) await session!.agent.state.tools.find(tool => tool.name === 'dummy')!.execute(id, args, new AbortController().signal);
     };
-    const concurrent = Promise.all([nativeInvoke({ payload: { value: 'one' } }), nativeInvoke({ payload: { value: 'two' } })]);
-    await until(() => assessed.length === beforeConcurrent + 2 && replies.length === 1);
-    assert.equal(executed.length, 7, 'both executors withheld while native dialogs serialize');
-    replies[0]!(true);
-    await until(() => replies.length === 2 && executed.length === 8);
-    assert.equal(executed.length, 8);
-    assert.deepEqual(executed.at(-1), { payload: { value: 'one' } });
-    replies[1]!(false); await concurrent;
-    assert.equal(executed.length, 8, 'denied concurrent call never executes');
+    // Force each assessment completion order; dispatch order does not determine dialog order.
+    for (const approvedValue of ['one', 'two']) {
+      replies = [];
+      const bodies: string[] = [];
+      pendingConfirmation = body => new Promise(resolve => { bodies.push(body); replies.push(resolve); });
+      const beforeConcurrent = assessed.length;
+      const beforeExecution: number = executed.length;
+      let releaseAssessment!: () => void;
+      const heldAssessment = new Promise<void>(resolve => { releaseAssessment = resolve; });
+      pendingAssessment = action => (action.arguments as { payload: { value: string } }).payload.value === approvedValue
+        ? Promise.resolve() : heldAssessment;
+      const concurrent = Promise.all([nativeInvoke({ payload: { value: 'one' } }), nativeInvoke({ payload: { value: 'two' } })]);
+      await until(() => assessed.length === beforeConcurrent + 2 && replies.length === 1);
+      assert.equal(executed.length, beforeExecution, 'both executors withheld while native dialogs serialize');
+      assert.ok(bodies[0]!.includes(`"value": "${approvedValue}"`), 'first dialog identifies the assessment that completed first');
+      releaseAssessment();
+      replies[0]!(true);
+      await until(() => replies.length === 2 && executed.length === beforeExecution + 1);
+      assert.deepEqual(executed.at(-1), { payload: { value: approvedValue } }, 'native consent releases only the displayed invocation');
+      const deniedValue = approvedValue === 'one' ? 'two' : 'one';
+      assert.ok(bodies[1]!.includes(`"value": "${deniedValue}"`), 'second dialog belongs to the other invocation');
+      replies[1]!(false); await concurrent;
+      assert.equal(executed.length, beforeExecution + 1, 'denied concurrent call never executes');
+    }
+    pendingAssessment = undefined;
+    pendingConfirmation = () => new Promise(resolve => { replies.push(resolve); });
+    assert.equal(executed.length, 9);
 
     replies = [];
     const cancelled = invoke('dummy', { payload: { value: 'cancelled' } });
     await until(() => replies.length === 1);
     await session.abort(); replies[0]!(true); await cancelled;
-    assert.equal(executed.length, 8, 'late consent cannot release cancelled native work');
+    assert.equal(executed.length, 9, 'late consent cannot release cancelled native work');
 
     const transitions = [
       () => session!.extensionRunner.emit({ type: 'session_before_switch', reason: 'new' }),
@@ -254,12 +272,12 @@ test('pinned Pi dispatch gates built-in, extension and dynamically registered to
       const invalidated = invoke('dummy', { payload: { value: 'lifecycle' } });
       await until(() => replies.length === 1);
       await transition(); replies[0]!(true); await invalidated;
-      assert.equal(executed.length, 8, 'native lifecycle revokes pending executor permission');
+      assert.equal(executed.length, 9, 'native lifecycle revokes pending executor permission');
       await session.extensionRunner.emit({ type: 'session_start', reason: 'reload' });
     }
     pendingConfirmation = undefined;
     await invoke('dummy', { payload: { value: 'after-restart' } });
-    assert.equal(executed.length, 9, 'fresh SDK session remains usable after shutdown and restart');
+    assert.equal(executed.length, 10, 'fresh SDK session remains usable after shutdown and restart');
     assert.deepEqual(executed.at(-1), { payload: { value: 'after-restart' } });
   } finally {
     session?.dispose();
