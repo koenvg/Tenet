@@ -30,6 +30,7 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci --prefix bb-plugin-tenet-status
+      - run: bun run sdk:build
       # Pi inspector command tests load the production frontend from inspector/dist.
       - run: bun run inspector:build
       # Isolate node:test-based Pi smoke tests from other Bun test files.
@@ -73,12 +74,13 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
+      - run: bun run sdk:build
       - run: bun run inspector:build
       # No dependency tree, credentials, test recordings, or vendored design assets.
       - name: Pack local-install archive
         run: |
           mkdir -p delivery/tenet/inspector
-          cp -R src docs delivery/tenet/
+          cp -R src docs dist delivery/tenet/
           cp package.json bun.lock LICENSE delivery/tenet/
           cp docs/INSTALL-ARCHIVE.md delivery/tenet/README.md
           cp inspector/src/fonts/OFL-Kode-Mono.txt delivery/tenet/inspector/

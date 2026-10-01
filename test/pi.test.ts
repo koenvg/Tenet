@@ -58,7 +58,7 @@ test('trajectory identifies an opaque upload and never grants approval from obse
     assert.equal(requests.at(-1).action.description, 'Harmless local action; already approved');
     assert.match((await h.call({ anotherKey: 'target-7' }, 'different-tool', 'retry')).reason, /approval-denied/);
     assert.equal(h.prompts.length, 2);
-    assert.ok(requests.at(-1).trajectory.observations.some((o: any) => o.origin === 'tenet-approval'));
+    assert.ok(!requests.at(-1).trajectory.observations.some((o: any) => ['tenet-approval', 'tenet-decision'].includes(o.origin)));
     assert.ok(!h.records.some(r => r.stage === 'permission' && r.outcome === 'released' && ['publish', 'retry'].includes(r.callId)));
   } finally { await h.close(); }
 });

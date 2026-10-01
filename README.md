@@ -9,6 +9,8 @@ The original KVG-5093 publication slice is extended by configurable policy rules
 
 For development checks, see [Contributing](CONTRIBUTING.md). The [CI workflow](.github/workflows/ci.yml) runs offline tests, type checks, and disposable Chromium inspector tests. It does not call the evaluator or publish a release.
 
+Embedding applications can use the compiled [alpha SDK](docs/sdk.md) under Node 22.12+ or Bun 1.3.14+, without Pi. Its session handles own the existing guard mechanics; the embedding owns trusted UI and executor dispatch.
+
 On a passing `main` build, CI saves a 14-day install archive as a GitHub Actions artifact. It does not publish to npm or create a public release.
 
 TENET source is [MIT-licensed](LICENSE). Bundled assets retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md).
