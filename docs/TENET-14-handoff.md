@@ -52,3 +52,21 @@ The single fresh-context reviewer requested changes for two P2 findings. Both ar
 Six new native regressions failed before these fixes and now pass. They cover denial, dismissal, UI failure, action-resolution capture/revalidation failures and enforce append failure. Recovery assertions also caught an earlier decision overwriting a terminal enforcement failure reason; recovery now keeps the recorded enforce permission reason. A seventh test changes arguments from owner delivery before final release, verifies blocking, and checks that superseded permission reports update the same invocation rather than duplicating owner counts.
 
 Human review remains before task acceptance.
+
+## CI follow-up
+
+PR #52's inspector job failed in run `36891844648` because that independent fresh checkout did not build `dist` before browser fixtures imported Pi's compiled `tenet` SDK entry. The guard job passed. Earlier local inspector checks had reused the guard suite's compiled output and missed this prerequisite.
+
+With `dist` removed, the browser command reproduced the same package-resolution error: four suites failed before running tests. The inspector job now builds the SDK immediately after dependency installation. From missing SDK artifacts, the corrected sequence passes SDK build, inspector check with zero errors/warnings, 16 component tests and 24 browser tests. This changes CI build order only, not guard or inspector runtime behavior.
+
+## Rebase on main
+
+Rebased onto `origin/main` at `0af7c72eb732dfbf35ba8fe6c145f0596259567e` (TENET-19). Resolved the SDK conflicts by keeping main's discriminated immutable assessment states and shared assessment helper alongside Pi's owner-report events and veto details. SDK owner-report snapshots are readonly; Pi continues to mutate only its native UI's owned copies. Consumer type fixtures and runtime freezing checks cover the combined report/capture event shapes.
+
+After resolution: SDK and inspector builds, all 554 repository tests across 64 files, typecheck, inspector check (zero errors/warnings), all 40 inspector tests, the offline SDK example and `git diff --check` pass. The separate CI-correction review approved with no findings. Hosted CI must finish on the rebased head before claiming the PR checks are green.
+
+## Merge-time main update
+
+Main advanced again to `b6e7bf9fb0e06424cb565b5349af851ab5362306` (TENET-18), so GitHub rejected the first merge attempt with a conflict. Rebased again, preserving the SDK's `local-archive`, `disabled` and `external` capture states. Capture owner events now use the same configured-destination snapshot as guard status; external health remains explicitly unknown. Pi renders the discriminant instead of the removed `enabled` property and does not invent external metrics.
+
+The relocated SDK fixture checks live capture-event shape and freezing under both Node and Bun. Post-integration validation passes: 556 repository tests across 64 files, all 40 inspector tests, SDK/inspector builds, typecheck, zero inspector errors/warnings and the offline SDK example. Hosted CI and the scoped merge-compatibility review must finish before the requested merge.
