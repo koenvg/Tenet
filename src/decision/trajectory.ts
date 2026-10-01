@@ -27,6 +27,8 @@ export class Observations {
   constructor(readonly sessionId: string, readonly limits: EvidenceLimits = EVIDENCE_DEFAULTS,
     private sensitiveFields: string[] = [], private limitations: string[] = []) {}
 
+  /** Count entries rejected by bounded host admission without inspecting their content. */
+  omit(count = 1): void { this.omitted += count; }
   add(origin: string, callId: string | null, toolName: string | null, data: unknown, timestamp: number | null = Date.now()): void {
     const sanitized = captureAction({ sessionId: this.sessionId, callId: callId ?? '', toolName: toolName ?? '',
       arguments: textEvidence(data) }, this.sensitiveFields);

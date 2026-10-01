@@ -7,3 +7,5 @@ coverage/
 .tenet/
 inspector/dist/
 delivery/
+dist/
+examples/dist/

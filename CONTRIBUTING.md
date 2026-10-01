@@ -14,12 +14,15 @@ bunx playwright install chromium
 ## Check a change
 
 ```sh
+bun run sdk:build
 bun run inspector:build
 bun test --isolate --max-concurrency=1 --timeout=30000
 bun run typecheck
 bun run inspector:check
 CI=1 bun run inspector:test
 ```
+
+The standalone SDK imports compiled output. `sdk:build` must run before tests, and `typecheck` also checks the executable guide example. `bun run sdk:example` runs that example offline under Node. See [the alpha SDK guide](docs/sdk.md).
 
 Build before the Bun suite: the Pi inspector-command tests serve files from `inspector/dist`. On Linux, install Chromium's system libraries with `bunx playwright install --with-deps chromium`. CI runs these checks on pushes to `main` and on pull requests. The Bun suite includes the Pi smoke tests.
 

@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "tenet-publication-guard",
+      "name": "tenet",
       "dependencies": {
         "@typesafe-ai/sdk": "0.6.0",
       },
@@ -26,6 +26,9 @@
       "peerDependencies": {
         "@earendil-works/pi-coding-agent": "0.85.1",
       },
+      "optionalPeers": [
+        "@earendil-works/pi-coding-agent",
+      ],
     },
   },
   "packages": {

@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "examples",
+    "outDir": "examples/dist"
+  },
+  "include": ["examples/sdk.ts"],
+  "exclude": []
+}
