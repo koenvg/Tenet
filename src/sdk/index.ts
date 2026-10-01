@@ -14,6 +14,13 @@ export const SDK_VERSION = 'alpha-1';
 const immutable = <T>(value: T): T => freeze(structuredClone(value));
 const unavailableAssessment = (reason: string): AssessmentStatus => ({ status: 'unavailable', reason, diagnostics: [], ruleIds: [] });
 const notRequested = (): AssessmentStatus => ({ status: 'not-requested', diagnostics: [], ruleIds: [] });
+// The runtime emits completed only after a validated assessment has a would-decision.
+const assessmentStatus = (status: AssessmentStatus['status'], permission?: Permission, reason?: string): AssessmentStatus => {
+  const details = { reason: reason ?? permission?.reason, diagnostics: permission?.diagnostics ?? [], ruleIds: permission?.ruleIds ?? [] };
+  return status === 'completed'
+    ? { status, ...details, wouldDecision: permission?.wouldDecision! }
+    : { status, ...details };
+};
 const text = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 256;
 
 /** The application owns event translation, trusted UI and executor dispatch. */
@@ -34,9 +41,7 @@ export function createGuard(options: GuardOptions): Guard {
       const session = sessions.get(id.sessionId);
       if (!session || session.closed || closed) return;
       deliver({ type: 'assessment', identity: session.identity, invocationId: id.invocationId, callId: id.callId,
-        assessment: { status, reason: reason ?? permission?.reason,
-          ...(status === 'completed' && permission?.assessmentAvailable ? { wouldDecision: permission.wouldDecision } : {}),
-          diagnostics: permission?.diagnostics ?? [], ruleIds: permission?.ruleIds ?? [] } });
+        assessment: assessmentStatus(status, permission, reason) });
     },
     emit: (stage, data) => {
       if (stage !== 'execution' || closed || typeof data.sessionId !== 'string') return;
@@ -102,9 +107,7 @@ export function createGuard(options: GuardOptions): Guard {
             current: () => ({ ...invocation.current(), host: id.host }),
             onDecision: result => { decision = result; },
             onAuthorization: handoff => { authorization = handoff; },
-            onAssessment: (_binding, state, assessed, reason) => { observation = { status: state, reason: reason ?? assessed?.reason,
-              ...(state === 'completed' && assessed?.assessmentAvailable ? { wouldDecision: assessed.wouldDecision } : {}),
-              diagnostics: assessed?.diagnostics ?? [], ruleIds: assessed?.ruleIds ?? [] }; },
+            onAssessment: (_binding, state, assessed, reason) => { observation = assessmentStatus(state, assessed, reason); },
             onPermission: (binding, result) => { invocationId = binding.invocationId; permission = result; },
           });
           let assessment: AssessmentStatus;

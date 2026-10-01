@@ -75,6 +75,8 @@ You can supply `hostVersion`, `hostProfile` and additional `limitations` when us
 
 Status separates `state`, activation and configured mode. Dormant and off releases contain a `bypassReason` and `assessment.status: 'not-requested'`, never an ALLOW assessment. Unavailable observe releases have no would-decision. Enforce waits for current assessment and any required consent. WARN diagnostics remain advisory. Before-tool results are immutable snapshots with `execution: 'unknown'`; later events do not revise them.
 
+Public result and status fields, owner events and their nested data are readonly, matching frozen snapshots. Narrow `assessment.status` to `completed` to read a required `wouldDecision`. Every other state excludes a would-decision. This type distinction does not link assessment to permission: a completed ASK can be blocked or released after trusted approval, and an unavailable observe assessment can accompany release.
+
 Observe releases after bounded snapshot capture without awaiting the judge. Background work retains the current defaults: two running, 32 waiting, 1 MiB total snapshots and five-second queue age. Terminal owner assessment events distinguish completed, unavailable, dropped and cancelled work. Pending, dropped and unavailable work has no passing assessment. Guard status exposes aggregate queue and capture health; neither guarantees complete interception or durable recording.
 
 ## Host obligations and approval

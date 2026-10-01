@@ -168,3 +168,35 @@ test('session closure is independent; bounded history cannot supply approval or 
     assert.throws(() => h.guard.openSession({ sessionId: 'new', contextId: 'main' }, h.cwd), /closed/);
   } finally { await h.close(); }
 });
+
+test('SDK result, status and owner-event snapshots freeze nested public data', async () => {
+  const h = await fixture('enforce', async r => answer(r.policy, 'FAIL'));
+  try {
+    const ready = await h.session.ready;
+    const result = await h.before();
+    assert.equal(result.assessment.status, 'completed');
+    assert.equal(result.assessment.wouldDecision, 'BLOCK');
+    assert.ok(result.assessment.diagnostics.length);
+    for (const value of [result, result.assessment, result.assessment.ruleIds, result.assessment.diagnostics,
+      ready, ready.identity, ready.policy, ready.capabilities, ready.capabilities.limitations]) {
+      assert.ok(Object.isFrozen(value));
+    }
+    for (const diagnostic of result.assessment.diagnostics) {
+      assert.ok(Object.isFrozen(diagnostic));
+      assert.ok(Object.isFrozen(diagnostic.gates));
+    }
+    const health = h.guard.status();
+    for (const value of [health, health.observations, health.observations.limits, health.capture]) assert.ok(Object.isFrozen(value));
+    assert.ok(h.events.some(event => event.type === 'permission'));
+    for (const event of h.events) {
+      assert.ok(Object.isFrozen(event));
+      if (event.type !== 'activation') assert.ok(Object.isFrozen(event.identity));
+      if (event.type === 'permission') assert.ok(Object.isFrozen(event.result.assessment));
+      if (event.type === 'assessment') {
+        assert.ok(Object.isFrozen(event.assessment));
+        if (event.assessment.status === 'completed') assert.ok(['ALLOW', 'ASK', 'BLOCK'].includes(event.assessment.wouldDecision));
+        else assert.equal(Object.hasOwn(event.assessment, 'wouldDecision'), false);
+      }
+    }
+  } finally { await h.close(); }
+});

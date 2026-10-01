@@ -1,17 +1,18 @@
-import type { Decision, Judge, RuleDiagnostic } from '../decision/contracts.js';
-import type { Approval, ApprovalRequest, Capabilities, InvocationIdentity } from '../runtime/guard.js';
+import type { Decision, Judge, RuleDiagnostic as RuntimeRuleDiagnostic } from '../decision/contracts.js';
+import type { Approval, ApprovalRequest, Capabilities as RuntimeCapabilities, InvocationIdentity } from '../runtime/guard.js';
 import type { ActionResolver } from '../runtime/resolved-action.js';
 import type { Activation } from '../runtime/activation.js';
 import type { Mode } from '../runtime/config.js';
 import type { RecordingSink } from '../recording/contract.js';
 
-export type { Judge, JudgeRequest, Assessment, RuleAssessment, Policy, Action, RuleDiagnostic, Json } from '../decision/contracts.js';
-export type { Approval, ApprovalRequest, Capabilities } from '../runtime/guard.js';
+export type { Judge, JudgeRequest, Assessment, RuleAssessment, Policy, Action, Json } from '../decision/contracts.js';
+export type { Approval, ApprovalRequest } from '../runtime/guard.js';
 export type { ActionResolver, ActionFacts, ActionBinding, ResolvedAction, OperationSemantics } from '../runtime/resolved-action.js';
 export type { RecordingSink } from '../recording/contract.js';
 export type { Mode } from '../runtime/config.js';
 export type { Activation } from '../runtime/activation.js';
 
+export type Capabilities = Readonly<RuntimeCapabilities>;
 export type Capability = 'interception' | 'result-correlation' | 'lifecycle-invalidation' | 'argument-stability' | 'trusted-approval';
 export interface SessionIdentity { sessionId: string; contextId: string }
 export interface CurrentInvocation extends SessionIdentity { callId: string; toolName: string; input: unknown }
@@ -30,39 +31,45 @@ export interface ObservedHistory {
   kind: 'tool-call' | 'tool-result'; callId: string | null; toolName: string | null;
   data: unknown; timestamp?: number | null;
 }
-export interface AssessmentStatus {
-  status: 'not-requested' | 'pending' | 'completed' | 'unavailable' | 'dropped' | 'cancelled';
-  wouldDecision?: Decision['decision'];
-  reason?: string;
-  diagnostics: readonly RuleDiagnostic[];
-  ruleIds: readonly string[];
+export type RuleDiagnostic = Readonly<Omit<RuntimeRuleDiagnostic, 'gates'>> & {
+  readonly gates: readonly RuntimeRuleDiagnostic['gates'][number][];
+};
+interface AssessmentDetails {
+  readonly reason?: string;
+  readonly diagnostics: readonly RuleDiagnostic[];
+  readonly ruleIds: readonly string[];
 }
+/** Findings only. A would-decision never grants permission to execute. */
+export type AssessmentStatus = AssessmentDetails & (
+  | { readonly status: 'completed'; readonly wouldDecision: Decision['decision'] }
+  | { readonly status: 'not-requested' | 'pending' | 'unavailable' | 'dropped' | 'cancelled'; readonly wouldDecision?: never }
+);
 export interface BeforeToolResult {
-  permission: 'released' | 'blocked';
-  reason: string;
-  bypassReason?: 'off' | 'dormant';
-  invocationId?: string;
-  assessment: AssessmentStatus;
+  readonly permission: 'released' | 'blocked';
+  readonly reason: string;
+  readonly bypassReason?: 'off' | 'dormant';
+  readonly invocationId?: string;
+  readonly assessment: AssessmentStatus;
   /** Permission is not evidence that the host executed anything. */
-  execution: 'unknown';
+  readonly execution: 'unknown';
 }
 export interface SessionStatus {
-  state: 'uninitialized' | 'ready' | 'dormant' | 'unavailable' | 'closed';
-  reason?: string;
-  identity: SessionIdentity;
-  mode: Mode;
-  modeWarning?: string;
-  activation: Activation;
-  capabilities: Capabilities;
-  profile: string;
-  questionVersion: string;
-  policy: { source: string; digest: string | null; ruleCount: number };
+  readonly state: 'uninitialized' | 'ready' | 'dormant' | 'unavailable' | 'closed';
+  readonly reason?: string;
+  readonly identity: Readonly<SessionIdentity>;
+  readonly mode: Mode;
+  readonly modeWarning?: string;
+  readonly activation: Activation;
+  readonly capabilities: Capabilities;
+  readonly profile: string;
+  readonly questionVersion: string;
+  readonly policy: { readonly source: string; readonly digest: string | null; readonly ruleCount: number };
 }
 export type OwnerEvent =
-  | { type: 'permission'; identity: SessionIdentity; callId: string; result: BeforeToolResult }
-  | { type: 'assessment'; identity: SessionIdentity; invocationId: string; callId: string; assessment: AssessmentStatus }
-  | { type: 'execution'; identity: SessionIdentity; invocationId: string; callId: string; outcome: Execution['outcome'] }
-  | { type: 'activation'; activation: Activation };
+  | { readonly type: 'permission'; readonly identity: Readonly<SessionIdentity>; readonly callId: string; readonly result: BeforeToolResult }
+  | { readonly type: 'assessment'; readonly identity: Readonly<SessionIdentity>; readonly invocationId: string; readonly callId: string; readonly assessment: AssessmentStatus }
+  | { readonly type: 'execution'; readonly identity: Readonly<SessionIdentity>; readonly invocationId: string; readonly callId: string; readonly outcome: Execution['outcome'] }
+  | { readonly type: 'activation'; readonly activation: Activation };
 export interface GuardOptions {
   host: string;
   /** Only list guarantees the host actually provides. Omitted capabilities stay unsupported. */
@@ -97,13 +104,15 @@ export interface GuardSession {
   close(): Promise<boolean>;
 }
 export interface GuardStatus {
-  closed: boolean;
-  sessions: number;
-  mode: Mode;
-  activation: Activation;
-  observations: { running: number; waiting: number; retainedBytes: number; completed: number; unavailable: number;
-    dropped: number; cancelled: number; limits: Readonly<{ running: number; waiting: number; bytes: number; ageMs: number }> };
-  capture: { enabled: boolean; directory?: string; issue?: string; failed: number; dropped: number; pending: number; drainTimeouts: number };
+  readonly closed: boolean;
+  readonly sessions: number;
+  readonly mode: Mode;
+  readonly activation: Activation;
+  readonly observations: { readonly running: number; readonly waiting: number; readonly retainedBytes: number; readonly completed: number;
+    readonly unavailable: number; readonly dropped: number; readonly cancelled: number;
+    readonly limits: Readonly<{ running: number; waiting: number; bytes: number; ageMs: number }> };
+  readonly capture: { readonly enabled: boolean; readonly directory?: string; readonly issue?: string; readonly failed: number;
+    readonly dropped: number; readonly pending: number; readonly drainTimeouts: number };
 }
 export interface Guard {
   /** One handle per host session. Close the old handle before replacing its context. */

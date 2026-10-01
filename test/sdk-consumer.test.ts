@@ -67,6 +67,7 @@ test('isolated TypeScript consumer resolves public declarations without source, 
     await symlink(join(repo, 'node_modules/@types/node'), join(h.root, 'node_modules/@types/node'));
     await symlink(join(repo, 'node_modules/undici-types'), join(h.root, 'node_modules/undici-types'));
     await cp(join(repo, 'examples/sdk.ts'), join(h.root, 'consumer.ts'));
+    await cp(join(repo, 'test/sdk-assessment-types.fixture.ts'), join(h.root, 'assessment-types.ts'));
     await writeFile(join(h.root, 'capabilities.ts'), `
 import type { Capability, GuardOptions } from 'tenet';
 const capabilities: readonly Capability[] = ['interception', 'result-correlation', 'lifecycle-invalidation'];
@@ -81,8 +82,10 @@ const noHost: GuardOptions = { capabilities };
 void [minimal, declared, legacy, unknown, noHost];
 `);
     await writeFile(join(h.root, 'tsconfig.json'), JSON.stringify({ compilerOptions: { target: 'ES2023', module: 'NodeNext',
-      moduleResolution: 'NodeNext', strict: true, noEmit: true, skipLibCheck: false }, include: ['consumer.ts', 'capabilities.ts'] }));
+      moduleResolution: 'NodeNext', strict: true, noEmit: true, skipLibCheck: false }, include: ['consumer.ts', 'capabilities.ts', 'assessment-types.ts'] }));
     execFileSync('node', [join(repo, 'node_modules/typescript/bin/tsc'), '-p', h.root], { cwd: h.root, env: h.env, encoding: 'utf8', timeout: 20000 });
+    execFileSync('node', [join(repo, 'node_modules/typescript/bin/tsc'), '-p', h.root, '--exactOptionalPropertyTypes'],
+      { cwd: h.root, env: h.env, encoding: 'utf8', timeout: 20000 });
     await assert.rejects(readFile(join(h.pkg, 'src/sdk/index.ts')));
   } finally { await h.close(); }
 });
