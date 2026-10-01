@@ -19,7 +19,7 @@
     "test": "bun test",
     "sdk:build": "bun --bun tsc -p tsconfig.sdk.json && bun --bun tsc -p tsconfig.sdk-example.json",
     "sdk:example": "bun run sdk:build && node examples/dist/sdk.js",
-    "smoke": "bun test ./test/pi-smoke.test.ts",
+    "smoke": "bun run sdk:build && bun test ./test/pi-smoke.test.ts",
     "typecheck": "bun run sdk:build && bun --bun tsc --noEmit && bun --bun tsc -p tsconfig.sdk-example.json --noEmit",
     "claude:bridge": "bun src/claude/cli.ts bridge",
     "claude:hook": "bun src/claude/cli.ts hook",
@@ -30,7 +30,7 @@
     "inspector:test": "bun run inspector:test:components && bun run inspector:test:browser",
     "inspector:test:components": "vitest run --config inspector/vitest.browser.config.ts",
     "inspector:test:browser": "bun run inspector:build && vitest run --config inspector/vitest.config.ts",
-    "pi": "bun ./node_modules/@earendil-works/pi-coding-agent/dist/cli.js -e ./src/pi/extension.ts"
+    "pi": "bun run sdk:build && bun ./node_modules/@earendil-works/pi-coding-agent/dist/cli.js -e ./src/pi/extension.ts"
   },
   "pi": {
     "extensions": ["./src/pi/extension.ts"]

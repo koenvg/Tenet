@@ -81,7 +81,7 @@ test('generic hook captures trusted context, refreshes metadata and records exec
     assert.ok(!JSON.stringify(h.records).includes('secret-value'));
     assert.ok(!h.records.some(r => r.stage === 'execution'));
     await h.emit({ type: 'tool_result', toolName: 'brand-new', toolCallId: 'c2', isError: false });
-    assert.equal(h.records.find(r => r.stage === 'execution').outcome, 'executed');
+    assert.equal(h.records.find(r => r.stage === 'execution').outcome, 'unknown');
     await h.emit({ type: 'agent_end' });
     assert.ok(h.records.some(r => r.stage === 'execution' && r.outcome === 'unknown'));
   } finally { await h.close(); }

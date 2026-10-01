@@ -5,7 +5,7 @@ import type { Activation } from '../runtime/activation.js';
 import type { Mode } from '../runtime/config.js';
 import type { RecordingSink } from '../recording/contract.js';
 
-export type { Judge, JudgeRequest, Assessment, RuleAssessment, Policy, Action, Json } from '../decision/contracts.js';
+export type { Judge, JudgeRequest, Assessment, RuleAssessment, Policy, Action, Outcome, Json } from '../decision/contracts.js';
 export type { Approval, ApprovalRequest } from '../runtime/guard.js';
 export type { ActionResolver, ActionFacts, ActionBinding, ResolvedAction, OperationSemantics } from '../runtime/resolved-action.js';
 export type { RecordingSink } from '../recording/contract.js';
@@ -47,6 +47,8 @@ export type AssessmentStatus = AssessmentDetails & (
 export interface BeforeToolResult {
   readonly permission: 'released' | 'blocked';
   readonly reason: string;
+  /** Shared host-facing veto detail, excluding advisory WARN diagnostics. */
+  readonly blockReason?: string;
   readonly bypassReason?: 'off' | 'dormant';
   readonly invocationId?: string;
   readonly assessment: AssessmentStatus;
@@ -65,11 +67,33 @@ export interface SessionStatus {
   readonly questionVersion: string;
   readonly policy: { readonly source: string; readonly digest: string | null; readonly ruleCount: number };
 }
+/** Immutable owner finding snapshot, shared by live permission and late assessment delivery. */
+export interface OwnerReport {
+  readonly mode: Mode;
+  readonly invocationId: string; readonly callId: string; readonly toolName: string;
+  readonly profile?: string; readonly questionVersion?: string;
+  readonly outcome: 'released' | 'blocked';
+  readonly wouldDecision?: Decision['decision'];
+  readonly reason: string;
+  readonly assessmentAvailable: boolean;
+  readonly assessmentStatus?: Exclude<AssessmentStatus['status'], 'not-requested'>;
+  readonly ruleIds: readonly string[];
+  readonly diagnostics: readonly RuleDiagnostic[];
+  readonly validationIssue?: Decision['validationIssue'];
+  readonly rules: readonly { readonly id: string; readonly line: number; readonly enforcement: 'BLOCK' | 'WARN'; readonly text?: string }[];
+  readonly approvalRules: readonly string[];
+}
+/** Owner-only native transcript records. No submitted request or raw provider response. */
+export interface OwnerRecord {
+  readonly stage: 'status' | 'assessment' | 'decision' | 'approval' | 'permission' | 'assessment-status' | 'execution';
+  readonly data: Readonly<Record<string, unknown>>;
+}
 export type OwnerEvent =
-  | { readonly type: 'permission'; readonly identity: Readonly<SessionIdentity>; readonly callId: string; readonly result: BeforeToolResult }
-  | { readonly type: 'assessment'; readonly identity: Readonly<SessionIdentity>; readonly invocationId: string; readonly callId: string; readonly assessment: AssessmentStatus }
+  | { readonly type: 'permission'; readonly identity: Readonly<SessionIdentity>; readonly callId: string; readonly result: BeforeToolResult; readonly report?: OwnerReport }
+  | { readonly type: 'assessment'; readonly identity: Readonly<SessionIdentity>; readonly invocationId: string; readonly callId: string; readonly assessment: AssessmentStatus; readonly report?: OwnerReport }
   | { readonly type: 'execution'; readonly identity: Readonly<SessionIdentity>; readonly invocationId: string; readonly callId: string; readonly outcome: Execution['outcome'] }
-  | { readonly type: 'activation'; readonly activation: Activation };
+  | { readonly type: 'activation'; readonly activation: Activation }
+  | { readonly type: 'capture'; readonly capture: GuardStatus['capture'] };
 export interface GuardOptions {
   host: string;
   /** Only list guarantees the host actually provides. Omitted capabilities stay unsupported. */
@@ -88,6 +112,8 @@ export interface GuardOptions {
   bindRecording?: (identity: InvocationIdentity & SessionIdentity & { host: string; cwd: string; mode: Mode }) => RecordingSink;
   /** Owner-only. Callbacks must be bounded; never forward findings into agent history. */
   onOwnerEvent?: (event: OwnerEvent) => void;
+  /** Best-effort owner transcript delivery, independent of SDK-owned archive capture. */
+  onOwnerRecord?: (record: OwnerRecord) => void;
   observationLimits?: Partial<{ running: number; waiting: number; bytes: number; ageMs: number }>;
   /** Archive drain deadline, 0 to 5000 ms. Default 1000 ms. */
   disposalTimeoutMs?: number;

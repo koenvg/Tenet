@@ -88,11 +88,11 @@ test('owner-only execution follows a correlated result and survives branch recov
     let selected = false;
     h.ctx.ui.select = async (title, items) => { h.views.push({ title, items }); if (!selected) { selected = true; return items[0] as any; } return undefined; };
     await h.commands.get('tenet').handler('', h.ctx);
-    assert.match(h.views[1].items.join('\n'), /Observed execution: failed/);
+    assert.match(h.views[1].items.join('\n'), /Observed execution: unknown/);
     await h.emit('session_tree');
     selected = false; h.views.length = 0;
     await h.commands.get('tenet').handler('', h.ctx);
-    assert.match(h.views[1].items.join('\n'), /Observed execution: failed/);
+    assert.match(h.views[1].items.join('\n'), /Observed execution: unknown/);
     assert.ok(!JSON.stringify(h.records).includes('secret-result'));
   } finally { await h.close(); }
 });

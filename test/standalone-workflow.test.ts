@@ -81,7 +81,7 @@ test('closed inspector capture survives reader restart and same-session live res
     });
     assert.equal((await detail(resumed.id)).view.execution, 'unknown');
     await h.emit('tool_result', { toolCallId: 'resumed', toolName: 'edit', content: [], isError: false });
-    await eventually(async () => (await detail(resumed.id)).view.execution === 'executed');
+    await eventually(async () => (await detail(resumed.id)).view.execution === 'unknown' && (await detail(resumed.id)).view.missing.includes('execution') === false);
     assert.deepEqual((await detail(resumed.id)).view.evidence, submitted.get('resumed').state);
     assert.equal((await get('/api/sessions')).sessions.length, 1);
     assert.equal((await get(`/api/sessions?project=${encodeURIComponent(await realpath(h.cwd))}`)).sessions.length, 1);

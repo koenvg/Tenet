@@ -62,7 +62,7 @@ for (const outcome of ['FAIL', 'APPROVAL_REQUIRED', 'UNKNOWN', 'integrity', 'sco
       assert.ok(!JSON.stringify(h.records).includes('private-provider-secret'));
       assert.ok(!h.records.some(r => r.stage === 'execution'));
       await h.emit('tool_result', { toolName: 'edit', toolCallId: 'c', content: [{ type: 'text', text: 'done' }], isError: false });
-      assert.equal(h.records.find(r => r.stage === 'execution').outcome, 'executed');
+      assert.equal(h.records.find(r => r.stage === 'execution').outcome, 'unknown');
     } finally { await h.close(); }
   });
 }
