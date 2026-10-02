@@ -141,3 +141,35 @@ Required checks, the parent-approved excerpt eligibility limitation and the sole
 - `inspector/tests/browser-fixture.ts` and `debugger.vitest.ts`: actual current interleaved group selection, explicit shortened/dropped/prior counters, original chronology, failure metadata, exact recorded references and conservative missing-result wording. Mobile screenshot inspected for readability and no horizontal overflow.
 
 Existing root-specific pooling/envelope bounds, current-fact capacity, enforcement/applicability/approval, historical recording and invalid-assessment presentation tests remain required. The acceptance map, validation logs, sole review and limits are in [TENET-25 handoff](TENET-25-handoff.md). TENET-26 owns the cross-domain comparison report. No live provider run, fixture dispatch, new host coverage or semantic improvement is claimed.
+
+
+## Final offline comparison and epic verification
+
+TENET-26 starts at integrated TENET-25 commit `b5e3c935408f934ffdc805d6e4ad9b63c6e22d0c`. Its authored label/baseline checkpoint is `bdc5195`. The final integrated review uses original epic base `2320f3295c3682b5303f5e6d8c9c84685f85ea73`; TENET-21 is already in that base and retains its own earlier review.
+
+The reproducible [readable offline report](../eval/evidence-selection/report.md) and [machine-readable exact payloads](../eval/evidence-selection/report.json) compare frozen authored inline baselines, `authored-inline-v1` with selector identity null, against the current `bounded-history-v2` selector. This is not measured pre-change behavior or a current-selector reconstruction labeled historical. Large authored snapshots are not claims of historical runtime admission. Policy, thresholds, pending arguments, integrity, authenticated current facts and v7 generic question semantics are fixed within every pair.
+
+Replay after local frozen dependency setup:
+
+```sh
+bun run sdk:build
+TMPDIR=/tmp bun test test/evidence-selection-report.test.ts
+bun eval/evidence-selection-replay.ts
+git diff --exit-code -- eval/evidence-selection/report.json eval/evidence-selection/report.md
+```
+
+The offline runner accepts no live or execution flags and imports no provider transport/executor. Denied arguments are tested with an injected transport proving zero calls. Future live comparison needs separate explicit disclosure authorization and an authorized runner enforcing that authorization before any network call. This runner cannot perform live replay even with an authorization flag. No live run, fixture action, host restart or external executor change occurred.
+
+The 20-pair report records exact UTF-8 state and application request bytes, representation/selector/question/profile identities, resolution coverage, loss counters, deterministic gates and separate permission projections. Provider tokens, returned model and latency remain null. Exact duplicate history saves 644 net request bytes with unchanged scripted uncertainty; candidate lossless compaction itself saves 935 bytes. Nonidentical echoes shorten with zero exact savings. A smaller context-loss request changes a selected violation into uncertainty after two drops and cannot count as improvement. Request growth is also visible.
+
+Authored violations remain 7/20; validated assessments are 17/20 on each side. Selected violations change from 7/17 to 6/17, and uncertainty-only blocks from 8/17 to 9/17. Each side has one unavailable, one invalid and one skipped assessment, one ASK and zero unsafe allows among 19 protected cases. Tests deliberately inject blanket blocking and protected unsafe allows and require those failures to remain in fixed denominators. These results are mechanical verification only, not semantic accuracy, calibration, deployed-host enforcement or provider performance evidence.
+
+Omission counters can count known source slots or emitted observations, not the exact number of missing eligible calls/effects. The corpus's two dropped observations are known authored observations; zero prior-capture omissions never establishes complete capture. Unknown eligible-event loss counts stay null. Positive source-slot loss and live irrecoverable omissions are covered separately by integrated admission tests.
+
+Final scenario mapping, original approved checklist reconciliation, exact checks/results, sole reviewer outcome and deployed-host limits are in [TENET-26 handoff](TENET-26-handoff.md). The final report tests pin denominator integrity, fixed protected evidence/questions, renamed tools, forged/stale applicability references, null offline metrics, byte measurements and deterministic replay. The complete root and inspector gates cover SDK/owner/archive distinction, historical interpretation and unchanged enforcement scenarios mapped in that handoff. Stock resolution and stock Claude trusted owner UI remain unsupported/unverified; free-text evidence can still contain secrets.
+
+
+Settled integrated checks pass: SDK and inspector builds; final post-review 793 Bun tests across 81 files; root typecheck; inspector check with no errors/warnings; 16 component and 26 browser tests; status-plugin static check and 18 tests; offline SDK example; diff check. The first browser attempt passed 25/26 and missed the existing poll deadline for the schema-3 lifecycle pending tag. The focused case and subsequent full component/browser command passed without changes. The failure is retained, its cause is unknown, and no host-load attribution or assertion/timeout weakening is made. Exact commands, logs and the sole integrated-review outcome are recorded in the handoff.
+
+
+The sole fresh-context reviewer inspected the full epic diff and returned one P2 reporting blocker. Invalid/unavailable rows invented an observe would-decision from enforcement's fallback BLOCK. The task-local test-first correction projects null without a validated assessment while retaining conservative enforcement, statuses and released observe permission. The original request-changes report is preserved separately from implementer resolution. Post-fix focused checks, SDK build, complete Bun suite, typecheck, six report tests and diff check pass. No second review or independent re-review of fixes is claimed.
