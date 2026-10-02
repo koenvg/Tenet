@@ -1,115 +1,143 @@
-import type { EvidenceLimits, HistoryEvent, Json, JudgeRequest, Observation, Trajectory } from './contracts.js';
-import { captureAction, freeze, jsonCopy } from './evidence.js';
-import { evidenceWithinBudget } from './evidence-budget.js';
+import type { EvidenceLimits, HistoryEvent, HistorySelection, JudgeRequest, Observation, Trajectory } from './contracts.js';
+import { freeze } from './evidence.js';
+import { prepareContent, type HistoryContent } from './history-content.js';
+import { captureObservation, historySlot, ownHistoryFields, type ObservationEnvelope } from './history-envelope.js';
 
 export const EVIDENCE_DEFAULTS: Readonly<EvidenceLimits> = Object.freeze({ recentEvents: 12, maxBytes: 24 * 1024 });
 export const serializedBytes = (value: unknown) => Buffer.byteLength(JSON.stringify(value), 'utf8');
-// Provenance stays outside serialized evidence. Authored marker-shaped objects cannot add gaps.
-const observationGaps = new WeakMap<Observation, readonly string[]>();
-export const observationLimitations = (event: Observation): readonly string[] => observationGaps.get(event) ?? [];
-const marker = (reason: string, gaps: Set<string>): Json => { gaps.add(reason); return { tenetOmission: reason }; };
+// Runtime provenance never comes from authored marker-shaped values or selector counters.
+const contents = new WeakMap<Observation, HistoryContent>();
+const selections = new WeakMap<Trajectory, HistorySelection>();
+export const observationLimitations = (event: Observation): readonly string[] => contents.get(event)?.gaps ?? [];
 
-// Host content blocks are not tool-specific schemas. Never send image bytes as text.
-function textEvidence(value: unknown, gaps: Set<string>, seen = new Set<object>()): Json {
-  if (value === undefined) return marker('metadata-unavailable', gaps);
-  if (value && typeof value === 'object') {
-    if (seen.has(value)) return marker('unsupported-circular-content', gaps);
-    seen.add(value);
-    try {
-      if ('type' in value && value.type === 'image') return marker('unsupported-image', gaps);
-      if (Array.isArray(value)) return value.map(v => textEvidence(v, gaps, seen));
-      if (![Object.prototype, null].includes(Object.getPrototypeOf(value))) return marker('unsupported-content', gaps);
-      return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, textEvidence(v, gaps, seen)]));
-    } finally { seen.delete(value); }
-  }
-  try { return jsonCopy(value); } catch { return marker('unsupported-content', gaps); }
+function captureEvent(event: ObservationEnvelope, content: HistoryContent): Observation {
+  const captured = freeze({ ...event, data: content.data });
+  contents.set(captured, freeze(content));
+  return captured;
 }
 
-/** FIFO selection shared by retained history and the exact submitted-state budget.
- * The caller supplies byte accounting, not a competing event-selection rule.
+/** One current selector for both admission and final preparation. FIFO is intentional;
+ * duplicate pooling and recorded call/result group retention are separate dependent work.
  */
-function selectHistory(source: readonly Observation[], recentEvents: number,
-  fits: (observations: Observation[], omitted: number) => boolean) {
-  const observations = [...source];
-  let omitted = 0;
-  while (observations.length > recentEvents) { observations.shift(); omitted++; }
-  let enough = fits(observations, omitted);
-  while (!enough && observations.length) {
-    observations.shift(); omitted++; enough = fits(observations, omitted);
+function selectHistory(source: Trajectory, limits: EvidenceLimits, maxHistoryBytes: number): Trajectory | null {
+  const old = selections.get(source);
+  let droppedEvents = old?.droppedEvents ?? 0;
+  let priorOmittedEvents = old?.priorOmittedEvents ?? source.omitted;
+  const maxEventBytes = Math.floor(maxHistoryBytes / 4);
+  const observations: Observation[] = [];
+  const start = Math.max(0, source.observations.length - limits.recentEvents);
+  droppedEvents += start;
+  for (let index = start; index < source.observations.length; index++) {
+    const event = historySlot(source.observations, index);
+    const captured = captureObservation(event, maxHistoryBytes);
+    if (captured.status !== 'captured') {
+      if (captured.status === 'invalid') priorOmittedEvents++; else droppedEvents++;
+      continue;
+    }
+    const previous = contents.get(event as Observation);
+    // Unknown trajectories are literal evidence, not authority for runtime marker metadata.
+    const content = prepareContent(previous ? (previous.data as { content: unknown }).content : captured.data,
+      maxEventBytes, [], previous);
+    if (content) observations.push(captureEvent(captured.envelope, content)); else droppedEvents++;
   }
-  return { observations, omitted, enough };
+  const snapshot = (): Trajectory => {
+    const selection: HistorySelection = { version: 'bounded-history-v2', maxHistoryBytes, maxEventBytes,
+      retainedEvents: observations.length, shortenedEvents: observations.filter(event => contents.get(event)?.shortened).length,
+      droppedEvents, priorOmittedEvents, exactCompactedBytes: 0 };
+    const trajectory = freeze({ observations: [...observations], omitted: droppedEvents + priorOmittedEvents,
+      limitations: [...source.limitations, ...((droppedEvents || priorOmittedEvents) && !source.limitations.includes('history-omitted') ? ['history-omitted'] : []),
+        ...(observations.some(event => event.timestamp === null || event.callId === null || event.toolName === null)
+          && !source.limitations.includes('metadata-unavailable') ? ['metadata-unavailable'] : [])], selection });
+    selections.set(trajectory, selection);
+    return trajectory;
+  };
+  let result = snapshot();
+  while (serializedBytes(result) > maxHistoryBytes && observations.length) {
+    observations.shift(); droppedEvents++; result = snapshot();
+  }
+  return serializedBytes(result) <= maxHistoryBytes ? result : null;
 }
 
-/** Owns normalization, SDK admission, retention and immutable history snapshots. */
+/** Owns descriptor-only normalization, redaction, SDK admission and immutable snapshots. */
 export class HistoryPreparation {
-  private events: Observation[] = [];
-  private omitted = 0;
+  private trajectory: Trajectory;
   constructor(readonly sessionId: string, readonly limits: EvidenceLimits = EVIDENCE_DEFAULTS,
-    private sensitiveFields: string[] = [], private limitations: string[] = []) {}
-
-  /** Count excluded host entries without inspecting their content. */
-  omit(count = 1): void { this.omitted += count; }
-
-  add(origin: string, callId: string | null, toolName: string | null, data: unknown, timestamp: number | null): void {
-    const gaps = new Set<string>();
-    const sanitized = captureAction({ sessionId: this.sessionId, callId: callId ?? '', toolName: toolName ?? '',
-      arguments: textEvidence(data, gaps) }, this.sensitiveFields);
-    let payload: Json = { content: sanitized.arguments, redactedFields: sanitized.redactedFields,
-      limitations: sanitized.redactedFields ? ['fields-redacted'] : [] };
-    if (sanitized.redactedFields) gaps.add('fields-redacted');
-    if (serializedBytes(payload) > this.limits.maxBytes) { gaps.clear(); payload = marker('observation-byte-limit', gaps); }
-    const event = freeze({ sessionId: this.sessionId, callId, toolName, origin, timestamp, data: payload });
-    observationGaps.set(event, Object.freeze([...gaps]));
-    const selected = selectHistory([...this.events, event], this.limits.recentEvents,
-      observations => serializedBytes(observations) <= this.limits.maxBytes);
-    this.events = selected.observations;
-    this.omitted += selected.omitted;
+    private sensitiveFields: string[] = [], limitations: string[] = []) {
+    this.trajectory = freeze({ observations: [], omitted: 0,
+      limitations: ['untrusted-evidence-not-approval-authority', 'external-state-not-frozen', ...limitations] });
+    this.retain(this.trajectory);
   }
-
+  private retain(source: Trajectory): void {
+    const allowance = Math.floor(this.limits.maxBytes / 3);
+    const selected = selectHistory(source, this.limits, allowance);
+    if (selected) { this.trajectory = selected; return; }
+    // A tiny cap cannot fit even the empty history envelope. Keep bounded counters,
+    // but no host content. Final preparation retains conservative capacity failure.
+    const old = selections.get(source);
+    const selection: HistorySelection = { version: 'bounded-history-v2', maxHistoryBytes: allowance,
+      maxEventBytes: Math.floor(allowance / 4), retainedEvents: 0, shortenedEvents: 0,
+      droppedEvents: (old?.droppedEvents ?? 0) + source.observations.length,
+      priorOmittedEvents: old?.priorOmittedEvents ?? source.omitted, exactCompactedBytes: 0 };
+    this.trajectory = freeze({ observations: [], omitted: selection.droppedEvents + selection.priorOmittedEvents,
+      limitations: [...source.limitations, ...(!source.limitations.includes('history-omitted') && (selection.droppedEvents || selection.priorOmittedEvents) ? ['history-omitted'] : [])], selection });
+    selections.set(this.trajectory, selection);
+  }
+  /** A known capture omission is distinct from an event dropped by this selector. */
+  omit(count = 1): void {
+    const old = selections.get(this.trajectory)!;
+    const next = { ...this.trajectory, omitted: this.trajectory.omitted + count };
+    selections.set(next, { ...old, priorOmittedEvents: old.priorOmittedEvents + count });
+    this.retain(next);
+  }
+  add(origin: string, callId: string | null, toolName: string | null, data: unknown, timestamp: number | null): void {
+    const old = selections.get(this.trajectory)!;
+    const captured = captureObservation({ sessionId: this.sessionId, callId, toolName, origin, timestamp, data }, old.maxHistoryBytes);
+    if (captured.status === 'invalid') { this.omit(); return; }
+    const content = captured.status === 'captured' ? prepareContent(captured.data, old.maxEventBytes, this.sensitiveFields) : null;
+    const source = { ...this.trajectory, observations: [...this.trajectory.observations] };
+    selections.set(source, content ? old : { ...old, droppedEvents: old.droppedEvents + 1 });
+    if (content && captured.status === 'captured') source.observations.push(captureEvent(captured.envelope, content));
+    this.retain(source);
+  }
   addHistory(history: readonly HistoryEvent[]): void {
-    // Preserve bounded SDK inspection: never read the excluded prefix or copy oversized raw entries.
-    const length = history.length;
-    const start = Math.max(0, length - this.limits.recentEvents);
-    this.omit(start);
+    const length = history.length, start = Math.max(0, length - this.limits.recentEvents);
+    // Never inspect the excluded prefix, including with zero history.
+    const old = selections.get(this.trajectory)!;
+    const next = { ...this.trajectory, omitted: this.trajectory.omitted + start };
+    selections.set(next, { ...old, droppedEvents: old.droppedEvents + start });
+    this.retain(next);
     for (let index = start; index < length; index++) {
-      const event = history[index];
-      if (!event || !['tool-call', 'tool-result'].includes(event.kind)
-        || !evidenceWithinBudget([event], this.limits.maxBytes)) { this.omit(); continue; }
-      this.add(`host-${event.kind}`, event.callId, event.toolName, event.data, event.timestamp ?? null);
+      const event = ownHistoryFields(historySlot(history, index), ['kind', 'callId', 'toolName', 'data', 'timestamp']);
+      if (!event || !['tool-call', 'tool-result'].includes(event.kind as string)) { this.omit(); continue; }
+      this.add(`host-${event.kind}`, event.callId as string | null, event.toolName as string | null, event.data,
+        (event.timestamp ?? null) as number | null);
     }
   }
-
-  snapshot(): Trajectory {
-    return freeze({ observations: [...this.events], omitted: this.omitted,
-      limitations: ['untrusted-evidence-not-approval-authority', 'external-state-not-frozen',
-        ...this.limitations, ...(this.omitted ? ['history-omitted'] : []),
-        ...(this.events.some(e => e.timestamp === null || e.callId === null || e.toolName === null) ? ['metadata-unavailable'] : [])] });
-  }
+  snapshot(): Trajectory { return this.trajectory; }
 }
 
-/** Protect current arguments and resolution. Only optional tool metadata and history can be removed.
- * measureBytes counts the actual judge-state projection, including policy and integrity text.
- */
+/** Protect current facts. Measurement counts the exact state projection, including integrity. */
 export function prepareRequest(request: JudgeRequest, measureBytes: (request: JudgeRequest) => number,
   limits: EvidenceLimits = EVIDENCE_DEFAULTS): JudgeRequest | null {
-  const source = request.trajectory ?? { observations: [], omitted: 0, limitations: ['history-unavailable'] };
+  const source = selectHistory(request.trajectory ?? { observations: [], omitted: 0, limitations: ['history-unavailable'] },
+    limits, Math.floor(limits.maxBytes / 3));
+  if (!source) return null;
   let action = request.action;
-  let bounded: JudgeRequest | null = null;
-  const selected = selectHistory(source.observations, limits.recentEvents, (observations, omitted) => {
-    const snapshot = () => {
-      const trajectory: Trajectory = { observations: [...observations], omitted: source.omitted + omitted,
-        limitations: [...source.limitations, ...(omitted ? ['history-omitted'] : [])] };
-      const captured = JSON.parse(JSON.stringify({ ...request, action, trajectory })) as JudgeRequest;
-      captured.trajectory!.observations.forEach((event, index) => observationGaps.set(event, observationLimitations(observations[index]!)));
-      return freeze(captured);
-    };
-    bounded = snapshot();
-    // Optional tool metadata goes before causal history, never before count selection.
-    if (measureBytes(bounded) > limits.maxBytes && (action.description !== null || action.parameters !== null)) {
-      action = { ...action, description: null, parameters: null, limitations: [...action.limitations, 'tool-metadata-omitted'] };
-      bounded = snapshot();
-    }
-    return measureBytes(bounded) <= limits.maxBytes;
+  // Preserve optional-metadata priority under total-state pressure.
+  if (measureBytes({ ...request, trajectory: source }) > limits.maxBytes && (action.description !== null || action.parameters !== null)) {
+    action = { ...action, description: null, parameters: null, limitations: [...action.limitations, 'tool-metadata-omitted'] };
+  }
+  const empty = { observations: [], omitted: 0, limitations: [] };
+  const protectedBytes = measureBytes({ ...request, action, trajectory: empty }) - serializedBytes(empty);
+  if (protectedBytes >= limits.maxBytes) return null;
+  const allowance = Math.min(Math.floor(limits.maxBytes / 3), limits.maxBytes - protectedBytes);
+  const trajectory = selectHistory(source, limits, allowance);
+  if (!trajectory) return null;
+  const bounded = JSON.parse(JSON.stringify({ ...request, action, trajectory })) as JudgeRequest;
+  bounded.trajectory!.observations.forEach((event, index) => {
+    const content = contents.get(trajectory.observations[index]!);
+    if (content) contents.set(event, content);
   });
-  return selected.enough ? bounded : null;
+  selections.set(bounded.trajectory!, trajectory.selection!);
+  return measureBytes(bounded) <= limits.maxBytes ? freeze(bounded) : null;
 }

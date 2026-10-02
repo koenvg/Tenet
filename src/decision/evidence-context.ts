@@ -32,6 +32,9 @@ export function evidenceContext(request?: Pick<JudgeRequest, 'action' | 'resolve
       ...limitations(action.limitations) } : null,
     history: history ? { recentEvents: limits.recentEvents, maxBytes: limits.maxBytes,
       retainedEvents: history.observations.length, retainedBytes: serializedBytes(history), omittedEvents: history.omitted,
+      maxHistoryBytes: history.selection?.maxHistoryBytes ?? 0, maxEventBytes: history.selection?.maxEventBytes ?? 0,
+      shortenedEvents: history.selection?.shortenedEvents ?? 0, droppedEvents: history.selection?.droppedEvents ?? 0,
+      priorOmittedEvents: history.selection?.priorOmittedEvents ?? history.omitted, exactCompactedBytes: history.selection?.exactCompactedBytes ?? 0,
       ...limitations([...history.limitations, ...history.observations.flatMap(event => observationLimitations(event))]) } : null });
 }
 export const UNAVAILABLE_EVIDENCE_CONTEXT = evidenceContext();

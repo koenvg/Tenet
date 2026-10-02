@@ -180,7 +180,7 @@ test('pinned Pi dispatch gates built-in, extension and dynamically registered to
     assert.ok(records.some(r => r.stage === 'execution' && r.callId === 'smoke-6' && r.outcome === 'unknown'));
     assert.ok(records.some(r => r.stage === 'execution' && r.outcome === 'unknown'));
     assert.ok(!records.some(r => r.stage === 'execution' && ['smoke-2', 'smoke-4', 'smoke-5', 'smoke-9'].includes(r.callId)));
-    assert.ok(records.some(r => r.stage === 'status' && r.ruleCount === 2 && r.questionVersion === 'policy-rules-v6-applicability'));
+    assert.ok(records.some(r => r.stage === 'status' && r.ruleCount === 2 && r.questionVersion === 'policy-rules-v7-evidence-selection'));
     for (const callId of ['smoke-11', 'smoke-12']) {
       assert.ok(records.some(r => r.stage === 'permission' && r.callId === callId && r.outcome === 'blocked'));
       assert.ok(!records.some(r => r.stage === 'execution' && r.callId === callId));
@@ -372,7 +372,7 @@ test('production extension entry loads with pinned Pi and missing credentials re
     const ctx = { cwd, hasUI: false, sessionManager: { getSessionId: () => 'production-entry' } } as ExtensionContext;
     for (const handler of extensions[0]!.handlers.get('session_start')!) await handler({ type: 'session_start', reason: 'startup' }, ctx);
     assert.ok(records.some(r => r.stage === 'status' && r.reason === 'missing-credentials'));
-    assert.ok(records.some(r => r.stage === 'status' && r.questionVersion === 'policy-rules-v6-applicability' && r.ruleCount === 1));
+    assert.ok(records.some(r => r.stage === 'status' && r.questionVersion === 'policy-rules-v7-evidence-selection' && r.ruleCount === 1));
     const [handler] = extensions[0]!.handlers.get('tool_call')!;
     const result = await handler!({ type: 'tool_call', toolName: 'unfamiliar', toolCallId: 'missing-key', input: {} }, ctx);
     assert.ok(result && typeof result === 'object' && 'block' in result && 'reason' in result);

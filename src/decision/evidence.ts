@@ -8,6 +8,8 @@ const credentials = ['authorization', 'proxyauthorization', 'cookie', 'setcookie
   'token', 'accesstoken', 'refreshtoken', 'idtoken', 'password', 'passwd', 'secret', 'clientsecret',
   'privatekey', 'credentials', 'awsaccesskeyid', 'awssecretaccesskey', 'awssessiontoken'];
 
+export const sensitiveField = (key: string, configured: readonly string[] = []) =>
+  credentials.includes(normalize(key)) || configured.some(field => normalize(field) === normalize(key));
 // Reject non-JSON arguments rather than silently changing their meaning. Pi tool schemas
 // may carry symbol annotations, which are not part of their JSON schema representation.
 export function jsonCopy(value: unknown): Json {

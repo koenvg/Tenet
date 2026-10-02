@@ -22,7 +22,7 @@ The stock Pi and Claude integrations currently report action resolution as unsup
 
 ## Outcomes and gates
 
-User rules have five outcomes: PASS, APPROVAL_REQUIRED, FAIL, UNKNOWN and NOT_APPLICABLE. The question/response contract is `policy-rules-v6-applicability`.
+User rules have five outcomes: PASS, APPROVAL_REQUIRED, FAIL, UNKNOWN and NOT_APPLICABLE. The current question/response contract is `policy-rules-v7-evidence-selection`. It adds generic bounded-history excerpt/omission instructions; labels, distributions, fact authentication, validation, thresholds and gates remain `applicability-v1`.
 
 NOT_APPLICABLE means current authenticated facts demonstrate that the entire invocation is outside the complete rule's scope. PASS means an applicable rule is satisfied. The evaluator must assess each complete rule independently. Material ambiguity stays UNKNOWN; a harmless operation cannot clear a compound invocation.
 
@@ -56,7 +56,7 @@ Every new invocation records the current contract identity in its `profile` fiel
 
 Contributions retain the outcome threshold, evidence-gate applicability and effective evidence threshold for every assessed rule. The inspector uses recorded values and preserves explicit null evidence thresholds. Existing archives are not migrated or reevaluated. Older records without a profile are shown as `legacy (historical)`; explicitly recorded older profiles and scores remain unchanged.
 
-New recordings use schema 4 and identify the owner-only diagnostic as `evidence-context-v1`, with current FIFO selection identity `bounded-history-v1`. No evidence representation or question semantics change in TENET-22. `bounded-history-v2` and `policy-rules-v7-evidence-selection` are reserved for later selection changes. Schemas 1 through 3 retain their original payloads and thresholds; missing historical diagnostics say not recorded. Older readers cannot interpret schema 4 and must report unsupported schema. Do not rewrite archives for rollback.
+New recordings use schema 4 and identify the owner-only diagnostic as `evidence-context-v1`, with current selection identity `bounded-history-v2` and questions `policy-rules-v7-evidence-selection`. TENET-22 schema-4 records retain `bounded-history-v1`, `policy-rules-v6-applicability` and their recorded counter shape. Schemas 1 through 3 also retain their original payloads and thresholds; missing historical diagnostics say not recorded. Readers never run historical payloads through the current selector or invent new counters. Older readers cannot interpret schema 4 and must report unsupported schema. Do not rewrite archives for rollback. There is no runtime legacy toggle.
 
 An uncertainty-only inspector explanation can say no rule was classified as violated only with complete recorded rule results, integrity and successful validation, and no selected FAIL. It is not a safety guarantee. Coverage gaps are independent of UNKNOWN/INSUFFICIENT findings, permission, approval and execution. [Inspection evidence](inspection-evidence.md) documents provenance and availability.
 

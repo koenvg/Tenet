@@ -1,5 +1,5 @@
 // Compiled in an isolated consumer against the built `tenet` package.
-import type { AssessmentStatus, BeforeToolResult, Guard, GuardSession, OwnerEvent } from 'tenet';
+import type { AssessmentStatus, BeforeToolResult, Guard, GuardSession, OwnerEvent, EvidenceContext } from 'tenet';
 
 type Decision = 'ALLOW' | 'ASK' | 'BLOCK';
 
@@ -166,3 +166,22 @@ export function readOwnerReport(event: OwnerEvent) {
     diagnostic.gates.push('rule-fail');
   }
 }
+
+export function readSelectionCounters(context: EvidenceContext): number[] | undefined {
+  if (context.selectionVersion === 'bounded-history-v2' && context.history) {
+    return [context.history.maxHistoryBytes, context.history.maxEventBytes, context.history.shortenedEvents,
+      context.history.droppedEvents, context.history.priorOmittedEvents, context.history.exactCompactedBytes];
+  }
+  return undefined;
+}
+type V1History = NonNullable<Extract<EvidenceContext, { selectionVersion: 'bounded-history-v1' }>['history']>;
+type V2History = NonNullable<Extract<EvidenceContext, { selectionVersion: 'bounded-history-v2' }>['history']>;
+const historicalHistory: V1History = { recentEvents: 12, maxBytes: 24576, retainedEvents: 1, retainedBytes: 21000,
+  omittedEvents: 1, limitations: [], limitationsTruncated: false };
+const currentHistory: V2History = { ...historicalHistory, maxHistoryBytes: 8192, maxEventBytes: 2048,
+  shortenedEvents: 1, droppedEvents: 1, priorOmittedEvents: 0, exactCompactedBytes: 0 };
+// @ts-expect-error current v2 history requires all selection counters
+const incompleteCurrentHistory: V2History = historicalHistory;
+// @ts-expect-error historical v1 history cannot claim current selection counters
+const mixedHistoricalHistory: V1History = currentHistory;
+void [incompleteCurrentHistory, mixedHistoricalHistory];

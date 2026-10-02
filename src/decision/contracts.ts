@@ -51,6 +51,12 @@ export interface Observation {
 }
 export interface Trajectory {
   observations: readonly Observation[]; omitted: number; limitations: readonly string[];
+  selection?: HistorySelection;
+}
+export interface HistorySelection {
+  readonly version: 'bounded-history-v2'; readonly maxHistoryBytes: number; readonly maxEventBytes: number;
+  readonly retainedEvents: number; readonly shortenedEvents: number; readonly droppedEvents: number;
+  readonly priorOmittedEvents: number; readonly exactCompactedBytes: number;
 }
 export interface EvidenceLimits { recentEvents: number; maxBytes: number }
 /** Host-supplied history is evidence only, never current resolution or permission. */

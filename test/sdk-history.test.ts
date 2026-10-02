@@ -28,13 +28,16 @@ for (const recentEvents of [0, 2]) {
       const result = await session.beforeTool({ ...call, current: () => ({ sessionId: 'one', contextId: 'main', ...call }) });
       assert.equal(requests.length, 1);
       // Authored pre-change SDK admission baseline, including provenance and missing metadata.
-      assert.deepEqual(requests[0]!.trajectory, {
+      assert.deepEqual((({ selection: _selection, ...history }) => history)(requests[0]!.trajectory!), {
         observations: recentEvents ? [{ sessionId: 'one', callId: 'small', toolName: 'opaque', origin: 'host-tool-result', timestamp: null,
           data: { content: { text: 'untrusted history' }, redactedFields: 1, limitations: ['fields-redacted'] } }] : [],
         omitted: recentEvents ? 2 : 3,
         limitations: ['untrusted-evidence-not-approval-authority', 'external-state-not-frozen', 'host-history-untrusted',
           'history-omitted', ...(recentEvents ? ['metadata-unavailable'] : [])],
       });
+      assert.deepEqual(requests[0]!.trajectory!.selection, { version: 'bounded-history-v2', maxHistoryBytes: 682, maxEventBytes: 170,
+        retainedEvents: recentEvents ? 1 : 0, shortenedEvents: 0, droppedEvents: recentEvents ? 2 : 3,
+        priorOmittedEvents: 0, exactCompactedBytes: 0 });
       assert.deepEqual([result.permission, result.assessment.status, result.assessment.wouldDecision, result.reason],
         ['released', 'completed', 'ALLOW', 'all-rules-pass']);
       assert.ok(Object.isFrozen(requests[0]!.trajectory!.observations));

@@ -360,6 +360,8 @@ test('coverage distinguishes unsupported, partial, unavailable and historical re
   await pickCall('summary');
   expect(await coverage.textContent()).toContain('authenticated-partial');
   expect(await coverage.textContent()).toContain('2 omitted events');
+  expect(await coverage.textContent()).toContain('1 shortened, 1 dropped, 1 prior omissions');
+  expect(await coverage.textContent()).toContain('Exact compaction: 0 bytes saved');
   expect(await p.locator('.summary-reason').textContent()).toContain('would block by uncertainty');
   expect(await p.locator('.execution-summary').textContent()).toContain('The call ran');
   await p.setViewportSize({ width: 390, height: 844 });

@@ -1,7 +1,5 @@
 import { ArchiveWriter } from '../../test/legacy-recording-fixture.js';
 import { recordRuleFixture } from '../../test/rule-fixture.js';
-import { evidenceContext } from '../../src/decision/evidence-context.js';
-import { captureAction } from '../../src/decision/evidence.js';
 
 export const recordedQuestion = {
   type: 'choice',
@@ -27,8 +25,12 @@ export async function browserFixture(directory: string) {
   summary('begin', { profile: 'legacy', integrity: { id: 'integrity', text: 'Integrity constraint' }, policy: summaryPolicy, config: { effectThreshold: .9, evidenceThreshold: .9 } });
   summary('request', { policy: summaryPolicy, questionVersion: 'offline-summary-v1', mapping: [], payload: { model: 'offline', questions: {}, state: { policy: summaryPolicy, context: {}, trajectory: {}, integrity: { id: 'integrity', text: 'Integrity constraint' }, action: { arguments: { command: 'git status --short && git diff -- README.md && git diff --cached --stat' } } } } });
   summary('response', { value: {}, truncated: false, bytes: 2 }); summary('validation', { valid: true });
-  const partial = { ...evidenceContext({ action: captureAction({ sessionId: 's', callId: 'summary', toolName: 'bash', arguments: {} }), trajectory: { observations: [], omitted: 2, limitations: ['history-omitted'] } }, undefined, true),
-    resolution: { status: 'authenticated-partial', limitations: ['partial-effect-coverage'], limitationsTruncated: false } };
+  const partial = { version: 'evidence-context-v1', selectionVersion: 'bounded-history-v2', preparation: 'completed',
+    resolution: { status: 'authenticated-partial', limitations: ['partial-effect-coverage'], limitationsTruncated: false },
+    current: { redactedFields: 0, limitations: [], limitationsTruncated: false },
+    history: { recentEvents: 12, maxBytes: 24576, retainedEvents: 1, retainedBytes: 600, omittedEvents: 2,
+      maxHistoryBytes: 8192, maxEventBytes: 2048, shortenedEvents: 1, droppedEvents: 1, priorOmittedEvents: 1,
+      exactCompactedBytes: 0, limitations: ['history-content-shortened', 'history-omitted'], limitationsTruncated: false } };
   summary('assessment', { evidenceContext: partial, assessment: { model: 'offline', rules: [
     { ruleId: 'email', outcome: { choice: 'PASS', probabilities: { PASS: .99, FAIL: 0, UNKNOWN: .01, APPROVAL_REQUIRED: 0 } }, evidence: { choice: 'SUFFICIENT', probabilities: { SUFFICIENT: .85, INSUFFICIENT: .15 } } },
     { ruleId: 'integrity', outcome: { choice: 'PASS', probabilities: { PASS: 1, FAIL: 0, UNKNOWN: 0, APPROVAL_REQUIRED: 0 } }, evidence: { choice: 'SUFFICIENT', probabilities: { SUFFICIENT: 1, INSUFFICIENT: 0 } } },

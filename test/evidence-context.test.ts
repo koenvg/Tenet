@@ -19,7 +19,7 @@ test('coverage is immutable request context, not a model rationale or evaluator 
   } });
   const context = result.evidenceContext;
   assert.equal(context.version, 'evidence-context-v1');
-  assert.equal(context.selectionVersion, 'bounded-history-v1');
+  assert.equal(context.selectionVersion, 'bounded-history-v2');
   assert.equal(context.preparation, 'completed');
   assert.equal(context.resolution.status, 'unsupported');
   assert.equal(context.current?.redactedFields, 1);
@@ -54,7 +54,7 @@ test('diagnostic bounds UTF-8 limitations without promoting partial or unsupport
   assert.equal(result.evidenceContext.resolution.limitations.length, 16);
   assert.equal(result.evidenceContext.resolution.limitationsTruncated, true);
   assert.ok(result.evidenceContext.resolution.limitations.every(s => Buffer.byteLength(s) <= 128 && !s.includes('\uFFFD')));
-  assert.equal(result.questionVersion, 'policy-rules-v6-applicability');
+  assert.equal(result.questionVersion, 'policy-rules-v7-evidence-selection');
   assert.equal(result.profile, 'applicability-v1');
 });
 

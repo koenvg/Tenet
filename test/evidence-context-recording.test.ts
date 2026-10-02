@@ -20,7 +20,7 @@ test('schema 4 requires bounded explicit diagnostic identities; older payloads a
   const valid = row(4, { decision: 'BLOCK', evidenceContext: UNAVAILABLE_EVIDENCE_CONTEXT });
   assert.equal(validRecord(valid), true);
   for (const context of [undefined, null, { ...UNAVAILABLE_EVIDENCE_CONTEXT, version: 'unknown' },
-    { ...UNAVAILABLE_EVIDENCE_CONTEXT, selectionVersion: 'bounded-history-v2' },
+    { ...UNAVAILABLE_EVIDENCE_CONTEXT, selectionVersion: 'bounded-history-unknown' },
     { ...UNAVAILABLE_EVIDENCE_CONTEXT, history: {} },
     { ...UNAVAILABLE_EVIDENCE_CONTEXT, resolution: { status: 'unsupported', limitations: ['x'.repeat(129)], limitationsTruncated: false } },
     { ...UNAVAILABLE_EVIDENCE_CONTEXT, resolution: { status: 'unsupported', limitations: Array(17).fill('gap'), limitationsTruncated: false } },
@@ -36,6 +36,37 @@ test('schema 4 requires bounded explicit diagnostic identities; older payloads a
     assert.equal(invocationView([old]).noRulesClassifiedViolated, false);
     assert.equal(JSON.stringify(old), bytes);
   }
+});
+test('schema-4 v1 history diagnostics remain exactly recorded, without inventing v2 counters', () => {
+  const context = { ...UNAVAILABLE_EVIDENCE_CONTEXT, selectionVersion: 'bounded-history-v1', preparation: 'completed',
+    resolution: { status: 'unsupported', limitations: [], limitationsTruncated: false },
+    current: { redactedFields: 0, limitations: [], limitationsTruncated: false },
+    history: { recentEvents: 12, maxBytes: 24576, retainedEvents: 1, retainedBytes: 21000, omittedEvents: 2,
+      limitations: ['history-omitted'], limitationsTruncated: false } };
+  const record: any = row(4, { decision: 'BLOCK', evidenceContext: context, questionVersion: 'policy-rules-v6-applicability' });
+  const before = JSON.stringify(record);
+  assert.equal(validRecord(record), true);
+  const view = invocationView([record]);
+  assert.deepEqual(view.evidenceContext, context);
+  assert.equal(view.evidenceContext?.history?.shortenedEvents, undefined);
+  assert.equal(JSON.stringify(record), before);
+});
+
+test('schema-4 v2 diagnostic validates matching loss counters and effective byte limits', () => {
+  const context = { ...UNAVAILABLE_EVIDENCE_CONTEXT, preparation: 'completed',
+    resolution: { status: 'unsupported', limitations: [], limitationsTruncated: false },
+    current: { redactedFields: 0, limitations: [], limitationsTruncated: false },
+    history: { recentEvents: 12, maxBytes: 24576, retainedEvents: 1, retainedBytes: 1000, omittedEvents: 2,
+      maxHistoryBytes: 8192, maxEventBytes: 2048, shortenedEvents: 1, droppedEvents: 1, priorOmittedEvents: 1,
+      exactCompactedBytes: 0, limitations: [], limitationsTruncated: false } };
+  assert.equal(validRecord(row(4, { decision: 'BLOCK', evidenceContext: context })), true);
+  for (const change of [{ maxHistoryBytes: 8193 }, { maxEventBytes: 2049 }, { retainedBytes: 8193 },
+    { shortenedEvents: 2 }, { droppedEvents: 3 }, { priorOmittedEvents: -1 }]) {
+    assert.equal(validRecord(row(4, { decision: 'BLOCK', evidenceContext: { ...context, history: { ...context.history, ...change } } })), false);
+  }
+  const request: any = { ...row(4, { evidenceContext: context, selectionVersion: 'bounded-history-v1',
+    payload: { model: 'offline', questions: {}, state: {} }, policy: { rules: [] }, mapping: [] }), stage: 'request' };
+  assert.equal(validRecord(request), false);
 });
 
 for (const recording of ['on', 'off', 'failed'] as const) for (const unavailable of [false, true]) {
@@ -88,7 +119,7 @@ test('prepared request, assessment and final archive stages carry identical diag
       const invocation = records.filter(r => r.invocationId === request.invocationId);
       for (const stage of invocation.filter(r => ['assessment', 'decision'].includes(r.stage)
         || r.stage === 'assessment-status' && r.data.status === 'completed')) assert.deepEqual(stage.data.evidenceContext, request.data.evidenceContext);
-      assert.equal(request.data.selectionVersion, 'bounded-history-v1');
+      assert.equal(request.data.selectionVersion, 'bounded-history-v2');
       assert.deepEqual(invocationView(invocation).evidenceContext, request.data.evidenceContext);
       assert.ok(!Object.hasOwn((request.data.payload as any).state, 'evidenceContext'));
     }

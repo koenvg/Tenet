@@ -31,7 +31,7 @@ for (const mode of ['enforce', 'observe'] as const) for (const recording of ['on
         onOwnerRecord: r => records.push(r), onOwnerEvent: e => { events.push(e); if (e.type === 'assessment' && e.assessment.status !== 'pending') throw new Error('listener fails offline'); } });
       try {
         const session = guard.openSession({ sessionId: 's', contextId: 'main' }, cwd); await session.ready;
-        session.setHistory([{ kind: 'tool-result', callId: 'old', toolName: 'unknown-name', data: { token: 'canary', text: 'history' } }]);
+        session.setHistory([{ kind: 'tool-result', callId: 'old', toolName: 'unknown-name', data: { token: 'canary', text: 'HEAD ' + '界🙂'.repeat(10000) + ' TAIL' } }]);
         const call = { callId: 'c', toolName: 'unknown-name', input: { password: 'canary', value: 1 } };
         const result = await session.beforeTool({ ...call, current: () => ({ ...call, sessionId: 's', contextId: 'main' }) });
         assert.equal(result.permission, mode === 'observe' ? 'released' : 'blocked');
@@ -50,6 +50,11 @@ for (const mode of ['enforce', 'observe'] as const) for (const recording of ['on
         assert.deepEqual(event.report?.evidenceContext, captured.evidenceContext);
         assert.equal(details.evidenceContext?.resolution.status, coverage === 'unsupported' ? coverage : `authenticated-${coverage}`);
         assert.equal(details.evidenceContext?.history?.retainedEvents, 1);
+        assert.equal(details.evidenceContext?.history?.shortenedEvents, 1);
+        assert.equal(details.evidenceContext?.history?.exactCompactedBytes, 0);
+        assert.equal(details.evidenceContext?.history?.maxHistoryBytes, 8192);
+        assert.ok((details.evidenceContext?.history?.retainedBytes ?? Infinity) <= 8192);
+        assert.ok(Buffer.byteLength(JSON.stringify(captured.trajectory.observations[0].data)) <= 2048);
         assert.ok(Object.isFrozen(details.evidenceContext));
         assert.ok(Object.isFrozen(details.evidenceContext?.history));
         const live = records.filter(r => ['assessment', 'decision'].includes(r.stage));
@@ -70,18 +75,22 @@ for (const mode of ['enforce', 'observe'] as const) for (const recording of ['on
   }
 }
 for (const recording of ['on', 'off']) test(`Pi live report preserves coverage with recording ${recording}`, async () => {
-  const h = await guardHarness({ env: { TENET_RECORDING: recording }, judge: async r => answer(r.policy, 'UNKNOWN') });
+  const h = await guardHarness({ env: { TENET_RECORDING: recording }, judge: async r => answer(r.policy, r.action.callId === 'older' ? 'PASS' : 'UNKNOWN') });
   try {
-    await h.start(); await h.call(); await h.assessed();
-    const assessment = h.records.find(r => r.stage === 'assessment');
-    const decision = h.records.find(r => r.stage === 'decision');
+    await h.start(); await h.call('older'); await h.assessed('older');
+    await h.emit('tool_result', { toolCallId: 'older', toolName: 'edit', content: '界'.repeat(15000), isError: false });
+    await h.call(); await h.assessed();
+    const assessment = h.records.find(r => r.stage === 'assessment' && r.callId === 'c');
+    const decision = h.records.find(r => r.stage === 'decision' && r.callId === 'c');
     assert.equal(assessment.evidenceContext.resolution.status, 'unsupported');
+    assert.equal(assessment.evidenceContext.history.shortenedEvents, 1);
+    assert.equal(assessment.evidenceContext.history.exactCompactedBytes, 0);
     assert.deepEqual(decision.evidenceContext, assessment.evidenceContext);
     const archived = await readArchive(join(h.cwd, 'archive'));
     if (recording === 'on') {
       await h.emit('session_shutdown');
       const rows = (await readArchive(join(h.cwd, 'archive'))).records;
-      assert.deepEqual(invocationView(rows).evidenceContext, assessment.evidenceContext);
+      assert.deepEqual(invocationView(rows.filter(row => row.callId === 'c')).evidenceContext, assessment.evidenceContext);
     } else assert.equal(archived.records.length, 0);
   } finally { await h.close(); }
 });
