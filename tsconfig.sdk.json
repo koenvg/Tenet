@@ -6,6 +6,6 @@
     "rootDir": "src",
     "outDir": "dist"
   },
-  "include": ["src/sdk/**/*.ts"],
+  "include": ["src/sdk/**/*.ts", "src/cli/**/*.ts"],
   "exclude": []
 }

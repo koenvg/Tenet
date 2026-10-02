@@ -11,6 +11,8 @@ For development checks, see [Contributing](CONTRIBUTING.md). The [CI workflow](.
 
 Embedding applications can use the compiled [alpha SDK](docs/sdk.md) under Node 22.12+ or Bun 1.3.14+, without Pi. Pi uses this same compiled SDK. Its session handles own the existing guard mechanics; each host owns trusted UI and executor dispatch.
 
+Diagnose a project's setup before starting Pi with the [offline doctor command](docs/doctor.md). It reports local readiness without contacting TypeSafe or starting a guard session.
+
 On a passing `main` build, CI saves a 14-day install archive as a GitHub Actions artifact. It does not publish to npm or create a public release.
 
 TENET source is [MIT-licensed](LICENSE). Bundled assets retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md).
