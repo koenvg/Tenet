@@ -20,12 +20,19 @@ try {
   run('bun', ['run', 'vite', 'build', 'inspector', '--outDir', join(stage, 'inspector/dist')], repository);
   for (const [source, destination] of [
     ['docs/INSTALL-ARCHIVE.md', 'README.md'], ['docs/ARCHIVE-OPERATION.md', 'docs/operation.md'], ['docs/sdk.md', 'docs/sdk.md'],
+    ['docs/doctor.md', 'docs/doctor.md'],
     ['LICENSE', 'LICENSE'], ['docs/ARCHIVE-NOTICES.md', 'THIRD_PARTY_NOTICES.md'],
     ['inspector/src/fonts/OFL-Kode-Mono.txt', 'inspector/OFL-Kode-Mono.txt'],
     ['node_modules/svelte/LICENSE.md', 'inspector/LICENSE-Svelte.md'],
   ]) {
     await mkdir(dirname(join(stage, destination!)), { recursive: true });
     await cp(join(repository, source!), join(stage, destination!));
+    if (source === 'docs/INSTALL-ARCHIVE.md') {
+      // This reference becomes the archive root README; relocate its sibling links.
+      const guide = await readFile(join(stage, destination!), 'utf8');
+      await writeFile(join(stage, destination!), guide.replaceAll('](ARCHIVE-OPERATION.md', '](docs/operation.md')
+        .replaceAll('](doctor.md', '](docs/doctor.md').replaceAll('](sdk.md', '](docs/sdk.md'));
+    }
   }
   const source = JSON.parse(await readFile(join(repository, 'package.json'), 'utf8'));
   await writeFile(join(stage, 'package.json'), `${JSON.stringify(deliveryManifest(source), null, 2)}\n`);

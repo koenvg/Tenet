@@ -20,7 +20,7 @@ node /absolute/path/to/tenet/dist/cli/index.js doctor --project /absolute/path/t
 bun /absolute/path/to/tenet/dist/cli/index.js doctor --project /absolute/path/to/project --json
 ```
 
-The project defaults to the current directory. The installation checked is the directory containing the compiled CLI, not the project. This task delivers the diagnostic command independently. Integration into the production archive and global `tenet doctor` installation belongs to the final owner-experience task.
+The project defaults to the current directory. The installation checked is the directory containing the compiled CLI, not the project. The production archive includes this compiled CLI and reference. After its locked production dependency install, use the same direct invocation with no checkout builds. No global `tenet` binary is installed; see [the archive installation guide](../README.md) in the archive, or [the repository archive guide](https://github.com/koenvg/Tenet/blob/main/docs/INSTALL-ARCHIVE.md) in a checkout.
 
 Doctor reads the same process environment that the next Pi process should inherit. It does not load dotenv files, read a secret manager or inspect Pi settings. Set `TYPESAFE_API_KEY` securely through your existing secret manager. Never put credentials in a policy or command-line arguments.
 
@@ -52,7 +52,7 @@ Credential presence is not credential validity. Provider connectivity and hook a
 
 Pi 0.85.1 is the tested host. Doctor reads package metadata for the first executable `pi` launcher on PATH using read-only permission checks, without executing it. Non-executable candidates are skipped. Empty PATH components mean the current command directory, not the selected project. Valid prerelease and build metadata are recognized; only the exact tested pin is tested. If there is no launcher, it checks the selected project's then the installation's local Pi package metadata. This is discovery, not proof of which host you will launch. An unidentified launcher, missing metadata or malformed version stays unknown. A detected version outside the tested pin reports unavailable compatibility and pin/upgrade guidance. Unknown compatibility remains a limitation, not a fabricated tested result.
 
-Delivery checks cover the current checkout/local-install entry files, compiled SDK/CLI/runtime entries, inspector entry, documentation, license, lockfile and the matching installed TypeSafe runtime entry. They do not execute imports, validate every transitive package or certify archive integrity. Rebuild or replace an incomplete installation. The production delivery contract is a separate task.
+Delivery checks cover compiled SDK/CLI/runtime entries, the Pi resource and inspector entry for the manifest's declared checkout or production layout, documentation, license, the corresponding lockfile and the matching installed TypeSafe runtime entry. They do not execute imports, validate every transitive package or certify archive integrity. Build a checkout or replace an incomplete archive installation; install its locked dependencies. The packaging verifier separately checks the closed production delivery contract.
 
 Capture defaults to a local archive under `~/.tenet/recordings`; `TENET_RECORDING=off` disables it and `TENET_RECORDING_DIR` must be absolute. Doctor checks configuration only, not directory health or future writes. Local assessment records can contain secrets. Disabling capture does not prevent policy and evaluator evidence from being submitted to TypeSafe when Pi later assesses actions.
 

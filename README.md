@@ -1,24 +1,93 @@
 # TENET policy guard
 
+Tenet assesses Pi tool calls against your policy and shows findings to you, not the agent. Start in observation, then opt into enforcement when you are ready. Pi 0.85.1 is the tested host. Tenet is in alpha, not an OS sandbox; a judge can be wrong and actions outside Pi's hooks are not covered.
 
-A TypeScript POC for Pi 0.85.1. Every exposed tool call follows the same rule-evaluation path through Jev using the official `@typesafe-ai/sdk` 0.6.0. No tool allowlists, tool-family mappings or replacement executors.
+## Quickstart for Pi owners
 
-**Persistence default:** In eligible sessions while TENET is on, it saves submitted assessment evidence locally, including passes. Strings can contain source code or secrets. Set `TENET_RECORDING=off` before starting Pi to opt out, or use `/tenet off` to stop both new assessment and capture. Sessions without a local or explicit policy are dormant and create no TENET records. Old records remain. See [Local decision inspector](#local-decision-inspector).
+You do not need SDK code, tool registration or a bridge. Use the private production archive from a passing `main` CI build. It is a 14-day GitHub Actions artifact, not an npm package or public release. The [archive guide](docs/INSTALL-ARCHIVE.md) has the complete install, diagnosis, troubleshooting and removal reference.
 
-The original KVG-5093 publication slice is extended by configurable policy rules, KVG-5094's bounded recent observations and KVG-5095's invocation-bound approval. No subprocess inspection or OS sandbox.
+### 1. Install once
 
-For development checks, see [Contributing](CONTRIBUTING.md). The [CI workflow](.github/workflows/ci.yml) runs offline tests, type checks, and disposable Chromium inspector tests. It does not call the evaluator or publish a release.
+Use Node 22.19+ with npm, Bun 1.3.14+, and a separate Pi 0.85.1 installation. Choose a stable directory you own, not a disposable worktree:
 
-Embedding applications can use the compiled [alpha SDK](docs/sdk.md) under Node 22.12+ or Bun 1.3.14+, without Pi. Pi uses this same compiled SDK. Its session handles own the existing guard mechanics; each host owns trusted UI and executor dispatch.
+```sh
+mkdir -p "$HOME/Applications"
+tar -xzf /path/to/tenet.tar.gz -C "$HOME/Applications"
+TENET_DIR="$HOME/Applications/tenet"
+cd "$TENET_DIR"
+npm ci --omit=dev --ignore-scripts
+pi install "$TENET_DIR"
+pi list
+```
 
-Diagnose a project's setup before starting Pi with the [offline doctor command](docs/doctor.md). It reports local readiness without contacting TypeSafe or starting a guard session.
+Pi loads this path in place. Keep it and its dependencies installed. No compiler or frontend build is needed. Close any running Pi processes after installation; do not also load Tenet with `-e`.
 
-On a passing `main` build, CI saves a 14-day install archive as a GitHub Actions artifact. It does not publish to npm or create a public release.
-Build that verified production delivery locally with `bun run package:archive`. Follow the [archive installation guide](docs/INSTALL-ARCHIVE.md) for production dependencies, stable-path Pi registration, the built inspector and removal without a development checkout.
+### 2. Set up each project before launching Pi
 
-TENET source is [MIT-licensed](LICENSE). Bundled assets retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md).
+Configure `TYPESAFE_API_KEY` in the launching shell through your secret manager. Never paste it into policy, source, chat or command-line arguments. Doctor checks only its presence, not validity.
 
-The [Claude Code command-hook prototype](docs/claude-code.md) is opt-in and has only offline protocol tests. No Claude CLI was available to verify a pinned host version. Do not treat Pi installation or `TENET_MODE=enforce` as Claude Code coverage.
+Before any assessed action, know what leaves your machine. TypeSafe receives your policy, paths, tool evidence and bounded recent observations. Field redaction cannot find all secrets embedded in source or commands. Local capture is also on by default and saves potentially secret-bearing submitted strings in `~/.tenet/recordings`. To disable new local capture, set this **before launching Pi**:
+
+```sh
+export TENET_RECORDING=off
+```
+
+This does not prevent provider disclosure or disable observation and findings. Omit it if you want retained evidence for the inspector. Old records remain either way. See [disclosure](#data-disclosure-and-audit) and [storage limits](#sensitive-local-storage).
+
+In your project, author `TENET.md` yourself in an editor or owner shell, **outside the guarded agent's intercepted path**. Each declaration is one physical line, with case-sensitive `Rule;` syntax:
+
+```text
+Rule; BLOCK; Ask before overwriting owner-demo.txt.
+```
+
+This is an illustrative local policy, not a complete security policy. Review your own rules. Do not ask the guarded agent to write, migrate or weaken its active policy. No policy ships in the archive. Tenet selects only the current project's `TENET.md` unless you set `TENET_POLICY`; it does not search parent directories or use a bundled policy. See [policy reference](#write-your-policy).
+
+Run the offline doctor in the same environment the next Pi process will inherit:
+
+```sh
+cd /absolute/path/to/your/project
+node "$TENET_DIR/dist/cli/index.js" doctor --project "$PWD"
+# Add --json for structured output.
+```
+
+`ready` means local prerequisites are valid, not that hooks or the provider are verified. Fix invalid or unavailable setup first. `off` and `dormant` are bypass states, not passes. See [doctor states and exits](docs/doctor.md#states-and-exits).
+
+### 3. Restart into observation and inspect findings
+
+Start a fresh process, explicitly selecting the starting mode so a shell override cannot select enforcement:
+
+```sh
+TENET_MODE=observe pi
+```
+
+Check `TENET ON OBSERVE` and run `/tenet status`. A shared off choice needs `/tenet on`; that restores this process's mode, it does not select enforcement. Bare `/tenet` opens owner findings. After a separately authorized real tool action, findings may arrive later. Pending, unavailable, cancelled or lost work is not an all-clear. Observation never vetoes or opens approval.
+
+For a safe demonstration, the archive's offline acceptance flow uses a scripted judge and writes only a disposable `owner-demo.txt`. Observe releases the write while assessment is pending, then shows a counterfactual BLOCK finding. A fresh enforce process allows PASS, withholds denied native approval, releases an approved invocation and withholds FAIL. These are installation and dispatch checks, not live semantic-accuracy claims. Developers can reproduce them with `bun run package:archive`; owners need no test code or real publishing to check setup.
+
+`/tenet-inspector` opens retained evidence with the built local inspector. Without Pi, use `cd "$TENET_DIR" && npm run inspector:serve`. Recording opt-out leaves native findings available but no new local archive. The inspector is read-only and unauthenticated on loopback; do not proxy it to another machine.
+
+### Troubleshooting and enforcement
+
+- No footer or `/tenet` command usually means a policy-free project is dormant. Run doctor outside Pi; global registration supplies no policy. Extension load errors also mean Tenet did not load.
+- A malformed active policy, missing explicit path or missing credential means unavailable assessment. Repair policy outside Pi or configure the secret securely, then restart. Observe permits; enforce blocks. Neither is a passing assessment.
+- Pending or missing findings can reflect background work, queue loss, capture failure or interruption. Check `/tenet status` and inspector coverage notices. Missing stages remain unknown.
+- Doctor cannot verify hooks or credential validity. Pin the tested Pi version, restart and check native status. Pi does not guarantee result correlation, arguments after hook release or authenticated action resolution. Later hooks and executors can change an action; this is not filesystem isolation or subprocess monitoring.
+
+When ready, close Pi and opt into enforcement in a **new process**:
+
+```sh
+TENET_MODE=enforce pi
+```
+
+Verify `TENET ON ENFORCE` with `/tenet status`. `/tenet off` bypasses new assessment and capture through a cooperative machine-wide choice; `/tenet on` restores each process's configured mode. `TENET_RECORDING=off` only disables local capture. These controls are distinct. Full details are in [the archive operation reference](docs/ARCHIVE-OPERATION.md).
+
+To remove loading, run `pi remove "$TENET_DIR"`, then close and restart Pi. Stop the inspector before deleting the stable installation. Historical evidence and `~/.tenet/control.json` remain. For replacement or rollback, stop all processes, replace the whole installation at the same path, reinstall dependencies and restart. Policies stay owner-managed; reverting to a pre-SDK archive removes the alpha SDK entry and may restore older policy and blocking defaults. See [removal and rollback](docs/INSTALL-ARCHIVE.md#removal-and-rollback).
+
+## Detailed reference
+
+For development checks, see [Contributing](CONTRIBUTING.md). Embedding applications can use the compiled [alpha SDK](docs/sdk.md) without Pi. Tenet source is [MIT-licensed](LICENSE); bundled assets retain their own licenses in [third-party notices](THIRD_PARTY_NOTICES.md).
+
+The [Claude Code command-hook prototype](docs/claude-code.md) is opt-in and has only offline protocol tests. No pinned Claude host was verified. Pi installation and `TENET_MODE=enforce` do not establish Claude coverage.
 
 ## Observe first, enforce later
 
@@ -34,7 +103,7 @@ Off, context/session replacement, stale policy and shutdown cancel background wo
 To enable blocking later, explicitly start a new process with:
 
 ```sh
-TENET_MODE=enforce bun run pi --no-extensions
+TENET_MODE=enforce pi
 ```
 
 `WARN` rules remain advisory in either mode. Only exact `TENET_MODE=enforce` enables enforcement; an invalid value selects observe and reports `invalid-mode`. Mode is fixed for the process. `/tenet off` temporarily bypasses both modes across Pi processes; `/tenet on` restores each process's configured mode without restarting it.
@@ -112,7 +181,7 @@ To roll back this change, restore the previous extension and legacy `Rule; text`
 
 Before rolling back per-rule threshold support, remove threshold metadata from deployed policies. Older versions treat that segment as rule prose, not configuration. After removal, all rules use the global evidence threshold.
 
-## Enable in Pi
+## Development checkout use
 
 Build the SDK with `bun run sdk:build` before loading the extension from a checkout. `bun run pi` and `bun run smoke` build it automatically.
 1. Review and, if necessary, migrate the selected policy externally as above.
@@ -134,7 +203,7 @@ Loading the extension enables observation by default only where a policy source 
 
 ## Use TENET across Pi projects
 
-Install the package from a stable checkout, not a disposable worktree. A local Pi package stays at the path you give it; Pi does not copy it. Its `package.json` loads `src/pi/extension.ts`. Keep its dependencies installed and restart Pi after changing extension code.
+For the production archive, use the quickstart above. Developers who deliberately load source instead can install the package from a stable checkout, not a disposable worktree. A local Pi package stays at the path you give it; Pi does not copy it. Its `package.json` loads `src/pi/extension.ts`. Keep its dependencies installed and restart Pi after changing extension code.
 
 ```sh
 TENET_DIR=/absolute/path/to/stable/Tenet

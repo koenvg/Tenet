@@ -49,6 +49,25 @@ test('rejects symlinks and missing declared entries', async () => {
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+test('delivery includes the compiled offline doctor and its reference', async () => {
+  assert.ok(runtimeModules.includes('cli/index'));
+  assert.ok(runtimeModules.includes('doctor/doctor'));
+  assert.ok(runtimeModules.includes('doctor/installation'));
+  assert.ok(documentFiles.includes('docs/doctor.md'));
+  const root = await fixture();
+  try {
+    await rm(join(root, 'dist/cli/index.js'));
+    await assert.rejects(assertDelivery(root), /missing delivery file: dist\/cli\/index.js/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('rejects broken local links in the delivered owner references', async () => {
+  const root = await fixture();
+  try {
+    await writeFile(join(root, 'README.md'), '[Doctor](docs/absent.md)');
+    await assert.rejects(assertDelivery(root), /missing documentation target/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
 test('rejects checkout-specific absolute module imports', async () => {
   const root = await fixture();
   try {
