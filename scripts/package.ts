@@ -11,7 +11,7 @@ const output = resolve(process.argv[2] ?? join(repository, 'delivery/tenet.tar.g
 const temporary = await mkdtemp(join(tmpdir(), 'tenet-package-'));
 const home = join(temporary, 'home');
 await mkdir(home);
-const env = { PATH: process.env.PATH!, HOME: home, CI: '1', npm_config_userconfig: join(home, '.npmrc'), npm_config_globalconfig: join(home, '.npm-globalrc') };
+const env = { PATH: process.env.PATH!, HOME: home, CI: '1', COPYFILE_DISABLE: '1', npm_config_userconfig: join(home, '.npmrc'), npm_config_globalconfig: join(home, '.npm-globalrc') };
 const run = (file: string, args: string[], cwd: string) => execFileSync(file, args, { cwd, env, stdio: 'inherit', timeout: 180_000 });
 try {
   const stage = join(temporary, 'tenet'); await mkdir(stage);
@@ -39,7 +39,8 @@ try {
   run('npm', ['install', '--package-lock-only', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'], stage);
   await assertDelivery(stage);
   const archive = join(temporary, 'tenet.tar.gz');
-  run('tar', ['-czf', archive, '-C', temporary, 'tenet'], temporary);
+  // Disable macOS AppleDouble synthesis and GNU/bsdtar PAX xattrs, not application files.
+  run('tar', ['--no-xattrs', '-czf', archive, '-C', temporary, 'tenet'], temporary);
   // Test the actual tarball, not the staging tree. Publish output only after all checks pass.
   await verifyArchive(archive);
   await mkdir(dirname(output), { recursive: true });
