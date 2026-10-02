@@ -1,9 +1,11 @@
 import type { Decision, Policy, RuleDiagnostic } from '../decision/contracts.js';
 import type { Mode } from './config.js';
 import { ASSESSMENT_METADATA } from '../decision/assessment-contract.js';
+import { UNAVAILABLE_EVIDENCE_CONTEXT, type EvidenceContext } from '../decision/evidence-context.js';
 
 export interface Permission {
   /** Recorded contract identity; historical reports may contain older values. */
+  evidenceContext?: EvidenceContext;
   profile?: string;
   questionVersion?: string;
   outcome: 'released' | 'blocked';
@@ -41,6 +43,7 @@ export class Consequences {
     const wouldDecision = failure ? (this.mode === 'observe' ? undefined : 'BLOCK') : result?.decision ?? (this.mode === 'observe' ? undefined : 'BLOCK');
     return {
       ...ASSESSMENT_METADATA,
+      evidenceContext: result?.evidenceContext ?? UNAVAILABLE_EVIDENCE_CONTEXT,
       outcome: this.mode === 'enforce' && failure ? 'blocked' : 'released',
       wouldDecision, reason: failure ?? result?.reason ?? 'guard-error',
       assessmentAvailable: !!result?.assessment,

@@ -8,6 +8,8 @@ import type { Judge } from '../decision/contracts.js';
 import { GuardRuntime, type Capabilities, type RuntimeIdentity } from '../runtime/guard.js';
 import { ActivationStore } from '../runtime/activation.js';
 import { ArchiveWriter, recordingConfig } from '../recording/archive.js';
+import { deliverOwnerRecord } from '../runtime/owner-record.js';
+import type { OwnerRecord } from '../sdk/types.js';
 export const MAX_FRAME = 128 * 1024;
 const MAX_SESSIONS = 128;
 const MAX_CONNECTIONS = 32;
@@ -202,7 +204,10 @@ const capabilities: Capabilities = { host: 'claude-code', version: null, profile
   lifecycleInvalidation: false, argumentStability: false, trustedApproval: false,
   limitations: ['actual-host-unverified', 'approval-unavailable', 'hook-not-an-os-boundary'] };
 /** The bridge owns runtime state; reconnecting a hook never starts an old session implicitly. */
-export async function startBridge(options: { directory: string; env: Record<string, string | undefined>; judge: Judge; hasJudge?: boolean }): Promise<{ close(): Promise<void> }> {
+export async function startBridge(options: { directory: string; env: Record<string, string | undefined>; judge: Judge; hasJudge?: boolean;
+  /** Owner-configured embedding callback only. Must be bounded; never forward to agent history. */
+  onOwnerRecord?: (record: OwnerRecord) => void;
+}): Promise<{ close(): Promise<void> }> {
   const path = await socketPath(options.directory, true);
   try { await lstat(path); throw new Error('socket-already-exists'); }
   catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
@@ -210,6 +215,7 @@ export async function startBridge(options: { directory: string; env: Record<stri
   const archive = new ArchiveWriter(recordingConfig(options.env));
   const generation = randomUUID();
   const runtime = new GuardRuntime({ env: options.env, judge: options.judge, activation,
+    emit: (stage, data) => deliverOwnerRecord(options.onOwnerRecord, stage, data, runtime.mode),
     bindRecording: id => archive.bind({ host: id.host, sessionId: id.sessionId, contextId: id.contextId,
       invocationId: id.invocationId, callId: id.callId, toolName: id.toolName, cwd: id.cwd, mode: id.mode }),
   }, capabilities);

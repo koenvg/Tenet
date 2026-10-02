@@ -60,6 +60,8 @@ export interface HistoryEvent {
 }
 export interface Config { effectThreshold: number; evidenceThreshold: number; deadlineMs: number }
 export interface JudgeRequest {
+  /** Owner-only preparation diagnostic, excluded from judgeState. */
+  evidenceContext?: import('./evidence-context.js').EvidenceContext;
   profile?: import('./assessment-contract.js').AssessmentProfile;
   policy: PolicySet;
   action: Action;
@@ -94,6 +96,7 @@ export interface RuleDiagnostic {
   evidenceThreshold: number | null;
 }
 export interface Decision {
+  evidenceContext: import('./evidence-context.js').EvidenceContext;
   profile?: import('./assessment-contract.js').AssessmentProfile;
   decision: 'ALLOW' | 'ASK' | 'BLOCK';
   reason: Reason;

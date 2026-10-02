@@ -50,6 +50,16 @@ export async function useResult(session: GuardSession, event: OwnerEvent) {
   const permission: 'released' | 'blocked' = result.permission;
   const execution: 'unknown' = result.execution;
   const decision: Decision | undefined = result.assessment.wouldDecision;
+  if (result.assessment.evidenceContext) {
+    // @ts-expect-error coverage is immutable
+    result.assessment.evidenceContext.preparation = 'completed';
+    // @ts-expect-error resolution limitations are immutable
+    result.assessment.evidenceContext.resolution.limitations.push('new');
+    if (result.assessment.evidenceContext.history) {
+      // @ts-expect-error finalized counters are immutable
+      result.assessment.evidenceContext.history.omittedEvents = 0;
+    }
+  }
   // @ts-expect-error snapshots cannot be reassigned
   result.permission = 'released';
   // @ts-expect-error shared veto details are immutable

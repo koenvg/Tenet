@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { SCHEMA_VERSION, READER_SCHEMAS, type ArchiveRecord, type HostIdentity, type RecordingIdentity, type RecordingSink, validRecord } from './contract.js';
 import { directory, MAX_RECORD_BYTES, readPrivateFile, writeStageFile } from './files.js';
+import { UNAVAILABLE_EVIDENCE_CONTEXT } from '../decision/evidence-context.js';
 
 export function parseBbThreadId(value: unknown): string | undefined {
   return typeof value === 'string' && /^thr_[a-z0-9]{8,64}$/.test(value) ? value : undefined;
@@ -23,7 +24,7 @@ export const recordSessionKey = (record: Address) => record.schemaVersion === 1 
   : qualifiedSessionKey(record.host!, record.sessionId, record.contextId!);
 export const recordInvocationKey = (record: Address) => record.schemaVersion === 1 ? sessionKey(record.invocationId)
   : sessionKey(JSON.stringify([record.host, record.sessionId, record.contextId, record.invocationId]));
-type BoundIdentity = RecordingIdentity & ({ schemaVersion: 1; host?: never; contextId?: never } | ({ schemaVersion: 2 | 3 } & HostIdentity));
+type BoundIdentity = RecordingIdentity & ({ schemaVersion: 1; host?: never; contextId?: never } | ({ schemaVersion: 2 | 3 | 4 } & HostIdentity));
 type Pending = { text: string; bytes: number; record: ArchiveRecord };
 export class ArchiveWriter {
   private readonly writerId = randomUUID();
@@ -49,6 +50,10 @@ export class ArchiveWriter {
     this[kind]++; this.lossVersion++; this.changed();
   }
   private record(identity: BoundIdentity, stage: ArchiveRecord['stage'], data: Record<string, unknown>): ArchiveRecord {
+    if (identity.schemaVersion === 4 && ['request', 'assessment', 'decision', 'permission', 'assessment-status'].includes(stage)) {
+      data = { evidenceContext: UNAVAILABLE_EVIDENCE_CONTEXT,
+        ...(stage === 'request' ? { selectionVersion: UNAVAILABLE_EVIDENCE_CONTEXT.selectionVersion } : {}), ...data };
+    }
     return { ...identity, writerId: this.writerId, sequence: ++this.sequence,
       eventId: randomUUID(), timestamp: Date.now(), stage, data };
   }

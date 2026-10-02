@@ -2,7 +2,9 @@ import { isAbsolute } from 'node:path';
 import { freeze } from '../decision/evidence.js';
 import { Observations } from '../decision/trajectory.js';
 import type { Decision } from '../decision/contracts.js';
+import { UNAVAILABLE_EVIDENCE_CONTEXT } from '../decision/evidence-context.js';
 import { permissionVeto, type Permission } from '../runtime/consequences.js';
+import { deliverOwnerRecord } from '../runtime/owner-record.js';
 import { createRuntimeResources } from '../runtime/resources.js';
 import type { AuthorizationHandoff, RuntimeIdentity } from '../runtime/guard.js';
 import type { AssessmentStatus, BeforeToolResult, CaptureStatus, Guard, GuardOptions, GuardSession, OwnerEvent, OwnerReport, OwnerRecord, SessionIdentity, SessionStatus } from './types.js';
@@ -10,16 +12,16 @@ import { declaredCapabilities } from './capabilities.js';
 export type * from './types.js';
 
 export const SDK_VERSION = 'alpha-1';
-const ownerStages: readonly OwnerRecord['stage'][] = ['status', 'assessment', 'decision', 'approval', 'permission', 'assessment-status', 'execution'];
 const immutable = <T>(value: T): T => freeze(structuredClone(value));
-const unavailableAssessment = (reason: string): AssessmentStatus => ({ status: 'unavailable', reason, diagnostics: [], ruleIds: [] });
+const unavailableAssessment = (reason: string, context = UNAVAILABLE_EVIDENCE_CONTEXT): AssessmentStatus => ({ status: 'unavailable', reason, diagnostics: [], ruleIds: [], evidenceContext: context });
 const notRequested = (): AssessmentStatus => ({ status: 'not-requested', diagnostics: [], ruleIds: [] });
 // The runtime emits completed only after a validated assessment has a would-decision.
 const assessmentStatus = (status: AssessmentStatus['status'], permission?: Permission, reason?: string): AssessmentStatus => {
   const details = { reason: reason ?? permission?.reason, diagnostics: permission?.diagnostics ?? [], ruleIds: permission?.ruleIds ?? [] };
+  const context = { evidenceContext: permission?.evidenceContext ?? UNAVAILABLE_EVIDENCE_CONTEXT };
   return status === 'completed'
-    ? { status, ...details, wouldDecision: permission?.wouldDecision! }
-    : { status, ...details };
+    ? { status, ...details, ...context, wouldDecision: permission?.wouldDecision! }
+    : { status, ...details, ...context };
 };
 const text = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 256;
 const ownerReport = (binding: Pick<OwnerReport, 'invocationId' | 'callId' | 'toolName'>, permission: Permission,
@@ -50,9 +52,7 @@ export function createGuard(options: GuardOptions): Guard {
         report: permission ? ownerReport(id, permission, runtime.mode, status) : undefined });
     },
     emit: (stage, data) => {
-      const ownerStage = ownerStages.find(item => item === stage);
-      try { if (ownerStage) options.onOwnerRecord?.(immutable({ stage: ownerStage,
-        data: { ...data, mode: runtime.mode } })); } catch { /* Transcript delivery cannot authorize or veto. */ }
+      deliverOwnerRecord(options.onOwnerRecord, stage, data, runtime.mode);
       if (stage !== 'execution' || closed || typeof data.sessionId !== 'string') return;
       const session = sessions.get(data.sessionId);
       if (!session || session.closed) return;
@@ -131,10 +131,10 @@ export function createGuard(options: GuardOptions): Guard {
           });
           let assessment: AssessmentStatus;
           if (decision?.assessment) assessment = { status: 'completed', wouldDecision: decision.decision,
-            reason: decision.reason, diagnostics: decision.diagnostics, ruleIds: decision.ruleIds };
+            reason: decision.reason, diagnostics: decision.diagnostics, ruleIds: decision.ruleIds, evidenceContext: decision.evidenceContext };
           else if (observation) assessment = observation;
-          else if (permission?.reason === 'assessment-pending') assessment = { status: 'pending', diagnostics: [], ruleIds: [] };
-          else assessment = unavailableAssessment(permission?.reason ?? decision?.reason ?? 'guard-state-changed');
+          else if (permission?.reason === 'assessment-pending') assessment = assessmentStatus('pending', permission);
+          else assessment = unavailableAssessment(permission?.reason ?? decision?.reason ?? 'guard-state-changed', permission?.evidenceContext ?? decision?.evidenceContext);
           const live = () => {
             try { return !entry.closed && !closed && !invocation.signal?.aborted && !!authorization?.current(); }
             catch { return false; }

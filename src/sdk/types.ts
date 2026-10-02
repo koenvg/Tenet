@@ -5,6 +5,7 @@ import type { Activation } from '../runtime/activation.js';
 import type { Mode } from '../runtime/config.js';
 import type { RecordingSink } from '../recording/contract.js';
 
+export type { EvidenceContext } from '../decision/evidence-context-contract.js';
 export type { Judge, JudgeRequest, Assessment, RuleAssessment, Policy, Action, Outcome, Json } from '../decision/contracts.js';
 export type { Approval, ApprovalRequest } from '../runtime/guard.js';
 export type { ActionResolver, ActionFacts, ActionBinding, ResolvedAction, OperationSemantics } from '../runtime/resolved-action.js';
@@ -32,6 +33,7 @@ export type RuleDiagnostic = Readonly<Omit<RuntimeRuleDiagnostic, 'gates'>> & {
   readonly gates: readonly RuntimeRuleDiagnostic['gates'][number][];
 };
 interface AssessmentDetails {
+  readonly evidenceContext?: import('../decision/evidence-context-contract.js').EvidenceContext;
   readonly reason?: string;
   readonly diagnostics: readonly RuleDiagnostic[];
   readonly ruleIds: readonly string[];
@@ -77,6 +79,7 @@ export interface OwnerReport {
   readonly ruleIds: readonly string[];
   readonly diagnostics: readonly RuleDiagnostic[];
   readonly validationIssue?: Decision['validationIssue'];
+  readonly evidenceContext?: import('../decision/evidence-context-contract.js').EvidenceContext;
   readonly rules: readonly { readonly id: string; readonly line: number; readonly enforcement: 'BLOCK' | 'WARN'; readonly text?: string }[];
   readonly approvalRules: readonly string[];
 }

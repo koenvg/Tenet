@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { Action, ActionInput, Json } from './contracts.js';
+import { freeze } from './immutable.js';
+export { freeze } from './immutable.js';
 
 const normalize = (key: string) => key.toLowerCase().replace(/[-_\s]/g, '');
 const credentials = ['authorization', 'proxyauthorization', 'cookie', 'setcookie', 'apikey', 'xapikey',
@@ -24,14 +26,6 @@ export function jsonCopy(value: unknown): Json {
 
 export function argumentDigest(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(jsonCopy(value))).digest('hex');
-}
-
-export function freeze<T>(value: T): T {
-  if (value && typeof value === 'object') {
-    Object.values(value).forEach(freeze);
-    Object.freeze(value);
-  }
-  return value;
 }
 
 export function captureAction(input: ActionInput, sensitiveFields: string[] = []): Action {

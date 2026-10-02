@@ -4,22 +4,25 @@ import { evidenceWithinBudget } from './evidence-budget.js';
 
 export const EVIDENCE_DEFAULTS: Readonly<EvidenceLimits> = Object.freeze({ recentEvents: 12, maxBytes: 24 * 1024 });
 export const serializedBytes = (value: unknown) => Buffer.byteLength(JSON.stringify(value), 'utf8');
-const marker = (reason: string): Json => ({ tenetOmission: reason });
+// Provenance stays outside serialized evidence. Authored marker-shaped objects cannot add gaps.
+const observationGaps = new WeakMap<Observation, readonly string[]>();
+export const observationLimitations = (event: Observation): readonly string[] => observationGaps.get(event) ?? [];
+const marker = (reason: string, gaps: Set<string>): Json => { gaps.add(reason); return { tenetOmission: reason }; };
 
 // Host content blocks are not tool-specific schemas. Never send image bytes as text.
-function textEvidence(value: unknown, seen = new Set<object>()): Json {
-  if (value === undefined) return marker('metadata-unavailable');
+function textEvidence(value: unknown, gaps: Set<string>, seen = new Set<object>()): Json {
+  if (value === undefined) return marker('metadata-unavailable', gaps);
   if (value && typeof value === 'object') {
-    if (seen.has(value)) return marker('unsupported-circular-content');
+    if (seen.has(value)) return marker('unsupported-circular-content', gaps);
     seen.add(value);
     try {
-      if ('type' in value && value.type === 'image') return marker('unsupported-image');
-      if (Array.isArray(value)) return value.map(v => textEvidence(v, seen));
-      if (![Object.prototype, null].includes(Object.getPrototypeOf(value))) return marker('unsupported-content');
-      return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, textEvidence(v, seen)]));
+      if ('type' in value && value.type === 'image') return marker('unsupported-image', gaps);
+      if (Array.isArray(value)) return value.map(v => textEvidence(v, gaps, seen));
+      if (![Object.prototype, null].includes(Object.getPrototypeOf(value))) return marker('unsupported-content', gaps);
+      return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, textEvidence(v, gaps, seen)]));
     } finally { seen.delete(value); }
   }
-  try { return jsonCopy(value); } catch { return marker('unsupported-content'); }
+  try { return jsonCopy(value); } catch { return marker('unsupported-content', gaps); }
 }
 
 /** FIFO selection shared by retained history and the exact submitted-state budget.
@@ -48,12 +51,15 @@ export class HistoryPreparation {
   omit(count = 1): void { this.omitted += count; }
 
   add(origin: string, callId: string | null, toolName: string | null, data: unknown, timestamp: number | null): void {
+    const gaps = new Set<string>();
     const sanitized = captureAction({ sessionId: this.sessionId, callId: callId ?? '', toolName: toolName ?? '',
-      arguments: textEvidence(data) }, this.sensitiveFields);
+      arguments: textEvidence(data, gaps) }, this.sensitiveFields);
     let payload: Json = { content: sanitized.arguments, redactedFields: sanitized.redactedFields,
       limitations: sanitized.redactedFields ? ['fields-redacted'] : [] };
-    if (serializedBytes(payload) > this.limits.maxBytes) payload = marker('observation-byte-limit');
+    if (sanitized.redactedFields) gaps.add('fields-redacted');
+    if (serializedBytes(payload) > this.limits.maxBytes) { gaps.clear(); payload = marker('observation-byte-limit', gaps); }
     const event = freeze({ sessionId: this.sessionId, callId, toolName, origin, timestamp, data: payload });
+    observationGaps.set(event, Object.freeze([...gaps]));
     const selected = selectHistory([...this.events, event], this.limits.recentEvents,
       observations => serializedBytes(observations) <= this.limits.maxBytes);
     this.events = selected.observations;
@@ -93,7 +99,9 @@ export function prepareRequest(request: JudgeRequest, measureBytes: (request: Ju
     const snapshot = () => {
       const trajectory: Trajectory = { observations: [...observations], omitted: source.omitted + omitted,
         limitations: [...source.limitations, ...(omitted ? ['history-omitted'] : [])] };
-      return freeze(JSON.parse(JSON.stringify({ ...request, action, trajectory })) as JudgeRequest);
+      const captured = JSON.parse(JSON.stringify({ ...request, action, trajectory })) as JudgeRequest;
+      captured.trajectory!.observations.forEach((event, index) => observationGaps.set(event, observationLimitations(observations[index]!)));
+      return freeze(captured);
     };
     bounded = snapshot();
     // Optional tool metadata goes before causal history, never before count selection.

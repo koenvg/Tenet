@@ -1,6 +1,9 @@
 import { validationIssue } from '../decision/response-validation.js';
 import { findingStage, foldFindingStages } from './finding-view.js';
 import type { ArchiveRecord } from '../recording/contract.js';
+import { validEvidenceContext } from '../decision/evidence-context-contract.js';
+import { freeze } from '../decision/immutable.js';
+import { noRulesClassifiedViolated } from './assessment-completeness.js';
 export const object = (value: unknown): Record<string, any> => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const list = (value: unknown): Record<string, any>[] => Array.isArray(value) ? value.map(object) : [];
 const text = (value: unknown, fallback = 'unavailable'): string => typeof value === 'string' ? value : fallback;
@@ -26,6 +29,10 @@ export function invocationView(records: ArchiveRecord[]) {
   const lifecycle = stage('assessment-status');
   const notSubmitted = validation.request === 'not-submitted' || permission.requestStatus === 'not-submitted';
   const submitted = validation.request === 'submitted' || permission.requestStatus === 'submitted';
+  const contexts = [...records].reverse().map(r => r.data.evidenceContext).filter(validEvidenceContext);
+  const recordedContext = contexts.find(c => c.preparation === 'completed') ?? contexts[0];
+  const invalidRecordedAssessment = records.some(r => ['assessment', 'validation', 'decision', 'assessment-status'].includes(r.stage)
+    && (r.data.valid === false || r.data.validationIssue !== undefined));
   return {
     identity: records[0] ? { host: records[0].host ?? 'pi', contextId: records[0].contextId ?? 'main',
       schemas: [...new Set(records.map(r => r.schemaVersion))],
@@ -42,6 +49,10 @@ export function invocationView(records: ArchiveRecord[]) {
     config, questionVersion: request.questionVersion ?? begin.questionVersion ?? null,
     assessmentProfile: findings.profile,
     failure: findings.failure, assessmentStatus: findings.assessmentStatus,
+    evidenceContext: recordedContext ? freeze(structuredClone(recordedContext)) : null,
+    noRulesClassifiedViolated: ['ALLOW', 'ASK', 'BLOCK'].includes(decision.decision)
+      && !invalidRecordedAssessment && !findings.failure && ['completed', 'validated'].includes(findings.assessmentStatus)
+      && noRulesClassifiedViolated(policy, integrity, object(stage('assessment').assessment), validation, findings.profile),
     validationIssue: validationIssue(decision.validationIssue ?? stage('assessment').validationIssue ?? validation.validationIssue ?? lifecycle.validationIssue),
     queueWaitMs: typeof lifecycle.queueWaitMs === 'number' ? lifecycle.queueWaitMs : null,
     providerDurationMs: typeof lifecycle.providerDurationMs === 'number' ? lifecycle.providerDurationMs : null,

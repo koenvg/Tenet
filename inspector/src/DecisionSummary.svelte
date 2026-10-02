@@ -3,6 +3,7 @@
   import type { InvocationView } from '../../src/inspector/view';
   import DecisionIcon from './DecisionIcon.svelte';
   import ConfidenceMeter from './ConfidenceMeter.svelte';
+  import EvidenceCoverage from './EvidenceCoverage.svelte';
   import { actionPreview, decisionLabel, decisionReason, executionExplanation, toolLabel, type RuleView } from './presentation';
   import { mapChecks, checkPosition, incomingPath, outgoingPath, type MapCheck } from './decision-map';
   export let view: InvocationView;
@@ -73,6 +74,7 @@
       {:else if view.assessmentStatus === 'dropped' || view.assessmentStatus === 'cancelled'}Assessment {view.assessmentStatus}: {view.reason}. No would-decision can be inferred.
       {:else}Assessment incomplete. No validated result was recorded; the call may still be in progress or recording may have stopped.{/if}</p>
     {/if}
+    <EvidenceCoverage context={view.evidenceContext} />
     {#if view.validationIssue}<p class="assessment-status">{view.validationIssue}: {validationMessages[view.validationIssue]} This is evaluator unavailability, not a semantic violation.</p>{/if}
     {#if view.missing.length}<p class="capture-warning">Recording incomplete. Some stages are missing; unknown does not mean passed.</p>{/if}
   </div>

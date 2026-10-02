@@ -79,6 +79,14 @@ Public result and status fields, owner events and their nested data are readonly
 
 Observe releases after bounded snapshot capture without awaiting the judge. Background work retains the current defaults: two running, 32 waiting, 1 MiB total snapshots and five-second queue age. Terminal owner assessment events distinguish completed, unavailable, dropped and cancelled work. Pending, dropped and unavailable work has no passing assessment. Guard status exposes aggregate queue health and the configured recording destination. Neither guarantees complete interception or durable recording.
 
+## Runtime coverage diagnostics
+
+`EvidenceContext` is an exported readonly SDK type. New assessment results and owner events/reports carry `evidenceContext`. Completed preparation copies resolution status and limitations, current redaction and final retained/omitted history counts from the immutable captured request. It does not add evaluator rationale, authenticate facts or authorize execution. A provider failure can still have completed preparation with an unavailable assessment. Pending and early failures use unavailable preparation and null final history counters. Historical owner reports may omit the field entirely.
+
+The diagnostic identity is `evidence-context-v1`; today's FIFO representation is `bounded-history-v1`. The assessment and questions remain `applicability-v1` / `policy-rules-v6-applicability`. New archives use schema 4; old schemas retain their recorded identities and missing diagnostics. Live diagnostic delivery works with `TENET_RECORDING=off`. Read `event.assessment.evidenceContext` on terminal assessment events in observe mode; the earlier pending result is immutable and does not update when the judge finishes.
+
+Coverage and UNKNOWN/INSUFFICIENT model outcomes are separate facts. Do not infer why the model selected them, treat complete history as complete effects, or dispatch from coverage. Only fresh permission can release a call, and permission still does not prove execution. See [diagnostic provenance and bounds](inspection-evidence.md#runtime-evidence-context).
+
 ## Recording status
 
 `guard.status().capture` is a `CaptureStatus` union. Check `kind` before reading health fields:

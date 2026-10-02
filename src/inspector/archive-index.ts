@@ -468,7 +468,7 @@ export class ArchiveIndex {
       const record = entry.metadata;
       if (!record) continue;
       if (record.health && record.sequence > (latestHealth.get(record.writerId)?.sequence ?? 0)) latestHealth.set(record.writerId, record);
-      if (record.schemaVersion !== 3 || record.host !== 'pi' || record.bbThreadId !== bbThreadId) continue;
+      if (![3, 4].includes(record.schemaVersion) || record.host !== 'pi' || record.bbThreadId !== bbThreadId) continue;
       const key = sessionKey(JSON.stringify([bbThreadId, recordSessionKey(record), recordInvocationKey(record)]));
       const group = groups.get(key) ?? []; group.push(record); groups.set(key, group);
     }

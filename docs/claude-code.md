@@ -30,4 +30,10 @@ bun /ABSOLUTE/TENET/src/claude/cli.ts on
 
 This switch is not an OS boundary. Any agent or process with the owner's filesystem access can edit, replace or remove the control file, hook settings or socket state. Removing the control file lets a new process treat the choice as on. A bridge restart does not resume pending calls; reestablish a session before testing hooks again.
 
+## Programmatic owner records
+
+An embedding can explicitly pass `onOwnerRecord` to `startBridge` for immutable shared owner records, including finalized runtime evidence context. The callback stays in-process, receives no submitted request/raw provider response, and works with recording off. It must be local and bounded. Callback exceptions and archive failures are independent and do not change permission or approval. Never forward these records into hook output, tool results or agent history. Hook input cannot register a callback; socket responses and the CLI remain unchanged.
+
+The stock Claude CLI still has no trusted live owner UI, resolver or verified host integration. This callback is an embedding seam, not a new transport or coverage certification. See [diagnostic provenance](inspection-evidence.md).
+
 Offline verification: `bun test test/claude-bridge.test.ts` and `bun run typecheck`. Actual-host verification is blocked until a suitable Claude CLI is installed and can be run with isolated settings and harmless local effects. Do not substitute a protocol fixture for that gate.

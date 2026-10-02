@@ -40,11 +40,17 @@ export function orderedRules(rules: RuleView[]) {
   return [...rules].sort((a, b) => rank(a) - rank(b));
 }
 // Presentation of recorded outputs only. No threshold comparisons or evaluator imports.
+function uncertaintyNotice(view: InvocationView, blockers = view.rules.filter(r => r.enforcement === 'BLOCK' && r.gateIds?.length)): string | null {
+  if (view.decision !== 'BLOCK' || view.reason !== 'insufficient-evidence' || !view.noRulesClassifiedViolated || !blockers.length
+    || !blockers.every(rule => rule.gateIds?.every(gate => ['outcome-unknown', 'outcome-confidence-below-threshold', 'evidence-insufficient', 'evidence-confidence-below-threshold', 'applicability-unresolved'].includes(gate)))) return null;
+  return `No rule was classified as violated. ${view.identity?.mode === 'observe' ? 'The decision would block' : 'The decision is blocked'} by uncertainty. This is not a safety guarantee.`;
+}
 export function explainDecision(view: InvocationView): string {
   const blockers = orderedRules(view.rules).filter(r => r.enforcement === 'BLOCK' && r.gateIds?.length);
   if (view.decision === 'BLOCK' && blockers.length) {
     const first = blockers[0]!;
-    return `${ruleName(first)}: ${gateExplanation(first.gateIds![0]!, first)}${blockers.length > 1 ? ` ${blockers.length} rules contribute blocking gates.` : ''}`;
+    const notice = uncertaintyNotice(view, blockers);
+    return `${notice ? notice + ' ' : ''}${ruleName(first)}: ${gateExplanation(first.gateIds![0]!, first)}${blockers.length > 1 ? ` ${blockers.length} rules contribute blocking gates.` : ''}`;
   }
   if (view.decision === 'ASK') return 'Native approval is required by the recorded decision. Permission and execution are shown separately.';
   if (view.decision === 'ALLOW') return view.reason === 'advisory-findings'
@@ -79,6 +85,8 @@ export function actionPreview(view: InvocationView): string | null {
   return null;
 }
 export function decisionReason(view: InvocationView): string {
+  const uncertainty = uncertaintyNotice(view);
+  if (uncertainty) return uncertainty;
   const blocker = orderedRules(view.rules).find(r => r.enforcement === 'BLOCK' && r.gateIds?.length);
   if (view.decision === 'BLOCK' && blocker) {
     const reasons: Record<string, string> = {

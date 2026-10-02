@@ -1,4 +1,4 @@
-import { choiceIssue, object, probability, validationIssue } from './response-validation.js';
+import { choiceIssue, probability, validationIssue } from './response-validation.js';
 import { performance } from 'node:perf_hooks';
 import { JudgeFailure, type Assessment, type Action, type Clock, type Config, type Decision, type Judge, type Policy, type PolicySet, type Reason, type RuleAssessment } from './contracts.js';
 import { INTEGRITY_ID } from './policy.js';
@@ -8,6 +8,8 @@ import type { Trajectory, EvidenceLimits } from './contracts.js';
 import type { RecordingSink } from '../recording/contract.js';
 import { ASSESSMENT_METADATA, ASSESSMENT_PROFILE, supportsExemption } from './assessment-contract.js';
 import type { JudgeRequest } from './contracts.js';
+import { evidenceContext, UNAVAILABLE_EVIDENCE_CONTEXT } from './evidence-context.js';
+import { assessmentShapeIssue } from './assessment-shape.js';
 
 export { QUESTION_VERSION } from './assessment-contract.js';
 export const MODEL = 'jev-latest';
@@ -28,33 +30,18 @@ export function requireChoice(value: unknown, labels: string[]): void {
 }
 export function validateAssessment(value: unknown, policy: PolicySet, request?: JudgeRequest): Assessment {
   const expected = [...policy.rules.map(r => r.id), INTEGRITY_ID];
-  if (!object(value) || typeof value.model !== 'string' || !value.model.trim() || !Array.isArray(value.rules)
-      || (value.profile !== undefined && value.profile !== ASSESSMENT_PROFILE)
-      || !policy.rules.length || new Set(expected).size !== expected.length || value.rules.length !== expected.length) throw new JudgeFailure('invalid-response');
-  const remaining = new Set(expected);
+  const issue = assessmentShapeIssue(value, policy.rules.map(r => r.id), INTEGRITY_ID);
+  if (issue) throw new JudgeFailure('invalid-response', issue === 'response-shape' ? undefined : issue);
+  const assessment = value as Assessment;
   const byId = new Map<string, RuleAssessment>();
-  for (const rule of value.rules) {
-    if (!object(rule) || typeof rule.ruleId !== 'string' || !remaining.delete(rule.ruleId)) throw new JudgeFailure('invalid-response');
-    requireChoice(rule.outcome, ['PASS', 'APPROVAL_REQUIRED', 'FAIL', 'UNKNOWN', ...(rule.ruleId !== INTEGRITY_ID ? ['NOT_APPLICABLE'] : [])]);
-    const r = rule as unknown as RuleAssessment;
-    const notApplicable = r.outcome.choice === 'NOT_APPLICABLE';
-    if (r.ruleId === INTEGRITY_ID && r.outcome.choice === 'APPROVAL_REQUIRED') throw new JudgeFailure('invalid-response', 'selected-choice');
-    if (notApplicable) {
-      const refs = rule.factReferences;
-      if (rule.evidence !== null || !object(refs) || typeof refs.digest !== 'string' || refs.digest.length > 128
-        || !Array.isArray(refs.operationIds) || refs.operationIds.length > 64
-        || !refs.operationIds.every(id => typeof id === 'string' && id.length > 0 && id.length <= 4096)) throw new JudgeFailure('invalid-response');
-    } else {
-      requireChoice(rule.evidence, ['SUFFICIENT', 'INSUFFICIENT']);
-      if (rule.factReferences !== undefined) throw new JudgeFailure('invalid-response');
-    }
-    const refs = notApplicable ? { digest: r.factReferences!.digest, operationIds: [...r.factReferences!.operationIds] } : undefined;
+  for (const r of assessment.rules) {
+    const refs = r.outcome.choice === 'NOT_APPLICABLE' ? { digest: r.factReferences!.digest, operationIds: [...r.factReferences!.operationIds] } : undefined;
     byId.set(r.ruleId, { ruleId: r.ruleId,
       outcome: { choice: r.outcome.choice, probabilities: { ...r.outcome.probabilities } },
       evidence: r.evidence === null ? null : { choice: r.evidence.choice, probabilities: { ...r.evidence.probabilities } },
       ...(refs ? { factReferences: refs, applicabilitySupported: supportsExemption(refs, request) } : {}) });
   }
-  return { model: value.model, rules: expected.map(id => byId.get(id)!), profile: ASSESSMENT_PROFILE };
+  return { model: assessment.model, rules: expected.map(id => byId.get(id)!), profile: ASSESSMENT_PROFILE };
 }
 
 export async function decide(options: {
@@ -65,8 +52,9 @@ export async function decide(options: {
   const clock = options.clock ?? clockDefault;
   const start = clock.now();
   const config = { ...DEFAULTS, ...options.config };
+  let context = UNAVAILABLE_EVIDENCE_CONTEXT;
   const result = (decision: Decision['decision'], reason: Reason, assessment: Assessment | null = null, ruleIds: string[] = [], diagnostics: Decision['diagnostics'] = []): Decision => ({
-    decision, reason, assessment, ruleIds, diagnostics, durationMs: Math.max(0, clock.now() - start), config,
+    decision, reason, assessment, ruleIds, diagnostics, evidenceContext: context, durationMs: Math.max(0, clock.now() - start), config,
     ...ASSESSMENT_METADATA, requestedModel: MODEL,
   });
   if (!policy.available) return result('BLOCK', policy.reason);
@@ -75,8 +63,10 @@ export async function decide(options: {
   if (signal?.aborted) return result('BLOCK', 'cancelled');
   if (options.evidenceLimits && (!Number.isSafeInteger(options.evidenceLimits.recentEvents) || options.evidenceLimits.recentEvents < 0
     || !Number.isSafeInteger(options.evidenceLimits.maxBytes) || options.evidenceLimits.maxBytes < 1)) return result('BLOCK', 'configuration');
+  context = evidenceContext({ action, resolvedAction: options.resolvedAction });
   const request = boundEvidence({ profile: ASSESSMENT_PROFILE, policy, action, cwd, deadlineMs: config.deadlineMs, trajectory: options.trajectory, resolvedAction: options.resolvedAction }, options.evidenceLimits);
   if (!request) return result('BLOCK', 'insufficient-evidence');
+  context = request.evidenceContext!;
   const controller = new AbortController();
   let stopTimer = () => {};
   let cancel = () => {};

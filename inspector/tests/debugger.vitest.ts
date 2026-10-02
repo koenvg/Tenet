@@ -325,7 +325,7 @@ test('visual summary separates the policy result from execution and hides debugg
   expect(await p.locator('.map-execution h3').textContent()).toBe('Actual execution / Ran');
   expect(await p.locator('.map-check').first().textContent()).toContain('Rule outcome / PASS');
   expect(await p.locator('.map-edge.blocking').count()).toBe(1);
-  expect(await p.locator('.summary-reason').textContent()).toContain('Evidence confidence was below');
+  expect(await p.locator('.summary-reason').textContent()).toContain('No rule was classified as violated. The decision would block by uncertainty.');
   expect(await p.locator('.execution-summary').textContent()).toContain('Observe mode records decisions without enforcing them');
   expect(await p.getByRole('meter', { name: 'Evidence confidence' }).getAttribute('aria-valuenow')).toBe('0.85');
   expect(await p.getByRole('meter').getAttribute('aria-valuetext')).toContain('required confidence 0.9');
@@ -347,4 +347,37 @@ test('visual summary separates the policy result from execution and hides debugg
   await p.locator('.evidence-disclosure > summary').click();
   expect(await p.locator('.evidence-dock').isVisible()).toBe(true);
   expect(pageErrors).toEqual([]); expect(externalRequests).toEqual([]);
+});
+
+test('coverage distinguishes unsupported, partial, unavailable and historical records without guessing model rationale', async () => {
+  const p = currentPage(), coverage = p.getByRole('region', { name: 'Runtime evidence coverage' });
+  await pickCall('unknown');
+  expect(await coverage.textContent()).toContain('Action resolution: unsupported');
+  expect(await p.locator('.summary-reason').textContent()).toContain('No rule was classified as violated');
+  expect(await coverage.textContent()).toContain('do not explain');
+  await pickCall('warn');
+  expect(await p.locator('.summary-reason').textContent()).not.toContain('No rule was classified as violated');
+  await pickCall('summary');
+  expect(await coverage.textContent()).toContain('authenticated-partial');
+  expect(await coverage.textContent()).toContain('2 omitted events');
+  expect(await p.locator('.summary-reason').textContent()).toContain('would block by uncertainty');
+  expect(await p.locator('.execution-summary').textContent()).toContain('The call ran');
+  await p.setViewportSize({ width: 390, height: 844 });
+  await coverage.scrollIntoViewIfNeeded();
+  await p.screenshot({ path: join(artifacts, 'coverage-summary-mobile.png'), fullPage: true });
+  await p.getByRole('button', { name: 'View shared evidence', exact: true }).click();
+  expect(await p.evaluate(() => document.activeElement?.id)).toBe('dock-heading');
+  const summaryOrder = await p.evaluate(() => !!(document.querySelector('[aria-label="Runtime evidence coverage"]')!.compareDocumentPosition(document.querySelector('.evidence-dock')!) & Node.DOCUMENT_POSITION_FOLLOWING));
+  expect(summaryOrder).toBe(true);
+  expect(await p.locator('#panel-Evidence').textContent()).toContain('partial-effect-coverage');
+  expect(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await p.screenshot({ path: join(artifacts, 'coverage-mobile.png'), fullPage: true });
+  await p.setViewportSize({ width: 1536, height: 1024 });
+  await pickCall('missing');
+  expect(await coverage.textContent()).toContain('Preparation: unavailable');
+  expect(await coverage.textContent()).toContain('Final history counters unavailable');
+  expect(await p.locator('.summary-reason').textContent()).not.toContain('No rule was classified');
+  await pickCall('rich');
+  expect(await coverage.textContent()).toContain('Not recorded');
+  expect(await p.locator('.summary-reason').textContent()).not.toContain('No rule was classified');
 });

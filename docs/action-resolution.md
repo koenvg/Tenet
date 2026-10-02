@@ -62,6 +62,8 @@ Existing credential-field and configured-field redaction applies to facts, reque
 
 Runtime coverage reports `actionResolution: 'host-supplied'` only for an explicit registration. This is not a conformance certificate. Without registration it reports `unsupported` and `target-resolution-unavailable`. Assessment records include the sanitized resolution status, facts and limitations. Submitted request archives contain the same evidence. History is separately marked untrusted; an old authenticated assessment cannot authenticate a new invocation. The Claude owner CLI explicitly reports unsupported action resolution.
 
+Owner results additionally carry a bounded readonly `EvidenceContext`, version `evidence-context-v1`. It copies current captured resolution status and limitations, redaction indicators and finalized FIFO-history counts. It is not a second fact bundle or an exemption input. Unsupported and authenticated-partial coverage remain such even with no history omissions. If capture cannot complete, resolution is unavailable; if current evidence cannot fit, known captured coverage can remain visible with unavailable preparation and no final history counters. Assessment availability is independent. See [inspection evidence](inspection-evidence.md).
+
 Before advertising complete coverage, an integration owner must test its actual executor and registration path for:
 
 - Tool aliases, anchor reuse and ambiguous or absent targets.

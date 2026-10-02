@@ -1,7 +1,8 @@
 import { validationMessages, validationIssue } from '../decision/response-validation.js';
 import { classifyFinding, categoryLabels, type FindingCategory } from '../decision/finding-triage.js';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
-import { display } from '../decision/evidence.js';
+import { display, freeze } from '../decision/evidence.js';
+import { validEvidenceContext } from '../decision/evidence-context.js';
 import type { OwnerReport as SharedOwnerReport, Activation, Mode } from 'tenet';
 import type { GuardBoundary } from './boundary.js';
 import { recoverReport, recoverExecution } from './report-history.js';
@@ -79,6 +80,7 @@ export class OwnerReports {
         if (report?.mode === 'observe') {
           const restored = recoverReport({ type: 'custom', customType: 'tenet', data: { ...report,
             version: 3, stage: 'permission', wouldDecision: d.decision, reason: d.reason,
+            evidenceContext: d.evidenceContext ?? report.evidenceContext,
             ruleIds: d.ruleIds, diagnostics: d.diagnostics, assessmentAvailable: true } });
           if (restored) Object.assign(report, restored, { execution: report.execution, assessmentStatus: report.assessmentStatus });
         }
@@ -86,6 +88,7 @@ export class OwnerReports {
       if (d.stage === 'assessment-status' && ['pending', 'completed', 'unavailable', 'dropped', 'cancelled'].includes(d.status)) {
         this.markAssessment(d.invocationId, d.status, undefined, typeof d.reason === 'string' ? d.reason : undefined);
         const report = this.recent.findLast(r => r.invocationId === d.invocationId);
+        if (report && validEvidenceContext(d.evidenceContext)) report.evidenceContext = freeze(structuredClone(d.evidenceContext));
         const issue = validationIssue(d.validationIssue);
         if (report && d.status === 'unavailable' && d.reason === 'invalid-response' && issue) report.validationIssue = issue;
       }
@@ -170,6 +173,11 @@ export class OwnerReports {
       `Finding categories: ${this.categories(report).map(c => categoryLabels[c]).join(', ') || 'not recorded'} (may overlap)`,
       `Assessment: ${report.assessmentStatus ?? (report.assessmentAvailable ? 'completed' : 'unavailable')}`, `Reason: ${text(report.reason)}`,
       ...(report.validationIssue ? rows(`${report.validationIssue}: ${validationMessages[report.validationIssue]}`) : []),
+      ...rows(`Evidence coverage: ${report.evidenceContext?.resolution.status ?? 'not recorded'}; preparation ${report.evidenceContext?.preparation ?? 'not recorded'}`),
+      ...(report.evidenceContext?.history ? rows(`History: ${report.evidenceContext.history.retainedEvents} retained; ${report.evidenceContext.history.omittedEvents} omitted; ${report.evidenceContext.history.retainedBytes} UTF-8 bytes`)
+        : ['Final history counters unavailable.']),
+      ...(report.evidenceContext ? rows(`Current redacted fields: ${report.evidenceContext.current?.redactedFields ?? 'unavailable'}; resolution limitations: ${report.evidenceContext.resolution.limitations.map(v => text(v, 128)).join(', ') || 'none recorded'}`) : []),
+      'Coverage gaps do not explain UNKNOWN or INSUFFICIENT model choices.',
       'Permission is not proof of execution.',
       `Observed execution: ${report.execution ?? 'unknown'}`,
       ...report.diagnostics.flatMap(d => [...rows(reference(d.ruleId)), `${d.outcome}: p=${d.outcomeProbability} threshold=${d.effectThreshold}`,

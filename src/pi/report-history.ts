@@ -1,3 +1,5 @@
+import { validEvidenceContext } from '../decision/evidence-context.js';
+import { freeze } from '../decision/evidence.js';
 import { validationIssue } from '../decision/response-validation.js';
 import type { BlockingGate, RuleDiagnostic } from '../decision/contracts.js';
 import type { OwnerReport } from './owner-reports.js';
@@ -27,6 +29,7 @@ export function recoverReport(entry: unknown): OwnerReport | undefined {
     || !Array.isArray(d.rules) || d.rules.length > 16 || !Array.isArray(d.diagnostics) || d.diagnostics.length > 17
     || !Array.isArray(d.ruleIds) || d.ruleIds.length > 17 || !d.ruleIds.every(text)
     || !Array.isArray(d.approvalRules) || d.approvalRules.length > 16 || !d.approvalRules.every(text)) return;
+  if (d.evidenceContext !== undefined && !validEvidenceContext(d.evidenceContext)) return;
   const rules: OwnerReport['rules'][number][] = [];
   for (const r of d.rules) {
     if (!object(r) || !text(r.id) || typeof r.line !== 'number' || !Number.isSafeInteger(r.line) || r.line < 1 || r.line > 65536
@@ -52,6 +55,7 @@ export function recoverReport(entry: unknown): OwnerReport | undefined {
     ...(text(d.questionVersion) ? { questionVersion: d.questionVersion } : {}),
     ...(d.reason === 'invalid-response' && validationIssue(d.validationIssue) ? { validationIssue: validationIssue(d.validationIssue) } : {}),
     wouldDecision: d.wouldDecision as OwnerReport['wouldDecision'], reason: d.reason, assessmentAvailable: d.assessmentAvailable,
+    ...(d.evidenceContext !== undefined ? { evidenceContext: freeze(structuredClone(d.evidenceContext)) } : {}),
     callId: d.callId, toolName: d.toolName, invocationId: d.invocationId, rules, diagnostics,
     ruleIds: [...d.ruleIds] as string[], approvalRules: [...d.approvalRules] as string[] };
 }

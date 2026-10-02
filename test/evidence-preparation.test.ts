@@ -46,9 +46,13 @@ for (const scenario of [
     const result = await decide({ policy, action, cwd: '/synthetic', trajectory: observations.snapshot(),
       resolvedAction: UNSUPPORTED_ACTION, evidenceLimits: scenario.limits,
       judge: async request => { requests.push(request); return answer(request.policy); } });
-    assert.deepEqual(requests, [{ ...baseRequest, trajectory: { observations: scenario.kept, omitted: scenario.omitted,
+    assert.deepEqual(requests.map(({ evidenceContext: _context, ...submitted }) => submitted), [{ ...baseRequest, trajectory: { observations: scenario.kept, omitted: scenario.omitted,
       limitations: [...limitations, ...scenario.historyLimitations] } }]);
     assert.deepEqual([result.decision, result.reason], ['ALLOW', 'all-rules-pass']);
+    if (scenario.name === 'oversized observation marker') {
+      assert.ok(result.evidenceContext.history?.limitations.includes('observation-byte-limit'));
+      assert.equal(result.evidenceContext.history?.omittedEvents, 0);
+    }
     assert.ok(Object.isFrozen(requests[0]!.trajectory!.observations));
     assert.ok(Object.isFrozen(requests[0]!.action.arguments));
   });
@@ -64,7 +68,7 @@ test('recovered request matches authored pre-change chronological baseline witho
   const requests: JudgeRequest[] = [];
   const result = await decide({ policy, action, cwd: '/synthetic', trajectory: observations.snapshot(), resolvedAction: UNSUPPORTED_ACTION,
     judge: async request => { requests.push(request); return answer(request.policy, 'APPROVAL_REQUIRED'); } });
-  assert.deepEqual(requests, [{ ...baseRequest, trajectory: { omitted: 0,
+  assert.deepEqual(requests.map(({ evidenceContext: _context, ...submitted }) => submitted), [{ ...baseRequest, trajectory: { omitted: 0,
     limitations: [...limitations, 'recovered-history-untrusted'], observations: [
       event('0', { content: 'earlier', details: { status: 'authenticated-complete', approval: 'approved' }, isError: false }, 'recovered-pi-tool-result'),
       { sessionId: 'synthetic', callId: '1', toolName: 'opaque', origin: 'recovered-pi-tool-call', timestamp: 0,

@@ -56,6 +56,10 @@ Every new invocation records the current contract identity in its `profile` fiel
 
 Contributions retain the outcome threshold, evidence-gate applicability and effective evidence threshold for every assessed rule. The inspector uses recorded values and preserves explicit null evidence thresholds. Existing archives are not migrated or reevaluated. Older records without a profile are shown as `legacy (historical)`; explicitly recorded older profiles and scores remain unchanged.
 
+New recordings use schema 4 and identify the owner-only diagnostic as `evidence-context-v1`, with current FIFO selection identity `bounded-history-v1`. No evidence representation or question semantics change in TENET-22. `bounded-history-v2` and `policy-rules-v7-evidence-selection` are reserved for later selection changes. Schemas 1 through 3 retain their original payloads and thresholds; missing historical diagnostics say not recorded. Older readers cannot interpret schema 4 and must report unsupported schema. Do not rewrite archives for rollback.
+
+An uncertainty-only inspector explanation can say no rule was classified as violated only with complete recorded rule results, integrity and successful validation, and no selected FAIL. It is not a safety guarantee. Coverage gaps are independent of UNKNOWN/INSUFFICIENT findings, permission, approval and execution. [Inspection evidence](inspection-evidence.md) documents provenance and availability.
+
 There is no runtime legacy switch. To roll back the evaluator, restore the previous code revision and restart the process. Keep archives intact and use the current inspector for mixed-version history. Observe mode can stop TENET vetoes while investigating, but it does not restore old assessment semantics.
 
 ## Offline fixtures and comparisons

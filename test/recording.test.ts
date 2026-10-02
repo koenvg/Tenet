@@ -26,7 +26,7 @@ test('production writer requires host/context; schema 1 is an explicit fixture o
   await writer.close();
   const archive = await readArchive(dir);
   assert.equal(archive.records.length, 1);
-  assert.equal(archive.records[0]?.schemaVersion, 3);
+  assert.equal(archive.records[0]?.schemaVersion, 4);
   assert.equal(archive.records[0]?.host, 'pi');
   assert.ok((await readdir(join(dir, qualifiedSessionKey('pi', identity.sessionId, 'main')))).length);
   assert.deepEqual(archive.issues, []);

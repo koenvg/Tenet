@@ -11,7 +11,7 @@ export interface ComparisonObservation {
   questionVersion: string;
   evidenceCoverage: string;
   omissions: string[];
-  result: (Omit<Decision, 'profile'> & { profile?: string }) | null;
+  result: (Omit<Decision, 'profile' | 'evidenceContext'> & { profile?: string; evidenceContext?: Decision['evidenceContext'] }) | null;
   contributions?: unknown;
 }
 

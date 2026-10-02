@@ -32,6 +32,8 @@
     {#each tabs as tab, index}<button id={`tab-${tab}`} role="tab" aria-selected={activeTab === tab} aria-controls={`panel-${tab}`} tabindex={activeTab === tab ? 0 : -1} on:click={() => activeTab = tab} on:keydown={event => navigate(event, index)}>{tab}</button>{/each}
   </div>
   <div id="panel-Evidence" role="tabpanel" aria-labelledby="tab-Evidence" aria-label="Submitted evidence" class="dock-panel" tabindex="0" hidden={activeTab !== 'Evidence'}>
+    <h4>Runtime evidence context</h4><pre>{pretty(view.evidenceContext)}</pre>
+    <p class="muted">Owner-only coverage diagnostic, separate from the exact submitted evidence below.</p>
     <h4>Shared submitted evidence</h4>
     <p class="muted">Shared by all rules. Redactions and omitted history remain as recorded. Strings may contain secrets.</p>
     {#if view.evidence === null}<p class="missing-data">Submitted evidence unavailable. No historical payload is reconstructed.</p>

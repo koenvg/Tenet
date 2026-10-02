@@ -1,5 +1,7 @@
 import { ArchiveWriter } from '../../test/legacy-recording-fixture.js';
 import { recordRuleFixture } from '../../test/rule-fixture.js';
+import { evidenceContext } from '../../src/decision/evidence-context.js';
+import { captureAction } from '../../src/decision/evidence.js';
 
 export const recordedQuestion = {
   type: 'choice',
@@ -12,7 +14,7 @@ export async function browserFixture(directory: string) {
   await recordRuleFixture(directory);
   const writer = new ArchiveWriter({ enabled: true, directory });
   const policy = { available: true, source: '/historical/TENET.md', target: '/historical/TENET.md', digest: 'snapshot', rules: [{ id: 'historical', text: 'Historical rule', line: 9, enforcement: 'BLOCK' }] };
-  const sink = writer.bind({ host: 'pi', contextId: 'main', sessionId: 's', invocationId: 'rich', callId: 'rich', toolName: 'edit', mode: 'observe', cwd: '/historical' });
+  const sink = writer.bindHistorical({ host: 'pi', contextId: 'main', sessionId: 's', invocationId: 'rich', callId: 'rich', toolName: 'edit', mode: 'observe', cwd: '/historical' }, 3);
   sink('begin', { policy, config: { effectThreshold: .9, evidenceThreshold: .9 } });
   sink('request', { policy, questionVersion: 'historical-test-v1', mapping: [{ id: 'historical', outcomeKey: 'recorded_outcome', evidenceKey: 'recorded_evidence', reference: 'state.policy.rules[0].text' }],
     payload: { model: 'offline', questions: { recorded_outcome: recordedQuestion, recorded_evidence: { type: 'choice', instructions: 'Is the evidence **sufficient**?', criteria: { SUFFICIENT: 'Enough evidence.', INSUFFICIENT: 'A material gap.' } } },
@@ -22,11 +24,16 @@ export async function browserFixture(directory: string) {
   missing('begin', { policy }); missing('decision', { decision: 'BLOCK', reason: 'timeout' });
   const summaryPolicy = { ...policy, rules: [{ id: 'email', text: 'Never send any email without confirmation.', line: 5, enforcement: 'BLOCK' }] };
   const summary = writer.bind({ host: 'pi', contextId: 'main', sessionId: 's', invocationId: 'summary', callId: 'summary', toolName: 'bash', mode: 'observe', cwd: '/historical' });
-  summary('begin', { policy: summaryPolicy, config: { effectThreshold: .9, evidenceThreshold: .9 } });
-  summary('request', { policy: summaryPolicy, questionVersion: 'offline-summary-v1', mapping: [], payload: { model: 'offline', questions: {}, state: { policy: summaryPolicy, context: {}, trajectory: {}, integrity: {}, action: { arguments: { command: 'git status --short && git diff -- README.md && git diff --cached --stat' } } } } });
+  summary('begin', { profile: 'legacy', integrity: { id: 'integrity', text: 'Integrity constraint' }, policy: summaryPolicy, config: { effectThreshold: .9, evidenceThreshold: .9 } });
+  summary('request', { policy: summaryPolicy, questionVersion: 'offline-summary-v1', mapping: [], payload: { model: 'offline', questions: {}, state: { policy: summaryPolicy, context: {}, trajectory: {}, integrity: { id: 'integrity', text: 'Integrity constraint' }, action: { arguments: { command: 'git status --short && git diff -- README.md && git diff --cached --stat' } } } } });
   summary('response', { value: {}, truncated: false, bytes: 2 }); summary('validation', { valid: true });
-  summary('assessment', { assessment: { model: 'offline', rules: [{ ruleId: 'email', outcome: { choice: 'PASS', probabilities: { PASS: .99, FAIL: 0, UNKNOWN: .01, APPROVAL_REQUIRED: 0 } }, evidence: { choice: 'SUFFICIENT', probabilities: { SUFFICIENT: .85, INSUFFICIENT: .15 } } }] } });
-  summary('decision', { decision: 'BLOCK', reason: 'insufficient-evidence', contributions: [{ ruleId: 'email', contribution: 'blocking-gates', gates: ['evidence-confidence-below-threshold'], effectThreshold: .9, evidenceThreshold: .9 }] });
+  const partial = { ...evidenceContext({ action: captureAction({ sessionId: 's', callId: 'summary', toolName: 'bash', arguments: {} }), trajectory: { observations: [], omitted: 2, limitations: ['history-omitted'] } }, undefined, true),
+    resolution: { status: 'authenticated-partial', limitations: ['partial-effect-coverage'], limitationsTruncated: false } };
+  summary('assessment', { evidenceContext: partial, assessment: { model: 'offline', rules: [
+    { ruleId: 'email', outcome: { choice: 'PASS', probabilities: { PASS: .99, FAIL: 0, UNKNOWN: .01, APPROVAL_REQUIRED: 0 } }, evidence: { choice: 'SUFFICIENT', probabilities: { SUFFICIENT: .85, INSUFFICIENT: .15 } } },
+    { ruleId: 'integrity', outcome: { choice: 'PASS', probabilities: { PASS: 1, FAIL: 0, UNKNOWN: 0, APPROVAL_REQUIRED: 0 } }, evidence: { choice: 'SUFFICIENT', probabilities: { SUFFICIENT: 1, INSUFFICIENT: 0 } } },
+  ] } });
+  summary('decision', { evidenceContext: partial, decision: 'BLOCK', reason: 'insufficient-evidence', contributions: [{ ruleId: 'email', contribution: 'blocking-gates', gates: ['evidence-confidence-below-threshold'], effectThreshold: .9, evidenceThreshold: .9 }] });
   summary('permission', { outcome: 'released' }); summary('execution', { outcome: 'executed' });
   await writer.close();
 }
