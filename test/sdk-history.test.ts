@@ -25,14 +25,19 @@ for (const recentEvents of [0, 2]) {
       Object.defineProperty(history, '0', { get() { throw new Error('must not inspect excluded history'); } });
       session.setHistory(history);
       const call = { callId: 'call', toolName: 'opaque', input: {} };
-      await session.beforeTool({ ...call, current: () => ({ sessionId: 'one', contextId: 'main', ...call }) });
+      const result = await session.beforeTool({ ...call, current: () => ({ sessionId: 'one', contextId: 'main', ...call }) });
       assert.equal(requests.length, 1);
-      const trajectory = requests[0]!.trajectory!;
-      assert.equal(trajectory.omitted, recentEvents ? 2 : 3);
-      assert.ok(trajectory.limitations.includes('history-omitted'));
-      assert.deepEqual(trajectory.observations.map(e => e.callId), recentEvents ? ['small'] : []);
-      assert.doesNotMatch(JSON.stringify(trajectory), /canary-secret|evicted|xxxxxxxx/);
-      if (recentEvents) assert.match(JSON.stringify(trajectory), /untrusted history/);
+      // Authored pre-change SDK admission baseline, including provenance and missing metadata.
+      assert.deepEqual(requests[0]!.trajectory, {
+        observations: recentEvents ? [{ sessionId: 'one', callId: 'small', toolName: 'opaque', origin: 'host-tool-result', timestamp: null,
+          data: { content: { text: 'untrusted history' }, redactedFields: 1, limitations: ['fields-redacted'] } }] : [],
+        omitted: recentEvents ? 2 : 3,
+        limitations: ['untrusted-evidence-not-approval-authority', 'external-state-not-frozen', 'host-history-untrusted',
+          'history-omitted', ...(recentEvents ? ['metadata-unavailable'] : [])],
+      });
+      assert.deepEqual([result.permission, result.assessment.status, result.assessment.wouldDecision, result.reason],
+        ['released', 'completed', 'ALLOW', 'all-rules-pass']);
+      assert.ok(Object.isFrozen(requests[0]!.trajectory!.observations));
     } finally { await guard.close(); await rm(cwd, { recursive: true, force: true }); }
   });
 }

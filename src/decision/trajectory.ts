@@ -1,52 +1,20 @@
-import type { EvidenceLimits, Json, Observation, Trajectory } from './contracts.js';
-import { captureAction, freeze, jsonCopy } from './evidence.js';
+import type { EvidenceLimits, HistoryEvent, Trajectory } from './contracts.js';
+import { EVIDENCE_DEFAULTS, HistoryPreparation } from './history-selection.js';
+export { EVIDENCE_DEFAULTS, serializedBytes } from './history-selection.js';
 
-export const EVIDENCE_DEFAULTS: Readonly<EvidenceLimits> = Object.freeze({ recentEvents: 12, maxBytes: 24 * 1024 });
-export const serializedBytes = (value: unknown) => Buffer.byteLength(JSON.stringify(value), 'utf8');
-const marker = (reason: string): Json => ({ tenetOmission: reason });
-
-// Host content blocks are not tool-specific schemas. Never send image bytes as text.
-function textEvidence(value: unknown, seen = new Set<object>()): Json {
-  if (value === undefined) return marker('metadata-unavailable');
-  if (value && typeof value === 'object') {
-    if (seen.has(value)) return marker('unsupported-circular-content');
-    seen.add(value);
-    try {
-      if ('type' in value && value.type === 'image') return marker('unsupported-image');
-      if (Array.isArray(value)) return value.map(v => textEvidence(v, seen));
-      if (![Object.prototype, null].includes(Object.getPrototypeOf(value))) return marker('unsupported-content');
-      return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, textEvidence(v, seen)]));
-    } finally { seen.delete(value); }
-  }
-  try { return jsonCopy(value); } catch { return marker('unsupported-content'); }
-}
-
+/** Host-facing collector. All content preparation and selection live in history-selection. */
 export class Observations {
-  private events: Observation[] = [];
-  private omitted = 0;
+  private preparation: HistoryPreparation;
   constructor(readonly sessionId: string, readonly limits: EvidenceLimits = EVIDENCE_DEFAULTS,
-    private sensitiveFields: string[] = [], private limitations: string[] = []) {}
-
-  /** Count entries rejected by bounded host admission without inspecting their content. */
-  omit(count = 1): void { this.omitted += count; }
+    sensitiveFields: string[] = [], limitations: string[] = []) {
+    this.preparation = new HistoryPreparation(sessionId, limits, sensitiveFields, limitations);
+  }
+  omit(count = 1): void { this.preparation.omit(count); }
   add(origin: string, callId: string | null, toolName: string | null, data: unknown, timestamp: number | null = Date.now()): void {
-    const sanitized = captureAction({ sessionId: this.sessionId, callId: callId ?? '', toolName: toolName ?? '',
-      arguments: textEvidence(data) }, this.sensitiveFields);
-    let payload: Json = { content: sanitized.arguments, redactedFields: sanitized.redactedFields,
-      limitations: sanitized.redactedFields ? ['fields-redacted'] : [] };
-    if (serializedBytes(payload) > this.limits.maxBytes) payload = marker('observation-byte-limit');
-    this.events.push(freeze({ sessionId: this.sessionId, callId, toolName, origin, timestamp, data: payload }));
-    while (this.events.length && (this.events.length > this.limits.recentEvents || serializedBytes(this.events) > this.limits.maxBytes)) {
-      this.events.shift(); this.omitted++;
-    }
+    this.preparation.add(origin, callId, toolName, data, timestamp);
   }
-
-  snapshot(): Trajectory {
-    return freeze({ observations: [...this.events], omitted: this.omitted,
-      limitations: ['untrusted-evidence-not-approval-authority', 'external-state-not-frozen',
-        ...this.limitations, ...(this.omitted ? ['history-omitted'] : []),
-        ...(this.events.some(e => e.timestamp === null || e.callId === null || e.toolName === null) ? ['metadata-unavailable'] : [])] });
-  }
+  addHistory(history: readonly HistoryEvent[]): void { this.preparation.addHistory(history); }
+  snapshot(): Trajectory { return this.preparation.snapshot(); }
 }
 
 // Replay only the selected session branch. Transcript content can supply evidence, never permission.
