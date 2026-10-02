@@ -19,10 +19,10 @@ export async function startInspector(options: { directory: string; assets?: stri
     }
   }
   const hash = createHash('sha256');
-  for (const name of ['server.ts', 'archive-index.ts', 'view.ts']) hash.update(await readFile(new URL(name, import.meta.url)));
-  hash.update(await readFile(new URL('../decision/finding-triage.ts', import.meta.url)));
-  hash.update(await readFile(new URL('../recording/contract.ts', import.meta.url)));
-  hash.update(await readFile(new URL('./finding-view.ts', import.meta.url)));
+  // Hash the modules in the current representation, source TS or delivered ESM.
+  const extension = import.meta.url.endsWith('.ts') ? '.ts' : '.js';
+  for (const name of ['server', 'archive-index', 'view', '../decision/finding-triage', '../recording/contract', 'finding-view'])
+    hash.update(await readFile(new URL(`${name}${extension}`, import.meta.url)));
   for (const [name, asset] of [...assets].sort(([a], [b]) => a.localeCompare(b))) hash.update(name).update(asset.content);
   const build = `tenet-reader-0.1.0/${options.assets ? 'assets' : 'dev'}-${hash.digest('hex').slice(0, 12)}`;
   let origin = '';

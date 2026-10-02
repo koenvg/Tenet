@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.sdk.json",
+  "compilerOptions": { "paths": { "tenet": ["./src/sdk/index.ts"] } },
+  "include": ["src/sdk/index.ts", "src/pi/extension.ts", "src/inspector/serve-cli.ts"],
+  "exclude": []
+}

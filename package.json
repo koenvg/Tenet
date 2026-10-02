@@ -16,6 +16,8 @@
     }
   },
   "scripts": {
+    "package:archive": "bun scripts/package.ts",
+    "package:verify": "bun scripts/verify-delivery.ts",
     "test": "bun test",
     "sdk:build": "bun --bun tsc -p tsconfig.sdk.json && bun --bun tsc -p tsconfig.sdk-example.json",
     "sdk:example": "bun run sdk:build && node examples/dist/sdk.js",
