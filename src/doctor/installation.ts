@@ -4,13 +4,13 @@ import { delimiter, dirname, join } from 'node:path';
 
 export const TESTED_PI_VERSION = '0.85.1';
 const PI_PACKAGE = '@earendil-works/pi-coding-agent';
-// This checks the current checkout/local-install layout, not the future production archive contract.
+// Common compiled readiness entries. The manifest selects the development or production host layout.
 export const DELIVERY_FILES = Object.freeze([
-  'package.json', 'bun.lock', 'LICENSE', 'dist/cli/index.js',
+  'package.json', 'LICENSE', 'dist/cli/index.js', 'dist/doctor/doctor.js', 'dist/doctor/installation.js',
   'dist/sdk/index.js', 'dist/sdk/index.d.ts', 'dist/runtime/guard.js',
   'dist/runtime/config.js', 'dist/runtime/activation.js', 'dist/runtime/resources.js',
   'dist/decision/policy.js', 'dist/decision/jev.js', 'dist/recording/archive.js',
-  'src/pi/extension.ts', 'src/inspector/serve-cli.ts', 'inspector/dist/index.html', 'docs/doctor.md',
+  'inspector/dist/index.html', 'docs/doctor.md',
 ]);
 
 async function metadata(path: string): Promise<Record<string, unknown> | undefined> {
@@ -34,8 +34,15 @@ export async function isFile(path: string): Promise<boolean> {
 
 export async function inspectDelivery(root: string) {
   const missing: string[] = [];
-  for (const file of DELIVERY_FILES) if (!await isFile(join(root, file))) missing.push(file);
   const pkg = await metadata(join(root, 'package.json'));
+  const pi = pkg?.pi as { extensions?: unknown } | undefined;
+  const entries = pi?.extensions;
+  const checkout = Array.isArray(entries) && entries.length === 1 && entries[0] === './src/pi/extension.ts';
+  const archive = Array.isArray(entries) && entries.length === 1 && entries[0] === './dist/pi/extension.js';
+  const layout = checkout ? ['bun.lock', 'src/pi/extension.ts', 'src/inspector/serve-cli.ts']
+    : archive ? ['package-lock.json', 'dist/pi/extension.js', 'dist/inspector/serve-cli.js'] : [];
+  if (!checkout && !archive) missing.push('pi-entry-metadata');
+  for (const file of [...DELIVERY_FILES, ...layout]) if (!await isFile(join(root, file))) missing.push(file);
   const dependency = await metadata(join(root, 'node_modules/@typesafe-ai/sdk/package.json'));
   const dependencies = pkg?.dependencies as Record<string, unknown> | undefined;
   if (pkg?.name !== 'tenet' || !dependencies || typeof dependencies['@typesafe-ai/sdk'] !== 'string') missing.push('runtime-dependency-metadata');

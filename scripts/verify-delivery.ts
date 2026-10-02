@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, realpath, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
@@ -13,7 +13,7 @@ export async function verifyArchive(archive: string): Promise<void> {
   // Deliberately do not inherit TENET_*, API keys, NODE_PATH, Pi settings or npm config.
   const env = { PATH: process.env.PATH!, HOME: home, CI: '1', PI_CODING_AGENT_DIR: join(home, 'pi'),
     npm_config_userconfig: join(home, '.npmrc'), npm_config_globalconfig: join(home, '.npm-globalrc') };
-  const run = (file: string, args: string[], cwd: string) => execFileSync(file, args, { cwd, env, encoding: 'utf8', timeout: 180_000 });
+  const run = (file: string, args: string[], cwd: string, overrides: Record<string, string> = {}) => execFileSync(file, args, { cwd, env: { ...env, ...overrides }, encoding: 'utf8', timeout: 180_000 });
   try {
     // Reject links and path traversal before extraction, including contaminated tar fixtures.
     for (const name of run('tar', ['-tzf', resolve(archive)], root).trim().split('\n'))
@@ -56,9 +56,40 @@ export async function verifyArchive(archive: string): Promise<void> {
     await cp(new URL('./fixtures/archive-discovery.mjs', import.meta.url), join(host, 'discovery.mjs'));
     for (const runtime of ['node', 'bun']) console.log(run(runtime, ['discovery.mjs', '1'], host).trim());
     assert.ok(run('node', [pi, 'list'], root).includes(installation));
+    // Follow the owner recipe only after registration. Each launch below is a new process.
+    const project = join(root, 'owner-project'); await mkdir(project);
+    const ownerEnv = { PATH: `${join(host, 'node_modules/.bin')}:${env.PATH}`, TYPESAFE_API_KEY: 'offline-owner-credential' };
+    const doctorArgs = [join(installation, 'dist/cli/index.js'), 'doctor', '--project', project];
+    const dormant = JSON.parse(run('node', [...doctorArgs, '--json'], root, ownerEnv));
+    assert.equal(dormant.state, 'dormant'); assert.equal(dormant.compatibility.status, 'tested');
+    await writeFile(join(project, 'TENET.md'), 'Rule; BLOCK; Ask before overwriting owner-demo.txt.\n');
+    for (const runtime of ['node', 'bun']) {
+      const diagnosis = JSON.parse(run(runtime, [...doctorArgs, '--json'], root, ownerEnv));
+      assert.equal(diagnosis.state, 'ready'); assert.equal(diagnosis.mode, 'observe');
+      assert.equal(diagnosis.capture.state, 'local-archive'); assert.equal(diagnosis.policy.ruleCount, 1);
+      assert.equal(diagnosis.hooks, 'unverified'); assert.equal(diagnosis.provider, 'unverified');
+      assert.equal(diagnosis.assessment, 'not-requested');
+      assert.match(run(runtime, doctorArgs, root, ownerEnv), /TENET doctor: ready/);
+    }
+    await cp(new URL('./fixtures/archive-owner.mjs', import.meta.url), join(host, 'owner.mjs'));
+    for (const runtime of ['node', 'bun']) {
+      console.log(run(runtime, ['owner.mjs', installation, project, 'observe'], host, ownerEnv).trim());
+      console.log(run(runtime, ['owner.mjs', installation, project, 'enforce'], host, { ...ownerEnv, TENET_MODE: 'enforce' }).trim());
+    }
+    // Removing the extension must leave the owner's policy and historical evidence intact.
+    const recordings = join(home, '.tenet/recordings');
+    const retained = await readdir(recordings);
+    assert.ok(retained.length > 0, 'default recording retains the offline owner findings');
+    for (const runtime of ['node', 'bun']) {
+      console.log(run(runtime, ['owner.mjs', installation, project, 'observe'], host,
+        { ...ownerEnv, TENET_RECORDING: 'off' }).trim());
+      assert.deepEqual(await readdir(recordings), retained, 'capture opt-out preserves findings without new archive sessions');
+    }
     run('node', [pi, 'remove', installation], root);
     assert.ok(!run('node', [pi, 'list'], root).includes(installation));
     for (const runtime of ['node', 'bun']) console.log(run(runtime, ['discovery.mjs', '0'], host).trim());
+    assert.deepEqual(await readdir(recordings), retained);
+    assert.equal(await readFile(join(project, 'TENET.md'), 'utf8'), 'Rule; BLOCK; Ask before overwriting owner-demo.txt.\n');
     console.log('Isolated Pi registration and removal passed; owner settings untouched.');
   } finally { await rm(root, { recursive: true, force: true }); }
 }

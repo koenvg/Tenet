@@ -1,18 +1,19 @@
 import assert from 'node:assert/strict';
 import { readdir, readFile, lstat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join, posix } from 'node:path';
 
 // A closed list, not a directory copy. New runtime modules require a delivery review.
 export const runtimeModules = [
   'sdk/index', 'sdk/types', 'sdk/capabilities',
+  'cli/index', 'doctor/doctor', 'doctor/installation',
   ...['assessment-contract', 'contracts', 'decide', 'diagnostics', 'evidence', 'evidence-budget', 'finding-triage',
-    'jev', 'judge-evidence', 'policy', 'questions', 'response-validation', 'thresholds', 'trajectory'].map(n => `decision/${n}`),
+    'history-selection', 'jev', 'judge-evidence', 'policy', 'questions', 'response-validation', 'thresholds', 'trajectory'].map(n => `decision/${n}`),
   ...['activation', 'approval', 'config', 'consequences', 'guard', 'observation-queue', 'resolved-action', 'resources'].map(n => `runtime/${n}`),
   ...['archive', 'contract', 'files', 'rules'].map(n => `recording/${n}`),
   ...['approval', 'boundary', 'config', 'extension', 'guard', 'history', 'inspector-command', 'owner-reports', 'report-history'].map(n => `pi/${n}`),
   ...['archive-index', 'bb-findings', 'finding-view', 'serve-cli', 'server', 'view'].map(n => `inspector/${n}`),
 ];
-export const documentFiles = ['README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'docs/operation.md', 'docs/sdk.md'];
+export const documentFiles = ['README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'docs/operation.md', 'docs/sdk.md', 'docs/doctor.md'];
 
 type SourceManifest = {
   version: string; engines: Record<string, string>; dependencies: Record<string, string>; peerDependencies: Record<string, string>;
@@ -53,6 +54,14 @@ export async function assertDelivery(root: string): Promise<void> {
   await walk(root);
   for (const file of required) assert.ok(found.has(file), `missing delivery file: ${file}`);
   const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+  for (const document of documentFiles.filter(file => file.endsWith('.md'))) {
+    const content = await readFile(join(root, document), 'utf8');
+    for (const [, target] of content.matchAll(/\]\(([^)]+)\)/g)) {
+      if (!target || target.startsWith('#') || /^[a-z]+:/i.test(target)) continue;
+      const path = posix.normalize(posix.join(dirname(document), target.split('#')[0]!));
+      assert.ok(found.has(path), `missing documentation target: ${document} -> ${target}`);
+    }
+  }
   assert.deepEqual(manifest, deliveryManifest(manifest), 'production manifest differs from delivery contract');
   assert.deepEqual(Object.keys(manifest.dependencies), ['@typesafe-ai/sdk'], 'only the evaluator SDK is a runtime dependency');
   assert.deepEqual(Object.keys(manifest.peerDependencies), ['@earendil-works/pi-coding-agent'], 'Pi is an optional host peer only');

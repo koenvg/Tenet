@@ -18,7 +18,11 @@ async function fixture(work: (f: { root: string; project: string; delivery: stri
       await mkdir(join(delivery, file, '..'), { recursive: true });
       await writeFile(join(delivery, file), 'fixture');
     }
-    await writeFile(join(delivery, 'package.json'), JSON.stringify({ name: 'tenet', type: 'module', dependencies: { '@typesafe-ai/sdk': '0.6.0' } }));
+    await writeFile(join(delivery, 'package.json'), JSON.stringify({ name: 'tenet', type: 'module', pi: { extensions: ['./src/pi/extension.ts'] }, dependencies: { '@typesafe-ai/sdk': '0.6.0' } }));
+    for (const file of ['bun.lock', 'src/pi/extension.ts', 'src/inspector/serve-cli.ts']) {
+      await mkdir(join(delivery, file, '..'), { recursive: true });
+      await writeFile(join(delivery, file), 'fixture');
+    }
     const sdk = join(delivery, 'node_modules/@typesafe-ai/sdk');
     await mkdir(join(sdk, 'dist'), { recursive: true });
     await writeFile(join(sdk, 'package.json'), JSON.stringify({ name: '@typesafe-ai/sdk', version: '0.6.0' }));
@@ -46,6 +50,21 @@ test('doctor reports policy identity, local readiness and honest verification li
   }
 }));
 
+test('doctor recognizes the declared compiled archive layout without checkout files', async () => fixture(async f => {
+  for (const file of ['bun.lock', 'src/pi/extension.ts', 'src/inspector/serve-cli.ts'])
+    await rm(join(f.delivery, file), { force: true });
+  for (const file of ['package-lock.json', 'dist/pi/extension.js', 'dist/inspector/serve-cli.js']) {
+    await mkdir(join(f.delivery, file, '..'), { recursive: true });
+    await writeFile(join(f.delivery, file), 'fixture');
+  }
+  await writeFile(join(f.delivery, 'package.json'), JSON.stringify({ name: 'tenet', type: 'module',
+    pi: { extensions: ['./dist/pi/extension.js'] }, dependencies: { '@typesafe-ai/sdk': '0.6.0' } }));
+  let report = await diagnoseProject({ projectDir: f.project, deliveryDir: f.delivery, env: f.env });
+  assert.equal(report.state, 'ready'); assert.equal(report.delivery.status, 'complete');
+  await rm(join(f.delivery, 'dist/pi/extension.js'));
+  report = await diagnoseProject({ projectDir: f.project, deliveryDir: f.delivery, env: f.env });
+  assert.equal(report.state, 'unavailable'); assert.ok(report.delivery.missing.includes('dist/pi/extension.js'));
+}));
 test('doctor distinguishes off and dormant and keeps missing credentials as a limitation', async () => fixture(async f => {
   delete f.env.TYPESAFE_API_KEY;
   let report = await diagnoseProject({ projectDir: f.project, deliveryDir: f.delivery, env: f.env });
