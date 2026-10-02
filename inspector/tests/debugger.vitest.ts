@@ -359,7 +359,7 @@ test('coverage distinguishes unsupported, partial, unavailable and historical re
   expect(await p.locator('.summary-reason').textContent()).not.toContain('No rule was classified as violated');
   await pickCall('summary');
   expect(await coverage.textContent()).toContain('authenticated-partial');
-  expect(await coverage.textContent()).toContain('2 omitted events');
+  expect(await coverage.textContent()).toContain('2 known omissions');
   expect(await coverage.textContent()).toContain('1 shortened, 1 dropped, 1 prior omissions');
   expect(await coverage.textContent()).toContain('Exact compaction: 0 bytes saved');
   expect(await p.locator('.summary-reason').textContent()).toContain('would block by uncertainty');
@@ -388,20 +388,27 @@ test('coverage distinguishes unsupported, partial, unavailable and historical re
 test('exact compaction stays distinct from losses and the dock preserves the submitted pool without decoding', async () => {
   const p = currentPage(); await pickCall('compacted');
   const coverage = p.getByRole('region', { name: 'Runtime evidence coverage' });
-  expect(await coverage.textContent()).toContain('2 retained events, 0 omitted events');
-  expect(await coverage.textContent()).toContain('2 shortened, 0 dropped, 0 prior omissions');
+  expect(await coverage.textContent()).toContain('2 retained events, 2 known omissions');
+  expect(await coverage.textContent()).toContain('2 shortened, 2 dropped, 0 prior omissions');
   expect(await coverage.textContent()).toMatch(/Exact compaction: [1-9][0-9]* bytes saved/);
+  expect(await coverage.textContent()).toContain('A shortened result still has a recorded observation; a missing result remains unknown.');
+  expect(await coverage.textContent()).toContain('Matching IDs do not prove execution or success.');
+  expect(await coverage.textContent()).toContain('Capture omissions can count source slots, not missing calls or effects.');
   expect(await p.locator('.lifecycle').textContent()).toContain('unknown');
   await p.getByRole('button', { name: 'View shared evidence', exact: true }).click();
   const history = p.locator('.evidence-section').filter({ has: p.locator('h5', { hasText: 'Chronological history' }) });
   const trajectory = JSON.parse((await history.locator('pre').textContent())!);
   expect(trajectory.values).toEqual({ v0: 'complete sanitized content '.repeat(30) });
   expect(trajectory.observations).toHaveLength(2);
+  expect(trajectory.observations.map((event: any) => [event.callId, event.origin, event.timestamp])).toEqual([
+    ['prior', 'host-tool-call', 3], ['prior', 'host-tool-result', 1],
+  ]);
+  expect(trajectory.observations[1].data.content.isError).toBe(true);
   expect(trajectory.observations[0].data.content.repeated).toEqual({ tenetHistory: { ref: 'v0' } });
   expect(typeof trajectory.observations[0].data.content.document.tenetExcerpt.head).toBe('string');
   expect(await history.textContent()).toContain('Exact references');
   await p.setViewportSize({ width: 390, height: 844 });
   expect(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await coverage.scrollIntoViewIfNeeded();
-  await p.screenshot({ path: join(artifacts, 'exact-compaction-mobile.png'), fullPage: true });
+  await p.screenshot({ path: join(artifacts, 'history-groups-mobile.png'), fullPage: true });
 });

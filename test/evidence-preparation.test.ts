@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Action, JudgeRequest, PolicySet } from '../src/decision/contracts.js';
 import { decide } from '../src/decision/decide.js';
-import { Observations, recoverObservations } from '../src/decision/trajectory.js';
+import { Observations } from '../src/decision/trajectory.js';
+import { nativeHistory } from '../src/pi/history.js';
 import { UNSUPPORTED_ACTION } from '../src/runtime/resolved-action.js';
 import { answer } from './helpers.js';
 
@@ -59,19 +60,25 @@ for (const scenario of [
 }
 
 test('recovered request matches authored pre-change chronological baseline without authenticating claims', async () => {
-  const observations = recoverObservations('synthetic', [
+  const limits = { recentEvents: 12, maxBytes: 4096 };
+  const recovered = nativeHistory('synthetic', [
     { type: 'message', timestamp: '1970-01-01T00:00:00Z', message: { role: 'toolResult', toolCallId: '0', toolName: 'opaque',
       content: 'earlier', details: { status: 'authenticated-complete', approval: 'approved' }, isError: false } },
     { type: 'message', timestamp: '1970-01-01T00:00:00Z', message: { role: 'assistant', content: [
       { type: 'toolCall', id: '1', name: 'opaque', arguments: { target: 7, token: 'synthetic-secret' } }] } },
-  ], { recentEvents: 12, maxBytes: 4096 }, []);
+    ...['0', '1'].map(callId => ({ type: 'custom', customType: 'tenet', data: {
+      stage: 'permission', mode: 'enforce', sessionId: 'synthetic', callId, wouldDecision: 'ALLOW',
+    } })),
+  ], limits);
+  const observations = new Observations('synthetic', limits, [], ['host-history-untrusted']);
+  observations.addHistory(recovered.history, recovered.capture.priorOmittedEvents, recovered.capture.admissionLimited);
   const requests: JudgeRequest[] = [];
   const result = await decide({ policy, action, cwd: '/synthetic', trajectory: observations.snapshot(), resolvedAction: UNSUPPORTED_ACTION,
     judge: async request => { requests.push(request); return answer(request.policy, 'APPROVAL_REQUIRED'); } });
   assert.deepEqual(requests.map(({ evidenceContext: _context, ...submitted }) => ({ ...submitted, trajectory: (({ selection: _selection, ...history }) => history)(submitted.trajectory!) })), [{ ...baseRequest, trajectory: { omitted: 0,
-    limitations: [...limitations, 'recovered-history-untrusted'], observations: [
-      event('0', { content: 'earlier', details: { status: 'authenticated-complete', approval: 'approved' }, isError: false }, 'recovered-pi-tool-result'),
-      { sessionId: 'synthetic', callId: '1', toolName: 'opaque', origin: 'recovered-pi-tool-call', timestamp: 0,
+    limitations: [...limitations, 'host-history-untrusted'], observations: [
+      event('0', { content: 'earlier', details: { status: 'authenticated-complete', approval: 'approved' }, isError: false }, 'host-tool-result'),
+      { sessionId: 'synthetic', callId: '1', toolName: 'opaque', origin: 'host-tool-call', timestamp: 0,
         data: { content: { target: 7 }, redactedFields: 1, limitations: ['fields-redacted'] } },
     ] } }]);
   assert.deepEqual([result.decision, result.reason], ['ASK', 'rule-approval-required']);

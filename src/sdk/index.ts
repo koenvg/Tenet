@@ -1,6 +1,7 @@
 import { isAbsolute } from 'node:path';
 import { freeze } from '../decision/evidence.js';
 import { Observations } from '../decision/trajectory.js';
+import { captureHistoryMetadata } from '../decision/history-capture.js';
 import type { Decision } from '../decision/contracts.js';
 import { UNAVAILABLE_EVIDENCE_CONTEXT } from '../decision/evidence-context.js';
 import { permissionVeto, type Permission } from '../runtime/consequences.js';
@@ -170,13 +171,15 @@ export function createGuard(options: GuardOptions): Guard {
           if (entry.closed || closed || !entry.initialized || bypassed.has(result.callId)) return { outcome: 'unknown' };
           return runtime.result({ ...result, ...id, ...(!runtime.capabilities.resultCorrelation ? { correlation: 'unknown' as const } : {}) }) ?? { outcome: 'unknown' };
         },
-        setHistory(history) {
+        setHistory(history, capture) {
+          const reported = captureHistoryMetadata(capture);
           if (entry.closed || closed || !entry.initialized || !Array.isArray(history)) return;
           const readiness = runtime.coverageStatus(id).readiness;
           if (!readiness.eligible || !readiness.config || activation.refresh() !== 'on') return;
           const config = readiness.config;
-          const observations = new Observations(id.sessionId, config.evidence, config.sensitiveFields, ['host-history-untrusted']);
-          observations.addHistory(history);
+          const observations = new Observations(id.sessionId, config.evidence, config.sensitiveFields,
+            ['host-history-untrusted', ...(capture === undefined ? [] : ['host-reported-capture-slots-not-tool-event-counts'])]);
+          observations.addHistory(history, reported.priorOmittedEvents, reported.admissionLimited);
           runtime.setObservations(id, observations);
         },
         endTurn() { if (!entry.closed && !closed) runtime.endTurn(id); },

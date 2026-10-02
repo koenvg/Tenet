@@ -3,7 +3,8 @@ import { test } from 'node:test';
 import { decide } from '../src/decision/decide.js';
 import { captureAction } from '../src/decision/evidence.js';
 import { judgeState } from '../src/decision/judge-evidence.js';
-import { Observations, recoverObservations, serializedBytes } from '../src/decision/trajectory.js';
+import { Observations, serializedBytes } from '../src/decision/trajectory.js';
+import { nativeHistory } from '../src/pi/history.js';
 import { answer, policy } from './helpers.js';
 
 const action = captureAction({ sessionId: 'synthetic', callId: 'pending', toolName: 'zorb', arguments: { target: 7 } });
@@ -107,11 +108,14 @@ test('zero history and prior capture omissions have explicit separate counters',
 });
 
 test('recovery shares large/nested bounds without inferring success from missing content', async () => {
-  const history = recoverObservations('synthetic', [{ type: 'message', timestamp: '1970-01-01T00:00:00Z',
-    message: { role: 'toolResult', toolCallId: 'old', toolName: 'zorb', content: 'x'.repeat(60000) } }],
-  { recentEvents: 12, maxBytes: 24576 }, []);
+  const limits = { recentEvents: 12, maxBytes: 24576 };
+  const recovered = nativeHistory('synthetic', [{ type: 'message', timestamp: '1970-01-01T00:00:00Z',
+    message: { role: 'toolResult', toolCallId: 'old', toolName: 'zorb', content: 'x'.repeat(60000) } },
+    { type: 'custom', customType: 'tenet', data: { stage: 'assessment-status', status: 'completed', sessionId: 'synthetic', callId: 'old', mode: 'observe' } }], limits);
+  const history = new Observations('synthetic', limits);
+  history.addHistory(recovered.history, recovered.capture.priorOmittedEvents, recovered.capture.admissionLimited);
   const { captured, result } = await submit(history);
-  assert.equal(captured.trajectory.observations[0].origin, 'recovered-pi-tool-result');
+  assert.equal(captured.trajectory.observations[0].origin, 'host-tool-result');
   assert.ok(serializedBytes(captured.trajectory.observations[0].data) <= 2048);
   assert.ok(result.evidenceContext.history?.shortenedEvents === 1);
   assert.equal(result.evidenceContext.resolution.status, 'unsupported');

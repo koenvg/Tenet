@@ -214,19 +214,20 @@ test('authored excerpt lookalikes remain complete literal values eligible for ex
 });
 
 
-test('byte-driven eviction rebuilds the pool using only surviving eligible values', async () => {
+test('byte pressure shortens before envelope-driven eviction and prunes the now-ineligible pool', async () => {
   const history = new Observations('synthetic');
   // Primitive envelopes consume pressure but are never excerpted or pooled.
   for (let i = 0; i < 12; i++) history.add('host-tool-result', `${i}-` + 'identity'.repeat(100), 'opaque', `${Math.floor(i / 2)}:` + 'x'.repeat(300), i);
   const { captured, result } = await submit(history);
   assert.ok(captured.trajectory.selection.droppedEvents > 0);
   assert.ok(serializedBytes(captured.trajectory) <= 8192);
-  const literal: string[] = expandedData(captured.trajectory).map((data: any) => data.content);
-  const expected = Object.fromEntries([...new Set(literal)].filter(text => literal.filter(value => value === text).length > 1).map((text, i) => [`v${i}`, text]));
-  assert.deepEqual(captured.trajectory.values, expected);
-  assert.equal(result.evidenceContext.history?.shortenedEvents, 0);
-  assert.equal(result.evidenceContext.history?.omittedEvents, 12 - literal.length);
-  assert.ok(result.evidenceContext.history!.exactCompactedBytes > 0);
+  const retained = expandedData(captured.trajectory).map((data: any) => data.content);
+  assert.deepEqual(captured.trajectory.observations.map((event: any) => event.callId.split('-')[0]), ['6', '7', '8', '9', '10', '11']);
+  assert.ok(retained.every((value: any) => value.tenetExcerpt));
+  assert.equal(captured.trajectory.values, undefined, 'generated excerpt fragments cannot remain pooled');
+  assert.equal(result.evidenceContext.history?.shortenedEvents, 6);
+  assert.equal(result.evidenceContext.history?.omittedEvents, 6);
+  assert.equal(result.evidenceContext.history!.exactCompactedBytes, 0);
 });
 
 

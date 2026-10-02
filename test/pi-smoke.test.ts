@@ -14,7 +14,8 @@ import { argumentDigest } from '../src/decision/evidence.js';
 import { RULE, INTEGRITY_ID } from '../src/decision/policy.js';
 import type { Action, Outcome } from '../src/decision/contracts.js';
 import { answer, ruleAnswer } from './helpers.js';
-import { recoverObservations, EVIDENCE_DEFAULTS } from '../src/decision/trajectory.js';
+import { EVIDENCE_DEFAULTS } from '../src/decision/trajectory.js';
+import { nativeHistory } from '../src/pi/history.js';
 
 // Real Pi loader -> AgentSession hooks -> ExtensionRunner -> agent-core -> dummy executor.
 // Both model streaming and Jev are scripted. Any accidental HTTP request fails this test.
@@ -475,12 +476,12 @@ test('pinned Pi observation executes concerns without delivering reports to mode
     const restored = SessionManager.open(session.sessionManager.getSessionFile()!);
     assert.ok(restored.getBranch().some(e => e.type === 'custom' && e.customType === 'tenet'));
     assert.ok(!JSON.stringify(restored.buildSessionContext()).includes('wouldDecision'));
-    assert.ok(!recoverObservations(restored.getSessionId(), restored.getBranch(), EVIDENCE_DEFAULTS, []).snapshot().observations.some(o => o.origin.includes('tenet')));
+    assert.doesNotMatch(JSON.stringify(nativeHistory(restored.getSessionId(), restored.getBranch(), EVIDENCE_DEFAULTS).history), /wouldDecision|outcome-confidence-below-threshold/);
     const branchFile = restored.createBranchedSession(restored.getLeafId()!);
     assert.ok(branchFile);
     const fork = SessionManager.open(branchFile!);
     assert.ok(!JSON.stringify(fork.buildSessionContext()).includes('wouldDecision'));
-    assert.ok(!recoverObservations(fork.getSessionId(), fork.getBranch(), EVIDENCE_DEFAULTS, []).snapshot().observations.some(o => o.origin.includes('tenet')));
+    assert.doesNotMatch(JSON.stringify(nativeHistory(fork.getSessionId(), fork.getBranch(), EVIDENCE_DEFAULTS).history), /wouldDecision|outcome-confidence-below-threshold/);
   } finally {
     process.stdout.write = stdout; session?.dispose(); globalThis.fetch = realFetch;
     await rm(cwd, { recursive: true, force: true });

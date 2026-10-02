@@ -11,6 +11,7 @@ export type { Approval, ApprovalRequest } from '../runtime/guard.js';
 export type { ActionResolver, ActionFacts, ActionBinding, ResolvedAction, OperationSemantics } from '../runtime/resolved-action.js';
 export type { RecordingSink } from '../recording/contract.js';
 export type { Mode } from '../runtime/config.js';
+export type { HistoryCaptureMetadata } from '../decision/history-capture.js';
 export type { Activation } from '../runtime/activation.js';
 
 export type Capabilities = Readonly<RuntimeCapabilities>;
@@ -123,7 +124,9 @@ export interface GuardSession {
   readonly ready: Promise<SessionStatus>;
   beforeTool(invocation: ToolInvocation): Promise<BeforeToolResult>;
   afterTool(result: ToolResult): Execution;
-  setHistory(history: readonly ObservedHistory[]): void;
+  /** Malformed capture metadata or combined counter overflow throws before replacing history.
+   * Zero/false reports no additional gap, not complete capture. This never supplies action authority. */
+  setHistory(history: readonly ObservedHistory[], capture?: import('../decision/history-capture.js').HistoryCaptureMetadata): void;
   endTurn(): void;
   invalidate(reason: string): void;
   status(): SessionStatus;

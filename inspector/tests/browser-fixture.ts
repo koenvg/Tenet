@@ -43,9 +43,14 @@ export async function browserFixture(directory: string) {
   const { captureAction } = await import('../../src/decision/evidence.js');
   const { boundEvidence, judgeState } = await import('../../src/decision/judge-evidence.js');
   const { answer } = await import('../../test/helpers.js');
-  const history = new Observations('s');
+  const history = new Observations('s', { recentEvents: 3, maxBytes: 24576 });
   const repeated = 'complete sanitized content '.repeat(30);
-  for (let i = 0; i < 2; i++) history.add('host-tool-result', `prior-${i}`, 'opaque', { repeated, document: '界'.repeat(20000) }, i);
+  history.addHistory([
+    { kind: 'tool-call', callId: 'older', toolName: 'opaque', timestamp: 4, data: 'older proposal' },
+    { kind: 'tool-call', callId: 'prior', toolName: 'opaque', timestamp: 3, data: { repeated, document: '界'.repeat(20000) } },
+    { kind: 'tool-result', callId: 'older', toolName: 'opaque', timestamp: 2, data: { isError: true, text: 'older failure' } },
+    { kind: 'tool-result', callId: 'prior', toolName: 'different-name', timestamp: 1, data: { repeated, document: '界'.repeat(20000), isError: true } },
+  ]);
   const request = boundEvidence({ policy: summaryPolicy as any, action: captureAction({ sessionId: 's', callId: 'compacted', toolName: 'opaque', arguments: {} }),
     cwd: '/historical', deadlineMs: 30000, trajectory: history.snapshot() })!;
   const compacted = writer.bind({ host: 'pi', contextId: 'main', sessionId: 's', invocationId: 'compacted', callId: 'compacted', toolName: 'opaque', mode: 'observe', cwd: '/historical' });
