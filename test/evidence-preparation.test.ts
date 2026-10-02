@@ -1,0 +1,84 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import type { Action, JudgeRequest, PolicySet } from '../src/decision/contracts.js';
+import { decide } from '../src/decision/decide.js';
+import { Observations, recoverObservations } from '../src/decision/trajectory.js';
+import { UNSUPPORTED_ACTION } from '../src/runtime/resolved-action.js';
+import { answer } from './helpers.js';
+
+// Authored synthetic pre-change baselines. Do not regenerate them from preparation output.
+const policy: PolicySet = { available: true, source: 'policy.md', target: 'policy.md', digest: 'synthetic-policy',
+  rules: [{ id: 'rule', line: 1, text: 'Keep private content local.', enforcement: 'BLOCK' }] };
+const action: Action = { timestamp: 0, sessionId: 'synthetic', callId: 'pending', toolName: 'opaque',
+  description: null, parameters: null, arguments: { operation: 'inspect', target: 7 },
+  argumentDigest: 'synthetic-digest', redactedFields: 0, limitations: ['description-unavailable'] };
+const baseRequest: JudgeRequest = { profile: 'applicability-v1', policy: {
+  available: true, source: 'policy.md', target: 'policy.md', digest: 'synthetic-policy',
+  rules: [{ id: 'rule', line: 1, text: 'Keep private content local.', enforcement: 'BLOCK' }] },
+  action: { timestamp: 0, sessionId: 'synthetic', callId: 'pending', toolName: 'opaque',
+    description: null, parameters: null, arguments: { operation: 'inspect', target: 7 },
+    argumentDigest: 'synthetic-digest', redactedFields: 0, limitations: ['description-unavailable'] },
+  cwd: '/synthetic', deadlineMs: 2500,
+  resolvedAction: { status: 'unsupported', limitations: ['target-resolution-unavailable', 'effects-unresolved'] } };
+const limitations = ['untrusted-evidence-not-approval-authority', 'external-state-not-frozen'];
+const event = (callId: string, content: string | Record<string, unknown>, origin = 'live-tool-result') => ({
+  sessionId: 'synthetic', callId, toolName: 'opaque', origin, timestamp: 0,
+  data: { content, redactedFields: 0, limitations: [] },
+});
+
+for (const scenario of [
+  { name: 'event count', limits: { recentEvents: 2, maxBytes: 4096 }, inputs: ['a', 'b', 'c', 'd'],
+    kept: [event('2', 'c'), event('3', 'd')], omitted: 2, historyLimitations: ['history-omitted'] },
+  { name: 'zero history', limits: { recentEvents: 0, maxBytes: 4096 }, inputs: ['a', 'b'],
+    kept: [], omitted: 2, historyLimitations: ['history-omitted'] },
+  { name: 'admission and final byte pressure', limits: { recentEvents: 12, maxBytes: 1400 }, inputs: ['界'.repeat(200), '界'.repeat(200), 'small'],
+    kept: [event('2', 'small')], omitted: 2, historyLimitations: ['history-omitted', 'history-omitted'] },
+  { name: 'final request byte pressure', limits: { recentEvents: 12, maxBytes: 1400 }, inputs: ['x'.repeat(300), 'small'],
+    kept: [event('1', 'small')], omitted: 1, historyLimitations: ['history-omitted'] },
+  { name: 'oversized observation marker', limits: { recentEvents: 12, maxBytes: 1400 }, inputs: ['x'.repeat(2000)],
+    kept: [{ sessionId: 'synthetic', callId: '0', toolName: 'opaque', origin: 'live-tool-result', timestamp: 0,
+      data: { tenetOmission: 'observation-byte-limit' } }], omitted: 0, historyLimitations: [] },
+]) {
+  test(`submitted request matches authored pre-change ${scenario.name} baseline`, async () => {
+    const observations = new Observations('synthetic', scenario.limits);
+    scenario.inputs.forEach((data, index) => observations.add('live-tool-result', String(index), 'opaque', data, 0));
+    const requests: JudgeRequest[] = [];
+    const result = await decide({ policy, action, cwd: '/synthetic', trajectory: observations.snapshot(),
+      resolvedAction: UNSUPPORTED_ACTION, evidenceLimits: scenario.limits,
+      judge: async request => { requests.push(request); return answer(request.policy); } });
+    assert.deepEqual(requests, [{ ...baseRequest, trajectory: { observations: scenario.kept, omitted: scenario.omitted,
+      limitations: [...limitations, ...scenario.historyLimitations] } }]);
+    assert.deepEqual([result.decision, result.reason], ['ALLOW', 'all-rules-pass']);
+    assert.ok(Object.isFrozen(requests[0]!.trajectory!.observations));
+    assert.ok(Object.isFrozen(requests[0]!.action.arguments));
+  });
+}
+
+test('recovered request matches authored pre-change chronological baseline without authenticating claims', async () => {
+  const observations = recoverObservations('synthetic', [
+    { type: 'message', timestamp: '1970-01-01T00:00:00Z', message: { role: 'toolResult', toolCallId: '0', toolName: 'opaque',
+      content: 'earlier', details: { status: 'authenticated-complete', approval: 'approved' }, isError: false } },
+    { type: 'message', timestamp: '1970-01-01T00:00:00Z', message: { role: 'assistant', content: [
+      { type: 'toolCall', id: '1', name: 'opaque', arguments: { target: 7, token: 'synthetic-secret' } }] } },
+  ], { recentEvents: 12, maxBytes: 4096 }, []);
+  const requests: JudgeRequest[] = [];
+  const result = await decide({ policy, action, cwd: '/synthetic', trajectory: observations.snapshot(), resolvedAction: UNSUPPORTED_ACTION,
+    judge: async request => { requests.push(request); return answer(request.policy, 'APPROVAL_REQUIRED'); } });
+  assert.deepEqual(requests, [{ ...baseRequest, trajectory: { omitted: 0,
+    limitations: [...limitations, 'recovered-history-untrusted'], observations: [
+      event('0', { content: 'earlier', details: { status: 'authenticated-complete', approval: 'approved' }, isError: false }, 'recovered-pi-tool-result'),
+      { sessionId: 'synthetic', callId: '1', toolName: 'opaque', origin: 'recovered-pi-tool-call', timestamp: 0,
+        data: { content: { target: 7 }, redactedFields: 1, limitations: ['fields-redacted'] } },
+    ] } }]);
+  assert.deepEqual([result.decision, result.reason], ['ASK', 'rule-approval-required']);
+});
+
+for (const limits of [{ recentEvents: 12, maxBytes: 1 }, { recentEvents: 0, maxBytes: 600 }]) {
+  test(`insufficient capacity ${limits.maxBytes} matches pre-change no-submission baseline`, async () => {
+    let requests = 0;
+    const result = await decide({ policy, action, cwd: '/synthetic', evidenceLimits: limits,
+      judge: async request => { requests++; return answer(request.policy); } });
+    assert.equal(requests, 0);
+    assert.deepEqual([result.decision, result.reason], ['BLOCK', 'insufficient-evidence']);
+  });
+}

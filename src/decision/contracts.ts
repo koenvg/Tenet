@@ -53,6 +53,11 @@ export interface Trajectory {
   observations: readonly Observation[]; omitted: number; limitations: readonly string[];
 }
 export interface EvidenceLimits { recentEvents: number; maxBytes: number }
+/** Host-supplied history is evidence only, never current resolution or permission. */
+export interface HistoryEvent {
+  kind: 'tool-call' | 'tool-result'; callId: string | null; toolName: string | null;
+  data: unknown; timestamp?: number | null;
+}
 export interface Config { effectThreshold: number; evidenceThreshold: number; deadlineMs: number }
 export interface JudgeRequest {
   profile?: import('./assessment-contract.js').AssessmentProfile;

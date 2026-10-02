@@ -1,6 +1,5 @@
 import { isAbsolute } from 'node:path';
 import { freeze } from '../decision/evidence.js';
-import { evidenceWithinBudget } from '../decision/evidence-budget.js';
 import { Observations } from '../decision/trajectory.js';
 import type { Decision } from '../decision/contracts.js';
 import { permissionVeto, type Permission } from '../runtime/consequences.js';
@@ -177,16 +176,7 @@ export function createGuard(options: GuardOptions): Guard {
           if (!readiness.eligible || !readiness.config || activation.refresh() !== 'on') return;
           const config = readiness.config;
           const observations = new Observations(id.sessionId, config.evidence, config.sensitiveFields, ['host-history-untrusted']);
-          // Bound inspection as well as retained bytes. Count exclusions without reading them.
-          const length = history.length;
-          const start = Math.max(0, length - config.evidence.recentEvents);
-          observations.omit(start);
-          for (let index = start; index < length; index++) {
-            const event = history[index];
-            if (!event || !['tool-call', 'tool-result'].includes(event.kind)
-              || !evidenceWithinBudget([event], config.evidence.maxBytes)) { observations.omit(); continue; }
-            observations.add(`host-${event.kind}`, event.callId, event.toolName, event.data, event.timestamp ?? null);
-          }
+          observations.addHistory(history);
           runtime.setObservations(id, observations);
         },
         endTurn() { if (!entry.closed && !closed) runtime.endTurn(id); },

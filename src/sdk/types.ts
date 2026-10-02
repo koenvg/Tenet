@@ -1,4 +1,4 @@
-import type { Decision, Judge, RuleDiagnostic as RuntimeRuleDiagnostic } from '../decision/contracts.js';
+import type { Decision, HistoryEvent, Judge, RuleDiagnostic as RuntimeRuleDiagnostic } from '../decision/contracts.js';
 import type { Approval, ApprovalRequest, Capabilities as RuntimeCapabilities, InvocationIdentity } from '../runtime/guard.js';
 import type { ActionResolver } from '../runtime/resolved-action.js';
 import type { Activation } from '../runtime/activation.js';
@@ -27,10 +27,7 @@ export interface ToolInvocation {
 }
 export interface ToolResult { callId: string; toolName: string; content?: unknown; details?: unknown; isError?: boolean }
 export interface Execution { invocationId?: string; outcome: 'executed' | 'failed' | 'unknown' }
-export interface ObservedHistory {
-  kind: 'tool-call' | 'tool-result'; callId: string | null; toolName: string | null;
-  data: unknown; timestamp?: number | null;
-}
+export interface ObservedHistory extends HistoryEvent {}
 export type RuleDiagnostic = Readonly<Omit<RuntimeRuleDiagnostic, 'gates'>> & {
   readonly gates: readonly RuntimeRuleDiagnostic['gates'][number][];
 };
