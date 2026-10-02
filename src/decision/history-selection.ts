@@ -1,6 +1,6 @@
 import type { EvidenceLimits, HistoryEvent, HistorySelection, JudgeRequest, Observation, Trajectory } from './contracts.js';
 import { freeze } from './evidence.js';
-import { prepareContent, type HistoryContent } from './history-content.js';
+import { prepareContent, compactHistory, type HistoryContent } from './history-content.js';
 import { captureObservation, historySlot, ownHistoryFields, type ObservationEnvelope } from './history-envelope.js';
 
 export const EVIDENCE_DEFAULTS: Readonly<EvidenceLimits> = Object.freeze({ recentEvents: 12, maxBytes: 24 * 1024 });
@@ -16,9 +16,8 @@ function captureEvent(event: ObservationEnvelope, content: HistoryContent): Obse
   return captured;
 }
 
-/** One current selector for both admission and final preparation. FIFO is intentional;
- * duplicate pooling and recorded call/result group retention are separate dependent work.
- */
+/** One current admission/final selector. Exact compaction precedes FIFO byte eviction;
+ * recorded call/result group retention belongs to TENET-25. */
 function selectHistory(source: Trajectory, limits: EvidenceLimits, maxHistoryBytes: number): Trajectory | null {
   const old = selections.get(source);
   let droppedEvents = old?.droppedEvents ?? 0;
@@ -41,13 +40,24 @@ function selectHistory(source: Trajectory, limits: EvidenceLimits, maxHistoryByt
     if (content) observations.push(captureEvent(captured.envelope, content)); else droppedEvents++;
   }
   const snapshot = (): Trajectory => {
-    const selection: HistorySelection = { version: 'bounded-history-v2', maxHistoryBytes, maxEventBytes,
+    const summary: HistorySelection = { version: 'bounded-history-v2', maxHistoryBytes, maxEventBytes,
       retainedEvents: observations.length, shortenedEvents: observations.filter(event => contents.get(event)?.shortened).length,
       droppedEvents, priorOmittedEvents, exactCompactedBytes: 0 };
-    const trajectory = freeze({ observations: [...observations], omitted: droppedEvents + priorOmittedEvents,
+    const envelope = { omitted: droppedEvents + priorOmittedEvents,
       limitations: [...source.limitations, ...((droppedEvents || priorOmittedEvents) && !source.limitations.includes('history-omitted') ? ['history-omitted'] : []),
         ...(observations.some(event => event.timestamp === null || event.callId === null || event.toolName === null)
-          && !source.limitations.includes('metadata-unavailable') ? ['metadata-unavailable'] : [])], selection });
+          && !source.limitations.includes('metadata-unavailable') ? ['metadata-unavailable'] : [])] };
+    const compacted = compactHistory(observations.map(event => contents.get(event)!), (data, values) => ({
+      observations: observations.map((event, index) => ({ ...event, data: data[index]! })), ...envelope,
+      selection: summary, ...(values ? { values } : {}) }));
+    const selection = { ...summary, exactCompactedBytes: compacted.savedBytes };
+    const encoded = observations.map((event, index) => {
+      const copy = freeze({ ...event, data: compacted.data[index]! });
+      contents.set(copy, contents.get(event)!);
+      return copy;
+    });
+    const trajectory = freeze({ observations: encoded, ...envelope, selection,
+      ...(compacted.values ? { values: compacted.values } : {}) });
     selections.set(trajectory, selection);
     return trajectory;
   };

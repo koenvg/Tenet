@@ -60,8 +60,9 @@ test('schema-4 v2 diagnostic validates matching loss counters and effective byte
       maxHistoryBytes: 8192, maxEventBytes: 2048, shortenedEvents: 1, droppedEvents: 1, priorOmittedEvents: 1,
       exactCompactedBytes: 0, limitations: [], limitationsTruncated: false } };
   assert.equal(validRecord(row(4, { decision: 'BLOCK', evidenceContext: context })), true);
+  assert.equal(validRecord(row(4, { decision: 'BLOCK', evidenceContext: { ...context, history: { ...context.history, exactCompactedBytes: 5000 } } })), true);
   for (const change of [{ maxHistoryBytes: 8193 }, { maxEventBytes: 2049 }, { retainedBytes: 8193 },
-    { shortenedEvents: 2 }, { droppedEvents: 3 }, { priorOmittedEvents: -1 }]) {
+    { shortenedEvents: 2 }, { droppedEvents: 3 }, { priorOmittedEvents: -1 }, { exactCompactedBytes: -1 }, { exactCompactedBytes: 0.5 }]) {
     assert.equal(validRecord(row(4, { decision: 'BLOCK', evidenceContext: { ...context, history: { ...context.history, ...change } } })), false);
   }
   const request: any = { ...row(4, { evidenceContext: context, selectionVersion: 'bounded-history-v1',
@@ -140,4 +141,27 @@ test('historical raw requests and thresholds remain exactly recorded beside abse
   assert.equal(view.config.effectThreshold, .73);
   assert.equal(view.evidenceContext, null);
   assert.equal(JSON.stringify([begin, request]), before);
+});
+
+
+test('historical schema-4 v2 inline requests stay literal and retain zero savings and recorded questions', () => {
+  const context = { ...UNAVAILABLE_EVIDENCE_CONTEXT, preparation: 'completed',
+    resolution: { status: 'unsupported', limitations: [], limitationsTruncated: false },
+    current: { redactedFields: 0, limitations: [], limitationsTruncated: false },
+    history: { recentEvents: 12, maxBytes: 24576, retainedEvents: 2, retainedBytes: 2000, omittedEvents: 0,
+      maxHistoryBytes: 8192, maxEventBytes: 2048, shortenedEvents: 0, droppedEvents: 0, priorOmittedEvents: 0,
+      exactCompactedBytes: 0, limitations: [], limitationsTruncated: false } };
+  const payload = { model: 'historical-inline-model', questions: { original: { instructions: 'TENET-23 inline excerpt instructions' } },
+    state: { action: {}, policy: { rules: [] }, context: {}, integrity: {}, trajectory: { observations: [0, 1].map(i => ({
+      sessionId: 's', callId: String(i), toolName: 'opaque', origin: 'authored', timestamp: i,
+      data: { content: { text: 'not compacted historically '.repeat(25), tenetHistory: { ref: 'literal authored' } } },
+    })), omitted: 0, limitations: [] } } };
+  const record: any = { ...row(4, { payload, evidenceContext: context, selectionVersion: 'bounded-history-v2',
+    policy: { rules: [] }, mapping: [], questionVersion: 'policy-rules-v7-evidence-selection' }), stage: 'request' };
+  const wire = JSON.stringify(record);
+  assert.equal(validRecord(record), true);
+  const view = invocationView([record]);
+  assert.deepEqual(view.evidence, payload.state); assert.deepEqual(view.evidenceContext, context);
+  assert.equal(view.evidenceContext!.history!.exactCompactedBytes, 0);
+  assert.equal(JSON.stringify(record), wire);
 });

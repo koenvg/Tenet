@@ -9,6 +9,7 @@ import { invocationView } from '../src/inspector/view.js';
 import { answer } from './helpers.js';
 import { guardHarness } from './guard-harness.js';
 
+import { expandedData } from './exact-history-fixture.js';
 function resolver(coverage: 'partial' | 'complete'): ActionResolver {
   let facts: ActionFacts;
   return { id: 'offline', version: '1', semantics: ['file-read'], resolve: async ({ binding }) => (facts = {
@@ -31,7 +32,11 @@ for (const mode of ['enforce', 'observe'] as const) for (const recording of ['on
         onOwnerRecord: r => records.push(r), onOwnerEvent: e => { events.push(e); if (e.type === 'assessment' && e.assessment.status !== 'pending') throw new Error('listener fails offline'); } });
       try {
         const session = guard.openSession({ sessionId: 's', contextId: 'main' }, cwd); await session.ready;
-        session.setHistory([{ kind: 'tool-result', callId: 'old', toolName: 'unknown-name', data: { token: 'canary', text: 'HEAD ' + '界🙂'.repeat(10000) + ' TAIL' } }]);
+        const label = 'complete sanitized label '.repeat(24);
+        session.setHistory([
+          { kind: 'tool-call', callId: 'old-call', toolName: 'unknown-name', timestamp: 1, data: { token: 'canary', label, text: 'HEAD ' + '界🙂'.repeat(10000) + ' TAIL' } },
+          { kind: 'tool-result', callId: 'old-result', toolName: 'other-name', timestamp: 2, data: { token: 'canary', label, text: 'AbCd│HEAD ' + '界🙂'.repeat(10000) + ' TAIL' } },
+        ]);
         const call = { callId: 'c', toolName: 'unknown-name', input: { password: 'canary', value: 1 } };
         const result = await session.beforeTool({ ...call, current: () => ({ ...call, sessionId: 's', contextId: 'main' }) });
         assert.equal(result.permission, mode === 'observe' ? 'released' : 'blocked');
@@ -49,9 +54,12 @@ for (const mode of ['enforce', 'observe'] as const) for (const recording of ['on
         assert.deepEqual(details.evidenceContext, captured.evidenceContext);
         assert.deepEqual(event.report?.evidenceContext, captured.evidenceContext);
         assert.equal(details.evidenceContext?.resolution.status, coverage === 'unsupported' ? coverage : `authenticated-${coverage}`);
-        assert.equal(details.evidenceContext?.history?.retainedEvents, 1);
-        assert.equal(details.evidenceContext?.history?.shortenedEvents, 1);
-        assert.equal(details.evidenceContext?.history?.exactCompactedBytes, 0);
+        assert.equal(details.evidenceContext?.history?.retainedEvents, 2);
+        assert.equal(details.evidenceContext?.history?.shortenedEvents, 2);
+        assert.ok(details.evidenceContext!.history!.exactCompactedBytes > 0);
+        assert.deepEqual(captured.trajectory.values, { v0: label });
+        assert.deepEqual(expandedData(captured.trajectory).map((data: any) => data.content.label), [label, label]);
+        assert.ok(expandedData(captured.trajectory).every((data: any) => Buffer.byteLength(JSON.stringify(data)) <= 2048));
         assert.equal(details.evidenceContext?.history?.maxHistoryBytes, 8192);
         assert.ok((details.evidenceContext?.history?.retainedBytes ?? Infinity) <= 8192);
         assert.ok(Buffer.byteLength(JSON.stringify(captured.trajectory.observations[0].data)) <= 2048);

@@ -52,11 +52,16 @@ export interface Observation {
 export interface Trajectory {
   observations: readonly Observation[]; omitted: number; limitations: readonly string[];
   selection?: HistorySelection;
+  /** Runtime-encoded sanitized strings, local to this immutable snapshot. */
+  values?: Readonly<Record<string, string>>;
 }
 export interface HistorySelection {
   readonly version: 'bounded-history-v2'; readonly maxHistoryBytes: number; readonly maxEventBytes: number;
   readonly retainedEvents: number; readonly shortenedEvents: number; readonly droppedEvents: number;
-  readonly priorOmittedEvents: number; readonly exactCompactedBytes: number;
+  readonly priorOmittedEvents: number;
+  /** Serialized bytes saved versus the same retained, escaped inline snapshot,
+   * with identical selection metadata. Never counts excerpts or dropped events. */
+  readonly exactCompactedBytes: number;
 }
 export interface EvidenceLimits { recentEvents: number; maxBytes: number }
 /** Host-supplied history is evidence only, never current resolution or permission. */

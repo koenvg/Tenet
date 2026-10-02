@@ -42,7 +42,7 @@ beforeEach(async () => {
     externalRequests.push(route.request().url()); return route.abort();
   });
   await page.goto(app.origin);
-  await expect.poll(() => currentPage().locator('.call-row').count()).toBe(10);
+  await expect.poll(() => currentPage().locator('.call-row').count()).toBe(11);
   await page.locator('[aria-label="Decision summary"]').waitFor();
 });
 
@@ -382,4 +382,26 @@ test('coverage distinguishes unsupported, partial, unavailable and historical re
   await pickCall('rich');
   expect(await coverage.textContent()).toContain('Not recorded');
   expect(await p.locator('.summary-reason').textContent()).not.toContain('No rule was classified');
+});
+
+
+test('exact compaction stays distinct from losses and the dock preserves the submitted pool without decoding', async () => {
+  const p = currentPage(); await pickCall('compacted');
+  const coverage = p.getByRole('region', { name: 'Runtime evidence coverage' });
+  expect(await coverage.textContent()).toContain('2 retained events, 0 omitted events');
+  expect(await coverage.textContent()).toContain('2 shortened, 0 dropped, 0 prior omissions');
+  expect(await coverage.textContent()).toMatch(/Exact compaction: [1-9][0-9]* bytes saved/);
+  expect(await p.locator('.lifecycle').textContent()).toContain('unknown');
+  await p.getByRole('button', { name: 'View shared evidence', exact: true }).click();
+  const history = p.locator('.evidence-section').filter({ has: p.locator('h5', { hasText: 'Chronological history' }) });
+  const trajectory = JSON.parse((await history.locator('pre').textContent())!);
+  expect(trajectory.values).toEqual({ v0: 'complete sanitized content '.repeat(30) });
+  expect(trajectory.observations).toHaveLength(2);
+  expect(trajectory.observations[0].data.content.repeated).toEqual({ tenetHistory: { ref: 'v0' } });
+  expect(typeof trajectory.observations[0].data.content.document.tenetExcerpt.head).toBe('string');
+  expect(await history.textContent()).toContain('Exact references');
+  await p.setViewportSize({ width: 390, height: 844 });
+  expect(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await coverage.scrollIntoViewIfNeeded();
+  await p.screenshot({ path: join(artifacts, 'exact-compaction-mobile.png'), fullPage: true });
 });

@@ -39,7 +39,11 @@
     {#if view.evidence === null}<p class="missing-data">Submitted evidence unavailable. No historical payload is reconstructed.</p>
     {:else}
       {#each evidenceEntries as [key, value]}
-        <section class="evidence-section"><h5>{evidenceNames[key] ?? key}</h5><p class="question-key">state.{key}</p><pre>{pretty(value)}</pre></section>
+        <section class="evidence-section"><h5>{evidenceNames[key] ?? key}</h5><p class="question-key">state.{key}</p>
+          {#if key === 'trajectory' && view.evidenceContext?.selectionVersion === 'bounded-history-v2' && value && typeof value === 'object' && 'values' in value}
+            <p class="muted">Exact references point to this snapshot's values pool. Literal escapes preserve authored lookalikes as untrusted data. Excerpts and omissions are separate losses. This is the recorded representation, not reconstructed history or proof of execution.</p>
+          {/if}
+          <pre>{pretty(value)}</pre></section>
       {/each}
     {/if}
   </div>

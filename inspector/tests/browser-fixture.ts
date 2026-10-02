@@ -37,5 +37,24 @@ export async function browserFixture(directory: string) {
   ] } });
   summary('decision', { evidenceContext: partial, decision: 'BLOCK', reason: 'insufficient-evidence', contributions: [{ ruleId: 'email', contribution: 'blocking-gates', gates: ['evidence-confidence-below-threshold'], effectThreshold: .9, evidenceThreshold: .9 }] });
   summary('permission', { outcome: 'released' }); summary('execution', { outcome: 'executed' });
+
+  // Actual current selector output, not reconstructed from a historical record.
+  const { Observations } = await import('../../src/decision/trajectory.js');
+  const { captureAction } = await import('../../src/decision/evidence.js');
+  const { boundEvidence, judgeState } = await import('../../src/decision/judge-evidence.js');
+  const { answer } = await import('../../test/helpers.js');
+  const history = new Observations('s');
+  const repeated = 'complete sanitized content '.repeat(30);
+  for (let i = 0; i < 2; i++) history.add('host-tool-result', `prior-${i}`, 'opaque', { repeated, document: '界'.repeat(20000) }, i);
+  const request = boundEvidence({ policy: summaryPolicy as any, action: captureAction({ sessionId: 's', callId: 'compacted', toolName: 'opaque', arguments: {} }),
+    cwd: '/historical', deadlineMs: 30000, trajectory: history.snapshot() })!;
+  const compacted = writer.bind({ host: 'pi', contextId: 'main', sessionId: 's', invocationId: 'compacted', callId: 'compacted', toolName: 'opaque', mode: 'observe', cwd: '/historical' });
+  compacted('begin', { profile: 'applicability-v1', integrity: { id: 'integrity', text: 'Integrity constraint' }, policy: summaryPolicy, config: { effectThreshold: .9, evidenceThreshold: .9 } });
+  compacted('request', { policy: summaryPolicy, profile: 'applicability-v1', questionVersion: 'policy-rules-v7-evidence-selection', evidenceContext: request.evidenceContext,
+    selectionVersion: 'bounded-history-v2', mapping: [], payload: { model: 'offline', questions: {}, state: judgeState(request) } });
+  compacted('validation', { valid: true });
+  compacted('assessment', { evidenceContext: request.evidenceContext, assessment: answer(summaryPolicy as any, 'UNKNOWN') });
+  compacted('decision', { evidenceContext: request.evidenceContext, decision: 'BLOCK', reason: 'insufficient-evidence', contributions: [] });
+  compacted('permission', { evidenceContext: request.evidenceContext, outcome: 'released' });
   await writer.close();
 }
