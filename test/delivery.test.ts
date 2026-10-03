@@ -2,8 +2,26 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, writeFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
+import { join, dirname, relative } from 'node:path';
 import { assertDelivery, deliveryManifest, runtimeModules, documentFiles } from '../scripts/delivery-contract.js';
+import ts from 'typescript';
+import { fileURLToPath } from 'node:url';
+
+// Compiler reachability is an independent check, never an automatically admitted file list.
+test('the reviewed delivery list matches the production TypeScript source graph', () => {
+  const repository = fileURLToPath(new URL('..', import.meta.url));
+  const configPath = join(repository, 'tsconfig.delivery.json');
+  const config = ts.readConfigFile(configPath, ts.sys.readFile);
+  assert.equal(config.error, undefined);
+  const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, repository);
+  assert.deepEqual(parsed.errors, []);
+  assert.ok(parsed.options.rootDir, 'delivery compilation must have a source root');
+  const program = ts.createProgram(parsed.fileNames, parsed.options);
+  const modules = program.getSourceFiles().filter(source => !source.isDeclarationFile && !program.isSourceFileFromExternalLibrary(source))
+    .map(source => relative(parsed.options.rootDir!, source.fileName).replace(/\.ts$/, ''));
+  assert.deepEqual([...runtimeModules].sort(), modules.sort(),
+    'review source graph changes and explicitly update the closed delivery list');
+});
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'tenet-delivery-contract-'));

@@ -212,7 +212,7 @@ test('real archive filters overlapping categories, expands grouped calls and war
   await withInspector('triage-browser', async ({ page, app, open }) => {
     await page.locator('.invocation').waitFor();
     const status = await (await fetch(`${app.origin}/api/status`)).json();
-    expect(status.reader.supportedSchemas).toEqual([1, 2, 3]);
+    expect(status.reader.supportedSchemas).toEqual([1, 2, 3, 4]);
     expect(status.reader.unsupported).toBe(1);
     expect(status.reader.newerUnsupported).toBe(1);
     expect(status.reader.build).toMatch(/^tenet-reader-/);
@@ -280,7 +280,7 @@ test('real archive filters overlapping categories, expands grouped calls and war
       sink('execution', { outcome: 'executed' });
     }
     await writer.close();
-    await writeFile(join(directory, key, 'newer.json'), JSON.stringify({ schemaVersion: 4 }), { mode: 0o600 });
+    await writeFile(join(directory, key, 'newer.json'), JSON.stringify({ schemaVersion: 5 }), { mode: 0o600 });
   } });
 });
 

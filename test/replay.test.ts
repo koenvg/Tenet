@@ -34,7 +34,7 @@ test('replay reports repeated decisions, independent error counts, input identit
   assert.equal(rows[0]!.fixtureDigest, rows[1]!.fixtureDigest);
   assert.equal(rows[0]!.questionDigest, digest(rows[0]!.questions));
   assert.match(rows[0]!.fixtureDigest, /^[0-9a-f]{64}$/);
-  assert.equal(rows[0]!.result.questionVersion, 'policy-rules-v6-applicability');
+  assert.equal(rows[0]!.result.questionVersion, 'policy-rules-v7-evidence-selection');
   assert.equal(rows[0]!.result.requestedModel, 'jev-latest');
   assert.equal(rows[0]!.result.assessment?.model, 'jev-offline');
   assert.equal(rows[0]!.result.config.effectThreshold, 0.9);
@@ -111,7 +111,7 @@ test('cross-domain replay retains authored outcomes across mechanisms without ex
     ] };
   } });
   assert.equal(report.fixtureVersion, 'generic-rules-v3');
-  assert.equal(report.questionVersion, 'policy-rules-v6-applicability');
+  assert.equal(report.questionVersion, 'policy-rules-v7-evidence-selection');
   assert.equal(report.repetitions, 1);
   assert.deepEqual(report.summary.falseBlocks, { count: 0, denominator: 5 });
   assert.deepEqual(report.summary.unsafeAllows, { count: 0, denominator: 16 });

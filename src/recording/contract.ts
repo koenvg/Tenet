@@ -1,7 +1,8 @@
+import { validEvidenceContext } from '../decision/evidence-context-contract.js';
 // Recording is a one-way diagnostic channel, never a decision input.
-export const SCHEMA_VERSION = 3;
-// Reader preserves historical schema-1 and schema-2 records.
-export const READER_SCHEMAS = [1, 2, 3] as const;
+export const SCHEMA_VERSION = 4;
+// Readers preserve original payloads from historical schemas.
+export const READER_SCHEMAS = [1, 2, 3, 4] as const;
 export const STAGES = ['begin', 'request', 'response', 'validation', 'assessment', 'assessment-status', 'decision', 'approval', 'permission', 'execution', 'health'] as const;
 export type Stage = typeof STAGES[number];
 export type RecordingSink = (stage: Stage, data: Record<string, unknown>) => void;
@@ -17,7 +18,7 @@ export type HostIdentity = { host: string; contextId: string };
 export type ArchiveRecord = RecordingIdentity & {
   writerId: string; sequence: number; eventId: string;
   timestamp: number; stage: Stage; data: Record<string, unknown>;
-} & ({ schemaVersion: 1; host?: never; contextId?: never } | { schemaVersion: 2 | 3; host: string; contextId: string });
+} & ({ schemaVersion: 1; host?: never; contextId?: never } | { schemaVersion: 2 | 3 | 4; host: string; contextId: string });
 export function capture(sink: RecordingSink | undefined, stage: Stage, data: () => Record<string, unknown>): void {
   try { sink?.(stage, data()); } catch { /* A diagnostic callback cannot affect the caller. */ }
 }
@@ -55,6 +56,9 @@ function object(value: unknown): value is Record<string, unknown> {
 }
 function validStage(r: ArchiveRecord): boolean {
   const d = r.data;
+  if (r.schemaVersion === 4 && ['request', 'assessment', 'decision', 'permission', 'assessment-status'].includes(r.stage)
+    && !validEvidenceContext(d.evidenceContext)) return false;
+  if (r.schemaVersion === 4 && r.stage === 'request' && d.selectionVersion !== (d.evidenceContext as { selectionVersion: string }).selectionVersion) return false;
   switch (r.stage) {
     case 'request': {
       const p = d.payload;
@@ -67,7 +71,7 @@ function validStage(r: ArchiveRecord): boolean {
     case 'response': return d.unavailable === true || (Number.isSafeInteger(d.bytes) && (d.bytes as number) >= 0
       && (d.truncated === true ? typeof d.preview === 'string' : d.truncated === false && Object.hasOwn(d, 'value')));
     case 'validation': return typeof d.valid === 'boolean';
-    case 'assessment-status': return r.schemaVersion === 3 && ['pending', 'completed', 'unavailable', 'dropped', 'cancelled'].includes(d.status as string)
+    case 'assessment-status': return r.schemaVersion >= 3 && ['pending', 'completed', 'unavailable', 'dropped', 'cancelled'].includes(d.status as string)
       && (d.reason === undefined || (typeof d.reason === 'string' && d.reason.length <= 256))
       && (d.profile === undefined || (typeof d.profile === 'string' && d.profile.length > 0 && d.profile.length <= 128));
     case 'decision': return ['ALLOW', 'ASK', 'BLOCK'].includes(d.decision as string);
@@ -82,7 +86,7 @@ export function validRecord(value: unknown): value is ArchiveRecord {
   if (!value || typeof value !== 'object') return false;
   const r = value as ArchiveRecord;
   return (r.schemaVersion === 1 && r.host === undefined && r.contextId === undefined && r.bbThreadId === undefined
-    || (r.schemaVersion === 2 || r.schemaVersion === 3) && typeof r.host === 'string' && r.host.length > 0 && r.host.length <= 256
+    || (r.schemaVersion === 2 || r.schemaVersion === 3 || r.schemaVersion === 4) && typeof r.host === 'string' && r.host.length > 0 && r.host.length <= 256
       && typeof r.contextId === 'string' && r.contextId.length > 0 && r.contextId.length <= 256
       && (r.schemaVersion === 2 ? r.bbThreadId === undefined
         : r.bbThreadId === undefined || typeof r.bbThreadId === 'string' && /^thr_[a-z0-9]{8,64}$/.test(r.bbThreadId))) && STAGES.includes(r.stage)

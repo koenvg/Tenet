@@ -18,7 +18,7 @@ const STAGES = ['begin', 'request', 'response', 'validation', 'assessment', 'dec
 /** Allowlisted owner projection: never send actions, evidence, provider responses or cwd to BB. */
 export function projectThreadFinding(records: ArchiveRecord[], id: string, threadId: string): { item: ThreadFinding | null; gaps: string[] } {
   const gaps: string[] = [];
-  if (!records.length || records.some(r => r.schemaVersion !== 3 || r.host !== 'pi' || r.bbThreadId !== threadId))
+  if (!records.length || records.some(r => ![3, 4].includes(r.schemaVersion) || r.host !== 'pi' || r.bbThreadId !== threadId))
     return { item: null, gaps: ['detail-unavailable'] };
   const stage = (name: string) => object(records.findLast(r => r.stage === name)?.data);
   const facts = foldFindingStages(records.map(findingStage));

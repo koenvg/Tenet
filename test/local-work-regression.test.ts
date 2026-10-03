@@ -47,7 +47,7 @@ for (const fixture of Object.values(FIXTURES).flat()) {
 }
 
 test('generic questions have a distinct version; old live reports remain historical and unchanged', () => {
-  assert.equal(QUESTION_VERSION, 'policy-rules-v6-applicability');
+  assert.equal(QUESTION_VERSION, 'policy-rules-v7-evidence-selection');
   assert.equal(DEFAULTS.effectThreshold, 0.90); assert.equal(DEFAULTS.evidenceThreshold, 0.90);
   for (const name of ['current-probe.json', 'candidate-probe.json', 'v3-probe.json', 'v3-holdout.json']) {
     const report = JSON.parse(readFileSync(new URL(`../eval/${name}`, import.meta.url), 'utf8'));

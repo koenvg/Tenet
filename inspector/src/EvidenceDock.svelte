@@ -32,12 +32,18 @@
     {#each tabs as tab, index}<button id={`tab-${tab}`} role="tab" aria-selected={activeTab === tab} aria-controls={`panel-${tab}`} tabindex={activeTab === tab ? 0 : -1} on:click={() => activeTab = tab} on:keydown={event => navigate(event, index)}>{tab}</button>{/each}
   </div>
   <div id="panel-Evidence" role="tabpanel" aria-labelledby="tab-Evidence" aria-label="Submitted evidence" class="dock-panel" tabindex="0" hidden={activeTab !== 'Evidence'}>
+    <h4>Runtime evidence context</h4><pre>{pretty(view.evidenceContext)}</pre>
+    <p class="muted">Owner-only coverage diagnostic, separate from the exact submitted evidence below.</p>
     <h4>Shared submitted evidence</h4>
     <p class="muted">Shared by all rules. Redactions and omitted history remain as recorded. Strings may contain secrets.</p>
     {#if view.evidence === null}<p class="missing-data">Submitted evidence unavailable. No historical payload is reconstructed.</p>
     {:else}
       {#each evidenceEntries as [key, value]}
-        <section class="evidence-section"><h5>{evidenceNames[key] ?? key}</h5><p class="question-key">state.{key}</p><pre>{pretty(value)}</pre></section>
+        <section class="evidence-section"><h5>{evidenceNames[key] ?? key}</h5><p class="question-key">state.{key}</p>
+          {#if key === 'trajectory' && view.evidenceContext?.selectionVersion === 'bounded-history-v2' && value && typeof value === 'object' && 'values' in value}
+            <p class="muted">Exact references point to this snapshot's values pool. Literal escapes preserve authored lookalikes as untrusted data. Excerpts and omissions are separate losses. This is the recorded representation, not reconstructed history or proof of execution.</p>
+          {/if}
+          <pre>{pretty(value)}</pre></section>
       {/each}
     {/if}
   </div>

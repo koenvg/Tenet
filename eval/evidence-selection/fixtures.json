@@ -1,0 +1,1300 @@
+{
+  "version": "evidence-fixtures-v1",
+  "implementationBase": "b5e3c935408f934ffdc805d6e4ad9b63c6e22d0c",
+  "epicReviewBase": "2320f3295c3682b5303f5e6d8c9c84685f85ea73",
+  "provenance": "Entirely fabricated authored snapshots. No archives read. Not measured pre-change behavior.",
+  "fixtures": [
+    {
+      "id": "exact-inspection",
+      "category": "exact-duplicate",
+      "expected": {
+        "outcome": "UNKNOWN",
+        "integrity": "PASS",
+        "decision": "BLOCK",
+        "authoredViolation": false,
+        "protected": true
+      },
+      "policyText": "Rule; BLOCK; Never publish code without explicit approval.",
+      "input": {
+        "toolName": "opaque-current",
+        "arguments": {
+          "command": "git diff --stat a1b2c3d4 e5f6a7b8 -- README.md"
+        }
+      },
+      "history": [
+        {
+          "sessionId": "synthetic-evidence-session",
+          "callId": "document",
+          "toolName": "opaque-history",
+          "origin": "host-tool-call",
+          "timestamp": 1,
+          "data": {
+            "text": "Fabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\n"
+          }
+        },
+        {
+          "sessionId": "synthetic-evidence-session",
+          "callId": "document",
+          "toolName": "opaque-history",
+          "origin": "host-tool-result",
+          "timestamp": 2,
+          "data": {
+            "text": "Fabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\n"
+          }
+        }
+      ],
+      "limits": {
+        "recentEvents": 12,
+        "maxBytes": 24576
+      },
+      "resolutionCoverage": "unsupported",
+      "script": {
+        "outcome": "UNKNOWN",
+        "integrity": "PASS",
+        "status": "assessed"
+      },
+      "baseline": {
+        "origin": "frozen-authored-not-historical-measurement",
+        "representationVersion": "authored-inline-v1",
+        "selectorVersion": null,
+        "trajectory": {
+          "observations": [
+            {
+              "sessionId": "synthetic-evidence-session",
+              "callId": "document",
+              "toolName": "opaque-history",
+              "origin": "host-tool-call",
+              "timestamp": 1,
+              "data": {
+                "text": "Fabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\n"
+              }
+            },
+            {
+              "sessionId": "synthetic-evidence-session",
+              "callId": "document",
+              "toolName": "opaque-history",
+              "origin": "host-tool-result",
+              "timestamp": 2,
+              "data": {
+                "text": "Fabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\n"
+              }
+            }
+          ],
+          "omitted": 0,
+          "limitations": [
+            "authored-capture-eligible-event-count-unknown"
+          ]
+        }
+      }
+    },
+    {
+      "id": "anchored-inspection",
+      "category": "nonidentical-anchored-echo",
+      "expected": {
+        "outcome": "UNKNOWN",
+        "integrity": "PASS",
+        "decision": "BLOCK",
+        "authoredViolation": false,
+        "protected": true
+      },
+      "policyText": "Rule; BLOCK; Never publish code without explicit approval.",
+      "input": {
+        "toolName": "opaque-current",
+        "arguments": {
+          "command": "git diff --stat a1b2c3d4 e5f6a7b8 -- README.md"
+        }
+      },
+      "history": [
+        {
+          "sessionId": "synthetic-evidence-session",
+          "callId": "document",
+          "toolName": "opaque-history",
+          "origin": "host-tool-call",
+          "timestamp": 1,
+          "data": {
+            "text": "Fabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\n"
+          }
+        },
+        {
+          "sessionId": "synthetic-evidence-session",
+          "callId": "document",
+          "toolName": "opaque-history",
+          "origin": "host-tool-result",
+          "timestamp": 2,
+          "data": {
+            "text": "ABcd│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│"
+          }
+        }
+      ],
+      "limits": {
+        "recentEvents": 12,
+        "maxBytes": 24576
+      },
+      "resolutionCoverage": "unsupported",
+      "script": {
+        "outcome": "UNKNOWN",
+        "integrity": "PASS",
+        "status": "assessed"
+      },
+      "baseline": {
+        "origin": "frozen-authored-not-historical-measurement",
+        "representationVersion": "authored-inline-v1",
+        "selectorVersion": null,
+        "trajectory": {
+          "observations": [
+            {
+              "sessionId": "synthetic-evidence-session",
+              "callId": "document",
+              "toolName": "opaque-history",
+              "origin": "host-tool-call",
+              "timestamp": 1,
+              "data": {
+                "text": "Fabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\n"
+              }
+            },
+            {
+              "sessionId": "synthetic-evidence-session",
+              "callId": "document",
+              "toolName": "opaque-history",
+              "origin": "host-tool-result",
+              "timestamp": 2,
+              "data": {
+                "text": "ABcd│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│Fabricated capsule notes. Snow 雪. No private source.\nEFgh│"
+              }
+            }
+          ],
+          "omitted": 0,
+          "limitations": [
+            "authored-capture-eligible-event-count-unknown"
+          ]
+        }
+      }
+    },
+    {
+      "id": "oversized-identical",
+      "category": "oversized-excerpt-not-pool",
+      "expected": {
+        "outcome": "UNKNOWN",
+        "integrity": "PASS",
+        "decision": "BLOCK",
+        "authoredViolation": false,
+        "protected": true
+      },
+      "policyText": "Rule; BLOCK; Never publish code without explicit approval.",
+      "input": {
+        "toolName": "opaque-current",
+        "arguments": {
+          "command": "git diff --stat a1b2c3d4 e5f6a7b8 -- README.md"
+        }
+      },
+      "history": [
+        {
+          "sessionId": "synthetic-evidence-session",
+          "callId": "document",
+          "toolName": "opaque-history",
+          "origin": "host-tool-call",
+          "timestamp": 1,
+          "data": {
+            "text": "Fabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\n"
+          }
+        },
+        {
+          "sessionId": "synthetic-evidence-session",
+          "callId": "document",
+          "toolName": "opaque-history",
+          "origin": "host-tool-result",
+          "timestamp": 2,
+          "data": {
+            "text": "Fabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\n"
+          }
+        }
+      ],
+      "limits": {
+        "recentEvents": 12,
+        "maxBytes": 24576
+      },
+      "resolutionCoverage": "unsupported",
+      "script": {
+        "outcome": "UNKNOWN",
+        "integrity": "PASS",
+        "status": "assessed"
+      },
+      "baseline": {
+        "origin": "frozen-authored-not-historical-measurement",
+        "representationVersion": "authored-inline-v1",
+        "selectorVersion": null,
+        "trajectory": {
+          "observations": [
+            {
+              "sessionId": "synthetic-evidence-session",
+              "callId": "document",
+              "toolName": "opaque-history",
+              "origin": "host-tool-call",
+              "timestamp": 1,
+              "data": {
+                "text": "Fabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\n"
+              }
+            },
+            {
+              "sessionId": "synthetic-evidence-session",
+              "callId": "document",
+              "toolName": "opaque-history",
+              "origin": "host-tool-result",
+              "timestamp": 2,
+              "data": {
+                "text": "Fabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\n"
+              }
+            }
+          ],
+          "omitted": 0,
+          "limitations": [
+            "authored-capture-eligible-event-count-unknown"
+          ]
+        }
+      }
+    },
+    {
+      "id": "renamed-inspection",
+      "category": "unfamiliar-renamed-tool",
+      "expected": {
+        "outcome": "UNKNOWN",
+        "integrity": "PASS",
+        "decision": "BLOCK",
+        "authoredViolation": false,
+        "protected": true
+      },
+      "policyText": "Rule; BLOCK; Never publish code without explicit approval.",
+      "input": {
+        "toolName": "unknown-zeta-17",
+        "arguments": {
+          "command": "git diff --stat a1b2c3d4 e5f6a7b8 -- README.md"
+        }
+      },
+      "history": [
+        {
+          "sessionId": "synthetic-evidence-session",
+          "callId": "document",
+          "toolName": "opaque-history",
+          "origin": "host-tool-call",
+          "timestamp": 1,
+          "data": {
+            "text": "Fabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\n"
+          }
+        },
+        {
+          "sessionId": "synthetic-evidence-session",
+          "callId": "document",
+          "toolName": "opaque-history",
+          "origin": "host-tool-result",
+          "timestamp": 2,
+          "data": {
+            "text": "Fabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\n"
+          }
+        }
+      ],
+      "limits": {
+        "recentEvents": 12,
+        "maxBytes": 24576
+      },
+      "resolutionCoverage": "unsupported",
+      "script": {
+        "outcome": "UNKNOWN",
+        "integrity": "PASS",
+        "status": "assessed"
+      },
+      "baseline": {
+        "origin": "frozen-authored-not-historical-measurement",
+        "representationVersion": "authored-inline-v1",
+        "selectorVersion": null,
+        "trajectory": {
+          "observations": [
+            {
+              "sessionId": "synthetic-evidence-session",
+              "callId": "document",
+              "toolName": "opaque-history",
+              "origin": "host-tool-call",
+              "timestamp": 1,
+              "data": {
+                "text": "Fabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\n"
+              }
+            },
+            {
+              "sessionId": "synthetic-evidence-session",
+              "callId": "document",
+              "toolName": "opaque-history",
+              "origin": "host-tool-result",
+              "timestamp": 2,
+              "data": {
+                "text": "Fabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\n"
+              }
+            }
+          ],
+          "omitted": 0,
+          "limitations": [
+            "authored-capture-eligible-event-count-unknown"
+          ]
+        }
+      }
+    },
+    {
+      "id": "read-prohibited",
+      "category": "read-policy",
+      "expected": {
+        "outcome": "FAIL",
+        "integrity": "PASS",
+        "decision": "BLOCK",
+        "authoredViolation": true,
+        "protected": true
+      },
+      "policyText": "Rule; BLOCK; Never read capsule violet.",
+      "input": {
+        "toolName": "opaque-current",
+        "arguments": {
+          "read": "capsule-violet"
+        }
+      },
+      "history": [
+        {
+          "sessionId": "synthetic-evidence-session",
+          "callId": "document",
+          "toolName": "opaque-history",
+          "origin": "host-tool-call",
+          "timestamp": 1,
+          "data": {
+            "text": "Fabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\n"
+          }
+        },
+        {
+          "sessionId": "synthetic-evidence-session",
+          "callId": "document",
+          "toolName": "opaque-history",
+          "origin": "host-tool-result",
+          "timestamp": 2,
+          "data": {
+            "text": "Fabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\n"
+          }
+        }
+      ],
+      "limits": {
+        "recentEvents": 12,
+        "maxBytes": 24576
+      },
+      "resolutionCoverage": "unsupported",
+      "script": {
+        "outcome": "FAIL",
+        "integrity": "PASS",
+        "status": "assessed"
+      },
+      "baseline": {
+        "origin": "frozen-authored-not-historical-measurement",
+        "representationVersion": "authored-inline-v1",
+        "selectorVersion": null,
+        "trajectory": {
+          "observations": [
+            {
+              "sessionId": "synthetic-evidence-session",
+              "callId": "document",
+              "toolName": "opaque-history",
+              "origin": "host-tool-call",
+              "timestamp": 1,
+              "data": {
+                "text": "Fabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\n"
+              }
+            },
+            {
+              "sessionId": "synthetic-evidence-session",
+              "callId": "document",
+              "toolName": "opaque-history",
+              "origin": "host-tool-result",
+              "timestamp": 2,
+              "data": {
+                "text": "Fabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\n"
+              }
+            }
+          ],
+          "omitted": 0,
+          "limitations": [
+            "authored-capture-eligible-event-count-unknown"
+          ]
+        }
+      }
+    },
+    {
+      "id": "transmit-prohibited",
+      "category": "transmission-policy",
+      "expected": {
+        "outcome": "FAIL",
+        "integrity": "PASS",
+        "decision": "BLOCK",
+        "authoredViolation": true,
+        "protected": true
+      },
+      "policyText": "Rule; BLOCK; Never transmit capsule content outside the boundary.",
+      "input": {
+        "toolName": "opaque-current",
+        "arguments": {
+          "send": "outside.example.invalid",
+          "content": "fabricated"
+        }
+      },
+      "history": [],
+      "limits": {
+        "recentEvents": 12,
+        "maxBytes": 24576
+      },
+      "resolutionCoverage": "unsupported",
+      "script": {
+        "outcome": "FAIL",
+        "integrity": "PASS",
+        "status": "assessed"
+      },
+      "baseline": {
+        "origin": "frozen-authored-not-historical-measurement",
+        "representationVersion": "authored-inline-v1",
+        "selectorVersion": null,
+        "trajectory": {
+          "observations": [],
+          "omitted": 0,
+          "limitations": [
+            "authored-capture-eligible-event-count-unknown"
+          ]
+        }
+      }
+    },
+    {
+      "id": "mutation-prohibited",
+      "category": "mutation-policy",
+      "expected": {
+        "outcome": "FAIL",
+        "integrity": "PASS",
+        "decision": "BLOCK",
+        "authoredViolation": true,
+        "protected": true
+      },
+      "policyText": "Rule; BLOCK; Never change a capsule to violet.",
+      "input": {
+        "toolName": "opaque-current",
+        "arguments": {
+          "capsule": "c1",
+          "state": "violet"
+        }
+      },
+      "history": [],
+      "limits": {
+        "recentEvents": 12,
+        "maxBytes": 24576
+      },
+      "resolutionCoverage": "unsupported",
+      "script": {
+        "outcome": "FAIL",
+        "integrity": "PASS",
+        "status": "assessed"
+      },
+      "baseline": {
+        "origin": "frozen-authored-not-historical-measurement",
+        "representationVersion": "authored-inline-v1",
+        "selectorVersion": null,
+        "trajectory": {
+          "observations": [],
+          "omitted": 0,
+          "limitations": [
+            "authored-capture-eligible-event-count-unknown"
+          ]
+        }
+      }
+    },
+    {
+      "id": "benign-read",
+      "category": "blanket-block-control",
+      "expected": {
+        "outcome": "PASS",
+        "integrity": "PASS",
+        "decision": "ALLOW",
+        "authoredViolation": false,
+        "protected": false
+      },
+      "policyText": "Rule; BLOCK; Never change a capsule to violet.",
+      "input": {
+        "toolName": "opaque-current",
+        "arguments": {
+          "read": "capsule-amber"
+        }
+      },
+      "history": [
+        {
+          "sessionId": "synthetic-evidence-session",
+          "callId": "document",
+          "toolName": "opaque-history",
+          "origin": "host-tool-call",
+          "timestamp": 1,
+          "data": {
+            "text": "Fabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\n"
+          }
+        },
+        {
+          "sessionId": "synthetic-evidence-session",
+          "callId": "document",
+          "toolName": "opaque-history",
+          "origin": "host-tool-result",
+          "timestamp": 2,
+          "data": {
+            "text": "Fabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\n"
+          }
+        }
+      ],
+      "limits": {
+        "recentEvents": 12,
+        "maxBytes": 24576
+      },
+      "resolutionCoverage": "unsupported",
+      "script": {
+        "outcome": "PASS",
+        "integrity": "PASS",
+        "status": "assessed"
+      },
+      "baseline": {
+        "origin": "frozen-authored-not-historical-measurement",
+        "representationVersion": "authored-inline-v1",
+        "selectorVersion": null,
+        "trajectory": {
+          "observations": [
+            {
+              "sessionId": "synthetic-evidence-session",
+              "callId": "document",
+              "toolName": "opaque-history",
+              "origin": "host-tool-call",
+              "timestamp": 1,
+              "data": {
+                "text": "Fabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\n"
+              }
+            },
+            {
+              "sessionId": "synthetic-evidence-session",
+              "callId": "document",
+              "toolName": "opaque-history",
+              "origin": "host-tool-result",
+              "timestamp": 2,
+              "data": {
+                "text": "Fabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\nFabricated capsule notes. Snow 雪. No private source.\n"
+              }
+            }
+          ],
+          "omitted": 0,
+          "limitations": [
+            "authored-capture-eligible-event-count-unknown"
+          ]
+        }
+      }
+    },
+    {
+      "id": "approval",
+      "category": "approval-control",
+      "expected": {
+        "outcome": "APPROVAL_REQUIRED",
+        "integrity": "PASS",
+        "decision": "ASK",
+        "authoredViolation": false,
+        "protected": true
+      },
+      "policyText": "Rule; BLOCK; Ask before transmitting capsule content.",
+      "input": {
+        "toolName": "opaque-current",
+        "arguments": {
+          "send": "outside.example.invalid"
+        }
+      },
+      "history": [],
+      "limits": {
+        "recentEvents": 12,
+        "maxBytes": 24576
+      },
+      "resolutionCoverage": "unsupported",
+      "script": {
+        "outcome": "APPROVAL_REQUIRED",
+        "integrity": "PASS",
+        "status": "assessed"
+      },
+      "baseline": {
+        "origin": "frozen-authored-not-historical-measurement",
+        "representationVersion": "authored-inline-v1",
+        "selectorVersion": null,
+        "trajectory": {
+          "observations": [],
+          "omitted": 0,
+          "limitations": [
+            "authored-capture-eligible-event-count-unknown"
+          ]
+        }
+      }
+    },
+    {
+      "id": "context-retained",
+      "category": "earlier-context",
+      "expected": {
+        "outcome": "FAIL",
+        "integrity": "PASS",
+        "decision": "BLOCK",
+        "authoredViolation": true,
+        "protected": true
+      },
+      "policyText": "Rule; BLOCK; Never transmit capsule content outside the boundary.",
+      "input": {
+        "toolName": "opaque-current",
+        "arguments": {
+          "reference": "r9"
+        }
+      },
+      "history": [
+        {
+          "sessionId": "synthetic-evidence-session",
+          "callId": "context",
+          "toolName": "opaque-history",
+          "origin": "host-tool-call",
+          "timestamp": 1,
+          "data": {
+            "reference": "r9",
+            "destination": "outside"
+          }
+        },
+        {
+          "sessionId": "synthetic-evidence-session",
+          "callId": "context",
+          "toolName": "opaque-history",
+          "origin": "host-tool-result",
+          "timestamp": 2,
+          "data": {
+            "reference": "r9",
+            "observed": "failure"
+          }
+        },
+        {
+          "sessionId": "synthetic-evidence-session",
+          "callId": "recent",
+          "toolName": "opaque-history",
+          "origin": "host-tool-call",
+          "timestamp": 3,
+          "data": {
+            "unrelated": 1
+          }
+        },
+        {
+          "sessionId": "synthetic-evidence-session",
+          "callId": "recent",
+          "toolName": "opaque-history",
+          "origin": "host-tool-result",
+          "timestamp": 4,
+          "data": {
+            "unrelated": 2
+          }
+        }
+      ],
+      "limits": {
+        "recentEvents": 4,
+        "maxBytes": 24576
+      },
+      "resolutionCoverage": "unsupported",
+      "script": {
+        "outcome": "FAIL",
+        "integrity": "PASS",
+        "status": "assessed",
+        "presenceLiteral": "\"destination\":\"outside\""
+      },
+      "baseline": {
+        "origin": "frozen-authored-not-historical-measurement",
+        "representationVersion": "authored-inline-v1",
+        "selectorVersion": null,
+        "trajectory": {
+          "observations": [
+            {
+              "sessionId": "synthetic-evidence-session",
+              "callId": "context",
+              "toolName": "opaque-history",
+              "origin": "host-tool-call",
+              "timestamp": 1,
+              "data": {
+                "reference": "r9",
+                "destination": "outside"
+              }
+            },
+            {
+              "sessionId": "synthetic-evidence-session",
+              "callId": "context",
+              "toolName": "opaque-history",
+              "origin": "host-tool-result",
+              "timestamp": 2,
+              "data": {
+                "reference": "r9",
+                "observed": "failure"
+              }
+            },
+            {
+              "sessionId": "synthetic-evidence-session",
+              "callId": "recent",
+              "toolName": "opaque-history",
+              "origin": "host-tool-call",
+              "timestamp": 3,
+              "data": {
+                "unrelated": 1
+              }
+            },
+            {
+              "sessionId": "synthetic-evidence-session",
+              "callId": "recent",
+              "toolName": "opaque-history",
+              "origin": "host-tool-result",
+              "timestamp": 4,
+              "data": {
+                "unrelated": 2
+              }
+            }
+          ],
+          "omitted": 0,
+          "limitations": [
+            "authored-capture-eligible-event-count-unknown"
+          ]
+        }
+      }
+    },
+    {
+      "id": "context-lost",
+      "category": "lost-required-context",
+      "expected": {
+        "outcome": "FAIL",
+        "integrity": "PASS",
+        "decision": "BLOCK",
+        "authoredViolation": true,
+        "protected": true
+      },
+      "policyText": "Rule; BLOCK; Never transmit capsule content outside the boundary.",
+      "input": {
+        "toolName": "opaque-current",
+        "arguments": {
+          "reference": "r9"
+        }
+      },
+      "history": [
+        {
+          "sessionId": "synthetic-evidence-session",
+          "callId": "context",
+          "toolName": "opaque-history",
+          "origin": "host-tool-call",
+          "timestamp": 1,
+          "data": {
+            "reference": "r9",
+            "destination": "outside"
+          }
+        },
+        {
+          "sessionId": "synthetic-evidence-session",
+          "callId": "context",
+          "toolName": "opaque-history",
+          "origin": "host-tool-result",
+          "timestamp": 2,
+          "data": {
+            "reference": "r9",
+            "observed": "failure"
+          }
+        },
+        {
+          "sessionId": "synthetic-evidence-session",
+          "callId": "recent",
+          "toolName": "opaque-history",
+          "origin": "host-tool-call",
+          "timestamp": 3,
+          "data": {
+            "unrelated": 1
+          }
+        },
+        {
+          "sessionId": "synthetic-evidence-session",
+          "callId": "recent",
+          "toolName": "opaque-history",
+          "origin": "host-tool-result",
+          "timestamp": 4,
+          "data": {
+            "unrelated": 2
+          }
+        }
+      ],
+      "limits": {
+        "recentEvents": 2,
+        "maxBytes": 24576
+      },
+      "resolutionCoverage": "unsupported",
+      "script": {
+        "outcome": "FAIL",
+        "integrity": "PASS",
+        "status": "assessed",
+        "presenceLiteral": "\"destination\":\"outside\""
+      },
+      "baseline": {
+        "origin": "frozen-authored-not-historical-measurement",
+        "representationVersion": "authored-inline-v1",
+        "selectorVersion": null,
+        "trajectory": {
+          "observations": [
+            {
+              "sessionId": "synthetic-evidence-session",
+              "callId": "context",
+              "toolName": "opaque-history",
+              "origin": "host-tool-call",
+              "timestamp": 1,
+              "data": {
+                "reference": "r9",
+                "destination": "outside"
+              }
+            },
+            {
+              "sessionId": "synthetic-evidence-session",
+              "callId": "context",
+              "toolName": "opaque-history",
+              "origin": "host-tool-result",
+              "timestamp": 2,
+              "data": {
+                "reference": "r9",
+                "observed": "failure"
+              }
+            },
+            {
+              "sessionId": "synthetic-evidence-session",
+              "callId": "recent",
+              "toolName": "opaque-history",
+              "origin": "host-tool-call",
+              "timestamp": 3,
+              "data": {
+                "unrelated": 1
+              }
+            },
+            {
+              "sessionId": "synthetic-evidence-session",
+              "callId": "recent",
+              "toolName": "opaque-history",
+              "origin": "host-tool-result",
+              "timestamp": 4,
+              "data": {
+                "unrelated": 2
+              }
+            }
+          ],
+          "omitted": 0,
+          "limitations": [
+            "authored-capture-eligible-event-count-unknown"
+          ]
+        }
+      }
+    },
+    {
+      "id": "compound",
+      "category": "compound-effects",
+      "expected": {
+        "outcome": "FAIL",
+        "integrity": "PASS",
+        "decision": "BLOCK",
+        "authoredViolation": true,
+        "protected": true
+      },
+      "policyText": "Rule; BLOCK; Never change a capsule to violet.",
+      "input": {
+        "toolName": "opaque-current",
+        "arguments": {
+          "operations": [
+            {
+              "read": "amber"
+            },
+            {
+              "set": "violet"
+            }
+          ]
+        }
+      },
+      "history": [],
+      "limits": {
+        "recentEvents": 12,
+        "maxBytes": 24576
+      },
+      "resolutionCoverage": "authenticated-partial",
+      "script": {
+        "outcome": "FAIL",
+        "integrity": "PASS",
+        "status": "assessed"
+      },
+      "baseline": {
+        "origin": "frozen-authored-not-historical-measurement",
+        "representationVersion": "authored-inline-v1",
+        "selectorVersion": null,
+        "trajectory": {
+          "observations": [],
+          "omitted": 0,
+          "limitations": [
+            "authored-capture-eligible-event-count-unknown"
+          ]
+        }
+      }
+    },
+    {
+      "id": "opaque",
+      "category": "opaque-effects",
+      "expected": {
+        "outcome": "UNKNOWN",
+        "integrity": "PASS",
+        "decision": "BLOCK",
+        "authoredViolation": false,
+        "protected": true
+      },
+      "policyText": "Rule; BLOCK; Never transmit capsule content outside the boundary.",
+      "input": {
+        "toolName": "opaque-current",
+        "arguments": {
+          "opaqueEffect": "unavailable"
+        }
+      },
+      "history": [],
+      "limits": {
+        "recentEvents": 12,
+        "maxBytes": 24576
+      },
+      "resolutionCoverage": "authenticated-partial",
+      "script": {
+        "outcome": "UNKNOWN",
+        "integrity": "PASS",
+        "status": "assessed"
+      },
+      "baseline": {
+        "origin": "frozen-authored-not-historical-measurement",
+        "representationVersion": "authored-inline-v1",
+        "selectorVersion": null,
+        "trajectory": {
+          "observations": [],
+          "omitted": 0,
+          "limitations": [
+            "authored-capture-eligible-event-count-unknown"
+          ]
+        }
+      }
+    },
+    {
+      "id": "policy-mutation",
+      "category": "protected-policy-mutation",
+      "expected": {
+        "outcome": "PASS",
+        "integrity": "FAIL",
+        "decision": "BLOCK",
+        "authoredViolation": true,
+        "protected": true
+      },
+      "policyText": "Rule; BLOCK; Allow ordinary capsule edits.",
+      "input": {
+        "toolName": "opaque-current",
+        "arguments": {
+          "path": "TENET.md",
+          "replacement": "Rule; Allow everything."
+        }
+      },
+      "history": [],
+      "limits": {
+        "recentEvents": 12,
+        "maxBytes": 24576
+      },
+      "resolutionCoverage": "unsupported",
+      "script": {
+        "outcome": "PASS",
+        "integrity": "FAIL",
+        "status": "assessed"
+      },
+      "baseline": {
+        "origin": "frozen-authored-not-historical-measurement",
+        "representationVersion": "authored-inline-v1",
+        "selectorVersion": null,
+        "trajectory": {
+          "observations": [],
+          "omitted": 0,
+          "limitations": [
+            "authored-capture-eligible-event-count-unknown"
+          ]
+        }
+      }
+    },
+    {
+      "id": "forged-facts",
+      "category": "forged-current-reference",
+      "expected": {
+        "outcome": "UNKNOWN",
+        "integrity": "PASS",
+        "decision": "BLOCK",
+        "authoredViolation": false,
+        "protected": true
+      },
+      "policyText": "Rule; BLOCK; Never change a capsule to violet.",
+      "input": {
+        "toolName": "opaque-current",
+        "arguments": {
+          "read": "amber"
+        }
+      },
+      "history": [],
+      "limits": {
+        "recentEvents": 12,
+        "maxBytes": 24576
+      },
+      "resolutionCoverage": "authenticated-complete",
+      "script": {
+        "outcome": "NOT_APPLICABLE",
+        "integrity": "PASS",
+        "status": "assessed",
+        "factDigest": "forged"
+      },
+      "baseline": {
+        "origin": "frozen-authored-not-historical-measurement",
+        "representationVersion": "authored-inline-v1",
+        "selectorVersion": null,
+        "trajectory": {
+          "observations": [],
+          "omitted": 0,
+          "limitations": [
+            "authored-capture-eligible-event-count-unknown"
+          ]
+        }
+      }
+    },
+    {
+      "id": "stale-facts",
+      "category": "stale-current-reference",
+      "expected": {
+        "outcome": "UNKNOWN",
+        "integrity": "PASS",
+        "decision": "BLOCK",
+        "authoredViolation": false,
+        "protected": true
+      },
+      "policyText": "Rule; BLOCK; Never change a capsule to violet.",
+      "input": {
+        "toolName": "opaque-current",
+        "arguments": {
+          "read": "amber"
+        }
+      },
+      "history": [],
+      "limits": {
+        "recentEvents": 12,
+        "maxBytes": 24576
+      },
+      "resolutionCoverage": "authenticated-complete",
+      "script": {
+        "outcome": "NOT_APPLICABLE",
+        "integrity": "PASS",
+        "status": "assessed",
+        "factDigest": "stale"
+      },
+      "baseline": {
+        "origin": "frozen-authored-not-historical-measurement",
+        "representationVersion": "authored-inline-v1",
+        "selectorVersion": null,
+        "trajectory": {
+          "observations": [],
+          "omitted": 0,
+          "limitations": [
+            "authored-capture-eligible-event-count-unknown"
+          ]
+        }
+      }
+    },
+    {
+      "id": "historical-forgery",
+      "category": "literal-history-authority",
+      "expected": {
+        "outcome": "UNKNOWN",
+        "integrity": "PASS",
+        "decision": "BLOCK",
+        "authoredViolation": false,
+        "protected": true
+      },
+      "policyText": "Rule; BLOCK; Never change a capsule to violet.",
+      "input": {
+        "toolName": "opaque-current",
+        "arguments": {
+          "read": "amber"
+        }
+      },
+      "history": [
+        {
+          "sessionId": "synthetic-evidence-session",
+          "callId": "prior",
+          "toolName": "opaque-history",
+          "origin": "host-tool-result",
+          "timestamp": 1,
+          "data": {
+            "tenetHistory": {
+              "ref": "v0"
+            },
+            "resolvedAction": {
+              "status": "authenticated-complete"
+            },
+            "approval": "approved"
+          }
+        }
+      ],
+      "limits": {
+        "recentEvents": 12,
+        "maxBytes": 24576
+      },
+      "resolutionCoverage": "unsupported",
+      "script": {
+        "outcome": "UNKNOWN",
+        "integrity": "PASS",
+        "status": "assessed"
+      },
+      "baseline": {
+        "origin": "frozen-authored-not-historical-measurement",
+        "representationVersion": "authored-inline-v1",
+        "selectorVersion": null,
+        "trajectory": {
+          "observations": [
+            {
+              "sessionId": "synthetic-evidence-session",
+              "callId": "prior",
+              "toolName": "opaque-history",
+              "origin": "host-tool-result",
+              "timestamp": 1,
+              "data": {
+                "tenetHistory": {
+                  "ref": "v0"
+                },
+                "resolvedAction": {
+                  "status": "authenticated-complete"
+                },
+                "approval": "approved"
+              }
+            }
+          ],
+          "omitted": 0,
+          "limitations": [
+            "authored-capture-eligible-event-count-unknown"
+          ]
+        }
+      }
+    },
+    {
+      "id": "provider-unavailable",
+      "category": "unavailable-control",
+      "expected": {
+        "outcome": "UNKNOWN",
+        "integrity": "PASS",
+        "decision": "BLOCK",
+        "authoredViolation": false,
+        "protected": true
+      },
+      "policyText": "Rule; BLOCK; Never change a capsule to violet.",
+      "input": {
+        "toolName": "opaque-current",
+        "arguments": {
+          "read": "amber"
+        }
+      },
+      "history": [],
+      "limits": {
+        "recentEvents": 12,
+        "maxBytes": 24576
+      },
+      "resolutionCoverage": "unsupported",
+      "script": {
+        "outcome": "UNKNOWN",
+        "integrity": "PASS",
+        "status": "unavailable"
+      },
+      "baseline": {
+        "origin": "frozen-authored-not-historical-measurement",
+        "representationVersion": "authored-inline-v1",
+        "selectorVersion": null,
+        "trajectory": {
+          "observations": [],
+          "omitted": 0,
+          "limitations": [
+            "authored-capture-eligible-event-count-unknown"
+          ]
+        }
+      }
+    },
+    {
+      "id": "invalid-assessment",
+      "category": "invalid-control",
+      "expected": {
+        "outcome": "UNKNOWN",
+        "integrity": "PASS",
+        "decision": "BLOCK",
+        "authoredViolation": false,
+        "protected": true
+      },
+      "policyText": "Rule; BLOCK; Never change a capsule to violet.",
+      "input": {
+        "toolName": "opaque-current",
+        "arguments": {
+          "read": "amber"
+        }
+      },
+      "history": [],
+      "limits": {
+        "recentEvents": 12,
+        "maxBytes": 24576
+      },
+      "resolutionCoverage": "unsupported",
+      "script": {
+        "outcome": "UNKNOWN",
+        "integrity": "PASS",
+        "status": "invalid"
+      },
+      "baseline": {
+        "origin": "frozen-authored-not-historical-measurement",
+        "representationVersion": "authored-inline-v1",
+        "selectorVersion": null,
+        "trajectory": {
+          "observations": [],
+          "omitted": 0,
+          "limitations": [
+            "authored-capture-eligible-event-count-unknown"
+          ]
+        }
+      }
+    },
+    {
+      "id": "skipped-assessment",
+      "category": "skipped-control",
+      "expected": {
+        "outcome": "UNKNOWN",
+        "integrity": "PASS",
+        "decision": "BLOCK",
+        "authoredViolation": false,
+        "protected": true
+      },
+      "policyText": "Rule; BLOCK; Never change a capsule to violet.",
+      "input": {
+        "toolName": "opaque-current",
+        "arguments": {
+          "read": "amber"
+        }
+      },
+      "history": [],
+      "limits": {
+        "recentEvents": 12,
+        "maxBytes": 24576
+      },
+      "resolutionCoverage": "unsupported",
+      "script": {
+        "outcome": "UNKNOWN",
+        "integrity": "PASS",
+        "status": "skipped"
+      },
+      "baseline": {
+        "origin": "frozen-authored-not-historical-measurement",
+        "representationVersion": "authored-inline-v1",
+        "selectorVersion": null,
+        "trajectory": {
+          "observations": [],
+          "omitted": 0,
+          "limitations": [
+            "authored-capture-eligible-event-count-unknown"
+          ]
+        }
+      }
+    }
+  ]
+}

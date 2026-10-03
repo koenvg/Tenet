@@ -5,6 +5,7 @@ import { ApprovalQueue } from './approval.js';
 import { GuardBoundary } from './boundary.js';
 import { OwnerReports } from './owner-reports.js';
 import { nativeHistory } from './history.js';
+import { readConfig } from '../runtime/config.js';
 
 type Options = Pick<GuardOptions, 'judge' | 'createJudge' | 'actionResolver' | 'env' | 'controlPath'> & { onEligible?: () => void };
 
@@ -59,7 +60,14 @@ export function registerGuard(pi: ExtensionAPI, options: Options = {}): void {
   let commandsRegistered = false;
   let opening = 0;
   const identity = (ctx: ExtensionContext) => ({ sessionId: ctx.sessionManager.getSessionId(), contextId: 'main' });
-  const recover = (ctx: ExtensionContext) => session?.setHistory(nativeHistory(identity(ctx).sessionId, ctx.sessionManager.getBranch?.()));
+  const recover = (ctx: ExtensionContext) => {
+    if (!session) return;
+    let limits;
+    try { limits = readConfig(ctx.cwd, env).evidence; }
+    catch { return; } // The SDK reports invalid configuration; do not inspect native history.
+    const recovered = nativeHistory(identity(ctx).sessionId, ctx.sessionManager.getBranch?.(), limits);
+    session.setHistory(recovered.history, recovered.capture);
+  };
   const eligible = () => session && !['uninitialized', 'dormant', 'closed'].includes(session.status().state);
   const reportRecording = (work: () => void) => { try { work(); } catch { /* Capture UI must not veto. */ } };
   const captureSummary = (drained?: boolean) => {

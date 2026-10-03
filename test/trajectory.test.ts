@@ -169,6 +169,8 @@ test('observation copies are independent, retain missing metadata and bound over
   assert.match(JSON.stringify(snapshot), /before/);
   assert.ok(snapshot.limitations.includes('metadata-unavailable'));
   history.add('pi-tool-result', 'large', 'novel', 'x'.repeat(EVIDENCE_DEFAULTS.maxBytes * 2));
-  assert.match(JSON.stringify(history.snapshot()), /observation-byte-limit/);
+  assert.match(JSON.stringify(history.snapshot()), /tenetExcerpt/);
+  assert.ok(serializedBytes(history.snapshot()) <= 8192);
+  assert.ok(history.snapshot().observations.every(event => serializedBytes(event.data) <= 2048));
   assert.equal(snapshot.observations.length, 1);
 });

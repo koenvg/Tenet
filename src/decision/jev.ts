@@ -8,6 +8,7 @@ import { freeze } from './evidence.js';
 import { requireChoice } from './decide.js';
 import { ASSESSMENT_METADATA, currentFactReferences } from './assessment-contract.js';
 import { INTEGRITY_ID } from './policy.js';
+import { UNAVAILABLE_EVIDENCE_CONTEXT } from './evidence-context.js';
 
 export function createJevJudge(options: { apiKey?: string; fetch?: Fetch }): Judge {
   let client: TypeSafeClient | undefined;
@@ -26,7 +27,7 @@ export function createJevJudge(options: { apiKey?: string; fetch?: Fetch }): Jud
       const questions = buildQuestions(request.policy, request.resolvedAction);
       const payload = freeze({ model: MODEL, state: judgeState(request), questions });
       submitted = true;
-      capture(recording, 'request', () => ({ payload, policy: request.policy, mapping: entries, ...ASSESSMENT_METADATA }));
+      capture(recording, 'request', () => ({ payload, policy: request.policy, mapping: entries, ...ASSESSMENT_METADATA, evidenceContext: request.evidenceContext ?? UNAVAILABLE_EVIDENCE_CONTEXT, selectionVersion: (request.evidenceContext ?? UNAVAILABLE_EVIDENCE_CONTEXT).selectionVersion }));
       const raw = await client.systemOne(payload, { signal, timeout: request.deadlineMs, retry: { maxRetries: 0 } });
       capture(recording, 'response', () => responseSnapshot(raw));
       if (!raw || typeof raw !== 'object' || !raw.answers || typeof raw.answers !== 'object' || Array.isArray(raw.answers)

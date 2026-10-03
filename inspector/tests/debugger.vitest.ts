@@ -42,7 +42,7 @@ beforeEach(async () => {
     externalRequests.push(route.request().url()); return route.abort();
   });
   await page.goto(app.origin);
-  await expect.poll(() => currentPage().locator('.call-row').count()).toBe(10);
+  await expect.poll(() => currentPage().locator('.call-row').count()).toBe(11);
   await page.locator('[aria-label="Decision summary"]').waitFor();
 });
 
@@ -325,7 +325,7 @@ test('visual summary separates the policy result from execution and hides debugg
   expect(await p.locator('.map-execution h3').textContent()).toBe('Actual execution / Ran');
   expect(await p.locator('.map-check').first().textContent()).toContain('Rule outcome / PASS');
   expect(await p.locator('.map-edge.blocking').count()).toBe(1);
-  expect(await p.locator('.summary-reason').textContent()).toContain('Evidence confidence was below');
+  expect(await p.locator('.summary-reason').textContent()).toContain('No rule was classified as violated. The decision would block by uncertainty.');
   expect(await p.locator('.execution-summary').textContent()).toContain('Observe mode records decisions without enforcing them');
   expect(await p.getByRole('meter', { name: 'Evidence confidence' }).getAttribute('aria-valuenow')).toBe('0.85');
   expect(await p.getByRole('meter').getAttribute('aria-valuetext')).toContain('required confidence 0.9');
@@ -347,4 +347,68 @@ test('visual summary separates the policy result from execution and hides debugg
   await p.locator('.evidence-disclosure > summary').click();
   expect(await p.locator('.evidence-dock').isVisible()).toBe(true);
   expect(pageErrors).toEqual([]); expect(externalRequests).toEqual([]);
+});
+
+test('coverage distinguishes unsupported, partial, unavailable and historical records without guessing model rationale', async () => {
+  const p = currentPage(), coverage = p.getByRole('region', { name: 'Runtime evidence coverage' });
+  await pickCall('unknown');
+  expect(await coverage.textContent()).toContain('Action resolution: unsupported');
+  expect(await p.locator('.summary-reason').textContent()).toContain('No rule was classified as violated');
+  expect(await coverage.textContent()).toContain('do not explain');
+  await pickCall('warn');
+  expect(await p.locator('.summary-reason').textContent()).not.toContain('No rule was classified as violated');
+  await pickCall('summary');
+  expect(await coverage.textContent()).toContain('authenticated-partial');
+  expect(await coverage.textContent()).toContain('2 known omissions');
+  expect(await coverage.textContent()).toContain('1 shortened, 1 dropped, 1 prior omissions');
+  expect(await coverage.textContent()).toContain('Exact compaction: 0 bytes saved');
+  expect(await p.locator('.summary-reason').textContent()).toContain('would block by uncertainty');
+  expect(await p.locator('.execution-summary').textContent()).toContain('The call ran');
+  await p.setViewportSize({ width: 390, height: 844 });
+  await coverage.scrollIntoViewIfNeeded();
+  await p.screenshot({ path: join(artifacts, 'coverage-summary-mobile.png'), fullPage: true });
+  await p.getByRole('button', { name: 'View shared evidence', exact: true }).click();
+  expect(await p.evaluate(() => document.activeElement?.id)).toBe('dock-heading');
+  const summaryOrder = await p.evaluate(() => !!(document.querySelector('[aria-label="Runtime evidence coverage"]')!.compareDocumentPosition(document.querySelector('.evidence-dock')!) & Node.DOCUMENT_POSITION_FOLLOWING));
+  expect(summaryOrder).toBe(true);
+  expect(await p.locator('#panel-Evidence').textContent()).toContain('partial-effect-coverage');
+  expect(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await p.screenshot({ path: join(artifacts, 'coverage-mobile.png'), fullPage: true });
+  await p.setViewportSize({ width: 1536, height: 1024 });
+  await pickCall('missing');
+  expect(await coverage.textContent()).toContain('Preparation: unavailable');
+  expect(await coverage.textContent()).toContain('Final history counters unavailable');
+  expect(await p.locator('.summary-reason').textContent()).not.toContain('No rule was classified');
+  await pickCall('rich');
+  expect(await coverage.textContent()).toContain('Not recorded');
+  expect(await p.locator('.summary-reason').textContent()).not.toContain('No rule was classified');
+});
+
+
+test('exact compaction stays distinct from losses and the dock preserves the submitted pool without decoding', async () => {
+  const p = currentPage(); await pickCall('compacted');
+  const coverage = p.getByRole('region', { name: 'Runtime evidence coverage' });
+  expect(await coverage.textContent()).toContain('2 retained events, 2 known omissions');
+  expect(await coverage.textContent()).toContain('2 shortened, 2 dropped, 0 prior omissions');
+  expect(await coverage.textContent()).toMatch(/Exact compaction: [1-9][0-9]* bytes saved/);
+  expect(await coverage.textContent()).toContain('A shortened result still has a recorded observation; a missing result remains unknown.');
+  expect(await coverage.textContent()).toContain('Matching IDs do not prove execution or success.');
+  expect(await coverage.textContent()).toContain('Capture omissions can count source slots, not missing calls or effects.');
+  expect(await p.locator('.lifecycle').textContent()).toContain('unknown');
+  await p.getByRole('button', { name: 'View shared evidence', exact: true }).click();
+  const history = p.locator('.evidence-section').filter({ has: p.locator('h5', { hasText: 'Chronological history' }) });
+  const trajectory = JSON.parse((await history.locator('pre').textContent())!);
+  expect(trajectory.values).toEqual({ v0: 'complete sanitized content '.repeat(30) });
+  expect(trajectory.observations).toHaveLength(2);
+  expect(trajectory.observations.map((event: any) => [event.callId, event.origin, event.timestamp])).toEqual([
+    ['prior', 'host-tool-call', 3], ['prior', 'host-tool-result', 1],
+  ]);
+  expect(trajectory.observations[1].data.content.isError).toBe(true);
+  expect(trajectory.observations[0].data.content.repeated).toEqual({ tenetHistory: { ref: 'v0' } });
+  expect(typeof trajectory.observations[0].data.content.document.tenetExcerpt.head).toBe('string');
+  expect(await history.textContent()).toContain('Exact references');
+  await p.setViewportSize({ width: 390, height: 844 });
+  expect(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await coverage.scrollIntoViewIfNeeded();
+  await p.screenshot({ path: join(artifacts, 'history-groups-mobile.png'), fullPage: true });
 });

@@ -17,6 +17,7 @@ import { freeze } from '../decision/evidence.js';
 import { evidenceWithinBudget } from '../decision/evidence-budget.js';
 import { ActionResolution, type ActionResolver, type ResolvedInvocation } from './resolved-action.js';
 import { ASSESSMENT_METADATA } from '../decision/assessment-contract.js';
+import { UNAVAILABLE_EVIDENCE_CONTEXT } from '../decision/evidence-context.js';
 
 export interface RuntimeIdentity { host: string; sessionId: string; contextId: string }
 export interface Capabilities {
@@ -123,6 +124,7 @@ class SessionGuard {
 
   private record(stage: string, data: Record<string, unknown>, archiveData: Record<string, unknown> = {}): void {
     data = { ...data, ...this.metadata };
+    if (['assessment', 'decision', 'permission', 'assessment-status'].includes(stage)) data = { evidenceContext: UNAVAILABLE_EVIDENCE_CONTEXT, ...data };
     if (!this.eligible || this.options.activation.read() !== 'on') return;
     if (typeof data.invocationId === 'string' && STAGES.includes(stage as Stage)) {
       capture(this.recordings.get(data.invocationId)?.sink, stage as Stage, () => ({ ...data, ...archiveData }));
@@ -279,7 +281,7 @@ class SessionGuard {
       // Terminal permission is owed even when cancellation invalidated the assessment.
       if (this.options.activation.read() !== 'on' || (!['permission', 'execution'].includes(stage)
         && ((this.mode === 'observe' ? observationSignal : signal).aborted || generation !== this.generation))) return;
-      data = { ...data, ...this.metadata };
+      data = { evidenceContext: UNAVAILABLE_EVIDENCE_CONTEXT, ...data, ...this.metadata };
       if (stage === 'request') submitted = true;
       capture(sink, stage, () => stage === 'permission' ? { ...data, requestStatus: submitted ? 'submitted' : 'not-submitted' } : data);
     };
@@ -318,6 +320,7 @@ class SessionGuard {
       && this.session?.host === identity.host && this.session.sessionId === identity.sessionId;
     const dropOversized = () => {
       const permission: Permission = { ...this.metadata, outcome: 'released', reason: 'snapshot-capacity', assessmentAvailable: false,
+        evidenceContext: UNAVAILABLE_EVIDENCE_CONTEXT,
         ruleIds: [], diagnostics: [], rules: selectedPolicy.available ? selectedPolicy.rules.map(({ id, line, enforcement, text }) => ({ id, line, enforcement, text })) : [], approvalRules: [] };
       commit(permission);
       this.queue.submit(Number.POSITIVE_INFINITY, observationSignal, async () => 'unavailable', (status, reason) => {
@@ -380,6 +383,7 @@ class SessionGuard {
         let bytes: number;
         try { bytes = Buffer.byteLength(JSON.stringify(snapshot)); } catch { bytes = Number.POSITIVE_INFINITY; }
         const permission: Permission = { ...this.metadata, outcome: 'released', reason: 'assessment-pending', assessmentAvailable: false,
+          evidenceContext: UNAVAILABLE_EVIDENCE_CONTEXT,
           ruleIds: [], diagnostics: [], rules: selectedPolicy.rules.map(({ id, line, enforcement, text }) => ({ id, line, enforcement, text })), approvalRules: [] };
         commit(permission);
         let resultPermission: Permission | undefined;
@@ -388,6 +392,7 @@ class SessionGuard {
         const status = (state: ObservationState, reason?: string, waitMs?: number) => {
           if (state === 'pending' || this.options.activation.read() === 'on')
             this.record('assessment-status', { ...identity, status: state, reason: reason ?? terminalReason,
+              evidenceContext: resultPermission?.evidenceContext ?? UNAVAILABLE_EVIDENCE_CONTEXT,
               ...(resultPermission?.validationIssue ? { validationIssue: resultPermission.validationIssue } : {}),
               profile: snapshot.profile, queueWaitMs: waitMs ?? 0, providerDurationMs: providerDuration });
           try { call.onAssessment?.(identity, state, resultPermission, reason ?? terminalReason); } catch { /* Best effort. */ }
@@ -410,6 +415,7 @@ class SessionGuard {
           }
           if (!current()) return 'unavailable';
           this.record('assessment', { ...identity, assessment: result.assessment, reason: result.reason,
+            evidenceContext: result.evidenceContext,
             ...(result.validationIssue ? { validationIssue: result.validationIssue } : {}),
             durationMs: result.durationMs, requestedModel: result.requestedModel, questionVersion: result.questionVersion,
             config: result.config, evidenceLimits: snapshot.evidence, redactedFields: action.redactedFields, limitations: action.limitations, resolvedAction: snapshot.resolvedAction });
@@ -421,6 +427,7 @@ class SessionGuard {
             return 'unavailable';
           }
           this.record('decision', { ...identity, decision: result.decision, reason: result.reason, ruleIds: result.ruleIds,
+            evidenceContext: result.evidenceContext,
             diagnostics: result.diagnostics, questionVersion: result.questionVersion }, { contributions: ruleContributions(result, selectedPolicy) });
           const outcome = new Consequences('observe', selectedPolicy); outcome.assessed(result);
           resultPermission = outcome.permission();
@@ -434,10 +441,12 @@ class SessionGuard {
       try { call.onDecision?.(result); } catch { /* Owner reporting cannot change authorization. */ }
       if (!current()) return block('guard-state-changed');
       this.record('assessment', { ...identity, assessment: result.assessment, reason: result.reason,
+        evidenceContext: result.evidenceContext,
         ...(result.validationIssue ? { validationIssue: result.validationIssue } : {}),
         durationMs: result.durationMs, requestedModel: result.requestedModel, questionVersion: result.questionVersion,
         config: result.config, evidenceLimits: selectedConfig.evidence, redactedFields: action.redactedFields, limitations: action.limitations, resolvedAction: resolved.evidence });
       this.record('decision', { ...identity, decision: result.decision, reason: result.reason, ruleIds: result.ruleIds,
+        evidenceContext: result.evidenceContext,
         ...(result.validationIssue ? { validationIssue: result.validationIssue } : {}),
         diagnostics: result.diagnostics, questionVersion: result.questionVersion }, { contributions: ruleContributions(result, selectedPolicy) });
       const fresh = async () => {

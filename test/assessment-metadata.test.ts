@@ -7,7 +7,7 @@ import { GuardRuntime } from '../src/runtime/guard.js';
 import type { Permission } from '../src/runtime/consequences.js';
 import { guardHarness } from './guard-harness.js';
 
-const metadata = { profile: 'applicability-v1', questionVersion: 'policy-rules-v6-applicability' };
+const metadata = { profile: 'applicability-v1', questionVersion: 'policy-rules-v7-evidence-selection' };
 for (const scenario of ['pending', 'dropped', 'unavailable', 'pre-assessment'] as const) test(`captured assessment metadata reaches ${scenario} owner callbacks`, async () => {
   const cwd = await realpath(await mkdtemp(join(tmpdir(), 'tenet-profile-')));
   await writeFile(join(cwd, 'TENET.md'), 'Rule; Never commit.');
@@ -53,7 +53,7 @@ test('Pi candidate startup announces its captured profile and question version',
   const h = await guardHarness({ env: { TENET_ASSESSMENT_PROFILE: 'applicability-v1' } });
   try {
     await h.start();
-    assert.ok(h.notifications.some(text => text.includes('Judge questions: policy-rules-v6-applicability')));
+    assert.ok(h.notifications.some(text => text.includes('Judge questions: policy-rules-v7-evidence-selection')));
     assert.ok(h.notifications.some(text => text.includes('applicability-v1')));
   } finally { await h.close(); }
 });
@@ -70,7 +70,7 @@ test('unavailable candidate owner details keep profile metadata live and after r
       await h.commands.get('tenet').handler('', h.ctx);
       const details = h.views[1].items.join('\n');
       assert.match(details, /Assessment profile: applicability-v1/);
-      assert.match(details, /Judge questions: policy-rules-v6-applicability/);
+      assert.match(details, /Judge questions: policy-rules-v7-evidence-selection/);
       assert.doesNotMatch(details, /legacy \(historical\)/);
     }
   } finally { await h.close(); }

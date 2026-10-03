@@ -5,11 +5,13 @@ import type { Activation } from '../runtime/activation.js';
 import type { Mode } from '../runtime/config.js';
 import type { RecordingSink } from '../recording/contract.js';
 
+export type { EvidenceContext } from '../decision/evidence-context-contract.js';
 export type { Judge, JudgeRequest, Assessment, RuleAssessment, Policy, Action, Outcome, Json } from '../decision/contracts.js';
 export type { Approval, ApprovalRequest } from '../runtime/guard.js';
 export type { ActionResolver, ActionFacts, ActionBinding, ResolvedAction, OperationSemantics } from '../runtime/resolved-action.js';
 export type { RecordingSink } from '../recording/contract.js';
 export type { Mode } from '../runtime/config.js';
+export type { HistoryCaptureMetadata } from '../decision/history-capture.js';
 export type { Activation } from '../runtime/activation.js';
 
 export type Capabilities = Readonly<RuntimeCapabilities>;
@@ -32,6 +34,7 @@ export type RuleDiagnostic = Readonly<Omit<RuntimeRuleDiagnostic, 'gates'>> & {
   readonly gates: readonly RuntimeRuleDiagnostic['gates'][number][];
 };
 interface AssessmentDetails {
+  readonly evidenceContext?: import('../decision/evidence-context-contract.js').EvidenceContext;
   readonly reason?: string;
   readonly diagnostics: readonly RuleDiagnostic[];
   readonly ruleIds: readonly string[];
@@ -77,6 +80,7 @@ export interface OwnerReport {
   readonly ruleIds: readonly string[];
   readonly diagnostics: readonly RuleDiagnostic[];
   readonly validationIssue?: Decision['validationIssue'];
+  readonly evidenceContext?: import('../decision/evidence-context-contract.js').EvidenceContext;
   readonly rules: readonly { readonly id: string; readonly line: number; readonly enforcement: 'BLOCK' | 'WARN'; readonly text?: string }[];
   readonly approvalRules: readonly string[];
 }
@@ -120,7 +124,9 @@ export interface GuardSession {
   readonly ready: Promise<SessionStatus>;
   beforeTool(invocation: ToolInvocation): Promise<BeforeToolResult>;
   afterTool(result: ToolResult): Execution;
-  setHistory(history: readonly ObservedHistory[]): void;
+  /** Malformed capture metadata or combined counter overflow throws before replacing history.
+   * Zero/false reports no additional gap, not complete capture. This never supplies action authority. */
+  setHistory(history: readonly ObservedHistory[], capture?: import('../decision/history-capture.js').HistoryCaptureMetadata): void;
   endTurn(): void;
   invalidate(reason: string): void;
   status(): SessionStatus;

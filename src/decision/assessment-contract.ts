@@ -2,11 +2,7 @@ import type { Action, JudgeRequest } from './contracts.js';
 import { argumentDigest } from './evidence.js';
 import type { ResolvedAction } from '../runtime/resolved-action.js';
 
-export const ASSESSMENT_PROFILE = 'applicability-v1';
-export const QUESTION_VERSION = 'policy-rules-v6-applicability';
-export type AssessmentProfile = typeof ASSESSMENT_PROFILE;
-export const ASSESSMENT_METADATA = Object.freeze({ profile: ASSESSMENT_PROFILE, questionVersion: QUESTION_VERSION });
-export type AssessmentMetadata = typeof ASSESSMENT_METADATA;
+export { ASSESSMENT_PROFILE, QUESTION_VERSION, ASSESSMENT_METADATA, type AssessmentProfile, type AssessmentMetadata } from './assessment-shape.js';
 export interface FactReferences { digest: string; operationIds: string[] }
 export function currentFactReferences(resolved: ResolvedAction | undefined): FactReferences | null {
   if (resolved?.status !== 'authenticated-complete') return null;

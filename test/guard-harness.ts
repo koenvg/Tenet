@@ -29,7 +29,8 @@ export async function guardHarness(options: { env?: Record<string, string>; judg
       select: async (title: string, items: string[]): Promise<string | undefined> => { views.push({ title, items }); return undefined; },
     },
   };
-  registerGuard(pi as unknown as ExtensionAPI, { actionResolver: options.actionResolver, controlPath: options.controlPath ?? join(cwd, 'control.json'), env: { TENET_RECORDING: 'off', TENET_RECORDING_DIR: join(cwd, 'archive'), ...options.env }, createJudge: options.createJudge,
+  const env: Record<string, string> = { TENET_RECORDING: 'off', TENET_RECORDING_DIR: join(cwd, 'archive'), ...options.env };
+  registerGuard(pi as unknown as ExtensionAPI, { actionResolver: options.actionResolver, controlPath: options.controlPath ?? join(cwd, 'control.json'), env, createJudge: options.createJudge,
     ...(options.judge === null || options.createJudge ? {} : { judge: options.judge ?? (async request => answer(request.policy)) }) });
   const emit = (type: string, data: any = {}) => handlers.get(type)?.({ type, ...data }, ctx as unknown as ExtensionContext);
   const assessed = async (callId = 'c') => {
@@ -42,6 +43,6 @@ export async function guardHarness(options: { env?: Record<string, string>; judg
   };
   const start = () => emit('session_start', { reason: 'startup' });
   const call = (id = 'c', input: any = { path: 'README.md', text: 'hello' }) => emit('tool_call', { toolName: 'edit', toolCallId: id, input });
-  return { cwd, file, pi, ctx, records, statuses, notifications, prompts, views, branch, commands, controller, emit, start, call, assessed,
+  return { cwd, file, pi, ctx, env, records, statuses, notifications, prompts, views, branch, commands, controller, emit, start, call, assessed,
     close: async () => { await emit('session_shutdown'); await rm(cwd, { recursive: true, force: true }); } };
 }

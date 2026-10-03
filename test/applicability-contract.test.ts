@@ -40,7 +40,7 @@ test('candidate SDK mapping records fact references and genuinely absent evidenc
   const judge = createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => { payload = JSON.parse(init!.body as string); return Response.json(rawResponse(refs.digest)); } });
   const result = await decide({ ...req, judge });
   assert.equal(result.decision, 'ALLOW');
-  assert.equal(result.questionVersion, 'policy-rules-v6-applicability');
+  assert.equal(result.questionVersion, 'policy-rules-v7-evidence-selection');
   assert.equal(result.assessment!.rules[0]!.evidence, null);
   assert.deepEqual(result.assessment!.rules[0]!.factReferences, refs);
   assert.equal(payload.state.profile, 'applicability-v1');

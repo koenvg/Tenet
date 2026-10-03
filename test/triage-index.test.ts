@@ -31,7 +31,7 @@ test('index groups captured uncertainty by policy, profile, rule and gate while 
     assert.equal(index.invocations(sessionKey('triage'), { category: 'violation' }).items.length, 0);
     assert.equal(index.sessions().items[0]?.categoryCounts.uncertainty, 4);
     assert.equal(index.sessions().items[0]?.concerns, 4);
-    await writeFile(join(root, sessionKey('triage'), 'new.json'), JSON.stringify({ schemaVersion: 4 }), { mode: 0o600 });
+    await writeFile(join(root, sessionKey('triage'), 'new.json'), JSON.stringify({ schemaVersion: 5 }), { mode: 0o600 });
     await writeFile(join(root, sessionKey('triage'), 'bad.json'), '{', { mode: 0o600 });
     await index.refresh();
     assert.equal(index.status().unsupported, 1);

@@ -51,6 +51,17 @@ export interface Observation {
 }
 export interface Trajectory {
   observations: readonly Observation[]; omitted: number; limitations: readonly string[];
+  selection?: HistorySelection;
+  /** Runtime-encoded sanitized strings, local to this immutable snapshot. */
+  values?: Readonly<Record<string, string>>;
+}
+export interface HistorySelection {
+  readonly version: 'bounded-history-v2'; readonly maxHistoryBytes: number; readonly maxEventBytes: number;
+  readonly retainedEvents: number; readonly shortenedEvents: number; readonly droppedEvents: number;
+  readonly priorOmittedEvents: number;
+  /** Serialized bytes saved versus the same retained, escaped inline snapshot,
+   * with identical selection metadata. Never counts excerpts or dropped events. */
+  readonly exactCompactedBytes: number;
 }
 export interface EvidenceLimits { recentEvents: number; maxBytes: number }
 /** Host-supplied history is evidence only, never current resolution or permission. */
@@ -60,6 +71,8 @@ export interface HistoryEvent {
 }
 export interface Config { effectThreshold: number; evidenceThreshold: number; deadlineMs: number }
 export interface JudgeRequest {
+  /** Owner-only preparation diagnostic, excluded from judgeState. */
+  evidenceContext?: import('./evidence-context.js').EvidenceContext;
   profile?: import('./assessment-contract.js').AssessmentProfile;
   policy: PolicySet;
   action: Action;
@@ -94,6 +107,7 @@ export interface RuleDiagnostic {
   evidenceThreshold: number | null;
 }
 export interface Decision {
+  evidenceContext: import('./evidence-context.js').EvidenceContext;
   profile?: import('./assessment-contract.js').AssessmentProfile;
   decision: 'ALLOW' | 'ASK' | 'BLOCK';
   reason: Reason;

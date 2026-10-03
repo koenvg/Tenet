@@ -4,6 +4,8 @@ import { INTEGRITY_ID, INTEGRITY_TEXT } from './policy.js';
 import { prepareRequest, serializedBytes } from './history-selection.js';
 import { UNSUPPORTED_ACTION } from '../runtime/resolved-action.js';
 import { ASSESSMENT_PROFILE } from './assessment-contract.js';
+import { evidenceContext } from './evidence-context.js';
+import { freeze } from './evidence.js';
 
 export function judgeState(request: JudgeRequest) {
   const policy = { ...request.policy, rules: request.policy.rules.map(({ id, line, text }) => ({ id, line, text })) };
@@ -14,5 +16,6 @@ export function judgeState(request: JudgeRequest) {
 }
 
 export function boundEvidence(request: JudgeRequest, limits?: EvidenceLimits): JudgeRequest | null {
-  return prepareRequest(request, bounded => serializedBytes(judgeState(bounded)), limits);
+  const bounded = prepareRequest(request, bounded => serializedBytes(judgeState(bounded)), limits);
+  return bounded ? freeze({ ...bounded, evidenceContext: evidenceContext(bounded, limits, true) }) : null;
 }
