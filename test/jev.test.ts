@@ -50,7 +50,8 @@ test('one official SDK request assesses every rule with generic evidence and tru
     }
     assert.match(outcome.instructions, /UNKNOWN/);
     assert.match(evidence.instructions, /INSUFFICIENT/);
-    assert.doesNotMatch(evidence.instructions, /UNKNOWN/);
+    assert.match(evidence.instructions, /coverage omissions do not alone require UNKNOWN or INSUFFICIENT/);
+    assert.match(evidence.instructions, /Return INSUFFICIENT if a reliable classification is not possible\.$/);
   }
   assert.equal(body.model, 'jev-latest'); assert.deepEqual(body.state.action, action);
   assert.deepEqual(body.state.trajectory, trajectory);

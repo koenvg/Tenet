@@ -5,6 +5,7 @@ import { decide, DEFAULTS } from '../src/decision/decide.js';
 import { INTEGRITY_ID } from '../src/decision/policy.js';
 import type { Assessment, Clock, Outcome } from '../src/decision/contracts.js';
 import { answer, policy, ruleAnswer } from './helpers.js';
+import { UNSUPPORTED_ACTION } from '../src/runtime/resolved-action.js';
 
 const action = captureAction({ sessionId: 's', callId: '1', toolName: 'unfamiliar', arguments: { arbitrary: [1, null, { source: 'hello' }] } });
 const base = { policy, action, cwd: '/project' };
@@ -69,6 +70,35 @@ test('complete-set aggregation is permutation invariant; fail/unknown dominate a
   }
 });
 
+test('a material gap for one rule does not change another independently determinable PASS', async () => {
+  const selected = { ...policy, rules: [
+    { id: 'target-rule', line: 1, text: 'Never access the restricted dataset.', enforcement: 'BLOCK' as const },
+    { id: 'approval-rule', line: 2, text: 'Publish only after confirmation.', enforcement: 'BLOCK' as const },
+  ] };
+  const raw = answer(selected);
+  raw.rules[0] = ruleAnswer('target-rule', 'UNKNOWN', 1);
+  raw.rules[0].evidence = { choice: 'INSUFFICIENT', probabilities: { SUFFICIENT: 0, INSUFFICIENT: 1 } };
+  const result = await decide({ ...base, policy: selected, resolvedAction: UNSUPPORTED_ACTION, judge: async () => raw });
+  assert.equal(result.decision, 'BLOCK');
+  assert.deepEqual(result.ruleIds, ['target-rule']);
+  assert.deepEqual(result.diagnostics.map(d => [d.ruleId, d.gates]), [
+    ['target-rule', ['outcome-unknown', 'evidence-insufficient', 'evidence-confidence-below-threshold']],
+  ]);
+  assert.equal(result.assessment!.rules[1]!.outcome.choice, 'PASS');
+  assert.equal(result.assessment!.rules[1]!.evidence!.choice, 'SUFFICIENT');
+});
+
+test('identical ordinary assessments keep aggregate decisions and gates despite coverage omissions', async () => {
+  for (const outcome of ['PASS', 'APPROVAL_REQUIRED', 'FAIL', 'UNKNOWN'] as const) {
+    const judge = async () => answer(policy, outcome);
+    const reference = await decide({ ...base, judge });
+    const result = await decide({ ...base, judge, resolvedAction: UNSUPPORTED_ACTION,
+      trajectory: { observations: [], omitted: 3, limitations: ['fixture-history-unavailable'] } });
+    for (const field of ['decision', 'reason', 'ruleIds', 'diagnostics', 'assessment', 'config'] as const)
+      assert.deepEqual(result[field], reference[field], field);
+  }
+});
+
 test('integrity failure is non-overridable and cannot request approval', async () => {
   for (const outcome of ['FAIL', 'UNKNOWN', 'APPROVAL_REQUIRED'] as const) {
     const raw = answer(); raw.rules[1] = ruleAnswer(INTEGRITY_ID, outcome);
@@ -76,6 +106,17 @@ test('integrity failure is non-overridable and cannot request approval', async (
     assert.equal(result.decision, 'BLOCK');
     assert.equal(result.reason, outcome === 'FAIL' ? 'policy-integrity' : outcome === 'UNKNOWN' ? 'insufficient-evidence' : 'invalid-response');
   }
+});
+
+test('integrity cannot select NOT_APPLICABLE even at full confidence', async () => {
+  const raw: any = answer();
+  raw.rules[1] = { ruleId: INTEGRITY_ID, outcome: { choice: 'NOT_APPLICABLE', probabilities: {
+    PASS: 0, APPROVAL_REQUIRED: 0, FAIL: 0, UNKNOWN: 0, NOT_APPLICABLE: 1,
+  } }, evidence: null, factReferences: { digest: 'NONE', operationIds: [] } };
+  const result = await decide({ ...base, resolvedAction: UNSUPPORTED_ACTION, judge: async () => raw });
+  assert.equal(result.decision, 'BLOCK');
+  assert.equal(result.reason, 'invalid-response');
+  assert.equal(result.assessment, null);
 });
 
 test('both probability gates apply to every rule at exact configured boundaries', async () => {

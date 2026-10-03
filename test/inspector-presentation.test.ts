@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { invocationView } from '../src/inspector/view.js';
-import { explainDecision, orderedRules, gateExplanation } from '../inspector/src/presentation.js';
+import { explainDecision, orderedRules, gateExplanation, primaryStatus, modeLabel, gateTone, findingPresentation } from '../inspector/src/presentation.js';
 
 const fixture = (decision = 'BLOCK') => invocationView([
   { stage: 'begin', data: { policy: { rules: [
@@ -142,4 +142,44 @@ test('complete unprofiled legacy assessments use their historical contract, not 
   assert.equal(view.assessmentProfile, 'legacy (historical)');
   assert.equal(view.noRulesClassifiedViolated, true);
   assert.match(explainDecision(view), /No rule was classified as violated/);
+});
+
+
+for (const execution of ['executed', 'failed', 'unknown', undefined, 'future-result']) {
+  for (const permission of ['blocked', 'released', 'unknown', undefined, 'future-permission']) {
+    test(`execution-first status for ${execution} / ${permission}`, () => {
+      const facts = Object.freeze({ execution, permission });
+      const status = primaryStatus(facts);
+      const expected = execution === 'executed' ? ['Ran', 'neutral'] : execution === 'failed' ? ['Failed', 'danger']
+        : permission === 'blocked' ? ['TENET blocked', 'danger'] : permission === 'released' ? ['Released', 'caution'] : ['Execution unknown', 'neutral'];
+      assert.deepEqual([status.label, status.tone], expected);
+      assert.equal(status.inconsistency, permission === 'blocked' && ['executed', 'failed'].includes(execution ?? ''));
+      assert.equal(!!status.notice, status.inconsistency);
+      if (status.notice) assert.match(status.notice, new RegExp(`permission is blocked, but execution is ${execution}`));
+    });
+  }
+}
+test('assessment, approval, mode and scores cannot change primary status', () => {
+  for (const decision of ['BLOCK', 'ASK', 'ALLOW', 'unavailable']) {
+    for (const mode of ['observe', 'enforce', undefined]) {
+      const facts = { decision, mode, approval: 'approved', scores: { PASS: 1 } };
+      assert.equal(primaryStatus(facts as any).label, 'Execution unknown');
+      assert.equal(primaryStatus({ ...facts, permission: 'released' }).label, 'Released');
+      assert.equal(primaryStatus({ ...facts, execution: 'failed' }).label, 'Failed');
+    }
+  }
+  assert.match(primaryStatus({ permission: 'released' }).explanation, /Execution unknown.*does not prove dispatch/);
+  assert.match(primaryStatus({ execution: 'failed' }).explanation, /does not prove.*external effects/);
+  assert.equal(modeLabel(undefined), 'Mode unknown');
+});
+test('recorded uncertainty gates are amber even when a recorded score would clear them; FAIL remains distinct', () => {
+  const rule = fixture().rules[1]!;
+  rule.result!.outcome.probabilities.PASS = 1;
+  for (const gate of ['outcome-unknown', 'outcome-confidence-below-threshold', 'evidence-insufficient', 'evidence-confidence-below-threshold', 'applicability-unresolved']) {
+    assert.equal(gateTone(rule, gate), 'caution');
+  }
+  assert.equal(gateTone(rule, 'rule-fail'), 'danger');
+  assert.equal(gateTone({ ...rule, enforcement: 'WARN' }, 'rule-fail'), 'caution');
+  assert.equal(findingPresentation('violation').tone, 'danger');
+  assert.equal(findingPresentation('uncertainty').tone, 'caution');
 });

@@ -11,7 +11,7 @@ import { answer } from './helpers.js';
 const capabilities = { host: 'fixture', version: '1', profile: 'test', interception: true,
   resultCorrelation: true, lifecycleInvalidation: true, argumentStability: true, trustedApproval: true, limitations: [] };
 
-async function run(options: { profile?: string; semantics?: 'file-read' | 'file-edit' | 'execute'; stale?: boolean; forged?: boolean; low?: boolean; warn?: boolean; integrity?: boolean; selection?: 'FAIL' | 'APPROVAL_REQUIRED' | 'UNKNOWN'; unsupported?: boolean; rule?: string; compound?: boolean; partial?: boolean; approved?: boolean } = {}) {
+async function run(options: { profile?: string; semantics?: 'file-read' | 'file-edit' | 'execute'; stale?: boolean; forged?: boolean; low?: boolean; warn?: boolean; integrity?: boolean; selection?: 'PASS' | 'FAIL' | 'APPROVAL_REQUIRED' | 'UNKNOWN'; unsupported?: boolean; rule?: string; compound?: boolean; partial?: boolean; approved?: boolean } = {}) {
   const cwd = await realpath(await mkdtemp(join(tmpdir(), 'tenet-applicability-')));
   await writeFile(join(cwd, 'TENET.md'), `Rule; ${options.warn ? 'WARN' : 'BLOCK'}; ${options.rule ?? 'Never create a commit.'}`);
   let facts: ActionFacts;
@@ -92,6 +92,32 @@ test('an explicit approval rule can release only after invocation-local confirma
   const options = { profile: 'applicability-v1', rule: 'Publish only with confirmation.', selection: 'APPROVAL_REQUIRED' as const };
   assert.ok((await run(options)).result?.block);
   assert.equal((await run({ ...options, approved: true })).result, undefined);
+});
+
+test('ordinary PASS releases with unsupported stock-host resolution and retains evidence thresholds', async () => {
+  const { result, events, archive } = await run({ unsupported: true, selection: 'PASS' });
+  assert.equal(result, undefined);
+  assert.ok(archive.every(e => e.data.profile === 'applicability-v1' && e.data.questionVersion === 'policy-rules-v7-ordinary-evidence'));
+  const assessment = events.find(e => e.stage === 'assessment')!.data.assessment;
+  assert.equal(assessment.rules[0].outcome.choice, 'PASS');
+  assert.equal(assessment.rules[0].evidence.choice, 'SUFFICIENT');
+  const decision = events.find(e => e.stage === 'decision')!.data;
+  assert.equal(decision.decision, 'ALLOW');
+  assert.equal(decision.evidenceContext.resolution.status, 'unsupported');
+  assert.equal(decision.contributions[0].evidenceThreshold, 0.9);
+  assert.equal(decision.contributions[0].evidenceGate, 'applicable');
+  assert.equal(events.find(e => e.stage === 'permission')!.data.outcome, 'released');
+});
+test('ordinary PASS cannot clear independent policy integrity', async () => {
+  const { result, events } = await run({ unsupported: true, selection: 'PASS', integrity: true, approved: true });
+  assert.ok(result?.block);
+  assert.equal(events.find(e => e.stage === 'permission')!.data.reason, 'policy-integrity');
+});
+
+test('ordinary PASS cannot release a stale authenticated target', async () => {
+  const { result, events } = await run({ selection: 'PASS', stale: true });
+  assert.ok(result?.block);
+  assert.equal(events.find(e => e.stage === 'permission')!.data.reason, 'action-resolution-stale');
 });
 
 test('applicability is the only default contract without an opt-in', async () => {

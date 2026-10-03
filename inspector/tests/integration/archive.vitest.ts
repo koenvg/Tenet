@@ -6,6 +6,7 @@ import { sessionKey, qualifiedSessionKey, recordInvocationKey } from '../../../s
 import { FixtureArchiveWriter as ArchiveWriter } from '../../../test/archive-fixture.js';
 import { recordFailureFixture } from '../../../test/failure-fixture.js';
 import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
+import { openEvidence, reveal } from '../ui-navigation.js';
 
 beforeAll(launchBrowser);
 afterAll(closeBrowser);
@@ -14,6 +15,8 @@ const call = async (page: import('playwright').Page, id: string) => {
   await page.locator('.call-row').filter({ has: page.locator('.call-id', { hasText: new RegExp(`^${id}$`) }) }).click();
   await expect.poll(() => page.locator('.call-row[aria-pressed="true"] .call-id').textContent()).toBe(id);
   await page.locator('.decision-summary').waitFor();
+  await reveal(page, '.why-disclosure');
+  await reveal(page, '.rule-inspection');
 };
 
 const openPicker = async (page: import('playwright').Page) => {
@@ -52,8 +55,10 @@ test('project filters and cursor pagination retain a safe deep link through back
       history.replaceState(null, '', `/?session=${session}&invocation=${invocation}`);
       window.dispatchEvent(new PopStateEvent('popstate'));
     }, [sessionKey(arbitrary), sessionKey('page-0')]);
-    await expect.poll(() => page.locator('.invocation').textContent()).toContain('page-0');
-    expect(await page.locator('.invocation').textContent()).toContain(arbitrary);
+    await reveal(page, '.capture-details');
+    await reveal(page, '.record-identifiers');
+    await expect.poll(() => page.getByLabel('Recorded invocation ID', { exact: true }).inputValue()).toBe('page-0');
+    expect(await page.getByLabel('Recorded session ID', { exact: true }).inputValue()).toBe(arbitrary);
     await page.evaluate(() => {
       history.replaceState(null, '', '/?session=../../unsafe&invocation=bad');
       window.dispatchEvent(new PopStateEvent('popstate'));
@@ -68,7 +73,9 @@ test('project filters and cursor pagination retain a safe deep link through back
     await page.getByRole('button', { name: 'All projects' }).click();
     await expect.poll(() => page.locator('.session-row strong').allTextContents()).toContain(arbitrary);
     const linked = await open(`/?session=${sessionKey(arbitrary)}&invocation=${sessionKey('page-0')}`);
-    await expect.poll(() => linked.locator('.invocation').textContent()).toContain('page-0');
+    await reveal(linked, '.capture-details');
+    await reveal(linked, '.record-identifiers');
+    await expect.poll(() => linked.getByLabel('Recorded invocation ID', { exact: true }).inputValue()).toBe('page-0');
     await linked.close();
   }, { base: false, seed: async directory => {
     const writer = new ArchiveWriter({ enabled: true, directory });
@@ -140,7 +147,7 @@ test('corrupt and interrupted captures remain unavailable, and archive errors re
     await call(page, 'incomplete');
     expect(await page.locator('.decision-explanation').textContent()).toMatch(/timeout.*not recorded/);
     expect(await page.locator('.rule-detail').textContent()).toContain('Gate coverage unavailable');
-    await page.getByRole('button', { name: 'View shared evidence' }).click();
+    await openEvidence(page);
     expect(await page.locator('#panel-Evidence').textContent()).toContain('Submitted evidence unavailable');
     await page.getByRole('tab', { name: 'Response' }).click();
     expect(await page.locator('#panel-Response').textContent()).toContain('2000000');
@@ -174,7 +181,7 @@ test('mixed schema-1 Pi and host-qualified Pi/Claude links keep evidence and out
     const legacy = await open(`/?session=${sessionKey('same')}&invocation=${sessionKey('same')}`);
     await legacy.locator('.decision-summary').waitFor();
     expect(await legacy.locator('.session-picker summary').textContent()).toContain('pi / main');
-    expect(await legacy.locator('.map-notices').textContent()).toContain('legacy-pi-coverage-not-recorded');
+    expect(await legacy.locator('.capture-details').textContent()).toContain('legacy-pi-coverage-not-recorded');
     expect(await legacy.locator('.rule-detail').textContent()).toContain('Historical rule');
     await legacy.close();
     const child = sessions.find(session => session.host === 'claude-code' && session.contextId === 'child')!;
@@ -182,9 +189,9 @@ test('mixed schema-1 Pi and host-qualified Pi/Claude links keep evidence and out
     expect(calls).toHaveLength(1);
     await page.goto(`${app.origin}/?session=${child.id}&invocation=${calls[0].id}`);
     await page.locator('.decision-summary').waitFor();
-    expect(await page.locator('.map-notices').textContent()).toContain('actual-host-unverified');
-    expect(await page.locator('.map-execution').textContent()).toContain('Failed');
-    await page.locator('.capture-details summary').click();
+    expect(await page.locator('.capture-details').textContent()).toContain('actual-host-unverified');
+    expect(await page.locator('.primary-status').textContent()).toContain('Failed');
+    await page.locator('.capture-details > summary').click();
     expect(await page.locator('.capture-details').textContent()).toMatch(/Would decide.*ALLOW.*Permission.*released.*Execution.*failed/s);
     expect(await page.locator('.capture-details').textContent()).toContain('approval-unavailable');
     const parent = sessions.find(session => session.host === 'claude-code' && session.contextId === 'main')!;
@@ -296,7 +303,7 @@ test('schema 3 lifecycle deep links keep pending and dropped apart from permissi
       const linked = await open(`/?session=${key}&invocation=${row.id}`);
       await expect.poll(() => linked.locator('.finding-tags').textContent()).toContain('Observation pending or incomplete');
       await expect.poll(() => linked.locator('.assessment-status').textContent()).toContain(status);
-      await linked.locator('.capture-details summary').click();
+      await linked.locator('.capture-details > summary').click();
       expect(await linked.locator('.capture-details').textContent()).toContain('Recording schemas3');
       expect(await linked.locator('.capture-details').textContent()).toContain('Assessment profilelegacy');
       expect(await linked.locator('.capture-details').textContent()).toContain('Would decideunavailable');
@@ -336,7 +343,7 @@ test('schema 3 pending deep link is ready after a delayed archive response', asy
     const linked = await open(`/?session=${key}&invocation=${rows[0].id}`);
     await expect.poll(() => linked.locator('.finding-tags').textContent()).toContain('Observation pending or incomplete');
     expect(await linked.locator('.assessment-status').textContent()).toContain('Assessment pending');
-    await linked.locator('.capture-details summary').click();
+    await linked.locator('.capture-details > summary').click();
     const details = await linked.locator('.capture-details').textContent();
     expect(details).toContain('Recording schemas3');
     expect(details).toContain('Would decideunavailable');

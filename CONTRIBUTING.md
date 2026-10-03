@@ -28,4 +28,20 @@ The separate archive metadata check requires Python 3 for development validation
 
 Build before the Bun suite: the Pi inspector-command tests serve files from `inspector/dist`. On Linux, install Chromium's system libraries with `bunx playwright install --with-deps chromium`. CI runs these checks on pushes to `main` and on pull requests. The Bun suite includes the Pi smoke tests.
 
+For integrated evidence, question and report changes, build the SDK and inspector first. Use a short macOS temp path and no provider credentials:
+
+```sh
+env -u TYPESAFE_API_KEY TMPDIR=/tmp bun test --isolate --max-concurrency=1 --timeout=30000 test/applicability-comparison.test.ts test/evidence-preparation.test.ts test/evidence-budget-capture.test.ts test/applicability-contract.test.ts test/applicability.test.ts test/assessment-metadata.test.ts test/resolved-action.test.ts test/decision.test.ts test/runtime-contract.test.ts test/approval-lifecycle.test.ts test/evidence-selection-live.test.ts test/evidence-selection-report.test.ts
+```
+
+Then run the complete offline sequence above and `bun run sdk:example`. The restored historical campaign tests must execute, not be skipped for question drift. The report-only replay and its readable output are documented in [the offline comparison guide](eval/applicability-README.md). Live provider commands, packaging and active-service restarts are not part of this verification.
+
+For current-action evidence selection, use the focused offline suite after the builds:
+
+```sh
+bun test test/evidence-preparation.test.ts test/resolved-action.test.ts test/trajectory.test.ts test/evidence-budget-capture.test.ts --isolate --max-concurrency=1 --timeout=30000
+```
+
+These authored regressions cover metadata tiers, exact UTF-8 boundaries including omission markers, final-only loss accounting, required-evidence overflow and unchanged host-fact safety. Capture tests use synthetic Pi hooks and the compiled SDK with an injected scripted transport. They compare submitted state with the recorded request and verify that later history cannot alter either snapshot. They make no claim about live evaluator accuracy or deployed executor coverage.
+
 Do not put `TYPESAFE_API_KEY`, policy text with credentials, or local TENET recordings in a commit, screenshot, or test artifact. The inspector's archives can contain exact submitted source text and secrets even with redaction. The live evaluation commands under `eval/` contact TypeSafe, use quota, and are **not** part of CI; run them only with separate authorization. Only invited collaborators can open Issues or Pull Requests for now; everyone else can read and fork once the repository is public. Report vulnerabilities through the private route in [SECURITY.md](SECURITY.md).

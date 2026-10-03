@@ -1,14 +1,16 @@
 <script lang="ts">
-  import { tone } from './presentation';
+  import { tone as valueTone, type StatusTone, type StatusIcon } from './presentation';
   import DecisionIcon from './DecisionIcon.svelte';
   export let value: string;
   export let label: string | undefined = undefined;
   export let showIcon = false;
-  $: chipTone = tone(value);
+  export let tone: StatusTone | undefined = undefined;
+  export let icon: StatusIcon | undefined = undefined;
+  $: chipTone = tone ?? valueTone(value);
 </script>
 
 <span class="status-chip {chipTone}" class:with-icon={showIcon}>
-  {#if showIcon}<DecisionIcon kind={chipTone === 'positive' ? 'allow' : chipTone === 'danger' ? 'block' : chipTone === 'approval' ? 'ask' : 'unknown'} />{/if}
+  {#if showIcon}<DecisionIcon kind={icon ?? (chipTone === 'positive' ? 'allow' : chipTone === 'danger' ? 'block' : chipTone === 'approval' ? 'ask' : 'unknown')} />{/if}
   <span>{label ?? value}</span>
 </span>
 

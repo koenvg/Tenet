@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { sessionKey, qualifiedSessionKey } from '../../../src/recording/archive.js';
 import { ArchiveWriter } from '../../../test/legacy-recording-fixture.js';
 import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
+import { openEvidence } from '../ui-navigation.js';
 
 beforeAll(launchBrowser);
 afterAll(closeBrowser);
@@ -33,7 +34,7 @@ test('polling discovers another session and delayed execution without losing the
     const row = page.locator('.call-row').filter({ has: page.locator('.call-id', { hasText: 'concerning' }) });
     await row.click();
     await expect.poll(() => page.locator('.call-row[aria-pressed="true"] .call-id').textContent()).toBe('concerning');
-    await page.getByRole('button', { name: 'View shared evidence' }).click();
+    await openEvidence(page);
     const evidence = page.locator('#panel-Evidence');
     const scroll = await evidence.evaluate(el => { el.scrollTop = 37; return el.scrollTop; });
     expect(scroll).toBeGreaterThan(0);
@@ -63,10 +64,10 @@ test('polling discovers another session and delayed execution without losing the
       .toEqual(expect.arrayContaining([expect.stringContaining('claude-code / child')]));
     await page.locator('.session-picker summary').click();
     await page.locator('.session-row').filter({ hasText: 'claude-code / child' }).click();
-    await expect.poll(() => page.locator('.decision-summary').textContent()).toContain('claude-code / child');
+    await expect.poll(() => page.locator('.capture-details').textContent()).toContain('claude-code / child');
     expect(new URL(page.url()).searchParams.get('session')).toBe(qualifiedSessionKey('claude-code', 'live-session', 'child'));
-    expect(await page.locator('.map-notices').textContent()).toContain('actual-host-unverified');
-    await page.locator('.capture-details summary').click();
+    expect(await page.locator('.capture-details').textContent()).toContain('actual-host-unverified');
+    await page.locator('.capture-details > summary').click();
     expect(await page.locator('.capture-details').textContent()).toMatch(/Would decide.*ALLOW.*Permission.*released.*Execution.*unknown/s);
     expect(await page.locator('.capture-details').textContent()).toContain('approval-unavailable');
     expect(await page.getByRole('region', { name: 'Recording issues' }).count()).toBe(0);

@@ -10,7 +10,7 @@ export const recordedQuestion = {
 
 export function makeView(options: {
   choice?: string; decision?: string; gate?: string | null; mode?: 'observe' | 'enforce';
-  execution?: string; failure?: string; evidence?: boolean; callId?: string;
+  execution?: string; permission?: string; failure?: string; evidence?: boolean; callId?: string;
 } = {}) {
   const policy = { rules: [
     { id: 'rule-one', text: 'Never send an email without confirmation.', line: 5, enforcement: 'BLOCK' },
@@ -35,7 +35,7 @@ export function makeView(options: {
     })) } }]] as [Stage, Record<string, unknown>][] : []),
     ['decision', { decision: options.decision ?? 'BLOCK', reason: options.failure ?? (options.decision === 'ALLOW' ? 'all-rules-pass' : 'insufficient-evidence'),
       contributions: [{ ruleId: 'rule-one', contribution: gate ? 'blocking-gates' : 'none', gates: gate ? [gate] : [], effectThreshold: .9, evidenceThreshold: .9 }] }],
-    ['permission', { outcome: options.decision === 'ALLOW' ? 'released' : 'blocked' }],
+    ['permission', { outcome: options.permission ?? (options.mode !== 'enforce' || options.decision === 'ALLOW' ? 'released' : 'blocked') }],
     ['execution', { outcome: options.execution ?? 'unknown' }],
   ];
   return invocationView(stages.map(([stage, data], index): ArchiveRecord => ({
