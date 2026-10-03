@@ -28,6 +28,14 @@ The separate archive metadata check requires Python 3 for development validation
 
 Build before the Bun suite: the Pi inspector-command tests serve files from `inspector/dist`. On Linux, install Chromium's system libraries with `bunx playwright install --with-deps chromium`. CI runs these checks on pushes to `main` and on pull requests. The Bun suite includes the Pi smoke tests.
 
+For integrated evidence, question and report changes, build the SDK and inspector first. Use a short macOS temp path and no provider credentials:
+
+```sh
+env -u TYPESAFE_API_KEY TMPDIR=/tmp bun test --isolate --max-concurrency=1 --timeout=30000 test/applicability-comparison.test.ts test/evidence-preparation.test.ts test/evidence-budget-capture.test.ts test/applicability-contract.test.ts test/applicability.test.ts test/assessment-metadata.test.ts test/resolved-action.test.ts test/decision.test.ts test/runtime-contract.test.ts test/approval-lifecycle.test.ts test/evidence-selection-live.test.ts test/evidence-selection-report.test.ts
+```
+
+Then run the complete offline sequence above and `bun run sdk:example`. The restored historical campaign tests must execute, not be skipped for question drift. The report-only replay and its readable output are documented in [the offline comparison guide](eval/applicability-README.md). Live provider commands, packaging and active-service restarts are not part of this verification.
+
 For current-action evidence selection, use the focused offline suite after the builds:
 
 ```sh

@@ -76,17 +76,19 @@ There is no runtime legacy switch. To roll back the evaluator, restore the previ
 ## Offline fixtures and comparisons
 
 ```sh
-bun eval/applicability-replay.ts > /tmp/tenet-applicability-comparison.json
+env -u TYPESAFE_API_KEY TMPDIR=/tmp bun eval/applicability-replay.ts > /tmp/tenet-applicability-comparison.json
+env -u TYPESAFE_API_KEY TMPDIR=/tmp bun eval/applicability-replay.ts --format=markdown > /tmp/tenet-applicability-comparison.md
 ```
 
-This command exercises only the current contract with scripted responses. It does not contact a provider or execute fixture actions. Frozen, sanitized canonical and held-out expectations live in `eval/applicability-fixtures.ts`, with a version and pinned digest test. The synthetic resolver is test data, not proof that a deployed host supports these operations.
+This command uses revised current evidence selection and `policy-rules-v7-ordinary-evidence` with scripted responses. It does not contact a provider or execute fixture actions. Version 2 of the sanitized corpus retains every version-1 fixture and its digest, then adds unsupported ordinary reads, inert edits, metadata/history pressure, schema fallback and unrelated rule domains. Unsupported ordinary cases expect PASS, separately from authenticated NOT_APPLICABLE controls. Expectations were committed before current replay. Synthetic resolver facts are test data, not deployed executor coverage.
 
-`compareApplicability` can compare separately supplied recorded results for declared contract identities. It does not rerun historical evaluators or reconstruct absent contributions. Reports retain fixture and policy digests, profile/question identities, thresholds, recorded contributions, returned model, evidence coverage and omissions.
-Semantic-label comparisons apply only to the current contract's authored expectations. Older contracts retain their labels and participate in operational decision metrics without being reinterpreted under the new schema.
+Report identity is the pair of assessment profile and question version. `compareApplicability` accepts separately supplied observations for v6, historical evidence-selection-v7 and current ordinary-evidence-v7 within `applicability-v1`. It rejects duplicate pairs, duplicate fixture observations within a pair, and mismatched fixture, policy, result profile, question version or declared question digest. This is not a runtime selector. Historical questions and assessments are never rebuilt or reevaluated, and historical rows have no current expected outcome. Reports keep policy/fixture/question/payload digests where recorded, models, thresholds, contributions, submitted evidence, evidence context, coverage and omissions. Absent values remain null.
 
-False-block and unnecessary-approval rates use observed decisions on benign fixtures, including unavailable or incomplete assessments. Unsafe-allow rates use observed decisions on protected fixtures. Missing decisions are counted separately; an empty denominator produces a null rate, never zero. Missing or unavailable assessments are not semantic successes, and operational failures cannot hide recorded BLOCK, ASK or unsafe ALLOW outcomes.
+Without supplied historical observations, every before row is missing and every pair is incomplete. Reduced false blocks have no denominator and a null rate, not an invented improvement. Supply a sanitized JSON bundle with `--before=PATH` to compare recorded results. See [the offline report contract](../eval/applicability-README.md) for its shape and limits.
 
-Scripted results verify mechanics, not semantic accuracy. Live replay requires separate explicit owner authorization. Reports cannot change the runtime contract or process configuration.
+False-block and unnecessary-approval rates use observed benign decisions, including unavailable or incomplete assessments. Unsafe-allow rates use observed protected decisions even when evaluation is incomplete. Missing decisions, unavailable assessments and incomplete evaluations have separate counts over planned rows. Selected violations remain separate from uncertainty-only blocks. Missing fixture-identity user-rule or integrity results, substituted rule IDs, or explicit incomplete evaluation, cannot count as correct classifications or paired false-block reduction. Ordinary evidence omissions remain visible but are not automatic evaluation failure. A protected unsafe ALLOW remains visible independently of benign reduction.
+
+Scripted mechanics, smaller requests and inspector labels do not measure live semantic accuracy. The report declares no provider request, fixture-action execution or automatic promotion. Live evaluation needs separately authorized evidence disclosure and provider usage. Reports cannot change the runtime contract or process configuration.
 
 The ordinary-evidence regressions use the existing public question, scripted SDK, decision, runtime callback and historical inspector tests:
 
