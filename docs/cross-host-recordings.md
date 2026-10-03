@@ -1,9 +1,53 @@
-# Reading Pi and Claude recordings together
+# Read Pi and Claude recordings together
 
-The inspector accepts three archive formats. Schema 1 is historical Pi data: its directory and deep-link hashes remain `sha256(native session ID)` and `sha256(Tenet invocation ID)`. The reader attributes these records to Pi's main context, but their adapter capabilities were not recorded. Do not read that attribution as verified historical host coverage. The reader does not migrate or rewrite the files.
+Use this checkout reference to identify the host, session and execution context of a retained call. The current inspector reads archive schemas 1 through 4 without migrating files. Launch it with [the inspector guide](inspector.md), then select a session and invocation.
 
-Production Pi and Claude adapters write schema 3 for new invocations. Schema 2 used the same host/context-qualified session and invocation hashes; schema 3 adds an independent assessment lifecycle (`pending`, `completed`, `unavailable`, `dropped`, `cancelled`). A session directory hashes `[host, native session ID, execution context ID]`; an invocation link hashes those values plus the Tenet invocation ID. Native IDs shared between hosts or child contexts therefore get separate pages. Schema-1 and schema-2 records remain readable alongside schema 3 without migration. Unknown versions, corrupt files and unsafe paths appear under Recording issues rather than silently becoming Pi records. Rebuild inspector assets and restart the running inspector after upgrading; an older process cannot inspect schema 3 just because the checkout has a newer reader.
+## Check the recorded schema and identity
 
-The inspector shows adapter capabilities recorded at invocation time, not today's installed configuration. In observe mode permission is released before assessment; result-before-assessment and assessment-before-result are both valid, and the original pre-execution snapshot determines any later finding. A pending or dropped assessment has no would-decision. An incomplete archive after a crash or writer failure is unknown, not a pass. Successful and failed result events mark observed execution; without one, execution is unknown. Thresholds in older decisions use recorded contributions or the configuration captured with that invocation, never current settings.
+| Archive schema | Identity and recorded meaning |
+| --- | --- |
+| 1 | Historical Pi data. Directory hash is `sha256(native session ID)`; invocation deep-link hash is `sha256(Tenet invocation ID)`. The reader attributes it to Pi's main context, but adapter capabilities were not recorded. This is not verified historical coverage. |
+| 2 | Host/context-qualified session and invocation hashes |
+| 3 | Same qualified hashes, plus independent assessment lifecycle: `pending`, `completed`, `unavailable`, `dropped`, `cancelled` |
+| 4 | Current Pi/Claude writes, adding versioned owner-only runtime evidence diagnostics. Earlier payloads, thresholds and identities stay unchanged. |
 
-Recording is best-effort. `TENET_RECORDING=off` disables persistence, not observation or owner status. Dormant sessions and the shared off switch suppress diagnostic capture; recording errors do not change permission. Observe work admits at most two running and 32 waiting jobs, 1 MiB of retained snapshots and five seconds of queue age. Capacity/expiry drops permit the tool but appear as lost coverage; queue wait and provider time are separate. Off, replacement and shutdown cancel remaining work without waiting for stalled providers. Pending writes may drain after off; shutdown's archive drain is bounded and old files are never erased. Stage snapshots retain evidence redaction and byte limits, and the inspector has no approval or control endpoint. Removing Claude hooks or stopping the bridge stops Claude interception; it does not erase old recordings. Older readers may not understand schema 3: keep and restart an upgraded inspector to inspect it.
+For schemas 2 through 4, a session directory hashes `[host, native session ID, execution context ID]`. An invocation link hashes those values plus the Tenet invocation ID. A native ID reused across hosts or child contexts therefore gets separate pages.
+
+Schema 3 was the production format before schema 4. It remains readable alongside schemas 1 and 2. Missing historical diagnostics are **Not recorded**, not complete coverage. See [schema-4 provenance and validation](inspection-evidence.md#recorded-and-inspector-explanations).
+
+The inspector shows capabilities recorded at invocation time, not today's installed configuration. Stock Pi and Claude have unsupported authenticated action resolution. The Claude prototype has no verified pinned host or stock trusted live owner approval UI. Attribution does not establish either kind of coverage.
+
+## Read assessment, permission and execution separately
+
+```text
+same captured invocation
+    +--> assessment lifecycle --> finding / would-decision
+    +--> actual permission ----> released or withheld
+    +--> execution record ------> executed, failed or unknown
+```
+
+In observe, permission precedes assessment. Result-before-assessment and assessment-before-result are both valid. A later finding uses the original pre-execution snapshot, not post-execution state. Pending or dropped assessment has no would-decision.
+
+Historical records keep their recorded `executed` or `failed` outcome. Current hosts need supported exact result correlation to report those outcomes for an invocation.
+
+New SDK-backed Pi records keep execution `unknown`, even when a native result reports success or failure. Pi does not declare `result-correlation`, so a captured result is not exact execution evidence for that invocation. Without a result, execution also stays unknown.
+
+Released permission is not execution. A result does not independently verify remote effects. A crash or writer failure can leave an incomplete archive, never a pass.
+
+Older decisions use recorded contributions or configuration captured with that invocation, not current thresholds. The reader does not recompute decisions or reinterpret historical enforcement as observation.
+
+## Check missing records and lost coverage
+
+Recording is best-effort. `TENET_RECORDING=off` stops persistence, not observation or owner status. Dormant sessions and shared off suppress diagnostic capture. Recording errors do not change permission.
+
+Observe allows at most two running and 32 waiting jobs, 1 MiB of retained snapshots and five seconds of queue age. Capacity/expiry drops permit the tool but report lost coverage. Queue wait and provider deadline are separate.
+
+Off, replacement and shutdown cancel remaining work without waiting for stalled providers. Pending writes can drain after off. Shutdown's archive drain is bounded; old files are never erased. Stage snapshots retain redaction and byte limits. See [storage, retention and deletion](inspector.md#sensitive-local-storage) and [observation queue limits](limits.md#background-observation-can-lose-coverage).
+
+The inspector has no approval or control endpoint. Removing Claude hooks or stopping its bridge stops Claude interception, not historical storage. Tenet is not a sandbox, and one host's installation or enforce mode does not establish another host's coverage.
+
+## Unsupported or corrupt records appear
+
+Unknown versions, corrupt files and unsafe paths appear under Recording issues, not as guessed Pi records. The partial-coverage warning means only the supported subset is visible.
+
+For a checkout upgrade, rebuild inspector assets and restart the running inspector or the Pi process that launched it. Rebuilding alone does not update reader code in an old process. Archive owners replace the verified installation and restart without a local build. Keep an upgraded inspector for newer records: older readers cannot inspect schema 3 or 4 merely because the checkout now has a newer reader. Never rewrite archives for rollback.

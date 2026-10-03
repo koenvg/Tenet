@@ -93,15 +93,30 @@ test('freshness detects deletion and same-byte symlink retargeting', async () =>
   });
 });
 
-test('README policy examples parse as documented without touching the active policy', async () => {
+test('maintained policy examples parse as documented without touching the active policy', async () => {
   const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
-  const examples = [...readme.matchAll(/```tenet-policy\n([\s\S]*?)```/g)];
-  assert.equal(examples.length, 2);
+  assert.match(readme, /\]\(docs\/policy\.md(?:#[^)]+)?\)/);
+  const guide = await readFile(new URL('../docs/policy.md', import.meta.url), 'utf8');
+  // Match complete fences at line boundaries, including indented list-step examples.
+  const examples = [...guide.matchAll(/^[ \t]*(`{3,})tenet-policy[ \t]*\r?\n([\s\S]*?)^[ \t]*\1[ \t]*\r?$/gm)]
+    .map(example => example[2]!);
+  assert.ok(examples.length >= 4, 'first rule, grammar, spaced threshold and migration examples must remain');
+  const counts = examples.map(example => example.split(/\r?\n/).filter(line => line.trim().startsWith('Rule;')).length);
+  assert.deepEqual(counts.slice(0, 4), [1, 3, 1, 1]);
+  assert.match(examples[0]!, /Rule; Ask before overwriting owner-demo\.txt\./);
+  assert.match(guide, /supported short form/);
+  assert.match(guide, /Explicit `BLOCK` is optional/);
+  assert.match(examples[1]!, /Rule; BLOCK; evidenceThreshold=0\.95;/);
+  assert.match(examples[1]!, /Rule; WARN; evidenceThreshold=0\.8;/);
+  assert.match(examples[2]!, /Rule; BLOCK; evidenceThreshold = 0\.95 ;/);
+  assert.match(examples[3]!, /Rule; Never publish code to a remote repository without explicit approval\./);
   await fixture(async file => {
-    for (const example of examples) {
-      await writeFile(file, example[1]!);
+    for (const [index, example] of examples.entries()) {
+      assert.ok(counts[index]! > 0);
+      await writeFile(file, example);
       const policy = await loadPolicy(file); assert.ok(policy.available);
-      assert.equal(policy.rules.length, example[1]!.trim().split('\n').length);
+      assert.equal(policy.rules.length, counts[index]);
+      if (index === 0) assert.equal(policy.rules[0]!.enforcement, 'BLOCK');
     }
   });
 });
