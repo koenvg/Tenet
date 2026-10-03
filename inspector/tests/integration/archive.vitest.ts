@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { sessionKey, qualifiedSessionKey, recordInvocationKey } from '../../../src/recording/archive.js';
-import { ArchiveWriter } from '../../../test/legacy-recording-fixture.js';
+import { FixtureArchiveWriter as ArchiveWriter } from '../../../test/archive-fixture.js';
 import { recordFailureFixture } from '../../../test/failure-fixture.js';
 import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
 
@@ -74,7 +74,7 @@ test('project filters and cursor pagination retain a safe deep link through back
     const writer = new ArchiveWriter({ enabled: true, directory });
     for (let n = 0; n < 55; n++) writer.bind({ sessionId: arbitrary, invocationId: `page-${n}`, callId: 'reused', toolName: 'edit', cwd: '/second-project', mode: 'observe' })('begin', {});
     writer.bind({ sessionId: 'fork', invocationId: 'fork-call', callId: 'reused', toolName: 'edit', cwd: '/third-project', mode: 'observe' })('begin', {});
-    await writer.close();
+    await writer.complete();
   } });
 });
 
@@ -89,10 +89,10 @@ test('fresh link opens an older session omitted from the first picker page', asy
   }, { base: false, path: `/?session=${oldKey}`, seed: async directory => {
     const writer = new ArchiveWriter({ enabled: true, directory });
     writer.bind({ sessionId: 'older-session', invocationId: 'older-call', callId: 'older-call', toolName: 'read', mode: 'observe', cwd: '/old-project' })('begin', {});
-    await writer.drain();
+    await writer.settle();
     await new Promise(resolve => setTimeout(resolve, 25)); // Distinct sort timestamp for the first page.
     for (let n = 0; n < 52; n++) writer.bind({ sessionId: `new-${n}`, invocationId: `new-${n}`, callId: `new-${n}`, toolName: 'read', mode: 'observe', cwd: '/new-project' })('begin', {});
-    await writer.close();
+    await writer.complete();
   } });
 });
 
@@ -161,7 +161,7 @@ test('corrupt and interrupted captures remain unavailable, and archive errors re
     sink('begin', { policy: { rules: [{ id: 'old-rule', line: 7, text: 'Historical rule', enforcement: 'BLOCK' }] } });
     sink('decision', { decision: 'BLOCK', reason: 'timeout' });
     sink('response', { preview: '<script>window.hostile=true</script>', truncated: true, bytes: 2000000 });
-    await writer.close();
+    await writer.complete();
   } });
 });
 
@@ -203,7 +203,7 @@ test('mixed schema-1 Pi and host-qualified Pi/Claude links keep evidence and out
       sink('decision', { decision: 'ALLOW' }); sink('permission', { outcome: 'released' });
       if (contextId === 'child') sink('execution', { outcome: 'failed' });
     }
-    await writer.close();
+    await writer.complete();
   } });
 });
 
@@ -279,7 +279,7 @@ test('real archive filters overlapping categories, expands grouped calls and war
       sink('permission', { outcome: 'released' });
       sink('execution', { outcome: 'executed' });
     }
-    await writer.close();
+    await writer.complete();
     await writeFile(join(directory, key, 'newer.json'), JSON.stringify({ schemaVersion: 5 }), { mode: 0o600 });
   } });
 });
@@ -305,7 +305,7 @@ test('schema 3 lifecycle deep links keep pending and dropped apart from permissi
   }, { base: false, path: `/?session=${key}`, seed: async directory => {
     const writer = new ArchiveWriter({ enabled: true, directory });
     writer.bind({ sessionId: 'lifecycle-browser', invocationId: 'old', callId: 'old', toolName: 'read', cwd: '/p', mode: 'observe', host: 'pi', contextId: 'main' })('begin', {});
-    await writer.close();
+    await writer.complete();
     const folder = join(directory, key), base = JSON.parse(await readFile(join(folder, (await readdir(folder))[0]!), 'utf8'));
     for (const [id, status] of [['pending', 'pending'], ['dropped', 'dropped']] as const) {
       const record = { ...base, schemaVersion: 3, invocationId: id, callId: id, eventId: randomUUID(),
@@ -314,5 +314,39 @@ test('schema 3 lifecycle deep links keep pending and dropped apart from permissi
       expect(idHash).toMatch(/^[a-f0-9]{64}$/);
       await writeFile(join(folder, `${id}.json`), JSON.stringify(record), { mode: 0o600 });
     }
+  } });
+});
+
+test('schema 3 pending deep link is ready after a delayed archive response', async () => {
+  const key = qualifiedSessionKey('pi', 'delayed-lifecycle', 'main');
+  await withInspector('delayed-lifecycle', async ({ page, app, open }) => {
+    await page.locator('.invocation').waitFor();
+    const rows = (await (await fetch(`${app.origin}/api/sessions/${key}`)).json()).invocations;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].categories).toEqual(['pending']);
+    await page.context().route(`**/api/sessions/${key}/invocations/${rows[0].id}`, async route => {
+      const response = await route.fetch();
+      const body = await response.json();
+      expect(body.view.assessmentStatus).toBe('pending');
+      expect(body.view.categories).toEqual(['pending']);
+      // Isolate page-load versus archive-readiness ordering beyond Vitest's existing poll deadline.
+      await new Promise(resolve => setTimeout(resolve, 1200));
+      await route.fulfill({ response });
+    });
+    const linked = await open(`/?session=${key}&invocation=${rows[0].id}`);
+    await expect.poll(() => linked.locator('.finding-tags').textContent()).toContain('Observation pending or incomplete');
+    expect(await linked.locator('.assessment-status').textContent()).toContain('Assessment pending');
+    await linked.locator('.capture-details summary').click();
+    const details = await linked.locator('.capture-details').textContent();
+    expect(details).toContain('Recording schemas3');
+    expect(details).toContain('Would decideunavailable');
+    expect(details).toContain('Permissionunknown');
+    expect(details).toContain('Executionunknown');
+    await linked.close();
+  }, { base: false, path: `/?session=${key}`, seed: async directory => {
+    const writer = new ArchiveWriter({ enabled: true, directory });
+    writer.bindHistorical({ sessionId: 'delayed-lifecycle', invocationId: 'pending', callId: 'pending', toolName: 'read',
+      cwd: '/p', mode: 'observe', host: 'pi', contextId: 'main' }, 3)('assessment-status', { status: 'pending', reason: 'not-started', profile: 'legacy' });
+    await writer.complete();
   } });
 });

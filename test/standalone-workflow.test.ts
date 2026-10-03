@@ -43,8 +43,9 @@ test('closed inspector capture survives reader restart and same-session live res
     for (const id of ['pass', 'concern', 'failure']) {
       assert.equal(await h.call(id, { text: '<script>window.hostile=true</script>', token: 'workflow-redacted-secret' }), undefined);
       await h.assessed(id);
+      await h.captured();
     }
-    await h.emit('session_shutdown');
+    await h.shutdownCaptured();
     app = await startInspector({ directory });
     const sessions = await get('/api/sessions');
     assert.equal(sessions.sessions.length, 1);

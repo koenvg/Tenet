@@ -4,7 +4,7 @@ import { copyFile, mkdtemp, realpath, rm, rename, symlink, mkdir, readdir, write
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sessionKey } from '../src/recording/archive.js';
-import { ArchiveWriter } from './legacy-recording-fixture.js';
+import { FixtureArchiveWriter as ArchiveWriter } from './archive-fixture.js';
 import { ArchiveIndex } from '../src/inspector/archive-index.js';
 import { readPrivateFile } from '../src/recording/files.js';
 
@@ -21,7 +21,7 @@ test('index filters projects, paginates, retains resumed sessions and reads only
     sink('begin', { policy: { rules: [], secret: 'evidence-not-a-summary' } });
     if (n !== 3) sink('decision', { decision: n === 1 ? 'BLOCK' : 'ALLOW' });
   }
-  await writer.close();
+  await writer.complete();
   let reads = 0;
   const index = new ArchiveIndex(root, async (root, file) => { reads++; return readPrivateFile(root, file); });
   await index.refresh();
@@ -48,7 +48,7 @@ test('index filters projects, paginates, retains resumed sessions and reads only
   assert.equal(reads, coldReads + 2, 'detail only reads the selected invocation');
   const resumed = new ArchiveWriter({ enabled: true, directory: root });
   resumed.bind({ sessionId, invocationId: 'resumed', callId: 'reused', toolName: 'edit', cwd: '/a', mode: 'observe' })('begin', {});
-  await resumed.close();
+  await resumed.complete();
   await index.refresh();
   assert.equal(index.sessions({ project: '/a' }).items[0]!.invocations, 5);
   assert.equal(reads, coldReads + 3);
@@ -65,7 +65,7 @@ test('writers capture canonical project path without changing the original cwd',
   await mkdir(project); await symlink(project, alias);
   const writer = new ArchiveWriter({ enabled: true, directory: join(root, 'archive') });
   writer.bind({ sessionId: 's', invocationId: 'i', callId: 'c', toolName: 'edit', cwd: alias, mode: 'observe' })('begin', {});
-  await writer.close();
+  await writer.complete();
   const index = new ArchiveIndex(join(root, 'archive'));
   await index.refresh();
   assert.deepEqual(index.sessions({ project }).items[0]!.projects, [project]);
@@ -77,8 +77,8 @@ test('writers capture canonical project path without changing the original cwd',
 test('refresh budgets new records, and detail limits expose incomplete capture', () => fixture(async root => {
   const writer = new ArchiveWriter({ enabled: true, directory: root });
   const sink = writer.bind({ sessionId: 'bounded', invocationId: 'i', callId: 'c', toolName: 'edit', cwd: '/p', mode: 'observe' });
-  for (let n = 0; n < 300; n++) { sink('begin', {}); if (n % 32 === 0) await writer.drain(); }
-  await writer.close();
+  for (let n = 0; n < 300; n++) { sink('begin', {}); if (n % 32 === 0) await writer.settle(); }
+  await writer.complete();
   let reads = 0;
   const index = new ArchiveIndex(root, async (root, file) => { reads++; return readPrivateFile(root, file); });
   await index.refresh();
@@ -94,7 +94,7 @@ test('refresh budgets new records, and detail limits expose incomplete capture',
 test('cached summaries disappear when records become unsafe or corrupt', () => fixture(async root => {
   const writer = new ArchiveWriter({ enabled: true, directory: root });
   writer.bind({ sessionId: 'safe', invocationId: 'i', callId: 'c', toolName: 'edit', cwd: '/p', mode: 'observe' })('begin', {});
-  await writer.close();
+  await writer.complete();
   const index = new ArchiveIndex(root); await index.refresh();
   assert.equal(index.sessions().items.length, 1);
   const folder = join(root, sessionKey('safe')), file = join(folder, (await readdir(folder))[0]!);
@@ -111,8 +111,8 @@ test('cached summaries disappear when records become unsafe or corrupt', () => f
 test('large-stage indexing and invocation detail enforce byte budgets', () => fixture(async root => {
   const writer = new ArchiveWriter({ enabled: true, directory: root });
   const sink = writer.bind({ sessionId: 'large', invocationId: 'i', callId: 'c', toolName: 'edit', cwd: '/p', mode: 'observe' });
-  for (let n = 0; n < 6; n++) { sink('begin', { evidence: 'x'.repeat(3 * 1024 * 1024) }); await writer.drain(); }
-  await writer.close();
+  for (let n = 0; n < 6; n++) { sink('begin', { evidence: 'x'.repeat(3 * 1024 * 1024) }); await writer.settle(); }
+  await writer.complete();
   let reads = 0;
   const index = new ArchiveIndex(root, async (root, file) => { reads++; return readPrivateFile(root, file); });
   await index.refresh(); assert.equal(reads, 5); assert.equal(index.indexing, true);
@@ -128,7 +128,7 @@ test('metadata traversal is bounded and a deep session cannot starve another ses
   for (let n = 0; n < 1100; n++) await writeFile(join(root, deep, `${String(n).padStart(5, '0')}.tmp`), '');
   const writer = new ArchiveWriter({ enabled: true, directory: root });
   writer.bind({ sessionId: 'shallow', invocationId: 'i', callId: 'c', toolName: 'edit', cwd: '/p', mode: 'observe' })('begin', {});
-  await writer.close();
+  await writer.complete();
   const index = new ArchiveIndex(root);
   await index.refresh();
   assert.equal(index.indexing, true, 'unfinished directory enumeration is partial coverage even without parsing');
@@ -143,7 +143,7 @@ test('metadata traversal is bounded and a deep session cannot starve another ses
 test('bounded sweeps eventually invalidate changed, removed, and unsafe cached files', () => fixture(async root => {
   const writer = new ArchiveWriter({ enabled: true, directory: root });
   writer.bind({ sessionId: 'changing', invocationId: 'i', callId: 'c', toolName: 'edit', cwd: '/p', mode: 'observe' })('begin', {});
-  await writer.close();
+  await writer.complete();
   const folder = join(root, sessionKey('changing'));
   const file = join(folder, (await readdir(folder))[0]!);
   for (let n = 0; n < 700; n++) await writeFile(join(folder, `${n}.noop`), '');
@@ -169,7 +169,7 @@ test('replacing a deep session directory drops its old cached metadata immediate
   const folder = join(root, sessionKey('replaced'));
   const writer = new ArchiveWriter({ enabled: true, directory: root });
   writer.bind({ sessionId: 'replaced', invocationId: 'i', callId: 'c', toolName: 'edit', cwd: '/p', mode: 'observe' })('begin', {});
-  await writer.close();
+  await writer.complete();
   const source = join(folder, (await readdir(folder))[0]!);
   for (let n = 0; n < 1200; n++) await copyFile(source, join(folder, `${n}.json`));
   const index = new ArchiveIndex(root);
@@ -184,7 +184,7 @@ test('replacing a deep session directory drops its old cached metadata immediate
 test('replacing an archive root clears cached sessions before the new root sweep finishes', () => fixture(async root => {
   const writer = new ArchiveWriter({ enabled: true, directory: root });
   writer.bind({ sessionId: 'old', invocationId: 'i', callId: 'c', toolName: 'edit', cwd: '/p', mode: 'observe' })('begin', {});
-  await writer.close();
+  await writer.complete();
   const index = new ArchiveIndex(root); await index.refresh();
   assert.equal(index.sessions().items.length, 1);
   const retired = `${root}-retired`;
@@ -211,7 +211,7 @@ test('a session beyond the open-cursor cap still gets a turn', () => fixture(asy
   await mkdir(join(root, last), { mode: 0o700 });
   const writer = new ArchiveWriter({ enabled: true, directory: root });
   writer.bind({ sessionId: chosen, invocationId: 'i', callId: 'c', toolName: 'edit', cwd: '/p', mode: 'observe' })('begin', {});
-  await writer.close();
+  await writer.complete();
   const index = new ArchiveIndex(root);
   for (let n = 0; n < 4; n++) await index.refresh();
   assert.ok(index.sessions().items.some(row => row.sessionId === chosen));
@@ -224,7 +224,7 @@ test('root deletion reconciliation advances in bounded rounds', () => fixture(as
   const chosen = ids.find(id => sessionKey(id) === last)!;
   const writer = new ArchiveWriter({ enabled: true, directory: root });
   writer.bind({ sessionId: chosen, invocationId: 'i', callId: 'c', toolName: 'edit', cwd: '/p', mode: 'observe' })('begin', {});
-  await writer.close();
+  await writer.complete();
   const index = new ArchiveIndex(root);
   for (let n = 0; n < 8 && (n === 0 || index.indexing); n++) await index.refresh();
   assert.equal(index.sessions().items.length, 1);

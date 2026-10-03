@@ -1,5 +1,5 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
-import { mkdtemp, mkdir, realpath, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { startInspector } from '../../../src/inspector/server.js';
@@ -36,6 +36,12 @@ export async function withInspector(
     await options.seed?.(directory);
     app = await startInspector({ directory, assets: resolve('inspector/dist') });
     context = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce' });
+    const apiEvents: Array<{ elapsedMs: number; page: string; url: string; status: number }> = [];
+    const started = Date.now();
+    context.on('response', response => {
+      if (new URL(response.url()).pathname.startsWith('/api/')) apiEvents.push({ elapsedMs: Date.now() - started,
+        page: response.request().frame().page().url(), url: response.url(), status: response.status() });
+    });
     await context.route('**/*', route => {
       const url = route.request().url();
       if (new URL(url).origin === app!.origin) return route.continue();
@@ -48,6 +54,11 @@ export async function withInspector(
       const next = await context!.newPage();
       next.on('pageerror', error => pageErrors.push(error.message));
       await next.goto(new URL(path, origin).href);
+      const linked = new URL(path, origin);
+      if (/^[a-f0-9]{64}$/.test(linked.searchParams.get('invocation') ?? '')) {
+        // A document load does not finish the asynchronous archive selection.
+        await next.locator('.invocation').waitFor();
+      }
       return next;
     };
     await page.goto(new URL(options.path ?? '/', origin).href);
@@ -57,7 +68,12 @@ export async function withInspector(
     } catch (error) {
       const artifacts = resolve('coverage/inspector-artifacts/playwright');
       await mkdir(artifacts, { recursive: true });
-      await page.screenshot({ path: join(artifacts, `failure-${testName.replace(/[^a-z0-9]+/gi, '-').slice(0, 80)}.png`), fullPage: true }).catch(() => {});
+      const failure = await mkdtemp(join(artifacts, `failure-${testName.replace(/[^a-z0-9]+/gi, '-').slice(0, 80)}-`));
+      await writeFile(join(failure, 'requests.json'), JSON.stringify({ apiEvents, externalRequests, pageErrors }, null, 2));
+      for (const [number, failedPage] of context.pages().entries()) {
+        await failedPage.screenshot({ path: join(failure, `page-${number}.png`), fullPage: true }).catch(() => {});
+        await writeFile(join(failure, `page-${number}.html`), await failedPage.content()).catch(() => {});
+      }
       throw error;
     }
   } finally {
