@@ -1,46 +1,283 @@
-# Operating the archive installation
+# Operate the archive installation
 
-Follow the [installation guide](../README.md) first. Pi loads `dist/pi/extension.js`, which registers the native guard and inspector command. The guard uses the same compiled SDK as standalone consumers.
+Use this guide to check status, manage policy and settings, and fix an installed production archive. Follow the [root installation guide](../README.md) first. In a checkout, the archive recipe is [available in the repository](https://github.com/koenvg/Tenet/blob/main/docs/INSTALL-ARCHIVE.md).
+
+Start with [status](#check-status-before-a-live-action). Then choose the branch you need:
+
+- [Turn assessment and capture on or off](#use-the-cooperative-onoff-switch).
+- [Write rules](#write-one-line-rules) or [change an active policy](#owner-only-policy-management).
+- [Enable enforcement and native approval](#observation-and-enforcement).
+- [Look up settings](#settings-before-launch) or [fix a failure](#troubleshooting).
+- [Inspect or delete retained evidence](#disclosure-and-limits).
+
+Pi loads `dist/pi/extension.js`, which registers the native guard and inspector command. The guard uses the same compiled SDK as standalone consumers. No global `tenet` command is installed.
+
+## Check status before a live action
+
+A real assessment sends policy, paths, tool evidence and bounded recent observations to TypeSafe and uses quota. Secret-bearing strings can survive field redaction. Default local capture also saves submitted strings in `~/.tenet/recordings`. Review disclosure before any assessed action.
+
+Observe never vetoes or opens approval, including for unavailable assessment or integrity findings. Tenet is not an OS sandbox. Pi cannot freeze arguments after hook release or inspect subprocesses. Pi installation does not verify the Claude Code prototype.
+
+1. From your project, run the offline doctor in the same shell environment as your next Pi launch. Replace both placeholders:
+
+   ```sh
+   TENET_DIR=/absolute/path/to/tenet
+   cd /absolute/path/to/project
+   node "$TENET_DIR/dist/cli/index.js" doctor --project "$PWD"
+   ```
+
+   Doctor sends no evidence and changes no files. `ready` means local readiness, not credential validity, provider connectivity or active hooks. See [doctor states and exits](doctor.md#states-and-exits).
+2. Start a fresh Pi process from the project with explicit mode selection:
+
+   ```sh
+   cd /absolute/path/to/project
+   TENET_MODE=observe pi
+   ```
+
+3. In an eligible session, run `/tenet status`. It shows base mode, activation, policy readiness, effective capture and declared host coverage.
+4. Use bare `/tenet` to browse owner findings. A finding describes an assessment, not permission or proof that a tool ran.
+
+Expected active status is `TENET ON OBSERVE`, or `TENET ON ENFORCE` after an explicit enforce launch. A shared off choice shows `TENET OFF`; unavailable control shows `TENET CONTROL UNAVAILABLE`.
+
+A dormant session has no Tenet footer, notifications or commands. An extension load error means Tenet did not load.
 
 ## Eligibility and owner control
 
-Tenet selects `TENET_POLICY` when set. Absolute paths remain absolute; relative paths resolve from the session working directory. Otherwise it selects only `TENET.md` in that directory, not parent directories or the installation directory. A missing implicit policy makes the session dormant. A present invalid policy, missing explicit policy, empty explicit override or missing credentials makes assessment unavailable. Observe permits calls without claiming a pass; enforce blocks unavailable assessment.
+### Select a policy
 
-Write policy changes yourself outside the guarded tool path. Each active declaration starts with case-sensitive `Rule;`. `Rule; text` and `Rule; BLOCK; text` are blocking rules; `Rule; WARN; text` is advisory. Rules are line-based, including inside Markdown fences. A policy must be valid UTF-8, at most 64 KiB, with 1 to 16 rules and at most 4096 UTF-8 bytes per rule. Headings and ordinary prose are not rules.
+Tenet selects `TENET_POLICY` when set. Absolute paths stay absolute; relative paths resolve from the session working directory. An empty or whitespace-only explicit value is invalid.
 
-`/tenet status` reports mode, activation, policy readiness, capture and declared host coverage. `/tenet` browses owner findings. `/tenet off` stops new assessment and capture through the cooperative control file at `~/.tenet/control.json`; `/tenet on` restores the process's existing mode. Other processes notice off asynchronously, and already released actions cannot be recalled. Previous recordings remain. A malformed or unsafe control file is unavailable, not a passing policy decision.
+Without an override, Tenet selects only `TENET.md` in that directory. It does not search parent directories or the installation directory. No owner policy ships in the archive. An `@TENET.md` prompt attachment does not activate the guard.
 
-## Troubleshooting
+```text
+No override + no local file -> dormant in observe and enforce
+Selected file               -> validate policy and active prerequisites
+                                |
+                                +-- valid       -> assessment available
+                                +-- unavailable -> observe permits, enforce blocks
+```
 
-Run the delivered doctor outside Pi with `node "$TENET_DIR/dist/cli/index.js" doctor --project /absolute/path/to/project`. Use the same shell environment as your next launch. Doctor never starts hooks or submits evidence.
+A present invalid or unreadable policy, missing explicit file, missing credentials or invalid guard configuration makes assessment unavailable, not a pass. Observe permits; enforce blocks. Policy deletion after activation stays unavailable rather than becoming dormant.
 
-| Symptom | What to check |
+A dormant session has no assessment, veto, approval, recording or Tenet UI. A file appearing later needs a new session or extension reload. `/tenet on` cannot activate a dormant session.
+
+### Write one-line rules
+
+Author policy yourself outside the guarded agent's intercepted path. This example is illustrative, not complete protection:
+
+```tenet-policy
+Rule; Ask before overwriting owner-demo.txt.
+```
+
+This is the supported short form, with default severity `BLOCK`. Explicit `BLOCK` is optional. Check the selected source, SHA-256 digest and rule count with doctor before launching. This example has `1` declared rule, excluding built-in integrity.
+
+#### Choose severity and metadata when needed
+
+Use `WARN` for advisory findings only. Metadata lets you set a per-rule evidence-confidence threshold:
+
+```tenet-policy
+Rule; WARN; evidenceThreshold=0.8; Ask before installing dependencies.
+```
+
+| Declaration form | Meaning |
 | --- | --- |
-| No footer or `/tenet` command | A missing local policy with no override is dormant. Registration supplies no policy. Check the selected cwd with doctor, author policy externally and restart. If policy exists, check `pi list` and extension load errors. A load error means no Tenet hook. |
-| Invalid or broken active policy | A present malformed file, missing explicit path, empty override or stale policy is unavailable, not dormant. Use valid UTF-8 `Rule;` lines, review the selected path outside the agent and restart. Observe permits without a pass; enforce blocks. |
-| Missing credentials or provider errors | Configure `TYPESAFE_API_KEY` securely before relaunch. Doctor tests presence only. A key can still be invalid, the provider unreachable or an assessment timed out. None is an all-clear; a live request needs separate authorization. |
-| `TENET OFF` or `CONTROL UNAVAILABLE` | `/tenet on` restores the current process mode; it does not select enforce. Fix unsafe permissions or links outside Pi. A malformed safe control can be repaired by native on/off. Other running processes notice changes asynchronously. |
-| Pending or lost findings | Check `/tenet status` for completed, unavailable, dropped, cancelled and cumulative loss counts. Two assessments can run and 32 can wait; waiting snapshots expire after five seconds. Turn end need not cancel observation, but off, stale policy and shutdown can. A crash can leave incomplete records. Absence of a report is not PASS. |
-| Native findings but no inspector history | `TENET_RECORDING=off` leaves native reporting on. Otherwise check the capture location and loss/drain counts. Unsafe directories, full disk or queue loss can prevent capture without changing permission. Stop writers before repairing storage. Old evidence remains separately readable. |
-| Partial or missing inspector stages | Check indexing, unsupported-schema and corrupt-file notices; allow later polls for indexing. Missing assessment or result is unknown, not execution proof. Recording is best-effort, not a transactional audit log. |
-| Doctor says ready but coverage is unknown | Ready is local setup only. Pin Pi 0.85.1, fully restart and verify `/tenet status`. Unknown metadata stays unknown; a detected untested version reports unavailable compatibility. Provider validity and active hooks remain unverified by doctor. |
+| `Rule; text` | Supported short form, default severity `BLOCK` |
+| `Rule; BLOCK; text` | Explicit blocking rule |
+| `Rule; WARN; text` | Advisory rule |
+| `Rule; BLOCK; evidenceThreshold=0.95; text` | Blocking rule with its own evidence-confidence threshold |
 
-Known post-hook limits still apply even when native status is on. Tenet rechecks before releasing permission, but Pi cannot freeze arguments after that hook or correlate native results to an exact SDK invocation. Keep Tenet after argument-mutating hooks; later hooks and executors must honor the assessed action. User-entered `!` commands, extension-internal execution and background subprocess behavior are outside coverage. Stock Pi has no authenticated action resolver. Tenet is not an OS sandbox, and Claude Code is not verified by this path.
+After trimming whitespace, each declaration starts with case-sensitive `Rule;` and occupies one physical line. Exact uppercase `BLOCK;` or `WARN;` at the start of the trimmed remainder selects explicit severity. Other text remains rule prose with default blocking severity.
+
+#### Check parser rules and limits
+
+Headings, blank lines and ordinary prose are ignored. A declaration inside a Markdown fence is still active. After ordinary rule text starts, semicolons remain literal text. Duplicate declarations remain separate entries, identified by policy digest and source line.
+
+| Limit | Requirement |
+| --- | --- |
+| Encoding | Valid UTF-8 |
+| File size | At most 64 KiB, or 65536 bytes |
+| User declarations | 1 through 16 |
+| Rule text | At most 4096 UTF-8 bytes after severity/metadata removal and trimming |
+
+The count excludes built-in integrity. Empty declarations, no declarations, invalid encoding, exceeded limits or an unavailable regular-file target reject the whole policy. Tenet never silently truncates the rules.
+
+#### Set a per-rule threshold
+
+Immediately after explicit severity, optional case-sensitive `evidenceThreshold=<number>;` sets that rule's evidence-confidence threshold. Use unsigned decimal numbers from `0` through `1`, inclusive, with digits on both sides of a decimal point. Whitespace around the key and value is allowed.
+
+Empty, signed, exponent, nonfinite or out-of-range values, missing separators, consecutive duplicate settings and empty rule text reject the whole policy. Differently cased keys remain literal text. The short form `Rule; text` has no metadata parsing. Rephrase older explicit-severity prose that begins with reserved `evidenceThreshold`.
+
+Any `BLOCK` or `WARN` rule can override evidence confidence. Omitted values inherit `TENET_EVIDENCE_THRESHOLD`, default `0.9`. Integrity always uses that global value.
+
+Outcome confidence remains global, default `0.9`. Lowering evidence confidence does not bypass `FAIL`, `UNKNOWN`, `INSUFFICIENT` or one-call approval. Scores are not calibrated safety guarantees.
+
+"Never X without approval" can require confirmation; "Never X" prohibits X. A blocking prohibition takes precedence over an approval condition. `WARN` never blocks or opens approval, even for `FAIL` or `APPROVAL_REQUIRED`. A loaded sentence is not necessarily assessable, such as a prior-tests rule with no evidence of what ran.
+
+### Owner-only policy management
+
+Do not ask the guarded agent to create, migrate or weaken its active policy. Edit it yourself in an editor or owner shell outside the intercepted path.
+
+Built-in integrity covers modifying, removing, replacing, renaming or redirecting the selected path and resolved target, including evidenced aliases and parent-directory replacement. Reading policy is permitted. In enforce mode, integrity blocks without an approval exception and user rules cannot weaken it. Observe reports without vetoing.
+
+Unprefixed policy prose is no longer accepted. To migrate an original publication sentence, author this externally:
+
+```tenet-policy
+Rule; Never publish code to a remote repository without explicit approval.
+```
+
+Under that example, attempted uploads of source or Git objects to any remote repository count, including private repositories and intermediate uploads before commit/reference updates. Local commits or preparation without upload are not publication. This is not a general outbound-data policy.
+
+A Git commit prohibition concerns creating commits, not local reads, edits or staging. Saving a README edit is not a commit; editing then committing still attempts one. Other rules and integrity apply independently. These meanings guide the evaluator, not a tool exemption or accuracy guarantee.
+
+Before enforce release, Tenet checks policy bytes and resolved target against the loaded snapshot. Observe checks freshness before publishing findings.
+
+A mismatch or read failure invalidates pending work and latches `policy-stale` until session-start reload or restart. Enforce remains blocked; observe permits with unavailable coverage and suppresses stale findings.
+
+1. Review and change policy externally.
+2. Use the session-start reload path for policy-file-only changes, or restart Pi.
+3. Check the new digest and count. Make a fresh call rather than reusing pending approval.
+
+Changes while confirmation is open do not authorize that pending action. Integrity is semantic protection, not filesystem isolation. Jev can misclassify actions; hidden aliases may remain unknown. Tenet cannot freeze the filesystem between checking and execution.
+
+Before rolling back grammar support, use the supported short form `Rule; text` externally for policies that need the target version's grammar. Older versions can ignore mode and severity metadata and block by default.
+
+Before rolling back per-rule thresholds, remove that metadata externally; older parsers treat it as prose. All rules then use the global evidence threshold. Historical recordings keep their recorded contracts.
+
+### Use the cooperative on/off switch
+
+In an eligible Pi session, `/tenet off` stops new assessment, approvals, trajectory capture and recording through `~/.tenet/control.json`. `/tenet on` restores the process's existing mode and capture settings. Both commands are safe to repeat; neither changes mode or activates a dormant session.
+
+A fresh missing control defaults to on. A malformed or unsafe control is unavailable, not a passing policy decision. Enforce blocks; observe permits without assessing or recording. Native on/off can repair safe malformed content. Fix unsafe permissions or symlinks outside Pi.
+
+The issuing process cancels pending assessments before off reports success. Other processes notice through notifications and a short refresh loop. The command does not wait for them. Already released or dispatched actions cannot be recalled, and a call can complete before another process notices off.
+
+Every new entry and pending release rechecks control, but a change after the final check can race with dispatch. This is a cooperative same-user switch, not an OS security boundary. Same-user processes can change or remove the file; removal lets fresh processes default to on.
+
+Pending archive writes can finish after off. Previous recordings remain.
 
 ## Observation and enforcement
 
-Observe is the default. It releases calls after bounded evidence capture and evaluates the fixed snapshot in the background. Pending, dropped, cancelled or unavailable work is not a pass. Findings remain owner-only, not agent messages or later evaluator evidence.
+Observe is the default. It releases calls after bounded pre-execution capture and evaluates a fixed snapshot in the background. Results can arrive after tool completion or turn end. Findings remain owner-only, not agent messages, tool results or later evaluator evidence, including on recovery.
 
-Only exact `TENET_MODE=enforce` selects enforcement, before process start. It waits for assessment and invocation-bound native owner confirmation when required. A confident PASS across blocking rules and integrity allows; an approval condition asks; prohibition, uncertainty, insufficient evidence or unavailable assessment blocks. WARN remains advisory. The global outcome and evidence thresholds default to 0.9. Rules may override evidence confidence with `Rule; BLOCK; evidenceThreshold=0.95; text`. Lower scores are not calibrated safety guarantees.
+Up to two assessments run, 32 wait and retained snapshots total at most 1 MiB. Waiting snapshots expire after five seconds. Excess work is dropped without a pass, block or approval.
 
-Policy-integrity findings cannot be approved. Changed policy bytes or target invalidate authorization; restart after externally reviewing the change. No live-mode mock fallback exists.
+Provider deadlines apply after dequeue. Pending, dropped, cancelled or unavailable work is never an all-clear.
+
+Off, context/session replacement, stale policy and shutdown cancel background work and suppress late findings. Agent-turn end need not cancel valid observations; missing results become unknown. A crash or bounded shutdown drain can leave incomplete records. Reporting failure does not revoke a released call; reports can be lost.
+
+To select enforcement, close Pi and start a new process from the project:
+
+```sh
+TENET_MODE=enforce pi
+```
+
+Check `TENET ON ENFORCE` with `/tenet status`. Only exact `TENET_MODE=enforce` selects enforcement. Invalid mode values select observe with `invalid-mode`. `/tenet on` does not select enforce.
+
+| Blocking rule and integrity results | Enforce decision |
+| --- | --- |
+| All confidently `PASS` or supported user-rule `NOT_APPLICABLE`, integrity confidently `PASS` | `ALLOW`; `WARN` remains advisory |
+| At least one `APPROVAL_REQUIRED`, all other blocking gates pass, integrity passes | `ASK` for this invocation |
+| Any blocking rule or integrity `FAIL` | `BLOCK`, no approval override |
+| Blocking `UNKNOWN`, low probability or insufficient evidence | `BLOCK` |
+| Configuration, credential, provider, response, deadline or cancellation failure | `BLOCK` |
+
+There is no majority vote or averaging. A selected `FAIL` blocks even below threshold. A score equal to threshold passes that score gate.
+
+Supported `NOT_APPLICABLE` needs complete, current host-authenticated facts and the selected-outcome threshold; it has no evidence-confidence gate. Stock Pi cannot supply these facts. The current contract is `applicability-v1`, with no profile switch.
+
+Native approval covers one unchanged pending invocation. The dialog identifies rules and source lines, policy digest, session/tool/call identity, original-argument digest and field-redacted arguments.
+
+Only an explicit positive answer releases it. Denial, dismissal, missing UI, UI failure, cancellation, timeout or stale authorization blocks.
+
+Chat, task text, historical approval and an earlier approved call are not permission. A retry needs a new call ID, assessment and any required approval.
+
+Approval waits are serialized and the timeout includes queue time. A late answer cannot approve another invocation. Permission to release is not proof of execution.
+
+## Settings before launch
+
+Set environment variables in the shell that launches Pi. Code and environment changes require a full process restart. Under Pi 0.85.1 and Bun 1.3.14, `/reload` and `/new` can retain old imports. Doctor reads process environment, not dotenv files or Pi settings.
+
+| Variable | Default | Valid value and effect |
+| --- | --- | --- |
+| `TENET_MODE` | `observe` | Exact `observe` or `enforce`; invalid selects observe with warning |
+| `TENET_POLICY` | Unset | Absolute or session-cwd-relative path; explicit empty/blank is invalid |
+| `TYPESAFE_API_KEY` | None | Nonblank TypeSafe credential, set securely; presence is not validity |
+| `TENET_EFFECT_THRESHOLD` | `0.90` | Finite number from `0` through `1`; minimum selected outcome probability |
+| `TENET_EVIDENCE_THRESHOLD` | `0.90` | Finite number from `0` through `1`; minimum P(SUFFICIENT) where applicable |
+| `TENET_JUDGE_DEADLINE_MS` | `2500` | Finite number greater than `0`, at most `2147483647`; overall judge deadline, not per-rule; fractional values accepted |
+| `TENET_APPROVAL_TIMEOUT_MS` | `60000` | Safe integer from `1` through `2147483647`; includes dialog queue time |
+| `TENET_RECENT_EVENTS` | `12` | Safe integer from `0` through `9007199254740991`; `0` omits history |
+| `TENET_EVIDENCE_MAX_BYTES` | `24576` | Safe integer from `1` through `9007199254740991`; serialized judge-state UTF-8 byte limit |
+| `TENET_SENSITIVE_FIELDS` | `[]` | JSON array of additional nonblank string field names to remove recursively |
+| `TENET_RECORDING` | `on` | Exact `on` or `off`; invalid disables capture with an issue |
+| `TENET_RECORDING_DIR` | `~/.tenet/recordings` | Actual absolute path, required even when recording is off |
+| `TENET_CONTROL_PATH` | `~/.tenet/control.json` | Actual absolute path for cooperative control; relative/empty prevents normal runtime initialization |
+
+Unset numeric values use defaults. Nonempty values use JavaScript `Number` conversion, then range checks. Empty/blank numeric settings or malformed sensitive-field JSON make guard configuration unavailable.
+
+Observe permits without a pass; enforce blocks in eligible sessions. A dormant runtime does not become eligible from invalid settings. Doctor still flags invalid configuration even when off or dormant.
+
+Recording errors disable capture without changing permission. Unsafe or unreadable control prevents new assessment and capture; observe permits and enforce blocks in eligible sessions. Doctor flags invalid capture/control too. `BB_THREAD_ID` is an optional archive-routing hint, accepted only as `^thr_[a-z0-9]{8,64}$`; invalid values are ignored and policy decisions do not change.
+
+For extra field redaction, in the launching shell:
+
+```sh
+export TENET_SENSITIVE_FIELDS='["customerSecret","internalPayload"]'
+```
+
+Matching ignores case, hyphens, underscores and whitespace. Recognized credential fields remain removed. Executor arguments do not change. Redaction cannot find all embedded or encoded secrets, and rule text is not secret-scanned.
+
+The TypeSafe client uses `https://api.typesafe.ai`, `jev-latest`, disabled SDK logging and no retries. `jev-latest` is a provider alias, not an immutable release.
+
+Records retain requested/returned model identities. Cancellation reaches the SDK; late responses cannot change a blocked decision. There is no live-mode mock fallback.
+
+## Troubleshooting
+
+Run doctor outside Pi in the launch environment. It never starts hooks or submits evidence. See [the doctor reference](doctor.md) for exit codes and precedence.
+
+| Symptom | What to check |
+| --- | --- |
+| No footer or `/tenet` command | Missing local policy without override is dormant. Registration supplies no policy. Check the selected cwd, author policy externally and restart. If policy exists, check `pi list` and load errors. A load error means no Tenet hook. |
+| Invalid or broken active policy | Malformed file, missing explicit path, empty override or stale policy is unavailable. Check UTF-8 `Rule;` lines, grammar and limits above. Review the selected path externally, reload or restart, and verify digest. Observe permits without a pass; enforce blocks. |
+| Missing credentials or provider errors | Configure the key securely before relaunch. Doctor tests presence only. An invalid key, unreachable provider or timeout is not an all-clear. Live checks need separate authorization and disclose evidence to TypeSafe. |
+| `TENET OFF` or `CONTROL UNAVAILABLE` | `/tenet on` restores this process's mode, not enforce. Fix unsafe permissions/links outside Pi; repair safe malformed content through native on/off. Other processes notice asynchronously. |
+| Pending or lost findings | Check status for completed, unavailable, dropped, cancelled and cumulative loss counts. Queue limits and interruptions can lose work. Absence of a report is not `PASS`. |
+| Native findings but no inspector history | Recording opt-out leaves native reporting active. Otherwise check capture location and loss/drain counts. Unsafe directories, full disk or queue loss can prevent capture without changing permission. Stop writers before storage repair. |
+| Partial or missing inspector stages | Check indexing, unsupported-schema and corrupt-file notices; allow later polls. Missing assessment/result is unknown, not execution proof. Recording is not a transactional audit log. |
+| Doctor says ready but coverage is unknown | Pin Pi 0.85.1, fully restart and check native status. Unknown metadata stays unknown. A detected untested version reports unavailable compatibility. Provider validity and hooks remain unverified by doctor. |
 
 ## Disclosure and limits
 
-Assessed evidence and policy go to TypeSafe using `TYPESAFE_API_KEY`. Default capture saves submitted strings at `~/.tenet/recordings`. Field redaction cannot guarantee secret removal. `TENET_RECORDING=off` disables local capture, not provider submission or observation. `TENET_RECORDING_DIR` selects another absolute archive path. The inspector is read-only, loopback-only and unauthenticated; do not proxy it publicly.
+### Store and inspect evidence safely
 
-Pinned Pi 0.85.1 tests prove native pre-release interception with harmless scripted calls. Pi declares interception, lifecycle invalidation and trusted approval. Result correlation and post-hook argument stability remain unsupported. Successful native tool results cannot certify execution in the new SDK-backed records; their execution status remains unknown. Stock Pi has no authenticated action resolver. Unknown host versions are not verified enforcement.
+Assessment sends policy text and identity/paths, host cwd, built-in integrity, copied tool name/description/schema, field-redacted arguments, identities, timestamp, original-argument digest and limitations to TypeSafe.
 
-Tenet is not subprocess inspection, filesystem isolation or an OS sandbox. Semantic judgments can be wrong, hidden aliases can remain unknown, and same-user processes can change control state or access evidence. Actions outside the hooks are not covered. Claude Code is an unverified prototype and is not part of this delivery.
+Bounded recent observations contain earlier tool calls and tool results. Findings, decisions and native approval outcomes remain owner records, not evaluator history. Tool observations remain untrusted evidence, not grants.
 
-The [SDK guide](sdk.md) describes host obligations and recorded contract versions. The [repository documentation](https://github.com/koenvg/Tenet#readme) contains the full configuration reference and historical evaluation limits. This archive's offline checks do not measure live evaluator accuracy.
+Optional history has one third of the serialized state budget; each event's complete data has at most one quarter of that allowance. Defaults are 8 KiB history and 2 KiB per event, including envelopes and metadata. Missing history is not proof of execution. If protected current state or minimal history cannot fit, assessment is insufficient without a provider request, blocking only in enforce mode.
+
+Capture preserves exact submitted application strings, not omitted history or transport headers/API configuration credentials. SDK response snapshots are untrusted, capped at 1 MiB with explicit truncation markers. Records have a 4 MiB limit. Oversized or unserializable records are dropped and counted, not labeled exact.
+
+Recording paths must be absolute with no symlink components. Existing archive directories must be owner-only; unsafe paths disable writes rather than being repaired silently. Directories use `0700`, files `0600`. This unencrypted storage does not protect against same-user agents or processes.
+
+The archive queue permits 64 pending records and 16 MiB total. Normal shutdown drains for up to one second. Capture failures do not change enforcement, approval or permission.
+
+UI shows loss/pending counters and drain timeouts. A crash, full disk or exhausted queue can leave incomplete stages. Records are best-effort diagnostics, not a transactional audit log.
+
+For retained evidence, run `/tenet-inspector`, or from the stable installation use `npm run inspector:serve`. No Pi or TypeSafe credential is needed for the standalone reader. Use the same `TENET_RECORDING_DIR` as the writer.
+
+The server is read-only, loopback-only and unauthenticated. Do not expose or proxy secret-bearing evidence to another machine.
+
+`TENET_RECORDING=off` stops new local capture only. Off and uninstall leave old recordings and Pi session files. There is no automatic expiry. Stop all writers and readers before deleting retained evidence. Removing control separately resets the cooperative choice, not historical evidence.
+
+### Know the host boundary
+
+Pinned Pi 0.85.1 tests prove native pre-release interception with harmless scripted calls. Pi declares interception, lifecycle invalidation and trusted approval. It does not guarantee exact native result correlation, post-hook argument stability or stock authenticated action resolution.
+
+Keep Tenet after argument-mutating hooks. Later hooks and executors must honor the assessed action. Successful native results cannot certify execution in new SDK-backed records; execution status remains unknown. A failed result does not prove that no remote effect occurred.
+
+Tenet does not inspect subprocess internals, user-entered `!` commands, extension-internal execution or background subprocess activity. It does not fetch scripts or browse target systems to collect missing context. Opaque actions can block; a confident but mistaken judge can allow a prohibited action.
+
+Tenet is not filesystem isolation or an OS sandbox. Hidden aliases may remain unknown, and same-user processes can change control or access evidence. Unknown host versions are not verified enforcement. Claude Code is an unverified prototype outside this delivery setup path.
+
+The [SDK guide](sdk.md) describes host obligations and recorded contract versions. Optional [repository documentation](https://github.com/koenvg/Tenet#readme) has wider references and historical evaluation limits. This archive's offline checks do not measure live evaluator accuracy.

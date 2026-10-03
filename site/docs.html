@@ -24,32 +24,47 @@
       <p class="docs-lead">TENET evaluates eligible tool calls against an owner-written policy. Start in observe mode, then decide whether to enable blocking.</p>
 
       <section id="setup" aria-labelledby="setup-title">
-        <h2 id="setup-title">Set up a local checkout</h2>
-        <p>Clone the <a href="https://github.com/koenvg/Tenet">TENET source</a> into a directory you'll keep. Install its dependencies, then add it as a Pi package:</p>
-        <pre><code>git clone https://github.com/koenvg/Tenet.git "$HOME/Tenet"
-cd "$HOME/Tenet"
-bun install --frozen-lockfile
-pi install "$PWD"</code></pre>
-        <p>Set <code>TYPESAFE_API_KEY</code> using your normal secret manager. Put a <code>TENET.md</code> policy in the Pi session's working directory, or set <code>TENET_POLICY</code> to an absolute path. Start Pi and run <code>/tenet status</code>. Without a local or selected policy, TENET is dormant.</p>
+        <h2 id="setup-title">Install the archive</h2>
+        <p>Use the <a href="https://github.com/koenvg/Tenet/blob/main/docs/INSTALL-ARCHIVE.md">production archive guide</a> for the recommended Pi owner path. It needs Node 22.19+ with npm, Bun 1.3.14+ and a separate Pi 0.85.1 installation.</p>
+        <p>The private passing-main artifact expires after 14 days. No compiler or frontend build is needed.</p>
+        <p>Real assessments send policy, paths, tool evidence and bounded recent observations to TypeSafe and use quota. Redaction cannot find every secret in source, commands or rules. Configure <code>TYPESAFE_API_KEY</code> through your secret manager, not in policy or chat.</p>
+        <p>After installation, run this supported offline check in the shell the next Pi process will inherit. Replace both paths:</p>
+        <pre><code class="language-sh">TENET_DIR=/absolute/path/to/tenet
+cd /absolute/path/to/project
+node "$TENET_DIR/dist/cli/index.js" doctor --project "$PWD"</code></pre>
+        <p>No global <code>tenet</code> command is installed. Doctor's <code>ready</code> means local prerequisites are valid, not verified hooks or provider connectivity. Credential validity remains unverified.</p>
+        <p>Use <a href="https://github.com/koenvg/Tenet/blob/main/docs/doctor.md#fix-invalid-or-unavailable-setup">doctor's fixes</a> for invalid or unavailable setup. Off and dormant are bypass states, not passing assessments.</p>
+        <p><a href="https://github.com/koenvg/Tenet/blob/main/CONTRIBUTING.md">Checkout setup and offline checks</a> are developer-only, not the owner installation path.</p>
       </section>
 
       <section aria-labelledby="policy-title">
         <h2 id="policy-title">Write a rule</h2>
-        <p>Policies are plain text. A blocking rule can describe when approval is needed:</p>
-        <pre><code>Rule; BLOCK; Never publish code to a remote repository without explicit approval.</code></pre>
-        <p>Rules are evaluated individually. The assessment may be wrong or unavailable, so review findings and test a policy before relying on enforcement.</p>
+        <p>Write your project's <code>TENET.md</code> yourself, outside the guarded agent's intercepted path. No policy ships in the archive. This illustrative local rule is not a complete security policy:</p>
+        <pre><code class="language-tenet-policy">Rule; Ask before overwriting owner-demo.txt.</code></pre>
+        <p><code>Rule; text</code> is the supported short form. It defaults to <code>BLOCK</code>; explicit <code>BLOCK</code> is optional. Each rule uses one physical line and case-sensitive <code>Rule;</code> syntax.</p>
+        <p>Without <code>TENET_POLICY</code>, only the session directory's <code>TENET.md</code> activates Tenet. There is no parent search or bundled fallback.</p>
+        <p>Follow <a href="https://github.com/koenvg/Tenet/blob/main/docs/policy.md#write-a-first-rule">first-policy steps</a>. For advisory <code>WARN</code> rules or per-rule metadata, look up <a href="https://github.com/koenvg/Tenet/blob/main/docs/policy.md#rule-grammar-and-limits">exact rule grammar and limits</a>.</p>
+        <p>Rules are assessed individually. The judge can be wrong or unavailable. Review findings before relying on enforcement.</p>
       </section>
 
       <section aria-labelledby="modes-title">
         <h2 id="modes-title">Observe or enforce</h2>
-        <p>Observe is the default. It reports findings to the owner, but never vetoes a call or opens an approval prompt. Use <code>/tenet</code> to review recent findings.</p>
-        <p>Enforcement needs an explicit new Pi process with <code>TENET_MODE=enforce</code>. BLOCK rules may stop a call or ask for native approval. WARN rules remain advisory. An unavailable assessment is not an all-clear.</p>
+        <p>Local capture is on by default in <code>~/.tenet/recordings</code>, including passes. Submitted evidence can contain source code or secrets despite redaction.</p>
+        <p>Set <code>TENET_RECORDING=off</code> before starting Pi to stop new capture. It does not prevent provider disclosure or disable native findings. Old records remain until you remove them separately.</p>
+        <p>Observe is the default. It reports findings to the owner but never vetoes a call or opens approval, even when assessment is unavailable. Follow the <a href="https://github.com/koenvg/Tenet/blob/main/docs/INSTALL-ARCHIVE.md#restart-observe-and-inspect-findings">fresh-process observation steps</a>, then use <code>/tenet status</code> and <code>/tenet</code>. A real assessed action contacts TypeSafe and needs separate authorization for a live check.</p>
+        <pre><code class="language-text">Observe: capture -&gt; release -&gt; assess later
+Enforce: capture -&gt; assess -&gt; allow, ask or block
+ASK: native consent for this call -&gt; release or block</code></pre>
+        <p>The flow shows Tenet permission, not proof that a tool ran. <a href="https://github.com/koenvg/Tenet/blob/main/docs/inspector.md">Open the inspector and read findings</a> to compare assessment, permission and observed execution. Pending, lost or missing evidence is not a pass.</p>
+        <p><a href="https://github.com/koenvg/Tenet/blob/main/docs/INSTALL-ARCHIVE.md#opt-into-enforcement-later">Enforcement needs a new Pi process</a> with <code>TENET_MODE=enforce</code>. BLOCK rules can stop a call or require native approval for one unchanged pending invocation. WARN stays advisory. An unavailable assessment is not an all-clear.</p>
       </section>
 
       <section id="limits" aria-labelledby="limits-title">
         <h2 id="limits-title">Records and limits</h2>
-        <p>In eligible sessions, TENET saves submitted assessment evidence locally by default, including passes. It may contain source code or secrets. Set <code>TENET_RECORDING=off</code> before starting Pi to opt out of new capture. Old records remain until you remove them separately.</p>
-        <p>TENET assesses tool calls exposed to its Pi extension. It does not inspect subprocesses or provide an OS sandbox. Semantic judgments are fallible, and reporting can fail. It cannot guarantee complete coverage or safety.</p>
+        <p>The inspector is read-only and unauthenticated on loopback. Do not expose or proxy it to another machine. Use <a href="https://github.com/koenvg/Tenet/blob/main/docs/inspector.md#sensitive-local-storage">storage and deletion instructions</a> and <a href="https://github.com/koenvg/Tenet/blob/main/docs/configuration.md">exact configuration settings</a>.</p>
+        <p>Tenet is in alpha, not an OS sandbox. It does not inspect subprocess internals or cover actions outside host hooks. Judgments and reporting can fail; Tenet cannot guarantee complete coverage or safety.</p>
+        <p>Stock Pi and Claude have unsupported authenticated action resolution, so ordinary reads and edits do not automatically qualify for applicability exemptions. The <a href="https://github.com/koenvg/Tenet/blob/main/docs/claude-code.md">Claude Code prototype</a> is opt-in and unverified; Pi installation or enforce mode does not establish Claude coverage.</p>
+        <p>For applications, use the <a href="https://github.com/koenvg/Tenet/blob/main/docs/sdk.md">alpha SDK without Pi</a> and check <a href="https://github.com/koenvg/Tenet/blob/main/docs/shared-runtime.md">host integration duties</a>. Read <a href="https://github.com/koenvg/Tenet/blob/main/docs/limits.md">disclosure, approval and coverage limits</a> before relying on the guard.</p>
       </section>
 
       <a class="docs-back" href="./index.html">Back to TENET</a>

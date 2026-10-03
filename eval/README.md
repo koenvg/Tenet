@@ -1,8 +1,33 @@
 # Local-work blocking diagnostic
 
-For KVG-5096's paired cross-tool evaluation, see [Semantic publication replay](semantic-README.md). The historical live authorization below does not authorize that new evaluation.
+Use this developer-checkout guide to find offline replay checks and read the recorded read/list false-block results. This is a bounded diagnostic, not the broader OpenSpec evaluation suite. The historical results do not validate the current question contract.
 
-This is a bounded diagnostic of the reported read/list false blocks, not the broader OpenSpec evaluation suite. The operator explicitly authorized live Jev replay. Fixture arguments were sent as data; no fixture action was executed. No repository upload, browser interaction, or primary-agent model call occurred.
+## Check replay offline first
+
+1. Complete [development setup](../CONTRIBUTING.md#set-up). Use Bun 1.3.14+ and Node 22.19+ for the full checkout checks. Keep real evaluator credentials out of the validation environment.
+2. From the repository root, build the SDK and run the focused scripted tests:
+
+   ```sh
+   bun run sdk:build
+   bun test --isolate --max-concurrency=1 --timeout=30000 test/local-work-regression.test.ts test/replay.test.ts
+   bun run typecheck
+   ```
+
+3. Expect passing tests and zero exit codes. Use [the full offline validation order](../CONTRIBUTING.md#check-a-change) before submitting a change.
+
+These tests use injected responses. They do not call TypeSafe, execute fixture actions, or measure current Jev accuracy. For failures, check the exact gate diagnostics and scripted expectations. Do not lower thresholds to hide benign blocks.
+
+Other evaluation paths have separate scope and authorization:
+
+- [Semantic publication replay](semantic-README.md) covers KVG-5096's paired cross-tool evaluation.
+- [The controlled publication demonstration](publication-demo-README.md) adds real host and remote observations only after separate authorization.
+- [The bounded evidence-selection campaign](evidence-selection-live.md) compares fixed synthetic pairs.
+
+For a new local-work run, use [the separately authorized live procedure](#run-only-with-new-live-call-authorization). The sections before it retain historical evidence and report definitions; they are not prerequisites for running the offline tests.
+
+## Recorded authorization and scope
+
+The operator explicitly authorized the historical live Jev replay below. That authorization does not authorize a new run or KVG-5096. Fixture arguments were sent as data; no fixture action was executed. No repository upload, browser interaction, or primary-agent model call occurred.
 
 ## Observations
 
@@ -47,9 +72,13 @@ False-block and unsafe-allow counts still compare enforcement decisions against 
 
 Scripted tests verify these mechanics, not current Jev accuracy. Existing stored reports retain their original question-version and enforcement meaning; no historical result was relabeled or regenerated. No new live evaluation was run for observation mode.
 
-## Current generic-rule evaluation
+<a id="current-generic-rule-evaluation"></a>
 
-The current `policy-rules-v3-trajectory` questions add bounded observations. Only offline injected-response tests validate their evidence transport and enforcement. The live results below remain specific to v2.
+## Historical generic-rule evaluation
+
+At that stage, `policy-rules-v3-trajectory` added bounded observations. Only offline injected-response tests validated its evidence transport and enforcement. The live results below remain specific to v2.
+
+Today's assessment uses [the applicability-aware contract](../docs/assessment-contract.md). These saved v2 results do not validate it.
 
 `generic-rule-fixtures.ts` contains 19 synthetic cases for `policy-rules-v2`. The original probe and holdout have six cases each. The seven-case `local-work` set preserves the reported inspection and README edit, then adds edit/staging, actual commit, edit-plus-commit, policy mutation and publication controls.
 
@@ -77,20 +106,41 @@ The local-work question digest is `84eb80968c2e2bd8b1bb17538b8f84b1dbfbb07b0a403
 
 ## Run only with new live-call authorization
 
-These commands send synthetic rule text and evidence to TypeSafe and consume API quota. They require `TYPESAFE_API_KEY` and separate authorization. Ordinary `bun test` does not make these calls.
+Obtain new, separate operator authorization before using this live path. It sends synthetic rule text and evidence to TypeSafe/Jev and consumes API quota. Historical authorization and ordinary `bun test` do not authorize these calls. No fixture action executes.
 
-```sh
-# Six current generic-rule cases, never executed. Choose a new output file.
-bun eval/local-work-replay.ts --live --set=probe --output=/tmp/tenet-generic-probe.json
-bun eval/local-work-replay.ts --live --set=holdout --output=/tmp/tenet-generic-holdout.json
-# Seven local-work cases, three repetitions each. Requires authorization for 21 requests.
-bun eval/local-work-replay.ts --live --set=local-work --repetitions=3 --output=/tmp/tenet-local-work-v2.json
-```
+1. Confirm the authorized set, request count, and new output path. From the repository root, check that the path is writable and does not exist. The CLI writes the report after replay; an occupied path can reject the report after requests have used quota.
+2. Supply `TYPESAFE_API_KEY` through the environment, not a command argument. Do not print it or save it with the report.
+3. Run only the separately authorized choice:
 
-Each fixture supplies its own synthetic policy and `/synthetic` host context; replay does not use the active `TENET.md`. Expected outcomes stay local and do not select tool-specific questions. The output file must not already exist. `--repetitions` defaults to 1 and accepts integers from 1 through 20; requests run sequentially.
+   ```sh
+   # Six current generic-rule cases, one request each.
+   bun eval/local-work-replay.ts --live --set=probe --output=/tmp/tenet-generic-probe.json
+   ```
 
-Each row retains the sanitized fixture evidence, policy, input digest, question version/digest, requested and returned model, thresholds, assessments, exact diagnostic gates and expected versus observed results. Input digests exclude repetition identities but include policy and metadata. The synthetic tool descriptions are curated, not recovered historical metadata. The mutable model alias and missing historical request prevent exact reproduction guarantees.
+   ```sh
+   # Six held-out cases, one request each.
+   bun eval/local-work-replay.ts --live --set=holdout --output=/tmp/tenet-generic-holdout.json
+   ```
 
-The summary reports false BLOCKs among expected ALLOW cases, unsafe ALLOWs among expected BLOCK/ASK cases, and other decision mismatches separately, each with its denominator. All repetitions remain visible. An unsafe ALLOW prevents recommending candidate adoption. Residual benign blocks must be reported, not hidden by automatic threshold reductions. These counts are not calibrated safety guarantees.
+   ```sh
+   # Seven local-work cases, three repetitions. Requires authorization for 21 requests.
+   bun eval/local-work-replay.ts --live --set=local-work --repetitions=3 --output=/tmp/tenet-local-work.json
+   ```
 
-Without `--live`, the script exits before requests. Invalid repetition counts and the old `--questions-from` override are refused before sending. New runtime diagnostics contain no raw arguments or provider prose; replay files contain only the curated synthetic inputs, not session exports. The four saved reports above remain historical evidence. Broader trajectory, adversarial, model-stability and real-service evaluation tasks remain open.
+   Choose unused output filenames. These commands use current questions, not the historical v2 contract.
+
+4. Expect a `Saved ... passing cases` line and a JSON report. Check failures and mismatches in the report, not just command success. An unsafe ALLOW prevents recommending candidate adoption. Report residual benign blocks rather than automatically reducing thresholds.
+
+Each fixture supplies a synthetic policy and `/synthetic` host context. Replay does not use active `TENET.md`. Expected outcomes stay local and do not select tool-specific questions. `--repetitions` defaults to 1, accepts integers from 1 through 20, and runs requests sequentially.
+
+Each row retains sanitized fixture evidence, policy, input digest, question version/digest, requested and returned model, thresholds, assessments, diagnostic gates, and expected versus observed results. Input digests exclude repetition identities but include policy and metadata. Synthetic tool descriptions are curated, not recovered historical metadata. The mutable model alias and missing historical request prevent exact reproduction guarantees.
+
+The summary separates false BLOCKs among expected ALLOW cases, unsafe ALLOWs among expected BLOCK/ASK cases, and other mismatches. It gives each denominator and keeps all repetitions visible. These counts are not calibrated safety guarantees.
+
+### Replay refuses or cannot save a report
+
+- Without `--live`, the script exits before requests. Invalid repetition counts and the old `--questions-from` override are refused before sending.
+- If the report cannot be saved, do not assume no requests occurred. Resolve the output problem and obtain new authorization before another live run.
+- Runtime diagnostics contain no raw arguments or provider prose. Replay files contain only curated synthetic inputs, not session exports. Do not substitute private session exports.
+
+The four saved probe reports above remain historical evidence. Broader trajectory, adversarial, model-stability, and real-service evaluation tasks remain open.

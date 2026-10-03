@@ -1,50 +1,81 @@
-# TENET status in BB
+# Read Tenet status in BB
+
+Use this plugin to read recorded Pi findings in a BB thread. It does not activate Tenet, launch Pi, change enforcement, approve actions or supply TypeSafe credentials. It needs a stable developer checkout, an installed Tenet Pi extension, an owner policy and recording enabled.
 
 ## Install
 
-TENET must already be active in Pi, with a policy and recording enabled. The BB plugin only reads recordings. It does not activate TENET, launch Pi, change enforcement or supply TypeSafe credentials.
+Local recordings can contain secrets despite redaction. This read-only view is not a protection, approval or confidentiality boundary. Before enabling capture, read [capture and deletion limits](../docs/inspector.md#sensitive-local-storage).
 
-From a stable TENET checkout:
+1. Complete the separate [Pi installation](../docs/INSTALL-ARCHIVE.md). Configure the policy and credentials before any real assessed action. Those actions disclose evidence to TypeSafe and use quota; installing this read-only plugin makes no evaluator request.
+2. From the root of a stable Tenet checkout, build and install the plugin:
 
-```sh
-bb plugin build bb-plugin-tenet-status
-bb plugin install /absolute/path/to/Tenet/bb-plugin-tenet-status
-```
+   ```sh
+   bb plugin build bb-plugin-tenet-status
+   bb plugin install /absolute/path/to/Tenet/bb-plugin-tenet-status
+   ```
 
-Install the TENET Pi extension separately. Do not set `TENET_RECORDING=off`. Only new Pi records with a valid BB-provided `BB_THREAD_ID` link to a thread. Restart older Pi processes with the current extension and recording enabled. Historical unlinked recordings remain in the standalone TENET inspector; the plugin never guesses their thread from a session ID or working directory.
+   Replace the path with this checkout's plugin directory.
+
+3. Start a fresh Pi process with the current extension and recording enabled. Do not set `TENET_RECORDING=off`.
+4. Open its BB Pi thread and select **TENET rules** in the header, or **T** on compact viewports.
+
+Only new Pi records with a valid BB-provided `BB_THREAD_ID` link to the thread. This routing hint changes neither Pi session keys nor policy decisions. Historical unlinked records stay in [the standalone inspector](../docs/inspector.md). The plugin never guesses a thread from cwd, time or native session ID.
 
 ## Read status
 
-Open a Pi thread and select **TENET rules** in its header, or **T** on compact viewports. This neutral action is always available on Pi threads. A compact count appears only for validated recorded selected FAIL calls, including WARN and built-in integrity. No passing-call badge, toast, transcript message or agent tool is installed.
+The neutral header action is always available on Pi threads. A compact count appears only for validated recorded selected FAIL calls, including WARN and built-in integrity. No passing-call badge, toast, transcript message or agent tool is installed.
 
-The header polls every ten seconds while mounted, even with the popover closed. **View flagged rules** opens the selected thread's findings. Each row shows the rule, loaded-call count and an **Uncertain** marker when needed. Expand a rule to see call IDs, confidence and its policy snapshot. Repeated calls group by recorded rule ID and policy snapshot, not today's policy text. WARN and built-in integrity remain distinct. Low-confidence FAIL stays a finding, not a confirmed breach.
+1. Select **View flagged rules** to open the selected thread's findings.
+2. Read each rule's loaded-call count and **Uncertain** marker, if present.
+3. Expand a rule for call IDs, confidence and its policy snapshot.
 
-A short incomplete-coverage warning stays visible. Approval conditions and recording gaps appear in a compact disclosure; the underlying counts, UNKNOWN, evidence/confidence gates and incomplete-assessment explanations are available inside. These are not labeled rule failures.
+Repeated calls group by recorded rule ID and policy snapshot, not today's policy text. WARN and integrity stay distinct. Low-confidence FAIL is a finding, not a confirmed breach. A flag proves neither blocking nor execution.
 
-The details page also polls every ten seconds without navigating away from the selected thread. Group counts cover loaded calls only. Use **Load more findings** for older calls. Once older pages are loaded, live reads check availability but leave those calls in place; **Refresh findings** explicitly restarts at page one with updated calls. Failed reads clear previous results and show unavailable; rejected cursors offer a page-one refresh. Reads time out after eight seconds. Closing or switching the view disposes its timers and ignores late results.
+A short incomplete-coverage warning stays visible. Approval conditions and recording gaps have a compact disclosure. Open it for counts, UNKNOWN, evidence/confidence gates and incomplete-assessment explanations. These are not rule failures. Counterfactual BLOCK, approval requirements and gates without FAIL do not count as findings.
+
+### Read older calls or refresh
+
+The header and details page poll every ten seconds while mounted. The header polls even with its popover closed; details do not navigate away from the selected thread.
+
+Group counts cover loaded calls only. Use **Load more findings** for older calls. After loading older pages, live reads check availability but preserve those calls. **Refresh findings** restarts at page one with updated calls.
+
+Failed reads clear old results and show unavailable. A rejected cursor offers a page-one refresh. Reads time out after eight seconds. Closing or switching the view disposes timers and ignores late results.
 
 ## Machines and custom archives
 
-Reads run on the selected Pi thread's actual BB machine, resolved from its environment. The default is `~/.tenet/recordings` on that machine, not on the BB server. The machine must be enrolled and connected. No local fallback is used for a disconnected host.
+Reads run on the Pi thread's actual BB machine, resolved from its environment. The default archive is `~/.tenet/recordings` on that machine, not the BB server. The machine must be enrolled and connected. A disconnected host has no local fallback.
 
-If TENET uses `TENET_RECORDING_DIR`, configure the same absolute path per machine in the owner's BB plugin settings:
+If Pi uses `TENET_RECORDING_DIR`, configure the same absolute path per machine in owner BB plugin settings:
 
-```sh
-bb plugin config tenet-status set recordingDirectories '{"host_abcdefgh1234":"/home/me/tenet-recordings"}'
-bb plugin config tenet-status
-```
+1. Run `bb machine list` to find the machine ID.
+2. Replace the example machine ID and archive path below with yours. From the checkout, run:
 
-Use `bb machine list` to find machine IDs. The plugin does not read the Pi process's environment, so it cannot discover a custom path automatically. Paths must be normalized, absolute and private to the current host user; symlinks are rejected. Missing, unreadable or disconnected archives report unavailable. An existing readable archive with no linked records reports unknown, never clear.
+   ```sh
+   bb plugin config tenet-status set recordingDirectories '{"host_abcdefgh1234":"/home/me/tenet-recordings"}'
+   bb plugin config tenet-status
+   ```
+
+3. Check that the returned setting matches the writer's path. Refresh the thread's findings.
+
+The plugin cannot read the Pi process environment or discover a custom path automatically. Paths must be normalized, absolute and private to the current host user. Symlinks are rejected.
+
+## No findings or unavailable status appears
+
+- Missing, unreadable or disconnected archives report unavailable. Connect the correct machine and check its private archive path.
+- An existing readable archive with no linked records reports unknown, never clear. Check recording and `BB_THREAD_ID`, then restart an older Pi process. Do not assign historical records by inference.
+- Large archives can need several refreshes. Check indexing gaps and missing-stage notices.
+
+Coverage is always incomplete. Files can be absent, disabled, dropped or not yet indexed. No recorded FAIL, or a released call, does not prove safety. Removing the plugin does not stop Tenet or delete recordings.
 
 ## Limits and privacy
 
-A flag is the judge's recorded selected FAIL, not proof of blocking or execution. Counterfactual BLOCK, approval requirements and gates without FAIL do not count as findings. Coverage is always incomplete: recordings can be absent, disabled, dropped or still being indexed. Neither a released call nor no recorded failures proves safety.
+The host caches validated metadata. Every refresh bounds scanning and shares a 256-stage/16-MiB parse budget across sessions. Owner detail RPC pages at five candidate calls and rereads at most 64 stages / 16 MiB per candidate. Rule groups cover loaded pages only. UI reports missing stages, writer loss and indexing gaps.
 
-The host caches validated metadata. Each refresh bounds scanning and shares a 256-stage/16-MiB parse budget across sessions. Large archives may need several refreshes. The owner detail RPC pages at five candidate calls, re-reading at most 64 stages / 16 MiB per candidate. Rule groups only cover loaded pages. The UI reports missing stages, writer loss and indexing gaps.
-
-Summary RPCs contain counts and bounded coverage codes, not rule text or action strings. Details contain selected rule text, a policy-snapshot hash and allowlisted call/classification fields. Raw submitted evidence, action arguments and provider responses stay on the host. Policy text renders as escaped text. Removing the plugin does not stop TENET or delete recordings.
+Summary RPCs return counts and bounded coverage codes, not rule text or action strings. Details return selected rule text, a policy-snapshot hash and allowlisted call/classification fields. Policy text renders as escaped text. Raw submitted evidence, arguments and provider responses stay on the host.
 
 ## Validation
+
+Developer-checkout checks are offline. Use installed frozen dependencies. First build the SDK and inspector as required by [development verification](../CONTRIBUTING.md#check-a-change). Then run from the repository root:
 
 ```sh
 bun test bb-plugin-tenet-status
@@ -52,9 +83,11 @@ cd bb-plugin-tenet-status
 npx vitest run --config vitest.config.ts
 npx tsc --noEmit
 cd ..
-bun test
+bun test --isolate --max-concurrency=1 --timeout=30000
 bun run typecheck
 bb plugin build bb-plugin-tenet-status
 ```
 
-`live-status.test.ts` exercises archive writes through the host and owner RPC contracts with separate local/remote machine identities and custom paths, new records, disconnects and archive loss. This is a simulated routing integration test, not proof of a deployed remote daemon. A release check should repeat the workflow on an enrolled remote host and inspect the compact UI in BB.
+Success means each command exits zero. The parent contribution checks require builds before the full Bun suite; see [development verification](../CONTRIBUTING.md#check-a-change) for prerequisites and failures.
+
+`live-status.test.ts` exercises archive writes and host/owner RPC contracts with separate simulated local/remote machine identities, custom paths, new records, disconnects and archive loss. It does not prove a deployed remote daemon. A release check should repeat the workflow on an enrolled remote host and inspect the compact UI in BB. Offline checks do not claim that release check ran.

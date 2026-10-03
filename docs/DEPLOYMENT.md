@@ -1,68 +1,100 @@
 # Deploy the public website
 
-The public website is independent of the Bun application and local decision inspector. It needs Docker to build and Node 22+ to run the HTTP smoke check. No application dependencies, API keys, database, or persistent volume are needed.
+Use this guide to check the public website from a developer checkout, then configure a dedicated Railway service. The website is separate from the Bun application and local decision inspector.
+
+Local checks need Docker, curl, and Node 22+. They need no application dependencies, API keys, database, or persistent volume. The local procedure is CI-tested. Remote deployment remains pending, as recorded in [the launch record](#launch-record).
 
 ## Build and verify locally
 
-Run from the repository root:
+This check uses a disposable local container. It makes no evaluator requests and does not deploy or restart a running website service. Docker may download the pinned Caddy image.
 
-```sh
-docker build -t tenet-site:check site
-docker run --rm -d --name tenet-site-check -e PORT=9090 -p 127.0.0.1:18765:9090 tenet-site:check
-curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 1 --max-time 5 --retry-max-time 30 http://127.0.0.1:18765/ > /dev/null
-node site/smoke.mjs http://127.0.0.1:18765
-docker rm -f tenet-site-check
-```
+1. From the repository root, build and start the check container:
 
-The container listens on `PORT`, defaulting to 8080. The example deliberately uses 9090 inside the container to check Railway-style port injection. `.github/workflows/site.yml` runs the same build and HTTP checks independently of application and inspector CI.
+   ```sh
+   docker build -t tenet-site:check site
+   docker run --rm -d --name tenet-site-check -e PORT=9090 -p 127.0.0.1:18765:9090 tenet-site:check
+   ```
 
-Caddy serves only `index.html`, `docs.html`, `style.css`, `fonts/Geist-latin.woff2`, and `fonts/OFL-Geist.txt` from `/srv/site`. Both the Docker build context and asset copies use allowlists. Add future public assets deliberately and extend the smoke check. Never copy the repository or the whole `site/` directory into the web root.
+2. Wait for HTTP readiness, then run the full smoke check:
 
-Deployment configuration, design notes, test scripts, application source, and assessment records are not public assets. Missing paths and asset directory requests return 404. There is no SPA fallback or directory browsing. Caddy's admin API and automatic HTTPS are disabled; Railway terminates public TLS.
+   ```sh
+   curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 1 --max-time 5 --retry-max-time 30 http://127.0.0.1:18765/ > /dev/null
+   node site/smoke.mjs http://127.0.0.1:18765
+   ```
+
+   Success prints `PASS:` with the number of website HTTP checks. The container listens on `PORT`, default 8080. This example uses 9090 to check Railway-style port injection. [Website CI](../.github/workflows/site.yml) runs these build and HTTP checks separately from application and inspector CI.
+
+3. Remove only the disposable check container, even if the check fails:
+
+   ```sh
+   docker rm -f tenet-site-check
+   ```
+
+### Keep the public file list closed
+
+Caddy serves only `index.html`, `docs.html`, `style.css`, `hero.js`, `fonts/Geist-latin.woff2`, and `fonts/OFL-Geist.txt` from `/srv/site`. The Docker build context and asset copies both use allowlists. Add public assets deliberately and extend the smoke check. Never copy the repository or the whole `site/` directory into the web root.
+
+Deployment configuration, design notes, test scripts, application source, and assessment records are not public assets. Missing paths and asset directory requests return 404. There is no SPA fallback or directory browsing. Caddy's admin API and automatic HTTPS are disabled. Railway terminates public TLS.
 
 ## Configure Railway
 
-Confirm the intended workspace and billing plan before creating a project or service. Use a dedicated website service, not an existing application service.
+Obtain separate operator authorization before creating or changing a Railway service, connecting GitHub, enabling autodeploy, generating a domain, or deploying. These actions send source and service settings to Railway and can incur hosting costs. Documentation approval does not authorize deployment or a running service restart.
 
-Once the reviewed deployment files are on `main`, connect these settings:
+1. Confirm the intended workspace and billing plan. Use a dedicated website service, not an existing application service.
+2. Wait until the reviewed deployment files are on `main`. Then connect the approved service with these settings:
 
-| Setting | Value |
-| --- | --- |
-| Repository | `koenvg/Tenet` |
-| Branch | `main` |
-| Root directory | `/site` |
-| Railway config file | `/site/railway.toml` |
-| Builder | Dockerfile |
-| Dockerfile path | `Dockerfile`, within the service root |
-| Watch paths | `/site/**`, relative to the repository root |
-| Health check | `/`, 30-second deployment timeout |
-| Restart policy | On failure, at most 3 retries |
-| Replicas | 1 |
-| Domain | Railway-generated domain |
+   | Setting | Value |
+   | --- | --- |
+   | Repository | `koenvg/Tenet` |
+   | Branch | `main` |
+   | Root directory | `/site` |
+   | Railway config file | `/site/railway.toml` |
+   | Builder | Dockerfile |
+   | Dockerfile path | `Dockerfile`, within the service root |
+   | Watch paths | `/site/**`, relative to the repository root |
+   | Health check | `/`, 30-second deployment timeout |
+   | Restart policy | On failure, at most 3 retries |
+   | Replicas | 1 |
+   | Domain | Railway-generated domain |
 
-The config-file path is repository-relative even when the service root is `/site`. Root directory, GitHub source, branch, domain, and CI-wait selection require Railway control-plane setup. `railway.toml` does not create or connect a service by itself.
+   The config-file path stays repository-relative even with root `/site`. Railway control-plane setup must select the root, GitHub source, branch, domain, and CI-wait setting. `railway.toml` does not create or connect a service.
 
-Enable autodeploy and **Wait for CI** in the service settings. Railway may require updated GitHub installation permissions to read check results. This repository has workflows that run on pushes to `main`. Verify the actual CI-wait setting and build logs before claiming deployment is gated on CI.
+3. Enable autodeploy and Wait for CI in the service settings. Railway may need updated GitHub installation permissions to read check results. Workflows run on pushes to `main`. Check the actual CI-wait setting and build logs before claiming CI gates deployment.
+4. Generate a public domain under Railway networking. Match its target port to the injected service `PORT`. Do not enable TLS inside Caddy. Its catch-all host accepts the `healthcheck.railway.app` probe.
 
-Generate a public domain under Railway networking. Match its target port to the service's `PORT`. Railway injects `PORT` for deployment health checks; a mismatched domain target port can still make a healthy container unreachable. Do not enable TLS inside Caddy. Its catch-all host accepts Railway's `healthcheck.railway.app` probe.
+The expected result is a dedicated service with the recorded settings and a reachable domain. A healthy container can still be unreachable if its domain target port is wrong. Verify the public site next.
 
 ## Verify production
 
-Replace the example hostname with the domain Railway actually allocates:
+Obtain separate authorization before live verification. The smoke check and browser send read requests to the public Railway service, including requests for paths that must return 404. Hosting usage can apply. These reads do not authorize deployment or configuration changes.
 
-```sh
-node site/smoke.mjs https://YOUR-SERVICE.up.railway.app
-```
+1. From the repository root, replace `YOUR-SERVICE.up.railway.app` with the allocated domain:
 
-The check verifies homepage and docs content, navigation links, CSS and font responses, MIME types, font signature, and 404 responses for non-public paths. In a browser, also open the homepage, follow Docs and Home, and confirm CSS and fonts load without network errors. Do not treat the `/` readiness probe as a substitute for this check. Railway's deployment health check is not continuous uptime monitoring.
+   ```sh
+   node site/smoke.mjs https://YOUR-SERVICE.up.railway.app
+   ```
 
-Record the generated URL, Railway project/service, deployed Git revision, effective source/root/config/watch settings, CI-wait setting, and verification results on TENET-12. Check that application-only changes outside `site/` do not match the watch paths.
+   Expect `PASS:`. The check covers homepage and docs content, navigation, CSS and font responses, MIME types, font signature, and 404 responses for non-public paths.
+
+2. In a browser, open the homepage, follow Docs and Home, and check that CSS and fonts load without network errors. The `/` readiness probe does not replace this check. Railway's deployment health check is not continuous uptime monitoring.
+3. Record the URL, Railway project/service, deployed Git revision, source/root/config/watch settings, CI-wait setting, and results on TENET-12. Check that application-only changes outside `site/` do not match the watch paths.
+
+## A website check fails
+
+- Local container cannot start: check Docker, the name `tenet-site-check`, and host port 18765. Do not remove an unrelated container to free the name or port.
+- Local HTTP check fails: inspect `docker logs tenet-site-check` before removing the check container. Use the smoke failure to find the affected response.
+- Production is healthy but unreachable: compare the domain target port with the service's injected `PORT`.
+- CI gating is unclear: inspect the effective Wait for CI setting, GitHub permissions, and build logs. Do not infer it from `railway.toml`.
 
 ## Roll back
 
-Keep the first verified deployment's revision in the launch record. For a later bad update, use Railway deployment history to redeploy a known-good revision and rerun the smoke check against the same domain. If Railway no longer retains that deployment, revert the website change through GitHub and deploy the resulting `main` revision. Verify the deployment's Git revision rather than assuming the previous image is still available.
+Obtain separate operator authorization before a rollback, redeployment, or GitHub revert. These actions change public content, can use hosting resources, and may restart the service. The local checks above do not authorize them.
 
-On a failed initial launch there is no previous working deployment. Fix the failure before claiming the site is live. Do not delete the service or its domain as a routine rollback action.
+1. Keep the first verified deployment's revision in the launch record.
+2. For a later bad update, use Railway deployment history to redeploy a known-good revision. If it is no longer retained, revert the website change through GitHub and deploy the resulting `main` revision.
+3. Verify the deployed Git revision, then rerun the authorized smoke check against the same domain. Do not assume the previous image is still available.
+
+A failed initial launch has no previous working deployment. Fix it before claiming the site is live. Do not delete the service or domain as a routine rollback action.
 
 ## Launch record
 
