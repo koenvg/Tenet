@@ -28,4 +28,12 @@ The separate archive metadata check requires Python 3 for development validation
 
 Build before the Bun suite: the Pi inspector-command tests serve files from `inspector/dist`. On Linux, install Chromium's system libraries with `bunx playwright install --with-deps chromium`. CI runs these checks on pushes to `main` and on pull requests. The Bun suite includes the Pi smoke tests.
 
+For current-action evidence selection, use the focused offline suite after the builds:
+
+```sh
+bun test test/evidence-preparation.test.ts test/resolved-action.test.ts test/trajectory.test.ts test/evidence-budget-capture.test.ts --isolate --max-concurrency=1 --timeout=30000
+```
+
+These authored regressions cover metadata tiers, exact UTF-8 boundaries including omission markers, final-only loss accounting, required-evidence overflow and unchanged host-fact safety. Capture tests use synthetic Pi hooks and the compiled SDK with an injected scripted transport. They compare submitted state with the recorded request and verify that later history cannot alter either snapshot. They make no claim about live evaluator accuracy or deployed executor coverage.
+
 Do not put `TYPESAFE_API_KEY`, policy text with credentials, or local TENET recordings in a commit, screenshot, or test artifact. The inspector's archives can contain exact submitted source text and secrets even with redaction. The live evaluation commands under `eval/` contact TypeSafe, use quota, and are **not** part of CI; run them only with separate authorization. Only invited collaborators can open Issues or Pull Requests for now; everyone else can read and fork once the repository is public. Report vulnerabilities through the private route in [SECURITY.md](SECURITY.md).

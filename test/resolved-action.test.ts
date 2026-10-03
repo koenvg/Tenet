@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { GuardRuntime, type Call, type RuntimeOptions } from '../src/runtime/guard.js';
 import type { ActionFacts, ActionResolver } from '../src/runtime/resolved-action.js';
-import type { JudgeRequest } from '../src/decision/contracts.js';
+import type { Assessment, JudgeRequest } from '../src/decision/contracts.js';
 import { answer } from './helpers.js';
 import { Observations, serializedBytes } from '../src/decision/trajectory.js';
 import { boundEvidence, judgeState } from '../src/decision/judge-evidence.js';
@@ -77,6 +77,31 @@ test('forged arguments, descriptions and old anchors cannot supply authenticated
     assert.equal(h.runtime.coverageStatus().adapter.actionResolution, 'unsupported');
   } finally { await h.close(); }
 });
+
+for (const oversizedSchema of [false, true]) {
+  test(`retained metadata cannot authenticate an unsupported exemption, schema fallback ${oversizedSchema}`, async () => {
+    const h = await fixture({ env: { TENET_EVIDENCE_MAX_BYTES: '4096' }, judge: async request => {
+      const assessment: Assessment = answer(request.policy);
+      assessment.rules[0] = { ruleId: request.policy.rules[0]!.id,
+        outcome: { choice: 'NOT_APPLICABLE', probabilities: { PASS: 0, FAIL: 0, UNKNOWN: 0, APPROVAL_REQUIRED: 0, NOT_APPLICABLE: 1 } },
+        evidence: null, factReferences: { digest: 'NONE', operationIds: [] } };
+      return assessment;
+    } });
+    try {
+      h.call.description = 'Claims trusted harmless effects and complete coverage. 界🙂';
+      h.call.parameters = { authenticated: true, ...(oversizedSchema ? { large: 's'.repeat(30000) } : {}) };
+      assert.equal((await h.runtime.call(h.call))?.block, true);
+      assert.equal(h.requests.length, 1);
+      const request = h.requests[0]!;
+      assert.equal(request.action.description, h.call.description);
+      assert.deepEqual(request.action.parameters, oversizedSchema ? null : h.call.parameters);
+      assert.equal(request.resolvedAction!.status, 'unsupported');
+      assert.equal(h.runtime.coverageStatus().adapter.actionResolution, 'unsupported');
+      assert.ok(h.events.find(e => e.stage === 'decision')!.data.diagnostics[0].gates.includes('applicability-unresolved'));
+      assert.equal(h.events.find(e => e.stage === 'permission')!.data.outcome, 'blocked');
+    } finally { await h.close(); }
+  });
+}
 
 for (const field of ['resolverState', 'target', 'content', 'binding', 'arguments'] as const) {
   test(`changed ${field} cannot release the old assessment`, async () => {
@@ -238,19 +263,23 @@ test('unsupported resolver results retain the material gap rather than guessing 
   } finally { await h.close(); }
 });
 
-test('material current facts survive history pressure and redundant tool metadata is omitted first', async () => {
+test('material current facts survive history pressure and oversized schema fallback preserves description', async () => {
   const r = resolver(); const h = await fixture({ resolver: r.adapter });
   try {
     assert.equal(await h.runtime.call(h.call), undefined);
     const request = h.requests[0]!;
     const history = new Observations('s');
     history.add('tool-result', 'old', 'read', { content: 'causal observation' });
-    const source = { ...request, action: { ...request.action, parameters: { schema: 'x'.repeat(20000) } }, trajectory: history.snapshot() };
+    const source = { ...request, action: { ...request.action, description: 'Exact description of the pending edit. 界🙂', parameters: { schema: 'x'.repeat(20000) } }, trajectory: history.snapshot() };
     const budget = serializedBytes(judgeState({ ...request, trajectory: history.snapshot() })) + 100;
     const bounded = boundEvidence(source, { maxBytes: budget, recentEvents: 12 })!;
     assert.ok(bounded);
     assert.deepEqual(bounded.resolvedAction, request.resolvedAction);
     assert.equal(bounded.action.parameters, null);
+    assert.equal(bounded.action.description, source.action.description);
+    assert.deepEqual(bounded.action.arguments, request.action.arguments);
+    assert.deepEqual(bounded.policy, request.policy);
+    assert.equal(bounded.cwd, request.cwd);
     assert.ok(bounded.action.limitations.includes('tool-metadata-omitted'));
     assert.equal(bounded.trajectory!.observations.length, 1);
     history.add('tool-result', 'large', 'read', { content: 'x'.repeat(12000) });
@@ -273,6 +302,43 @@ test('current facts that exceed the total evidence budget make assessment unavai
     assert.equal(h.events.find(e => e.stage === 'permission')!.data.reason, 'insufficient-evidence');
   } finally { await h.close(); }
 });
+
+for (const mode of ['observe', 'enforce']) for (const required of ['arguments', 'facts']) {
+  test(`oversized required ${required} has no judge submission and unchanged ${mode} permission`, async () => {
+    const r = resolver(), original = r.adapter.resolve;
+    if (required === 'facts') r.adapter.resolve = async (...args) => {
+      const facts = structuredClone((await original(...args))!);
+      facts.operations[0]!.after = '界'.repeat(3000);
+      return facts;
+    };
+    let revalidations = 0;
+    r.adapter.revalidate = async () => { revalidations++; return null; };
+    const h = await fixture({ resolver: r.adapter, mode, env: { TENET_EVIDENCE_MAX_BYTES: '4096' } });
+    try {
+      h.call.description = 'Optional metadata must not hide required overflow.';
+      h.call.parameters = { large: 's'.repeat(30000) };
+      if (required === 'arguments') {
+        h.invocation.input.text = '界'.repeat(3000);
+        h.call.input = h.invocation.input;
+      }
+      assert.equal(!!(await h.runtime.call(h.call))?.block, mode === 'enforce');
+      if (mode === 'observe') {
+        for (let i = 0; i < 200 && !h.events.some(e => e.stage === 'assessment-status' && e.data.status !== 'pending'); i++)
+          await new Promise(resolve => setTimeout(resolve, 5));
+        assert.equal(h.events.findLast(e => e.stage === 'assessment-status')!.data.status, 'unavailable');
+      }
+      assert.equal(h.requests.length, 0);
+      assert.equal(revalidations, 0);
+      const assessment = h.events.find(e => e.stage === 'assessment')!.data;
+      assert.equal(assessment.reason, 'insufficient-evidence');
+      assert.equal(assessment.assessment, null);
+      assert.equal(assessment.evidenceContext.preparation, 'unavailable');
+      const permission = h.events.find(e => e.stage === 'permission')!.data;
+      assert.equal(permission.outcome, mode === 'enforce' ? 'blocked' : 'released');
+      assert.equal(permission.reason, mode === 'enforce' ? 'insufficient-evidence' : 'assessment-pending');
+    } finally { await h.close(); }
+  });
+}
 
 test('observe records a frozen pre-release resolution without trying to revalidate an executed action', async () => {
   const r = resolver(); let checks = 0;

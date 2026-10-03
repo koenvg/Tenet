@@ -182,15 +182,27 @@ export function prepareRequest(request: JudgeRequest, measureBytes: (request: Ju
   const source = selectHistory(request.trajectory ?? { observations: [], omitted: 0, limitations: ['history-unavailable'] },
     limits, Math.floor(limits.maxBytes / 3));
   if (serializedBytes(source) > Math.floor(limits.maxBytes / 3)) return null;
-  let action = request.action;
-  // Preserve optional-metadata priority under total-state pressure.
-  if (measureBytes({ ...request, trajectory: source }) > limits.maxBytes && (action.description !== null || action.parameters !== null)) {
-    action = { ...action, description: null, parameters: null, limitations: [...action.limitations, 'tool-metadata-omitted'] };
-  }
+  const original = request.action;
+  const omittedMetadata = [...original.limitations, 'tool-metadata-omitted'];
+  const tiers = [original];
+  if (original.parameters !== null) tiers.push({ ...original, parameters: null, limitations: omittedMetadata });
+  if (original.description !== null) tiers.push({ ...original, description: null, parameters: null, limitations: omittedMetadata });
   const empty = { observations: [], omitted: 0, limitations: [] };
-  const protectedBytes = measureBytes({ ...request, action, trajectory: empty }) - serializedBytes(empty);
-  if (protectedBytes >= limits.maxBytes) return null;
-  const allowance = Math.min(Math.floor(limits.maxBytes / 3), limits.maxBytes - protectedBytes);
+  let selected: { action: JudgeRequest['action']; allowance: number } | undefined;
+  // Choose metadata against the exact current-only state, including all final
+  // history omissions and selector metadata. Failed tiers never become the source.
+  for (const action of tiers) {
+    const protectedBytes = measureBytes({ ...request, action, trajectory: empty }) - serializedBytes(empty);
+    const allowance = Math.min(Math.floor(limits.maxBytes / 3), limits.maxBytes - protectedBytes);
+    if (allowance < 0) continue;
+    const currentOnly = selectHistory(source, { ...limits, recentEvents: 0 }, allowance);
+    if (serializedBytes(currentOnly) <= allowance && measureBytes({ ...request, action, trajectory: currentOnly }) <= limits.maxBytes) {
+      selected = { action, allowance };
+      break;
+    }
+  }
+  if (!selected) return null;
+  const { action, allowance } = selected;
   const trajectory = selectHistory(source, limits, allowance);
   if (serializedBytes(trajectory) > allowance) return null;
   const bounded = JSON.parse(JSON.stringify({ ...request, action, trajectory })) as JudgeRequest;
