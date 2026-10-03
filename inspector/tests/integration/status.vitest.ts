@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { FixtureArchiveWriter } from '../../../test/archive-fixture.js';
 import { recordSessionKey, recordInvocationKey } from '../../../src/recording/archive.js';
 import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
+import { openEvidence, reveal } from '../ui-navigation.js';
 
 beforeAll(launchBrowser);
 afterAll(closeBrowser);
@@ -53,7 +54,8 @@ test('observe BLOCK with a recorded result has neutral Ran first on desktop and 
     await page.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Calls' }).click();
     await page.screenshot({ path: 'coverage/inspector-artifacts/status-narrow-calls.png' });
     expect((await page.locator('.call-state .status-chip').first().textContent())?.trim()).toBe('Ran');
-    expect(await page.locator('.call-state .status-chip.neutral').count()).toBe(2);
+    expect(await page.locator('.call-state .status-chip.neutral').count()).toBe(1);
+    expect(await page.locator('.call-mode').textContent()).toBe('Observe');
     await page.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Summary' }).click();
     expect((await page.locator('.primary-badges .status-chip').first().textContent())?.trim()).toBe('Ran');
     expect(await page.locator('.primary-status').textContent()).toContain('Observe');
@@ -81,9 +83,10 @@ for (const schema of [1, 2, 3, 4] as const) test(`schema ${schema} preserves rec
     expect(data.view.rules[0].thresholds).toEqual({ effectThreshold: .91, evidenceThreshold: .93 });
     expect(data.view.evidence).toEqual(evidence);
     expect((await page.locator('.call-state .status-chip').first().textContent())?.trim()).toBe('Ran');
-    expect(await page.locator('.primary-status h2').textContent()).toBe('Actual execution / Ran');
+    expect(await page.locator('.primary-badges .status-chip > span').first().textContent()).toBe('Ran');
+    await reveal(page, '.why-disclosure');
     expect(await page.getByRole('meter', { name: 'Outcome confidence' }).getAttribute('aria-valuetext')).toBe('0.88; required confidence 0.91');
-    await page.getByRole('button', { name: 'View shared evidence' }).click();
+    await openEvidence(page);
     expect(JSON.parse((await page.locator('.evidence-section').filter({ hasText: 'state.action' }).locator('pre').textContent())!)).toEqual(evidence.action);
     await page.getByRole('tab', { name: 'Questions' }).click();
     await page.getByRole('button', { name: 'JSON', exact: true }).click();
@@ -91,7 +94,7 @@ for (const schema of [1, 2, 3, 4] as const) test(`schema ${schema} preserves rec
     await page.locator('.question-details summary').click();
     expect(await page.locator('.question-details').textContent()).toContain('historical-status-v1');
     const linked = await open(link(schema));
-    expect(await linked.locator('.primary-status h2').textContent()).toBe('Actual execution / Ran');
+    expect(await linked.locator('.primary-badges .status-chip > span').first().textContent()).toBe('Ran');
     await linked.close();
   }, { base: false, seed: directory => seedStatus(directory, { schema }), path: link(schema) });
 });
@@ -112,19 +115,33 @@ for (const [execution, permission, label] of [
   }, { base: false, seed: directory => seedStatus(directory, { execution, permission }), path: link(1) });
 });
 
+for (const width of [1280, 390]) test(`Observe with blocked permission keeps its counterfactual visible at ${width}px`, async () => {
+  await withInspector(`observe-blocked-first-view-${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.locator('.decision-summary').waitFor();
+    expect(await page.locator('.primary-badges .status-chip > span').first().textContent()).toBe('TENET blocked');
+    expect(await page.locator('.primary-status').innerText()).toContain('Observe');
+    expect(await page.locator('.story-assessment').isVisible()).toBe(true);
+    expect(await page.locator('.story-assessment').innerText()).toBe('Would block in enforce mode');
+    expect(await page.locator('.decision-map').isVisible()).toBe(false);
+    expect(await page.locator('.capture-details').getAttribute('open')).toBeNull();
+  }, { base: false, seed: directory => seedStatus(directory, { permission: 'blocked', execution: null }), path: link(1) });
+});
+
 for (const width of [1280, 390]) test(`polling Released to Ran at ${width}px retains selection, evidence node and scroll through delayed assessment`, async () => {
   await withInspector(`status-poll-${width}`, async ({ page, directory }) => {
     await page.setViewportSize({ width, height: 844 });
     await page.locator('.decision-summary').waitFor();
     expect((await page.locator('.call-state .status-chip').first().textContent())?.trim()).toBe('Released');
-    expect(await page.locator('.primary-status h2').textContent()).toContain('Released');
+    expect(await page.locator('.primary-badges .status-chip > span').first().textContent()).toContain('Released');
     expect(await page.locator('.map-verdict').textContent()).toBe('Decision unavailable');
     expect(await page.locator('.assessment-status').textContent()).toContain('pending');
     expect(await page.getByRole('meter').count()).toBe(0);
-    await page.getByRole('button', { name: 'All rules (1)' }).click();
+    await reveal(page, '.why-disclosure');
+    await reveal(page, '.other-rules');
     await page.locator('.rule-row').click();
     const selectedRule = await page.locator('.rule-row[aria-pressed="true"]').textContent();
-    await page.getByRole('button', { name: 'View shared evidence' }).click();
+    await openEvidence(page);
     const panel = page.locator('#panel-Evidence');
     const scroll = await panel.evaluate(el => { el.dataset.retention = 'same-node'; el.scrollTop = 180; return el.scrollTop; });
     expect(scroll).toBeGreaterThan(0);
@@ -135,7 +152,7 @@ for (const width of [1280, 390]) test(`polling Released to Ran at ${width}px ret
     sink('assessment-status', { status: 'completed', profile: 'legacy' });
     sink('execution', { outcome: 'executed' });
     await writer.complete();
-    await expect.poll(() => page.locator('.primary-status h2').textContent(), { timeout: 10_000 }).toBe('Actual execution / Ran');
+    await expect.poll(() => page.locator('.primary-badges .status-chip > span').first().textContent(), { timeout: 10_000 }).toBe('Ran');
     expect((await page.locator('.call-row[aria-pressed="true"] .call-state .status-chip').first().textContent())?.trim()).toBe('Ran');
     expect(await page.locator('.rule-row[aria-pressed="true"]').textContent()).toContain('Keep private data local.');
     expect(selectedRule).toContain('Keep private data local.');

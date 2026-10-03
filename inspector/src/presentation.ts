@@ -19,13 +19,35 @@ export function primaryStatus(facts: { execution?: string | null; permission?: s
         : facts.permission === 'released'
           ? { label: 'Released', tone: 'caution', icon: 'unknown', explanation: 'Execution unknown. TENET released permission, but no execution result was recorded. Release or approval does not prove dispatch or execution.' }
           : { label: 'Execution unknown', tone: 'neutral', icon: 'unknown', explanation: 'No known execution result or actual permission was recorded. Assessment and approval do not prove execution or prevention.' };
-  return { ...status, inconsistency, notice };
+  const summary = status.label === 'Ran' ? 'A successful tool result was recorded.'
+    : status.label === 'Released' ? 'Execution unknown. Released permission does not prove dispatch or execution.'
+    : status.label === 'TENET blocked' ? 'Blocked permission was recorded. No execution result was recorded.'
+    : status.label === 'Failed' ? status.explanation
+    : 'No execution result or actual permission was recorded.';
+  return { ...status, summary, inconsistency, notice };
 }
 export const modeLabel = (mode?: string | null) => mode === 'observe' ? 'Observe' : mode === 'enforce' ? 'Enforce' : 'Mode unknown';
 export function findingPresentation(category: FindingCategory) {
   const tones: Record<FindingCategory, StatusTone> = { violation: 'danger', uncertainty: 'caution', approval: 'approval', unavailable: 'caution', pending: 'neutral' };
   return { label: categoryLabels[category], tone: tones[category], icon: (category === 'violation' ? 'failed' : category === 'approval' ? 'ask' : 'unknown') as StatusIcon };
 }
+
+// One compact cue for navigation. Full categories remain in the selected call.
+export function callConcern(facts: { execution?: string | null; permission?: string | null; categories?: FindingCategory[]; missing?: string[]; assessmentStatus?: string; failure?: string | null }) {
+  const categories = facts.categories ?? [];
+  const category = (['violation', 'unavailable', 'approval', 'uncertainty', 'pending'] as FindingCategory[]).find(c => categories.includes(c));
+  const finding = category ? findingPresentation(category) : null;
+  const conflict = primaryStatus(facts).inconsistency;
+  const missingResult = facts.permission === 'released' && !['executed', 'failed'].includes(facts.execution ?? '');
+  const label = conflict ? 'Conflicting records' : finding?.label;
+  const suffix = conflict && category === 'violation' ? 'Suspected violation'
+    : missingResult ? 'No recorded result' : '';
+  const text = [label ? `${label}${!conflict && categories.length > 1 ? ` +${categories.length - 1}` : ''}` : '', suffix].filter(Boolean).join(' · ')
+    || (facts.missing?.length ? 'Incomplete recording' : facts.failure ? 'Assessment failed' : '');
+  if (!text) return null;
+  return { text, tone: conflict ? 'danger' : finding?.tone ?? 'caution', description: categories.map(c => categoryLabels[c]).join(' · ') };
+}
+
 export function gateTone(rule: RuleView, gate: string): StatusTone {
   if (uncertaintyKeys({ assessmentStatus: '', rules: [{ ruleId: rule.id, gates: [gate] }] }).length || rule.enforcement === 'WARN') return 'caution';
   return gate === 'rule-fail' ? 'danger' : 'neutral';
@@ -124,12 +146,13 @@ export function actionPreview(view: InvocationView): string | null {
   return null;
 }
 export function decisionReason(view: InvocationView): string {
+  if (!['validated', 'completed'].includes(view.assessmentStatus)) return `Assessment ${view.assessmentStatus}. No completed assessment is available.`;
   const uncertainty = uncertaintyNotice(view);
-  if (uncertainty) return uncertainty;
+  if (uncertainty) return 'No rule was classified as violated. The assessment is uncertain.';
   const blocker = orderedRules(view.rules).find(r => r.enforcement === 'BLOCK' && r.gateIds?.length);
   if (view.decision === 'BLOCK' && blocker) {
     const reasons: Record<string, string> = {
-      'rule-fail': 'A policy rule was reported as violated.',
+      'rule-fail': blocker.builtin ? 'The built-in integrity check reported a violation.' : 'A policy rule was reported as violated.',
       'outcome-unknown': 'TENET could not determine whether the action follows a policy rule.',
       'outcome-confidence-below-threshold': 'Confidence in a rule outcome was below the required threshold.',
       'evidence-insufficient': 'There was not enough evidence to assess a policy rule.',
@@ -137,8 +160,8 @@ export function decisionReason(view: InvocationView): string {
     };
     return reasons[blocker.gateIds![0]!] ?? explainDecision(view);
   }
-  if (view.failure) return `The assessment could not complete. Recorded reason: ${view.failure}.`;
-  if (view.decision === 'ASK') return explainDecision(view);
+  if (view.failure) return 'The assessment could not complete. See Details for the recorded reason.';
+  if (view.decision === 'ASK') return 'An approval condition was recorded.';
   if (view.decision === 'ALLOW') return view.reason === 'all-rules-pass'
     ? 'No blocking issues or approval requirements were recorded.'
     : explainDecision(view);

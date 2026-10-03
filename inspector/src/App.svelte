@@ -3,12 +3,11 @@
   import { categoryLabels, findingCategories, type FindingCategory } from '../../src/decision/finding-triage';
   import type { UncertaintyGroup } from '../../src/inspector/archive-index';
   import Detail from './Detail.svelte';
-  import { timestamp, toolLabel, primaryStatus, modeLabel, decisionLabel, gateLabels, type MobileView } from './presentation';
+  import { timestamp, toolLabel, primaryStatus, callConcern, modeLabel, gateLabels, type MobileView } from './presentation';
   import DecisionIcon from './DecisionIcon.svelte';
   import PaneResizer from './PaneResizer.svelte';
   let explorerWidth = 300;
   import StatusChip from './StatusChip.svelte';
-  import FindingChips from './FindingChips.svelte';
   let mobileView: MobileView = 'calls';
   let pickerOpen = true;
   let showPatterns = false;
@@ -260,7 +259,7 @@
   </nav>
   <div class="archive-messages">
     {#if error}<p class="archive-alert" role="alert">{error}</p>{/if}
-    {#if reader}<p class="reader-status">Reader {reader.build} · supported recording schemas {reader.supportedSchemas.join(', ')} · read-only, best-effort archive</p>{/if}
+    {#if reader}<details class="reader-status"><summary>Archive details</summary><p>Reader {reader.build} · supported recording schemas {reader.supportedSchemas.join(', ')} · read-only, best-effort archive</p></details>{/if}
     {#if reader && (reader.unsupported || reader.indexing || reader.corrupt || reader.otherIssues)}
       <p class="archive-alert compatibility-warning" role="status">Partial archive coverage: {reader.unsupported} unsupported schema records ({reader.newerUnsupported ?? 0} newer), {reader.corrupt} corrupt records, {reader.otherIssues} other issues{reader.indexing ? '; indexing is still in progress' : ''}. Older supported calls remain available. <span class="upgrade-guidance">For newer records, update the reader, run <code>bun run inspector:build</code>, then restart the inspector process. A rebuild alone does not update a running reader.</span><span class="mobile-upgrade">For newer records, rebuild and restart the reader.</span></p>
     {:else if !reader && !busy}<p class="archive-alert" role="status">Reader compatibility is unknown. Do not treat these calls as a complete archive.</p>{/if}
@@ -288,31 +287,27 @@
     <nav class="call-list" aria-label="Invocations">
       {#each invocations as item}
         {@const status = primaryStatus(item)}
+        {@const concern = callConcern(item)}
         <button class="call-row" aria-pressed={invocation === item.id} on:click={() => selectInvocation(item.id)}>
           <DecisionIcon kind={item.toolName === 'bash' ? 'action' : ['read', 'write', 'edit'].includes(item.toolName) ? 'document' : 'tool'} />
           <span class="call-copy">
           <span class="call-top"><strong>{toolLabel(item.toolName)}</strong><time>{timestamp(item.timestamp)}</time></span>
           <span class="call-id" hidden>{item.callId}</span>
-          <span class="call-state" title={status.explanation}><StatusChip value={status.label} tone={status.tone} icon={status.icon} showIcon /><StatusChip value={modeLabel(item.mode)} tone="neutral" /></span>
-          {#if status.label === 'Released'}<small class="call-execution">Execution unknown</small>{/if}
-          {#if status.inconsistency}<small class="recording-inconsistency">Inconsistent recording: blocked permission with a result</small>{/if}
-          {#if item.categories?.length}<FindingChips categories={item.categories} />{/if}
-          {#if ['ALLOW', 'ASK', 'BLOCK'].includes(item.decision)}<small class="call-assessment">{decisionLabel(item.decision, item.mode)}</small>{/if}
-          {#if item.failure || item.assessmentStatus !== 'validated'}<small>Assessment {item.assessmentStatus}{item.failure ? `: ${item.failure}` : ''}</small>{/if}
-          {#if item.missing.length && item.assessmentStatus !== 'incomplete'}<span class="call-execution">Incomplete recording</span>{/if}
+          <span class="call-state" title={status.explanation}><StatusChip value={status.label} tone={status.tone} icon={status.icon} showIcon /><span class="call-mode">{modeLabel(item.mode)}</span></span>
+          {#if concern}<small class={`call-concern ${concern.tone}`} class:recording-inconsistency={status.inconsistency} title={concern.description}>{concern.text}</small>{/if}
           </span>
         </button>
       {/each}
       {#if timelineBusy}<p role="status">Loading calls…</p>{:else if session && !invocations.length}<p class="empty-inline">{category ? 'No calls match this finding category.' : 'No recorded invocations in this session.'}</p>{/if}
       {#if nextInvocation !== null}<button class="text-button" disabled={timelineBusy} on:click={() => loadTimeline(nextInvocation!)}>More invocations</button>{/if}
     </nav>
-    <div class="explorer-footer"><span>Recorded data only. No evaluator calls.</span></div>
+    <div class="explorer-footer"><span>Read-only recorded calls</span></div>
   </aside>
   <PaneResizer bind:value={explorerWidth} min={220} max={460} label="Resize call explorer" controls="call-explorer" />
   <div class="inspection">
     {#if session}
       <nav class="inspection-switch" aria-label="Inspection views">
-        <button bind:this={decisionButton} aria-pressed={!showPatterns} disabled={!view} on:click={() => showPatterns = false}>Decision</button>
+        <button bind:this={decisionButton} aria-pressed={!showPatterns} disabled={!view} on:click={() => showPatterns = false}>Summary</button>
         <button aria-pressed={showPatterns} on:click={openPatterns}>Uncertainty groups{groupsLoaded ? ` (${groups.items.length}${groups.omittedGroups ? '+' : ''})` : ''}</button>
       </nav>
     {/if}
@@ -324,14 +319,13 @@
       <section class="empty-state" aria-live="polite">
         <span class="empty-symbol" aria-hidden="true">[ ]</span>
         <h2>{detailBusy ? 'Reading invocation…' : session && category && !invocations.length ? 'No matching calls' : session && !invocations.length ? 'Waiting for recorded calls' : session ? 'Choose a call to investigate' : 'Start with a recorded session'}</h2>
-        <p>{detailBusy ? 'Loading its recorded assessment and evidence.' : session && category && !invocations.length ? 'No calls match this finding category. Clear the filter to browse all calls, or open uncertainty groups for the session.' : session && !invocations.length ? 'No calls are recorded for this session yet. New calls appear here as TENET records them.' : 'See what TENET decided, which rules contributed, and the evidence the evaluator actually received.'}</p>
-        <p class="muted">Missing records stay unknown. This inspector never reruns an assessment.</p>
+        <p>{detailBusy ? 'Loading the recorded call.' : session && category && !invocations.length ? 'Clear the filter to browse all calls, or open uncertainty groups.' : session && !invocations.length ? 'New calls appear here as TENET records them.' : 'Choose a session to inspect its calls.'}</p>
       </section>
     {/if}
     {#if session}
       <section class="pattern-view" aria-label="Uncertainty groups" hidden={!showPatterns}>
         <header><h2>Uncertain calls by rule and gate</h2>
-          <p>Calls with the same recorded policy, assessment profile, rule and gate appear together. Each call stays separate, even in one-call groups. This session-wide view does not change with the call filter.</p>
+          <p>Grouped by recorded policy, profile, rule and gate. Calls stay separate. The call filter does not change these groups.</p>
         </header>
         {#if groupsError}<p class="missing-data" role="alert">Could not load groups: {groupsError} <button on:click={() => loadGroups()}>Try again</button></p>{/if}
         {#if groupsBusy && !groupsLoaded}<p role="status">Loading uncertainty groups…</p>

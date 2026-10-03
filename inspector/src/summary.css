@@ -31,13 +31,19 @@ button, summary { touch-action: manipulation; }
  .triage-tools { padding: 8px 20px 14px 24px; display: grid; gap: 4px; font-size: 12px; }
  .triage-tools select { width: 100%; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; background: white; color: var(--ink); }
 .finding-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-.finding-tags { margin: .6rem 0 0; color: var(--muted); font-size: .8rem; }
-.finding-tags .finding-chips { margin-bottom: 6px; }
-.primary-status { padding: 24px 32px 20px; border-bottom: 1px solid var(--line); }
-.primary-status h2 { font-size: 20px; margin-bottom: 10px; }
+.finding-tags { color: var(--muted); font-size: .8rem; }
+.finding-tags .finding-chips { margin: 0; }
+.primary-status { padding: 32px; }
+.story-title { display: flex; align-items: center; gap: 12px; }
+.story-title > .decision-icon { width: 28px; height: 28px; flex: none; }
+.primary-status h2 { font-size: 24px; margin: 0; font-weight: 600; }
+.story-action { font: 15px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; padding: 0; margin: 12px 0 24px; background: none; border: 0; max-height: 120px; overflow: auto; white-space: pre-wrap; }
 .primary-badges { display: flex; flex-wrap: wrap; gap: 8px; }
 .primary-badges .status-chip { font-size: 15px; }
-.recorded-permission { font-size: 13px; margin: 8px 0; color: var(--muted); }
+.story-assessment { margin-top: 24px; font-size: 17px; font-weight: 600; }
+.primary-status .action-unavailable { margin: 12px 0 24px; max-width: 65ch; }
+.primary-status .summary-reason { padding: 4px 0 0; border: 0; font-size: 15px; font-weight: 400; max-width: 65ch; }
+.primary-status .finding-tags { margin-top: 16px; }
 .recording-inconsistency { display: block; padding: 8px; margin: 8px 0; border: 1px solid var(--danger); color: var(--danger); background: var(--danger-bg); font-size: 13px; }
 .workspace[data-mobile-view] .explorer { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; min-height: 0; background: transparent; border: 0; overflow: hidden; }
 .explorer .pane-heading { min-height: 60px; padding: 12px 24px 18px; border: 0; }
@@ -54,7 +60,12 @@ button, summary { touch-action: manipulation; }
 .call-top time { font-size: 11px; }
 .call-state { margin-top: 6px; }
 .call-state .status-chip { padding: 3px 8px; border-radius: 6px; font-size: 14px; font-weight: 650; }
-.call-row .finding-chips .status-chip { font-size: 11px; }
+.call-mode { color: var(--muted); font-size: 12px; }
+.call-concern { display: block; margin-top: 6px; font-size: 12px; }
+.call-concern.danger { color: #9b3534; }
+.call-concern.caution { color: #805516; }
+.call-concern.approval { color: #62419a; }
+.call-row .recording-inconsistency { padding: 0; border: 0; background: transparent; }
 .call-execution, .call-row small { font-size: 12px; }
 .explorer-footer { display: block; border: 0; padding-left: 24px; font-size: 12px; }
 .workspace[data-mobile-view] > .pane-resizer { grid-column: 2; grid-row: 2; display: block; width: 8px; margin-left: -4px; z-index: 1; border: 0; background: transparent; }
@@ -124,12 +135,13 @@ button.map-symbol[aria-pressed='true'] { outline: 1px solid currentColor; outlin
  .map-policy h3 { font-size: 23px; margin-bottom: 0; }
 .map-verdict { font-size: 28px; font-weight: 650; line-height: 1.3; }
 .execution-summary { margin: 8px 0 0; font-size: 14px; line-height: 1.45; color: var(--muted); }
-.map-notices:empty { display: none; }
-.map-notices { padding: 0 32px 16px; }
 .summary-note, .capture-warning, .assessment-status { margin: 8px 0 0; color: var(--amber); font-size: 14px; }
-.summary-reason { border-top: 1px solid var(--line); padding: 26px 32px 0; font-size: 25px; font-weight: 600; line-height: 1.35; }
-.map-tools { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 32px 26px; }
-.map-tools button { border-color: #929893; background: transparent; min-height: 40px; font-size: 15px; }
+.why-disclosure { margin-left: 32px; margin-right: 32px; }
+.why-disclosure .assessment-pane { margin: 0; }
+.capture-details.disclosure { margin-top: 0; }
+.reader-status > summary { width: fit-content; }
+.reader-status p { margin-top: 8px; }
+.summary-content > .disclosure > summary { min-height: 52px; color: var(--ink); }
 .assessment-pane, .evidence-disclosure, .capture-details { margin-left: 32px; margin-right: 32px; }
 .assessment-pane { display: block; border: 0; }
 .disclosure { border-top: 1px solid var(--line); font-size: 15px; }
@@ -159,7 +171,24 @@ button.map-symbol[aria-pressed='true'] { outline: 1px solid currentColor; outlin
 .gate-list li { border: 0; }
 .distributions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .evidence-dock { border: 1px solid var(--line); height: 540px; max-height: 75dvh; background: var(--chrome); }
-.capture-details p { margin-top: 12px; }
+.capture-details .record-group { margin: 12px 0 28px; color: var(--ink); }
+.capture-details .record-group:last-child { margin-bottom: 0; }
+.record-group > h3 { font-size: 17px; font-weight: 600; margin-bottom: 12px; }
+.capture-details .record-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 32px; }
+.capture-details .record-fields > div { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 12px; align-items: baseline; min-width: 0; }
+.record-fields dt { font-size: 13px; }
+.record-fields dd { font-size: 14px; font-weight: 400; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.record-fields .record-wide { grid-column: 1 / -1; }
+.capture-details .decision-explanation { margin-top: 16px; font-size: 14px; max-width: 70ch; }
+.record-note { margin-top: 16px; font-size: 14px; }
+.record-note > summary { padding: 6px 0; }
+.record-note p { max-width: 70ch; margin-top: 12px; }
+.record-long { max-height: 96px; overflow: auto; margin: 0; padding: 0; background: transparent; border: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.record-id { font: 13px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; width: 100%; resize: none; field-sizing: content; }
+.record-id:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.assessment-diagnostic { font-size: 14px; margin-top: 16px; color: var(--amber); }
+.coverage-records { margin-top: 16px; }
+.coverage-records > h4 { font-size: 14px; font-weight: 500; color: var(--muted); margin-bottom: 12px; }
 .trace-a .map-edge.is-selected { animation: trace-a 420ms cubic-bezier(.16, 1, .3, 1); }
 .trace-b .map-edge.is-selected { animation: trace-b 420ms cubic-bezier(.16, 1, .3, 1); }
 @keyframes trace-a { from { stroke-dasharray: 1; stroke-dashoffset: 1; } to { stroke-dasharray: 1; stroke-dashoffset: 0; } }
@@ -205,13 +234,12 @@ button.map-symbol[aria-pressed='true'] { outline: 1px solid currentColor; outlin
   .map-policy { margin-top: 20px; }
   .map-verdict { font-size: 24px; }
   .execution-summary { font-size: 14px; }
-  .primary-status { padding: 20px 24px; }
-  .summary-reason { padding: 22px 24px 0; font-size: 20px; }
-  .map-tools { margin: 18px 24px 24px; gap: 8px; }
-  .map-tools button { font-size: 14px; }
+  .primary-status { padding: 24px; }
+  .why-disclosure { margin-left: 24px; margin-right: 24px; }
   .assessment-pane, .evidence-disclosure, .capture-details { margin-left: 24px; margin-right: 24px; }
   .distributions { grid-template-columns: 1fr; }
-  .map-notices { padding: 0 24px 16px; }
+  .capture-details .record-fields { grid-template-columns: 1fr; }
+  .capture-details .record-fields > div { grid-template-columns: minmax(100px, 36%) minmax(0, 1fr); }
 }
 @media (max-width: 600px) {
   .app-bar { min-height: 100px; padding: 14px 18px 8px; gap: 8px 14px; flex-wrap: wrap; }

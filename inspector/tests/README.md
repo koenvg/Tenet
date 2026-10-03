@@ -41,4 +41,13 @@ Run Bun archive and security tests separately with `bun test --isolate --max-con
 
 These are recorded-data presentation tests, not live semantic-accuracy measurements. Fixture actions never execute. A failed tool result does not prove no external effects. A Released call has execution unknown until a result arrives; ALLOW and approval do not prove dispatch. Blocked permission plus a result shows the result first and a visible inconsistency notice while retaining both facts. No archive rewrite, policy reevaluation or active-service restart is part of this verification. Owners must rebuild and restart their inspector to load changed assets; rebuilding alone leaves a running reader unchanged. Rollback restores the previous code and rebuilds through the owner, preserving all archives.
 
+
+## Simplified first view
+
+TENET-42 keeps the action, actual status, mode, findings and one brief reason visible. The sidebar uses one actual-status chip, quiet mode text and one concern cue. A `+N` cue counts additional finding categories, not additional violated rules. All categories remain in the selected call and category filters are unchanged.
+
+Why this assessment opens the recorded Open map, selected check and all rules. Evidence opens the existing tabbed dock. Details opens exact lifecycle, versions, coverage and validation diagnostics. Native disclosures stay closed on a new selection and remain mounted through polls. Tests open these public entry points before interaction; no old regression was skipped. New desktop/narrow tests check the simpler default and keyboard disclosure path.
+
+Expanded Details groups recorded outcomes, recording metadata, and coverage. Keys and values align at desktop and narrow widths. Rule notes stay separate from capture counters. Record identifiers are bounded read-only fields; coverage explanations and interpretation limits have named disclosures. Regressions check the groups, long identifier values and bounds at both widths. The Observe plus blocked-permission regression requires the counterfactual assessment to remain visible in the first view, without opening the map. No archived fact is repaired or rejected.
+
 Failure artifacts go in unique directories under ignored `coverage/inspector-artifacts/playwright/`, retaining API response timing, browser errors, and HTML/screenshots for every open page, including linked pages. Synthetic summary screenshots also go there; Vitest Browser Mode may also save failures under ignored `.vitest/attachments/`. A CI job can upload these directories on failure. Tests never overwrite the tracked `.impeccable/review/` reference images. The user-facing `/tenet-inspector` command still opens Arc; it is not a test dependency.
