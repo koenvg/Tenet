@@ -16,10 +16,12 @@ export async function recordFixture(directory: string) {
     await h.start();
     await h.call('passing', { text: '<script>window.hostile = true</script>', token: 'redacted-secret' });
     await h.assessed('passing');
+    await h.captured();
     await h.emit('tool_result', { toolCallId: 'passing', toolName: 'edit', content: [], isError: false });
+    await h.captured();
     await h.call('concerning', { text: 'git commit -m example' });
     await h.assessed('concerning');
-    await h.emit('session_shutdown');
+    await h.shutdownCaptured();
     const archived = await readArchive(directory);
     assert.equal(archived.records.filter(r => r.stage === 'request').length, 2);
     assert.deepEqual(archived.records.filter(r => r.stage === 'request').map(r => r.data.payload), submitted);

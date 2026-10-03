@@ -10,7 +10,7 @@ import { sessionKey } from '../src/recording/archive.js';
 function writer(root: string, sessionId: string, project: string, prefix: string) {
   return new Promise<void>((resolve, reject) => {
     const child = spawn('bun', ['-e', `
-      import { ArchiveWriter } from './test/legacy-recording-fixture.ts';
+      import { FixtureArchiveWriter as ArchiveWriter } from './test/archive-fixture.ts';
       const [directory, encodedSession, cwd, prefix] = process.argv.slice(1);
       const sessionId = JSON.parse(encodedSession);
       const writer = new ArchiveWriter({ enabled: true, directory });
@@ -19,6 +19,7 @@ function writer(root: string, sessionId: string, project: string, prefix: string
         sink('begin', { policy: { rules: [], marker: prefix } });
         sink('decision', { decision: n % 2 ? 'ASK' : 'ALLOW' });
       }
+      await writer.settle();
       if (!await writer.close() || writer.health().written !== 24) process.exit(1);
     `, root, JSON.stringify(sessionId), project, prefix], { stdio: ['ignore', 'ignore', 'pipe'] });
     let error = ''; child.stderr.on('data', chunk => { error += chunk; });

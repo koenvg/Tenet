@@ -96,7 +96,7 @@ for (const recording of ['on', 'off']) test(`Pi live report preserves coverage w
     assert.deepEqual(decision.evidenceContext, assessment.evidenceContext);
     const archived = await readArchive(join(h.cwd, 'archive'));
     if (recording === 'on') {
-      await h.emit('session_shutdown');
+      await h.shutdownCaptured();
       const rows = (await readArchive(join(h.cwd, 'archive'))).records;
       assert.deepEqual(invocationView(rows.filter(row => row.callId === 'c')).evidenceContext, assessment.evidenceContext);
     } else assert.equal(archived.records.length, 0);

@@ -1,4 +1,4 @@
-import { ArchiveWriter } from '../../test/legacy-recording-fixture.js';
+import { FixtureArchiveWriter as ArchiveWriter } from '../../test/archive-fixture.js';
 import { recordRuleFixture } from '../../test/rule-fixture.js';
 
 export const recordedQuestion = {
@@ -61,5 +61,5 @@ export async function browserFixture(directory: string) {
   compacted('assessment', { evidenceContext: request.evidenceContext, assessment: answer(summaryPolicy as any, 'UNKNOWN') });
   compacted('decision', { evidenceContext: request.evidenceContext, decision: 'BLOCK', reason: 'insufficient-evidence', contributions: [] });
   compacted('permission', { evidenceContext: request.evidenceContext, outcome: 'released' });
-  await writer.close();
+  await writer.complete();
 }

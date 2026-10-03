@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, rm, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -14,6 +15,12 @@ export async function guardHarness(options: { env?: Record<string, string>; judg
   const handlers = new Map<string, any>(), commands = new Map<string, any>();
   const records: any[] = [], statuses: string[] = [], notifications: string[] = [], prompts: string[] = [], views: any[] = [];
   const branch: any[] = [];
+  let captureStatus = '';
+  const captureWaiters = new Set<(status: string) => void>();
+  const captureChanged = (status: string) => {
+    captureStatus = status;
+    for (const notify of captureWaiters) notify(status);
+  };
   const controller = new AbortController();
   const pi = {
     on: (name: string, fn: any) => handlers.set(name, fn),
@@ -23,7 +30,10 @@ export async function guardHarness(options: { env?: Record<string, string>; judg
   };
   const ctx = { cwd, hasUI: options.hasUI ?? true, signal: controller.signal,
     sessionManager: { getSessionId: () => 's', getBranch: () => branch },
-    ui: { setStatus: (_key: string, value: string) => statuses.push(value),
+    ui: { setStatus: (key: string, value: string) => {
+      statuses.push(value);
+      if (key === 'tenet-recording') captureChanged(value);
+    },
       notify: (value: string) => notifications.push(value),
       confirm: async (title: string) => { prompts.push(title); return false; },
       select: async (title: string, items: string[]): Promise<string | undefined> => { views.push({ title, items }); return undefined; },
@@ -41,8 +51,25 @@ export async function guardHarness(options: { env?: Record<string, string>; judg
     }
     throw new Error(`assessment did not finish: ${callId}`);
   };
+  const captured = () => new Promise<void>((resolve, reject) => {
+    const check = (status: string) => {
+      if (!/^TENET capture ON; 0 lost; \d+ pending; 0 drain timeouts$/.test(status)) {
+        captureWaiters.delete(check);
+        reject(new Error(`Fixture capture is not healthy: ${status}`));
+      } else if (status.includes('; 0 pending;')) {
+        captureWaiters.delete(check); resolve();
+      }
+    };
+    captureWaiters.add(check);
+    check(captureStatus);
+  });
+  const shutdownCaptured = async () => {
+    await captured();
+    await emit('session_shutdown');
+    assert.equal(captureStatus, 'TENET capture ON; 0 lost; drained', 'Static Pi fixture did not shut down cleanly');
+  };
   const start = () => emit('session_start', { reason: 'startup' });
   const call = (id = 'c', input: any = { path: 'README.md', text: 'hello' }) => emit('tool_call', { toolName: 'edit', toolCallId: id, input });
-  return { cwd, file, pi, ctx, env, records, statuses, notifications, prompts, views, branch, commands, controller, emit, start, call, assessed,
+  return { cwd, file, pi, ctx, env, records, statuses, notifications, prompts, views, branch, commands, controller, emit, start, call, assessed, captured, shutdownCaptured,
     close: async () => { await emit('session_shutdown'); await rm(cwd, { recursive: true, force: true }); } };
 }

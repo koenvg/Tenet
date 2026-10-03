@@ -3,7 +3,8 @@ import { test } from 'node:test';
 import { mkdtemp, readFile, readdir, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ArchiveWriter, parseBbThreadId, readArchive, recordInvocationKey, recordSessionKey } from '../src/recording/archive.js';
+import { parseBbThreadId, readArchive, recordInvocationKey, recordSessionKey } from '../src/recording/archive.js';
+import { FixtureArchiveWriter as ArchiveWriter } from './archive-fixture.js';
 import { readPrivateFile } from '../src/recording/files.js';
 import { ArchiveIndex } from '../src/inspector/archive-index.js';
 
@@ -23,7 +24,7 @@ test('BB association is optional, validated, and does not change archive keys', 
   writer.bind({ ...identity, bbThreadId: thread })('begin', {});
   writer.bind({ ...identity, invocationId: 'two' })('begin', {});
   assert.throws(() => writer.bind({ ...identity, bbThreadId: 'thr_bad!' }));
-  await writer.close();
+  await writer.complete();
   const { records, issues } = await readArchive(root);
   assert.deepEqual(issues, []);
   assert.equal(records.length, 2);
@@ -52,7 +53,7 @@ test('linked selected FAILs exclude unlinked history and invalid assessments', (
   bogus('begin', { policy: { rules: [{ id: 'real-rule', text: 'Real rule', enforcement: 'BLOCK' }] } });
   bogus('validation', { valid: true });
   bogus('assessment', { assessment: { model: 'fixture', rules: [{ ruleId: 'not-a-policy-rule', outcome: { choice: 'FAIL' } }] } });
-  await writer.close();
+  await writer.complete();
   const index = new ArchiveIndex(root); await index.refresh();
   const summary = index.threadStatus(thread);
   assert.equal(summary.coverage, 'partial');
@@ -75,7 +76,7 @@ test('thread coverage reports a missing response stage', () => fixture(async roo
   sink('validation', { valid: true });
   sink('assessment', { assessment: { model: 'fixture', rules: [{ ruleId: 'r', outcome: { choice: 'FAIL' } }] } });
   sink('decision', { decision: 'BLOCK' }); sink('permission', { outcome: 'blocked' }); sink('execution', { outcome: 'unknown' });
-  await writer.close();
+  await writer.complete();
   const index = new ArchiveIndex(root); await index.refresh();
   const status = await index.threadStatus(thread);
   assert.equal(status.failures, 1);
@@ -89,6 +90,7 @@ test('a recent linked FAIL becomes visible as a bounded cold index catches up', 
     writer.bind({ sessionId: 'busy-session', invocationId: `historical-${n}`, callId: `old-${n}`,
       toolName: 'edit', cwd: '/tmp', mode: 'observe', host: 'pi', contextId: 'main' })('begin', {});
   }
+  await writer.settle();
   assert.equal(await writer.drain(10_000), true);
   await new Promise(resolve => setTimeout(resolve, 20));
   const recent = writer.bind({ sessionId: 'busy-session', invocationId: 'recent', callId: 'new-call',
@@ -96,6 +98,7 @@ test('a recent linked FAIL becomes visible as a bounded cold index catches up', 
   recent('begin', { policy: { rules: [{ id: 'r', text: 'Recent rule', enforcement: 'BLOCK' }] } });
   recent('validation', { valid: true });
   recent('assessment', { assessment: { model: 'fixture', rules: [{ ruleId: 'r', outcome: { choice: 'FAIL' } }] } });
+  await writer.settle();
   assert.equal(await writer.close(10_000), true);
   const index = new ArchiveIndex(root); await index.refresh();
   assert.ok(index.threadStatus(thread).issues.includes('indexing-in-progress'));
@@ -114,6 +117,7 @@ test('a sparse linked session is indexed before dense newer sessions consume the
   linked('begin', { policy: { rules: [{ id: 'r', text: 'Linked rule', enforcement: 'WARN' }] } });
   linked('validation', { valid: true });
   linked('assessment', { assessment: { model: 'fixture', rules: [{ ruleId: 'r', outcome: { choice: 'FAIL' } }] } });
+  await writer.settle();
   assert.equal(await writer.drain(10_000), true);
   await new Promise(resolve => setTimeout(resolve, 20));
   for (const sessionId of ['busy-a', 'busy-b', 'busy-c']) {
@@ -122,6 +126,7 @@ test('a sparse linked session is indexed before dense newer sessions consume the
         toolName: 'read', cwd: '/tmp', mode: 'observe', host: 'pi', contextId: 'main' })('begin', {});
     }
   }
+  await writer.settle();
   assert.equal(await writer.close(10_000), true);
   const index = new ArchiveIndex(root); await index.refresh();
   const status = await index.threadStatus(thread);
@@ -152,7 +157,7 @@ test('the summary counts only validated policy FAILs without rereading detailed 
   add('bad-model', 'BLOCK', { model: 42 });
   add('foreign-rule', 'BLOCK', { ruleId: 'not-in-policy' });
   add('duplicate-result', 'BLOCK', { duplicateResult: true });
-  await writer.close();
+  await writer.complete();
   let reads = 0;
   const index = new ArchiveIndex(root, async (archiveRoot, path) => { reads++; return readPrivateFile(archiveRoot, path); });
   await index.refresh();
@@ -172,7 +177,7 @@ test('a vanished assessment cannot remain a flagged finding after the next refre
   sink('begin', { policy: { rules: [{ id: 'r', text: 'Rule', enforcement: 'BLOCK' }] } });
   sink('validation', { valid: true });
   sink('assessment', { assessment: { model: 'fixture', rules: [{ ruleId: 'r', outcome: { choice: 'FAIL' } }] } });
-  await writer.close();
+  await writer.complete();
   const index = new ArchiveIndex(root); await index.refresh();
   assert.equal(index.threadStatus(thread).failures, 1);
   const { records } = await readArchive(root);
