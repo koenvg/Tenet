@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { categoryLabels } from '../../src/decision/finding-triage';
   import { tick } from 'svelte';
   import type { InvocationView } from '../../src/inspector/view';
   import RuleDetail from './RuleDetail.svelte';
@@ -42,7 +41,6 @@
         <button on:click={() => reveal(allRules)}>All rules ({rules.length})</button>
         <button on:click={() => reveal(recordingDetails)}>Recording details</button>
       </div>
-      <p class="finding-tags">Recorded findings: {view.categories.length ? view.categories.map(c => categoryLabels[c]).join(' · ') : 'None recorded'}. Categories may overlap.</p>
     </header>
     <section id="assessment-pane" class="assessment-pane" aria-label="Assessment pane">
       <details class="rule-inspection disclosure" bind:open={ruleOpen}>
@@ -50,7 +48,7 @@
         <div id="selected-check-details" bind:this={rulePanel} tabindex="-1">
           <div class="reason-heading"><h2>{inspectedCheck}</h2><span class="muted">{findingCount} {findingCount === 1 ? 'finding' : 'findings'}{rules.some(r => !r.result || r.gateIds === null) ? ' · Some checks unavailable' : ''}</span></div>
           {#if rule}
-            {#key rule.id}<RuleDetail {rule} />{/key}
+            {#key rule.id}<RuleDetail {rule} mode={view.identity?.mode} />{/key}
           {:else}<p class="empty-inline">No rule snapshot recorded. Inspect the response and recording details for available information.</p>{/if}
         </div>
       </details>

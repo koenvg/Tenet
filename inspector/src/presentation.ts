@@ -1,4 +1,43 @@
 import type { InvocationView } from '../../src/inspector/view.js';
+import { categoryLabels, uncertaintyKeys, type FindingCategory } from '../../src/decision/finding-triage.js';
+
+export type StatusTone = 'neutral' | 'positive' | 'danger' | 'caution' | 'approval';
+export type StatusIcon = 'executed' | 'failed' | 'block' | 'allow' | 'ask' | 'unknown';
+
+// Shared by InvocationSummary and InvocationView. Assessments never establish execution.
+export function primaryStatus(facts: { execution?: string | null; permission?: string | null }) {
+  const inconsistency = facts.permission === 'blocked' && ['executed', 'failed'].includes(facts.execution ?? '');
+  const notice = inconsistency
+    ? `Inconsistent recording: permission is blocked, but execution is ${facts.execution}. Both recorded facts are preserved; why execution occurred is unknown.`
+    : null;
+  const status: { label: string; tone: StatusTone; icon: StatusIcon; explanation: string } = facts.execution === 'executed'
+    ? { label: 'Ran', tone: 'neutral', icon: 'executed', explanation: 'A successful tool result was recorded. This is not a policy all-clear.' }
+    : facts.execution === 'failed'
+      ? { label: 'Failed', tone: 'danger', icon: 'failed', explanation: 'The tool reported failure, not a policy block. A failed result does not prove there were no external effects.' }
+      : facts.permission === 'blocked'
+        ? { label: 'TENET blocked', tone: 'danger', icon: 'block', explanation: 'TENET recorded blocked permission. No execution result was recorded; this does not certify that every host path was prevented.' }
+        : facts.permission === 'released'
+          ? { label: 'Released', tone: 'caution', icon: 'unknown', explanation: 'Execution unknown. TENET released permission, but no execution result was recorded. Release or approval does not prove dispatch or execution.' }
+          : { label: 'Execution unknown', tone: 'neutral', icon: 'unknown', explanation: 'No known execution result or actual permission was recorded. Assessment and approval do not prove execution or prevention.' };
+  return { ...status, inconsistency, notice };
+}
+export const modeLabel = (mode?: string | null) => mode === 'observe' ? 'Observe' : mode === 'enforce' ? 'Enforce' : 'Mode unknown';
+export function findingPresentation(category: FindingCategory) {
+  const tones: Record<FindingCategory, StatusTone> = { violation: 'danger', uncertainty: 'caution', approval: 'approval', unavailable: 'caution', pending: 'neutral' };
+  return { label: categoryLabels[category], tone: tones[category], icon: (category === 'violation' ? 'failed' : category === 'approval' ? 'ask' : 'unknown') as StatusIcon };
+}
+export function gateTone(rule: RuleView, gate: string): StatusTone {
+  if (uncertaintyKeys({ assessmentStatus: '', rules: [{ ruleId: rule.id, gates: [gate] }] }).length || rule.enforcement === 'WARN') return 'caution';
+  return gate === 'rule-fail' ? 'danger' : 'neutral';
+}
+export function contributionExplanation(rule: RuleView, mode?: string): string {
+  if (rule.enforcement === 'BLOCK' && !!rule.gateIds?.length) return mode === 'observe'
+    ? 'Recorded blocking gates. Observe mode did not enforce this assessment.'
+    : 'Recorded blocking gates. Actual permission is shown separately.';
+  if (rule.enforcement === 'WARN' && rule.gateIds?.length) return 'Recorded advisory gates. WARN does not block.';
+  if (rule.contribution === 'approval-required' && mode === 'observe') return 'Approval condition. Approval was not requested in observe mode.';
+  return contributions[rule.contribution] ?? 'Contribution unavailable: not recorded.';
+}
 export type RuleView = InvocationView['rules'][number];
 export type DockTab = 'Evidence' | 'Questions' | 'Response' | 'Policy';
 export type MobileView = 'calls' | 'assessment';
@@ -43,7 +82,7 @@ export function orderedRules(rules: RuleView[]) {
 function uncertaintyNotice(view: InvocationView, blockers = view.rules.filter(r => r.enforcement === 'BLOCK' && r.gateIds?.length)): string | null {
   if (view.decision !== 'BLOCK' || view.reason !== 'insufficient-evidence' || !view.noRulesClassifiedViolated || !blockers.length
     || !blockers.every(rule => rule.gateIds?.every(gate => ['outcome-unknown', 'outcome-confidence-below-threshold', 'evidence-insufficient', 'evidence-confidence-below-threshold', 'applicability-unresolved'].includes(gate)))) return null;
-  return `No rule was classified as violated. ${view.identity?.mode === 'observe' ? 'The decision would block' : 'The decision is blocked'} by uncertainty. This is not a safety guarantee.`;
+  return `No rule was classified as violated. ${view.identity?.mode === 'observe' ? 'The assessment would block in enforce mode' : 'The recorded assessment is blocked'} by uncertainty. This is not a safety guarantee.`;
 }
 export function explainDecision(view: InvocationView): string {
   const blockers = orderedRules(view.rules).filter(r => r.enforcement === 'BLOCK' && r.gateIds?.length);
@@ -52,7 +91,7 @@ export function explainDecision(view: InvocationView): string {
     const notice = uncertaintyNotice(view, blockers);
     return `${notice ? notice + ' ' : ''}${ruleName(first)}: ${gateExplanation(first.gateIds![0]!, first)}${blockers.length > 1 ? ` ${blockers.length} rules contribute blocking gates.` : ''}`;
   }
-  if (view.decision === 'ASK') return 'Native approval is required by the recorded decision. Permission and execution are shown separately.';
+  if (view.decision === 'ASK') return view.identity?.mode === 'observe' ? 'Would ask for approval in enforce mode. Approval was not requested in observe mode.' : 'Approval is required by the recorded assessment. Actual permission and execution are shown separately.';
   if (view.decision === 'ALLOW') return view.reason === 'advisory-findings'
     ? 'Advisory findings were recorded. WARN rules did not block this call.'
     : view.reason === 'all-rules-pass' ? 'No blocking gates or approval requirements in the recorded decision.' : `Allowed by the recorded decision. Reason: ${view.reason}.`;
@@ -72,7 +111,7 @@ export const timestamp = (value: number) => Number.isFinite(value) ? new Date(va
 export const toolLabel = (name: string) => ({ bash: 'Shell command', read: 'Read file', edit: 'Edit file', write: 'Write file' }[name] ?? name);
 export const decisionLabel = (decision: string, mode?: string) => {
   const labels: Record<string, string> = mode === 'observe'
-    ? { BLOCK: 'Would block', ALLOW: 'Would allow', ASK: 'Would ask for approval' }
+    ? { BLOCK: 'Would block in enforce mode', ALLOW: 'Would allow in enforce mode', ASK: 'Would ask for approval in enforce mode' }
     : { BLOCK: 'Block', ALLOW: 'Allow', ASK: 'Approval required' };
   return labels[decision] ?? 'Decision unavailable';
 };
@@ -99,21 +138,11 @@ export function decisionReason(view: InvocationView): string {
     return reasons[blocker.gateIds![0]!] ?? explainDecision(view);
   }
   if (view.failure) return `The assessment could not complete. Recorded reason: ${view.failure}.`;
-  if (view.decision === 'ASK') return 'The recorded decision requires your approval before proceeding.';
+  if (view.decision === 'ASK') return explainDecision(view);
   if (view.decision === 'ALLOW') return view.reason === 'all-rules-pass'
     ? 'No blocking issues or approval requirements were recorded.'
     : explainDecision(view);
   return explainDecision(view);
-}
-export function executionExplanation(view: InvocationView): string {
-  if (view.identity?.mode === 'observe') {
-    return view.execution === 'executed'
-      ? 'The call ran. Observe mode records decisions without enforcing them.'
-      : 'Observe mode records decisions without enforcing them. Execution is shown only when recorded.';
-  }
-  if (view.execution === 'executed') return 'The call ran. Execution is separate from the policy decision.';
-  if (view.execution === 'failed') return 'The tool reported a failure.';
-  return 'No execution result was recorded. This does not prove the call ran or was stopped.';
 }
 export function confidenceReadings(rule: RuleView) {
   const readings = [

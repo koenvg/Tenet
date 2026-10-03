@@ -16,17 +16,17 @@ const calls = [
     decision: 'ALLOW', missing: [], failure: null, assessmentStatus: 'validated', mode: 'observe', permission: 'released', execution: 'executed', categories: ['uncertainty'] },
 ];
 
-function stubArchive(options: { fail?: () => boolean; hold?: Promise<void>; partial?: boolean } = {}) {
+function stubArchive(options: { fail?: () => boolean; hold?: Promise<void>; partial?: boolean; status?: { execution: string; permission: string; decision?: string } } = {}) {
   const requests: string[] = [];
   vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
     const url = new URL(input, location.href);
     if (url.origin !== location.origin || !url.pathname.startsWith('/api/')) throw new Error(`Unexpected request ${url}`);
     if (init?.headers && 'Authorization' in init.headers) throw new Error('Unexpected authorization');
     const data = url.pathname === '/api/sessions' ? { sessions, next: null }
-      : url.pathname === `/api/sessions/${sessionId}` ? { invocations: url.searchParams.get('category') ? calls.filter(c => c.categories.includes(url.searchParams.get('category')!)) : calls, next: null }
+      : url.pathname === `/api/sessions/${sessionId}` ? { invocations: url.searchParams.get('category') ? calls.filter(c => c.categories.includes(url.searchParams.get('category')!)) : options.status ? [{ ...calls[0], ...options.status }] : calls, next: null }
       : url.pathname === `/api/sessions/${sessionId}/groups` ? { groups: { items: [{ policyIdentity: '["/offline/TENET.md","digest-a","/offline/TENET.md"]', profile: 'legacy', ruleId: 'rule-one', gate: 'evidence-confidence-below-threshold', count: 2,
           first: 100, last: 200, omitted: 0, invocations: [{ id: latestId, callId: 'latest', timestamp: 200 }, { id: olderId, callId: 'older', timestamp: 100 }] }], omittedGroups: 0 } }
-      : url.pathname === `/api/sessions/${sessionId}/invocations/${latestId}` ? { view: makeView({ callId: 'latest' }) }
+      : url.pathname === `/api/sessions/${sessionId}/invocations/${latestId}` ? { view: makeView({ callId: 'latest', ...options.status }) }
       : url.pathname === `/api/sessions/${sessionId}/invocations/${olderId}` ? { view: makeView({ callId: 'older', decision: 'ALLOW', gate: null, execution: 'executed' }) }
       : null;
     if (!data) throw new Error(`Unexpected API route ${url.pathname}`);
@@ -153,4 +153,32 @@ test('session patterns stay reachable without a matching call and focus returns 
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
   expect(location.search).toContain(`invocation=${latestId}`);
   expect((document.activeElement as HTMLElement)?.textContent).toBe('Decision');
+});
+
+
+for (const [execution, permission, label, tone] of [
+  ['executed', 'released', 'Ran', 'neutral'], ['failed', 'released', 'Failed', 'danger'],
+  ['unknown', 'blocked', 'TENET blocked', 'danger'], ['unknown', 'released', 'Released', 'caution'],
+  ['unknown', 'unknown', 'Execution unknown', 'neutral'], ['executed', 'blocked', 'Ran', 'neutral'],
+  ['failed', 'blocked', 'Failed', 'danger'],
+] as const) test(`list and summary agree for ${execution}/${permission}`, async () => {
+  await page.viewport(1280, 900);
+  stubArchive({ status: { execution, permission } });
+  const screen = await render(App);
+  await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
+  const list = screen.container.querySelector('.call-state .status-chip')!;
+  const summary = screen.container.querySelector('.primary-badges .status-chip')!;
+  expect(list.textContent?.trim()).toBe(label);
+  expect(summary.textContent?.trim()).toBe(label);
+  expect(list.classList.contains(tone)).toBe(true);
+  expect(summary.classList.contains(tone)).toBe(true);
+  expect(screen.container.querySelector('.call-state')?.textContent).toContain('Observe');
+  expect(screen.container.querySelector('.primary-status')?.textContent).toContain('Observe');
+  if (label === 'Released') {
+    expect(screen.container.querySelector('.call-execution')?.textContent).toBe('Execution unknown');
+    expect(screen.container.querySelector('.execution-summary')?.textContent).toContain('does not prove dispatch or execution');
+  }
+  const contradictory = permission === 'blocked' && execution !== 'unknown';
+  expect(screen.container.querySelectorAll('.recording-inconsistency').length).toBe(contradictory ? 2 : 0);
+  if (contradictory) expect(screen.container.querySelector('.primary-status .recording-inconsistency')?.textContent).toContain(`execution is ${execution}`);
 });

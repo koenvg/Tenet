@@ -120,7 +120,7 @@ test('check selection is keyboard accessible and reduced motion stays static', a
   expect(await p.locator('.rule-inspection').getAttribute('open')).not.toBeNull();
   expect(await p.evaluate(() => document.activeElement?.id)).toBe('selected-check-details');
   expect(await p.locator('.map-edge.is-selected').evaluate(el => getComputedStyle(el).animationName)).toBe('none');
-  expect(await p.locator('.map-execution .map-connections').count()).toBe(0);
+  expect(await p.locator('.primary-status .map-connections').count()).toBe(0);
 });
 
 test('pane dividers drag, respond to keys, clamp and retain their sizes across calls', async () => {
@@ -145,22 +145,23 @@ test('pane dividers drag, respond to keys, clamp and retain their sizes across c
   expect(pageErrors).toEqual([]);
 });
 
-test('PASS chips are green while confidence gates remain distinct and readable', async () => {
-  const p = currentPage(); await pickCall('low-pass');
+test('Ran is neutral and finding tones are separate while recorded PASS outcomes stay green', async () => {
+  const p = currentPage(); await pickCall('summary');
+  const ran = p.locator('.call-row[aria-pressed="true"] .call-state .status-chip').first();
+  expect((await ran.textContent())?.trim()).toBe('Ran');
+  expect(await ran.evaluate(el => getComputedStyle(el).color)).toBe('rgb(70, 87, 107)');
+  expect(await ran.locator('svg[aria-hidden="true"]').count()).toBe(1);
   for (const [state, color, background] of [
-    ['positive', 'rgb(23, 98, 62)', 'rgb(231, 245, 237)'],
+    ['caution', 'rgb(128, 85, 22)', 'rgb(252, 242, 222)'],
     ['danger', 'rgb(155, 53, 52)', 'rgb(251, 236, 235)'],
-    ['approval', 'rgb(128, 85, 22)', 'rgb(252, 242, 222)'],
+    ['approval', 'rgb(98, 65, 154)', 'rgb(240, 234, 251)'],
   ]) {
-    const badge = p.locator(`.call-state .status-chip.${state}`).first();
+    const badge = p.locator(`.call-row .finding-chips .status-chip.${state}`).first();
     expect(await badge.evaluate(el => getComputedStyle(el).color)).toBe(color);
     expect(await badge.evaluate(el => getComputedStyle(el).backgroundColor)).toBe(background);
     expect(await badge.locator('svg[aria-hidden="true"]').count()).toBe(1);
   }
-  const symbols = await Promise.all(['positive', 'danger', 'approval'].map(state =>
-    p.locator(`.call-state .status-chip.${state} svg`).first().innerHTML()));
-  expect(new Set(symbols).size).toBe(3);
-  expect(await p.locator('.call-row[aria-pressed="true"] .status-chip').evaluate(el => getComputedStyle(el).color)).toBe('rgb(155, 53, 52)');
+  await pickCall('low-pass');
   const chip = p.locator('.rule-outcome .status-chip');
   expect((await chip.textContent())?.trim()).toBe('PASS');
   expect(await chip.evaluate(el => getComputedStyle(el).color)).toBe('rgb(23, 98, 62)');
@@ -181,8 +182,8 @@ test('contributing rule selection distinguishes confidence, evidence, advice and
   const p = currentPage();
   for (const [id, label] of [
     ['low-pass', 'Outcome confidence'], ['unknown', 'Outcome unknown'],
-    ['approval', 'Requires approval'], ['evidence', 'Insufficient evidence'],
-    ['evidence-confidence', 'Evidence confidence'], ['warn', 'Advisory gates only'],
+    ['approval', 'Approval was not requested in observe mode'], ['evidence', 'Insufficient evidence'],
+    ['evidence-confidence', 'Evidence confidence'], ['warn', 'Recorded advisory gates'],
     ['integrity', 'Reported FAIL'],
   ] as const) {
     await pickCall(id);
@@ -192,7 +193,7 @@ test('contributing rule selection distinguishes confidence, evidence, advice and
     expect(await selected.textContent()).toContain('0.9');
     if (id === 'low-pass') expect(await selected.textContent()).toContain('not a reported violation');
     if (id === 'unknown') expect(await p.locator('.map-check').first().textContent()).toContain('Unknown does not mean passed.');
-    if (id === 'warn') expect(await p.locator('.map-edge.blocking').count()).toBe(0);
+    if (id === 'warn') expect(await p.locator('.map-edge.danger').count()).toBe(0);
     await p.getByRole('button', { name: 'View submitted questions' }).click();
     expect(await p.locator('#panel-Questions').textContent()).toContain('rule_');
     await p.getByRole('button', { name: 'View shared evidence' }).click();
@@ -202,8 +203,8 @@ test('contributing rule selection distinguishes confidence, evidence, advice and
     expect(await p.locator('body').textContent()).not.toContain('Changed current policy');
   }
   await pickCall('summary');
-  const observed = p.locator('.call-row[aria-pressed="true"] .status-chip');
-  expect((await observed.textContent())?.trim()).toBe('Would block');
+  const observed = p.locator('.call-row[aria-pressed="true"] .call-state .status-chip').first();
+  expect((await observed.textContent())?.trim()).toBe('Ran');
   expect(externalRequests).toEqual([]); expect(pageErrors).toEqual([]);
 });
 
@@ -321,12 +322,12 @@ test('missing evidence is explicit and archive errors recover without a fake pas
 test('visual summary separates the policy result from execution and hides debugging data', async () => {
   const p = currentPage(); await pickCall('summary');
   expect(await p.locator('.map-action h3').textContent()).toBe('Shell command');
-  expect(await p.locator('.map-policy .map-verdict').textContent()).toBe('Would block');
-  expect(await p.locator('.map-execution h3').textContent()).toBe('Actual execution / Ran');
+  expect(await p.locator('.map-policy .map-verdict').textContent()).toBe('Would block in enforce mode');
+  expect(await p.locator('.primary-status h2').textContent()).toBe('Actual execution / Ran');
   expect(await p.locator('.map-check').first().textContent()).toContain('Rule outcome / PASS');
-  expect(await p.locator('.map-edge.blocking').count()).toBe(1);
-  expect(await p.locator('.summary-reason').textContent()).toContain('No rule was classified as violated. The decision would block by uncertainty.');
-  expect(await p.locator('.execution-summary').textContent()).toContain('Observe mode records decisions without enforcing them');
+  expect(await p.locator('.map-edge.caution').count()).toBe(1);
+  expect(await p.locator('.summary-reason').textContent()).toContain('No rule was classified as violated. The assessment would block in enforce mode by uncertainty.');
+  expect(await p.locator('.execution-summary').textContent()).toContain('A successful tool result was recorded. This is not a policy all-clear.');
   expect(await p.getByRole('meter', { name: 'Evidence confidence' }).getAttribute('aria-valuenow')).toBe('0.85');
   expect(await p.getByRole('meter').getAttribute('aria-valuetext')).toContain('required confidence 0.9');
   expect(await p.locator('.action-preview').textContent()).toContain('git status --short');
@@ -362,8 +363,8 @@ test('coverage distinguishes unsupported, partial, unavailable and historical re
   expect(await coverage.textContent()).toContain('2 known omissions');
   expect(await coverage.textContent()).toContain('1 shortened, 1 dropped, 1 prior omissions');
   expect(await coverage.textContent()).toContain('Exact compaction: 0 bytes saved');
-  expect(await p.locator('.summary-reason').textContent()).toContain('would block by uncertainty');
-  expect(await p.locator('.execution-summary').textContent()).toContain('The call ran');
+  expect(await p.locator('.summary-reason').textContent()).toContain('would block in enforce mode by uncertainty');
+  expect(await p.locator('.execution-summary').textContent()).toContain('A successful tool result was recorded');
   await p.setViewportSize({ width: 390, height: 844 });
   await coverage.scrollIntoViewIfNeeded();
   await p.screenshot({ path: join(artifacts, 'coverage-summary-mobile.png'), fullPage: true });

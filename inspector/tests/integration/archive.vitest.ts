@@ -183,7 +183,7 @@ test('mixed schema-1 Pi and host-qualified Pi/Claude links keep evidence and out
     await page.goto(`${app.origin}/?session=${child.id}&invocation=${calls[0].id}`);
     await page.locator('.decision-summary').waitFor();
     expect(await page.locator('.map-notices').textContent()).toContain('actual-host-unverified');
-    expect(await page.locator('.map-execution').textContent()).toContain('Failed');
+    expect(await page.locator('.primary-status').textContent()).toContain('Failed');
     await page.locator('.capture-details summary').click();
     expect(await page.locator('.capture-details').textContent()).toMatch(/Would decide.*ALLOW.*Permission.*released.*Execution.*failed/s);
     expect(await page.locator('.capture-details').textContent()).toContain('approval-unavailable');

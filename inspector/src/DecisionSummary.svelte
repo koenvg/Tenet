@@ -4,20 +4,30 @@
   import DecisionIcon from './DecisionIcon.svelte';
   import ConfidenceMeter from './ConfidenceMeter.svelte';
   import EvidenceCoverage from './EvidenceCoverage.svelte';
-  import { actionPreview, decisionLabel, decisionReason, executionExplanation, toolLabel, type RuleView } from './presentation';
-  import { mapChecks, checkPosition, incomingPath, outgoingPath, type MapCheck } from './decision-map';
+  import StatusChip from './StatusChip.svelte';
+  import FindingChips from './FindingChips.svelte';
+  import { actionPreview, decisionLabel, decisionReason, primaryStatus, modeLabel, gateTone, contributionExplanation, toolLabel, type RuleView } from './presentation';
+  import { mapChecks, checkIcon, checkPosition, incomingPath, outgoingPath, type MapCheck } from './decision-map';
   export let view: InvocationView;
   export let rule: RuleView | undefined;
   export let inspect: (check: string) => void;
   let active = '', motion = 0;
   $: preview = actionPreview(view);
   $: checks = mapChecks(rule);
-  $: blocking = rule?.enforcement === 'BLOCK';
-  const outgoingTone = (check: MapCheck) => check.gate ? blocking ? 'blocking' : 'advisory' : '';
+  $: status = primaryStatus(view);
+  const outgoingTone = (check: MapCheck) => check.gate && rule ? gateTone(rule, check.gate) : '';
   function choose(check: MapCheck) { active = check.id; motion++; inspect(check.label); }
 </script>
 
 <section class="decision-summary" aria-label="Decision summary">
+  <section class="primary-status" aria-label="Actual execution">
+    <h2>Actual execution / {status.label}</h2>
+    <div class="primary-badges"><StatusChip value={status.label} tone={status.tone} icon={status.icon} showIcon /><StatusChip value={modeLabel(view.identity?.mode)} tone="neutral" /></div>
+    <p class="execution-summary">{status.explanation}</p>
+    <p class="recorded-permission">Recorded permission: {view.permission} · Execution result: {view.execution}</p>
+    {#if status.notice}<p class="recording-inconsistency" role="status">{status.notice}</p>{/if}
+    <div class="finding-tags">Recorded findings: <FindingChips categories={view.categories} /> {view.categories.length ? 'Categories may overlap.' : 'None recorded. Missing assessments are not a pass.'}</div>
+  </section>
   <div class="map-stage" style:--check-count={checks.length}>
     <div class="decision-map" role="group" aria-label="Decision map" class:trace-a={motion % 2 === 1} class:trace-b={motion > 0 && motion % 2 === 0}>
       <svg class="map-connections" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
@@ -36,33 +46,28 @@
         {#each checks as check, index (check.id)}
           <div class={`map-check ${outgoingTone(check)}`} style:--node-y={`${checkPosition(index, checks.length)}%`}>
             <button class="map-symbol" aria-label={`Inspect ${check.label.toLowerCase()}`} aria-controls="selected-check-details" aria-pressed={active === check.id} on:click={() => choose(check)}>
-              <DecisionIcon kind={check.unknown ? 'unknown' : check.gate ? 'cross' : check.value === 'APPROVAL_REQUIRED' ? 'ask' : 'check'} />
+              <DecisionIcon kind={checkIcon(check)} />
             </button>
             <div class="map-caption">
               <h3>{check.label} <span>/ {check.value}</span></h3>
               {#if check.id === 'outcome' && rule}
                 <p class="map-rule-text" title={rule.text}>{rule.text}</p>
-                <p class="map-rule-location">{rule.builtin ? 'Built-in integrity' : `Rule at line ${rule.line ?? 'unavailable'}`}</p>
+                <p class="map-rule-location">{rule.builtin ? 'Built-in integrity' : `Rule at line ${rule.line ?? 'unavailable'}`} · Severity {rule.enforcement}</p>
                 {#if rule.evidenceGate === 'not-applicable'}<p class="map-check-note">Evidence-confidence gate does not apply. No evidence score.</p>{/if}
               {/if}
               {#if check.reading}<ConfidenceMeter {...check.reading} />{/if}
-              {#if check.unknown}<p class="map-check-note">Unknown does not mean passed.</p>
-              {:else if check.gate}<p class="map-check-note">{blocking ? 'Contributes blocking gates' : 'Advisory only; does not block'}</p>{/if}
+              {#if check.gate && rule}<p class="map-check-note">{contributionExplanation(rule, view.identity?.mode)}</p>{/if}
+              {#if check.unknown}<p class="map-check-note">Unknown does not mean passed.</p>{/if}
             </div>
           </div>
         {/each}
       </div>
       <div class="map-policy map-endpoint">
         <span class="map-symbol filled"><DecisionIcon kind="policy" /></span>
-        <h3>TENET decision</h3>
+        <h3>Recorded assessment</h3>
         <p class="map-verdict">{decisionLabel(view.decision, view.identity?.mode)}</p>
       </div>
     </div>
-    <section class="map-execution" aria-label="Actual execution">
-      <span class="map-symbol"><DecisionIcon kind={view.execution === 'executed' ? 'check' : view.execution === 'failed' ? 'cross' : 'unknown'} /></span>
-      <div><h3>Actual execution / {view.execution === 'executed' ? 'Ran' : view.execution === 'failed' ? 'Failed' : 'Not recorded'}</h3>
-        <p class="execution-summary">{executionExplanation(view)}</p></div>
-    </section>
   </div>
   <div class="map-notices">
     <p class="capture-warning">Host: {view.identity?.host ?? 'unknown'} / {view.identity?.contextId ?? 'unknown'}. Coverage: {Array.isArray(view.adapterCoverage?.limitations) && view.adapterCoverage.limitations.length ? view.adapterCoverage.limitations.join(', ') : 'not recorded'}. This is separate from the decision.</p>

@@ -3,11 +3,12 @@
   import { categoryLabels, findingCategories, type FindingCategory } from '../../src/decision/finding-triage';
   import type { UncertaintyGroup } from '../../src/inspector/archive-index';
   import Detail from './Detail.svelte';
-  import { timestamp, toolLabel, decisionLabel, gateLabels, type MobileView } from './presentation';
+  import { timestamp, toolLabel, primaryStatus, modeLabel, decisionLabel, gateLabels, type MobileView } from './presentation';
   import DecisionIcon from './DecisionIcon.svelte';
   import PaneResizer from './PaneResizer.svelte';
   let explorerWidth = 300;
   import StatusChip from './StatusChip.svelte';
+  import FindingChips from './FindingChips.svelte';
   let mobileView: MobileView = 'calls';
   let pickerOpen = true;
   let showPatterns = false;
@@ -286,13 +287,17 @@
     </div>
     <nav class="call-list" aria-label="Invocations">
       {#each invocations as item}
+        {@const status = primaryStatus(item)}
         <button class="call-row" aria-pressed={invocation === item.id} on:click={() => selectInvocation(item.id)}>
           <DecisionIcon kind={item.toolName === 'bash' ? 'action' : ['read', 'write', 'edit'].includes(item.toolName) ? 'document' : 'tool'} />
           <span class="call-copy">
           <span class="call-top"><strong>{toolLabel(item.toolName)}</strong><time>{timestamp(item.timestamp)}</time></span>
           <span class="call-id" hidden>{item.callId}</span>
-          <span class="call-state"><StatusChip value={item.decision} label={decisionLabel(item.decision, item.mode)} showIcon /></span>
-          {#if item.categories?.length}<small class="call-categories">{item.categories.map(c => categoryLabels[c]).join(' · ')}</small>{/if}
+          <span class="call-state" title={status.explanation}><StatusChip value={status.label} tone={status.tone} icon={status.icon} showIcon /><StatusChip value={modeLabel(item.mode)} tone="neutral" /></span>
+          {#if status.label === 'Released'}<small class="call-execution">Execution unknown</small>{/if}
+          {#if status.inconsistency}<small class="recording-inconsistency">Inconsistent recording: blocked permission with a result</small>{/if}
+          {#if item.categories?.length}<FindingChips categories={item.categories} />{/if}
+          {#if ['ALLOW', 'ASK', 'BLOCK'].includes(item.decision)}<small class="call-assessment">{decisionLabel(item.decision, item.mode)}</small>{/if}
           {#if item.failure || item.assessmentStatus !== 'validated'}<small>Assessment {item.assessmentStatus}{item.failure ? `: ${item.failure}` : ''}</small>{/if}
           {#if item.missing.length && item.assessmentStatus !== 'incomplete'}<span class="call-execution">Incomplete recording</span>{/if}
           </span>

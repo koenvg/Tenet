@@ -327,9 +327,25 @@ Open the printed loopback URL in Arc. The Pi command attempts this automatically
 
 Choose a session, an invocation, then a rule. The view shows the recorded policy, actual application-level questions and choices, bounded/redacted submitted state, SDK response, validation and deterministic decision. All rules, including passing rules and built-in integrity, are selectable. Evidence and response text are inert. Mode, would-decision, permission and observed execution are separate. Missing stages stay unknown; a released call is not proof of execution.
 
+Call lists and summaries use the same execution-first status:
+
+| Recorded facts | Primary status |
+| --- | --- |
+| Successful execution result | Ran, neutral rather than a policy all-clear |
+| Failed tool result | Failed, not a policy block or proof of no external effects |
+| No known result, blocked permission | TENET blocked |
+| No known result, released permission | Released, with execution unknown |
+| No known result or permission | Execution unknown |
+
+Mode stays separate as Observe, Enforce or Mode unknown. ALLOW, approval and released permission do not prove dispatch or execution. A recorded result takes precedence even if permission says blocked. The inspector then shows an inconsistency notice and preserves both facts; it does not infer why execution occurred. Missing results do not prove a call ran or was stopped, and a recorded TENET block does not certify that every host path was prevented.
+
+Finding chips are separate from call status. Observe-mode confidence, evidence and applicability gates appear as amber **Assessment uncertainty**, not a red actual-block badge. Selected FAIL remains a distinct **Suspected violation**; approval conditions and evaluator unavailability remain visible, including overlapping categories. Rule severity stays visible and WARN gates remain advisory. The map describes the **Recorded assessment**, not actual enforcement. Observe BLOCK says **Would block in enforce mode**. Observe ASK says **Would ask for approval in enforce mode**, and states that approval was not requested. An actual uncertainty-based permission block still shows **TENET blocked**.
+
+Pending, dropped, cancelled, unavailable and incomplete assessments show their recorded state, not invented decisions, passing checks or scores. Non-applicability keeps absent evidence scores absent. Historical labels, gates, thresholds and question versions retain their recorded meaning; this presentation does not compare them with current thresholds, reevaluate calls or rewrite archives.
+
 The standalone server reads the archive without Pi or evaluator credentials. Close Pi, then run the same inspector command to inspect retained assessments. Filter by the exact project directory, using the suggested paths or entering a path. Newly recorded project paths are canonical working directories, not Git remote groupings; older records retain their captured paths. Resumes add calls to the original session; forks have separate session IDs.
 
-Session summaries show start/update times, call and concern counts, unavailable decisions and best-effort coverage. Lists show 50 items at a time. Sessions and calls sort newest-started first, so resumed activity does not move the session across an existing page boundary. Use **More sessions** or **More invocations** to continue. Loading more calls preserves the selected detail. Copy the address-bar URL to link to a session or invocation; it contains hashed IDs, never evidence. Browser back/forward restores selection, including calls beyond the first page.
+Session summaries show start/update times, call and concern counts, unavailable assessments and best-effort coverage. Lists show 50 items at a time. Sessions and calls sort newest-started first, so resumed activity does not move the session across an existing page boundary. Use **More sessions** or **More invocations** to continue. Loading more calls preserves the selected detail. Copy the address-bar URL to link to a session or invocation; it contains hashed IDs, never evidence. Browser back/forward restores selection, including calls beyond the first page.
 
 The reader labels suspected violations, uncertainty, approval conditions, evaluator failures and pending/incomplete observations from recorded facts. Counts are distinct calls and categories can overlap; a BLOCK decision alone is not a violation. The sidebar filters and navigates individual calls. **Uncertainty groups** in the main workspace show calls with the same captured policy source/digest, rule ID, profile and gate; one-call groups remain separate, and the call filter does not change this session-wide view. Each group shows up to 100 invocation links; beyond that, use the paginated calls. Missing policy identity never causes unrelated calls to merge. On small screens, switch between Calls, Summary and Patterns.
 The inspector requests bounded group references only when the Uncertainty groups view is opened; normal call-list pages and category-filter polling do not carry them. If a category has no matching calls, the session-wide group view remains available.
