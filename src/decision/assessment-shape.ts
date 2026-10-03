@@ -2,7 +2,7 @@ import type { ValidationIssue } from './response-validation.js';
 import { choiceIssue, object } from './response-validation.js';
 
 export const ASSESSMENT_PROFILE = 'applicability-v1';
-export const QUESTION_VERSION = 'policy-rules-v7-evidence-selection';
+export const QUESTION_VERSION = 'policy-rules-v7-ordinary-evidence';
 export type AssessmentProfile = typeof ASSESSMENT_PROFILE;
 export const ASSESSMENT_METADATA = Object.freeze({ profile: ASSESSMENT_PROFILE, questionVersion: QUESTION_VERSION });
 export type AssessmentMetadata = typeof ASSESSMENT_METADATA;

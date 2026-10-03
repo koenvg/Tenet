@@ -23,7 +23,7 @@ const eligible = ['exact-inspection', 'anchored-inspection', 'oversized-identica
   'read-prohibited', 'transmit-prohibited', 'mutation-prohibited', 'benign-read', 'approval', 'context-retained',
   'context-lost', 'compound', 'opaque', 'policy-mutation', 'forged-facts', 'stale-facts', 'historical-forgery'];
 export type Side = 'baseline' | 'candidate';
-export type FrozenRow = typeof report.pairs[number]['baseline'];
+export type FrozenRow = typeof report.pairs[number][Side];
 export type Entry = {
   index: number; id: string; side: Side; expected: typeof fixtures.fixtures[number]['expected'];
   payload: FrozenRow['payload']; payloadDigest: string; requestBytes: number; request: JudgeRequest;
@@ -34,15 +34,24 @@ function equal(a: unknown, b: unknown): void {
   if (digest(a) !== digest(b)) throw Error('frozen-input-drift');
 }
 
-/** Fixed synthetic corpus only. No arbitrary payload, policy, fixture or model input. */
-export function prepareEvidenceManifest(read: (url: URL) => Buffer = readFileSync) {
+function recordedRequest(row: FrozenRow): JudgeRequest {
+  const state = row.payload.state;
+  return { profile: 'applicability-v1',
+    policy: { ...state.policy, available: true, rules: state.policy.rules.map(rule => ({ ...rule, enforcement: 'BLOCK' as const })) },
+    action: state.action as unknown as Action, cwd: state.context.cwd, resolvedAction: state.resolvedAction as ResolvedAction,
+    deadlineMs: row.thresholds.deadlineMs, trajectory: state.trajectory as Trajectory };
+}
+
+/** Inert, byte-pinned historical inputs. Never rebuild questions or select history. */
+export function readFrozenEvidenceManifest(read: (url: URL) => Buffer = readFileSync) {
   for (const [name, hash] of Object.entries(pins)) {
     if (sha256(read(new URL(`./evidence-selection/${name}`, import.meta.url))) !== hash) throw Error('frozen-input-drift');
   }
   equal(fixtures.fixtures.map(f => f.id), [...eligible, 'provider-unavailable', 'invalid-assessment', 'skipped-assessment']);
   equal(report.pairs.map(p => p.id), fixtures.fixtures.map(f => f.id));
   equal(digest(fixtures), report.fixtureDigest);
-  if (MODEL !== 'jev-latest' || QUESTION_VERSION !== 'policy-rules-v7-evidence-selection') throw Error('contract-drift');
+  const first = report.pairs[0]!.baseline;
+  const { questionVersion, requestedModel } = first;
   const entries: Entry[] = [];
   for (const [i, f] of fixtures.fixtures.entries()) {
     const pair = report.pairs[i]!;
@@ -51,25 +60,15 @@ export function prepareEvidenceManifest(read: (url: URL) => Buffer = readFileSyn
     equal(f.expected, pair.expected);
     for (const side of ['baseline', 'candidate'] as const) {
       const row = pair[side], state = row.payload.state;
-      const request: JudgeRequest = {
-        profile: 'applicability-v1', policy: { ...state.policy, available: true, rules: state.policy.rules.map(r => ({ ...r, enforcement: 'BLOCK' as const })) },
-        action: state.action as unknown as Action, cwd: state.context.cwd, resolvedAction: state.resolvedAction as ResolvedAction,
-        deadlineMs: DEFAULTS.deadlineMs, trajectory: state.trajectory as Trajectory,
-      };
-      equal(row.thresholds, DEFAULTS);
+      const request = recordedRequest(row);
+      equal(row.thresholds, first.thresholds);
       equal(row.profile, 'applicability-v1');
-      equal(row.questionVersion, QUESTION_VERSION);
+      equal(row.questionVersion, questionVersion);
       equal(row.questionDigest, digest(row.payload.questions));
-      equal(row.payload, { model: MODEL, state: judgeState(request), questions: buildQuestions(request.policy, request.resolvedAction) });
+      equal(row.payload.model, requestedModel);
       equal(row.payloadDigest, digest(row.payload));
       equal(row.requestBytes, Buffer.byteLength(JSON.stringify(row.payload), 'utf8'));
       for (const key of ['policy', 'action', 'context', 'integrity', 'resolvedAction', 'profile'] as const) equal(pair.baseline.payload.state[key], state[key]);
-      if (side === 'candidate') {
-        const current = boundEvidence({ ...request, trajectory: { observations: f.history, omitted: 0,
-          limitations: ['authored-capture-eligible-event-count-unknown'] } as Trajectory }, f.limits);
-        if (!current) throw Error('candidate-capacity');
-        equal(judgeState(current), row.payload.state);
-      }
       if (i < 17) entries.push({ index: entries.length, id: f.id, side, expected: f.expected,
         payload: row.payload as FrozenRow['payload'], payloadDigest: row.payloadDigest, requestBytes: row.requestBytes,
         request, representationVersion: row.representationVersion, selectorVersion: row.selectorVersion,
@@ -79,9 +78,27 @@ export function prepareEvidenceManifest(read: (url: URL) => Buffer = readFileSyn
   }
   return freeze({ version: 'evidence-live-manifest-v1', campaign: 'TENET-29-bdc51955-34', budget: 34,
     authoredCheckpoint: 'bdc51955dc522a877fd25e68740373ec0cefd133', followupBase: FOLLOWUP_BASE, implementationBase: IMPLEMENTATION_BASE,
-    inputFileDigests: pins, fixtureDigest: report.fixtureDigest, endpoint: ENDPOINT, requestedModel: MODEL,
-    profile: 'applicability-v1', questionVersion: QUESTION_VERSION, thresholds: DEFAULTS,
+    inputFileDigests: pins, fixtureDigest: report.fixtureDigest, endpoint: ENDPOINT, requestedModel,
+    profile: 'applicability-v1', questionVersion, thresholds: first.thresholds,
     entries, excluded: report.pairs.slice(17), denominators: { corpus: 20, corpusAuthoredProtected: 19, corpusBenign: 1, livePairs: 17, authoredProtectedLive: 16, benignLive: 1,
       authoredViolations: 7, excludedOffline: 3, excludedAuthoredProtected: 3 }, fixtureActionsExecuted: false });
 }
-export type Manifest = ReturnType<typeof prepareEvidenceManifest>;
+export type Manifest = ReturnType<typeof readFrozenEvidenceManifest>;
+
+/** Production entry additionally requires the frozen contract to match current code. */
+export function prepareEvidenceManifest(read: (url: URL) => Buffer = readFileSync): Manifest {
+  const manifest = readFrozenEvidenceManifest(read);
+  if (MODEL !== manifest.requestedModel || QUESTION_VERSION !== manifest.questionVersion) throw Error('contract-drift');
+  for (const [i, fixture] of fixtures.fixtures.entries()) for (const side of ['baseline', 'candidate'] as const) {
+    const row = report.pairs[i]![side], request = recordedRequest(row);
+    equal(row.thresholds, DEFAULTS);
+    equal(row.payload, { model: MODEL, state: judgeState(request), questions: buildQuestions(request.policy, request.resolvedAction) });
+    if (side === 'candidate') {
+      const current = boundEvidence({ ...request, trajectory: { observations: fixture.history, omitted: 0,
+        limitations: ['authored-capture-eligible-event-count-unknown'] } as Trajectory }, fixture.limits);
+      if (!current) throw Error('candidate-capacity');
+      equal(judgeState(current), row.payload.state);
+    }
+  }
+  return manifest;
+}

@@ -226,9 +226,11 @@ To remove global loading, run `pi remove "$TENET_DIR"` with the same stable path
 
 ## Assessment contract
 
-Tenet is in alpha and uses one applicability-aware assessment contract, `applicability-v1`. There is no profile switch. Only complete, current host-authenticated facts can support `NOT_APPLICABLE`; its selected-outcome threshold still applies, but its evidence-confidence gate does not. Integrity, WARN and approval remain independent.
+Tenet is in alpha and uses one applicability-aware assessment contract, `applicability-v1`, with question version `policy-rules-v7-ordinary-evidence`. There is no profile switch. Each complete rule is assessed independently against the entire invocation. Ordinary evidence can support PASS when it reliably establishes satisfaction, including a determinable non-triggering action. Unsupported resolution or a gap unrelated to that rule does not alone require UNKNOWN. PASS still needs its outcome and evidence-confidence gates.
 
-Stock adapters currently report action resolution as unsupported, so ordinary reads and edits do not automatically qualify for exemptions. Historical records retain their recorded contract versions and scores. See [assessment behavior, limitations and offline comparisons](docs/assessment-contract.md).
+Only complete, current host-authenticated facts can support the separate `NOT_APPLICABLE` exemption. Its selected-outcome threshold still applies, but its evidence-confidence gate does not. Unsupported NOT_APPLICABLE stays unresolved, never converted to PASS. Integrity, WARN and invocation-local approval remain independent.
+
+Stock Pi and Claude adapters still report unsupported action resolution. Ordinary reads and edits are not automatic exemptions, and tool descriptions cannot certify arbitrary executable effects. Material target ambiguity, unresolved effects and unclear rule meaning remain uncertain. Historical records retain their original questions, contract versions, scores and meanings without reevaluation. Improved live semantic accuracy is unverified; scripted tests check mechanics and instruction shape only. See [assessment behavior, limitations and offline comparisons](docs/assessment-contract.md).
 
 ## Enforcement decisions and approval
 

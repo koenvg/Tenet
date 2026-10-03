@@ -54,7 +54,7 @@ test('diagnostic bounds UTF-8 limitations without promoting partial or unsupport
   assert.equal(result.evidenceContext.resolution.limitations.length, 16);
   assert.equal(result.evidenceContext.resolution.limitationsTruncated, true);
   assert.ok(result.evidenceContext.resolution.limitations.every(s => Buffer.byteLength(s) <= 128 && !s.includes('\uFFFD')));
-  assert.equal(result.questionVersion, 'policy-rules-v7-evidence-selection');
+  assert.equal(result.questionVersion, 'policy-rules-v7-ordinary-evidence');
   assert.equal(result.profile, 'applicability-v1');
 });
 

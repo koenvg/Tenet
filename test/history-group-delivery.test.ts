@@ -79,7 +79,7 @@ for (const mode of ['enforce', 'observe'] as const) for (const recording of ['on
         const view = invocationView(rows);
         assert.deepEqual(view.evidenceContext, context); assert.deepEqual(view.evidence, payload.state);
         assert.equal(view.execution, 'unknown');
-        assert.equal(view.questionVersion, 'policy-rules-v7-evidence-selection');
+        assert.equal(view.questionVersion, 'policy-rules-v7-ordinary-evidence');
       }
     } finally { release(); await guard.close(); await rm(cwd, { recursive: true, force: true }); }
   });

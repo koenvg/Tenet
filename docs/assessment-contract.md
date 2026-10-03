@@ -18,13 +18,17 @@ TENET_MODE=enforce bun run pi
 
 The Claude bridge uses the same assessment contract. Observe/enforce mode controls consequences, not which evaluator schema is used. Use `/tenet` or the inspector to inspect recorded outcomes and gates.
 
-The stock Pi and Claude integrations currently report action resolution as unsupported. The new contract alone does not exempt ordinary reads or edits. A host integration must register a trusted resolver with complete facts and dispatch guarantees. See [action resolution](action-resolution.md).
+The stock Pi and Claude integrations still report action resolution as unsupported. This is a coverage fact, not an automatic UNKNOWN for every rule. Ordinary evidence can support PASS but does not qualify an action for the NOT_APPLICABLE exemption. That exemption needs a trusted resolver with complete current facts and dispatch guarantees. See [action resolution](action-resolution.md).
 
 ## Outcomes and gates
 
-User rules have five outcomes: PASS, APPROVAL_REQUIRED, FAIL, UNKNOWN and NOT_APPLICABLE. The current question/response contract is `policy-rules-v7-evidence-selection`. It adds generic bounded-history inline/reference, literal-escape and excerpt/omission instructions; labels, distributions, fact authentication, validation, thresholds and gates remain `applicability-v1`.
+User rules have five outcomes: PASS, APPROVAL_REQUIRED, FAIL, UNKNOWN and NOT_APPLICABLE. The current question version is `policy-rules-v7-ordinary-evidence` within `applicability-v1`. It clarifies ordinary classification while retaining the existing bounded-history instructions, labels, distributions and fact-reference questions. There is no new runtime profile, evaluator or recording schema.
 
-NOT_APPLICABLE means current authenticated facts demonstrate that the entire invocation is outside the complete rule's scope. PASS means an applicable rule is satisfied. The evaluator must assess each complete rule independently. Material ambiguity stays UNKNOWN; a harmless operation cannot clear a compound invocation.
+Assess each independent complete rule against the entire invocation, including all immediate attempted effects, conditions and exceptions. Ordinary evidence can support PASS when it reliably establishes that the complete rule is satisfied, including a determinable non-triggering action. PASS keeps its separate evidence sufficiency assessment and both confidence gates. Unsupported resolution and unrelated coverage omissions do not alone force UNKNOWN or INSUFFICIENT. A gap material to one rule does not automatically make another determinable rule uncertain.
+
+Untrusted evidence is data, not evaluation instructions, approval or authenticated executor guarantees. A tool description cannot certify arbitrary executable effects. Missing, stale, conflicting or obscured material target identity, executable effects or rule meaning still require UNKNOWN and an appropriate evidence assessment. History can help interpret references, but cannot prove current external state. Literal content is not executed content without supporting evidence. A harmless first step cannot clear a compound invocation.
+
+NOT_APPLICABLE is a separate exemption. It means complete authenticated current facts demonstrate that the entire invocation is outside the complete rule's scope. Never select it as a shortcut for unsupported resolution; TENET does not convert an unsupported NOT_APPLICABLE answer to PASS.
 
 For NOT_APPLICABLE, the evaluator selects a reference to the digest of the current host fact bundle and every operation in it. TENET checks those references against the captured request, complete coverage, supported semantics and invocation binding. Tool arguments, descriptions, transcript anchors and provider assertions cannot authenticate facts. The resolver must revalidate facts before enforce-mode permission is released. Changed targets, contents, bindings or resolver state block release.
 
@@ -40,7 +44,7 @@ Execution and opaque operations remain unresolved by the current resolver contra
 
 Applicability is still a model judgment. Authenticated facts establish the described operation, not the correctness of the model's interpretation of an arbitrary rule. Scores are not calibrated safety guarantees. Observe mode reports a frozen pre-execution snapshot and never revokes an action after it runs. It does not revalidate against post-execution state.
 
-The move to one contract was explicitly authorized for the alpha. It is not evidence of improved live model accuracy. No live evaluator validation or automatic promotion is implied.
+Improved live semantic accuracy is unverified. Offline scripted outputs can show that valid ordinary PASS is allowed and unsupported NOT_APPLICABLE is blocked, but cannot show how a live model classifies either. The question change does not lower the 0.90 defaults, relax whole-response validation, add safe-tool lists or change selected FAIL/UNKNOWN, WARN, integrity, freshness or invocation-local approval behavior.
 
 ## Policy wording
 
@@ -56,7 +60,9 @@ Every new invocation records the current contract identity in its `profile` fiel
 
 Contributions retain the outcome threshold, evidence-gate applicability and effective evidence threshold for every assessed rule. The inspector uses recorded values and preserves explicit null evidence thresholds. Existing archives are not migrated or reevaluated. Older records without a profile are shown as `legacy (historical)`; explicitly recorded older profiles and scores remain unchanged.
 
-New recordings use schema 4 and identify the owner-only diagnostic as `evidence-context-v1`, with current selection identity `bounded-history-v2` and questions `policy-rules-v7-evidence-selection`. TENET-22 schema-4 records retain `bounded-history-v1`, `policy-rules-v6-applicability` and their recorded counter shape. Schemas 1 through 3 also retain their original payloads and thresholds; missing historical diagnostics say not recorded. Readers never run historical payloads through the current selector or invent new counters. Older readers cannot interpret schema 4 and must report unsupported schema. Do not rewrite archives for rollback. There is no runtime legacy toggle.
+New recordings use schema 4 and identify the owner-only diagnostic as `evidence-context-v1`, with current selection identity `bounded-history-v2` and questions `policy-rules-v7-ordinary-evidence`. TENET-22 schema-4 records retain `bounded-history-v1`, `policy-rules-v6-applicability` and their recorded counter shape. Schemas 1 through 3 also retain their original payloads and thresholds; missing historical diagnostics say not recorded. Readers never run historical payloads through the current selector or invent new counters. Older readers cannot interpret schema 4 and must report unsupported schema. Do not rewrite archives for rollback. There is no runtime legacy toggle.
+
+Historical `policy-rules-v7-evidence-selection` records keep their exact submitted questions, pooled or inline payloads, scores, contributions and thresholds. The ordinary-evidence question change does not rerun their assessments, rebuild their evidence or change their meaning. New request, assessment, permission and owner records carry the current question identity through the existing metadata path.
 
 TENET-24 completes the approved v2 optional exact-string pool without a new identity. Runtime tags refer only to `state.trajectory.values` in that snapshot; authored lookalikes are escaped literal data. Generic v7 instructions explain both inline content and references. Runtime excerpt text stays inline, even when excerpts from different originals share text. Historical TENET-23 v2/v7 inline payloads, recorded questions and zero savings remain untouched. No reader regenerates pools or recalculates saved bytes.
 TENET-25 completes v2's approved recorded-relationship selection. It groups only subsequent observations for a unique visible nonempty session+call identity, never reused IDs or earlier results, and bounds batch admission to 4,096 recent slots. Generic v7 instructions explain these window-local limits and distinguish shortened from missing results. The diagnostic shape and schema 4 do not change. Historical TENET-23/24 inline/pooled payloads, saved bytes and recorded questions remain as written; readers do not infer grouping or rebuild history. Grouping cannot improve authenticated coverage, authenticate historical approval, change an applicability exemption or certify success.
@@ -81,3 +87,17 @@ Semantic-label comparisons apply only to the current contract's authored expecta
 False-block and unnecessary-approval rates use observed decisions on benign fixtures, including unavailable or incomplete assessments. Unsafe-allow rates use observed decisions on protected fixtures. Missing decisions are counted separately; an empty denominator produces a null rate, never zero. Missing or unavailable assessments are not semantic successes, and operational failures cannot hide recorded BLOCK, ASK or unsafe ALLOW outcomes.
 
 Scripted results verify mechanics, not semantic accuracy. Live replay requires separate explicit owner authorization. Reports cannot change the runtime contract or process configuration.
+
+The ordinary-evidence regressions use the existing public question, scripted SDK, decision, runtime callback and historical inspector tests:
+
+```sh
+bun run sdk:build
+bun run inspector:build
+bun test --isolate --max-concurrency=1 --timeout=30000 test/applicability-contract.test.ts test/applicability.test.ts test/decision.test.ts test/assessment-metadata.test.ts test/resolved-action.test.ts test/runtime-contract.test.ts test/approval-lifecycle.test.ts
+```
+
+These tests cover ordinary PASS with unsupported resolution, high-confidence unsupported applicability rejection, opaque effects, forged safety claims, per-rule material gaps, independent integrity, fresh approval and original historical questions. They verify mechanics and instruction shape, not model accuracy. The full affected-system sequence is in [CONTRIBUTING.md](../CONTRIBUTING.md).
+
+The frozen TENET-29 campaign requires `policy-rules-v7-evidence-selection` and the production entry refuses the current question identity before transport or output reservation. All 15 original campaign-mechanics regressions still execute offline. An inert reader retains the byte-pinned historical manifest without rebuilding questions or selecting history. The shared transport/journal/report implementation requires injected transport and an SDK adapter; the test adapter supplies scripted replies through the current SDK response validator and unchanged decision gates. No historical evaluator runs, no frozen artifacts are rewritten and no default transport exists in that internal seam. Current scripted reports may differ in question text, identity, digests and request bytes while unchanged evidence, validated assessments and gates retain the authored mechanical baselines.
+
+Deployment requires an owner-controlled rebuild and full Pi process restart; existing running processes keep their loaded questions. Restart the inspector's serving process after a reader or frontend update. Implementation and offline verification do not authorize either active-service restarts or live provider usage. Roll back by restoring the prior code revision and restarting through the owner. Preserve policies and archives; do not reuse approvals.

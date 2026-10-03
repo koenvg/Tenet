@@ -101,7 +101,7 @@ test('Pi live reports and schema-4 archive/inspector expose exactly submitted po
     const view = invocationView(records);
     assert.deepEqual(view.evidence, payload.state);
     assert.deepEqual(view.evidenceContext, live.evidenceContext);
-    assert.equal(view.questionVersion, 'policy-rules-v7-evidence-selection');
+    assert.equal(view.questionVersion, 'policy-rules-v7-ordinary-evidence');
     assert.equal(view.execution, 'unknown');
     assert.doesNotMatch(JSON.stringify([submitted, archive, h.records]), /canary/);
     const wire = JSON.stringify(records); invocationView(records); assert.equal(JSON.stringify(records), wire);

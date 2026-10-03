@@ -41,7 +41,7 @@ test('large nonidentical documents obey default history and expanded event caps,
   assert.equal(result.evidenceContext.history?.shortenedEvents, 2);
   assert.equal(result.evidenceContext.history?.exactCompactedBytes, 0);
   assert.equal(result.decision, 'BLOCK');
-  assert.equal(result.questionVersion, 'policy-rules-v7-evidence-selection');
+  assert.equal(result.questionVersion, 'policy-rules-v7-ordinary-evidence');
 });
 
 test('unused allowance cannot inflate one event; snapshots isolate excerpts and private gap provenance', async () => {

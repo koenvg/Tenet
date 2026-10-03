@@ -7,8 +7,27 @@ const generate = () => replayEvidence();
 test('paired report is deterministic, retains all authored denominators and separates loss from savings', async () => {
   const report = await generate();
   assert.deepEqual(report, await generate());
-  assert.deepEqual(report, JSON.parse(readFileSync(new URL('../eval/evidence-selection/report.json', import.meta.url), 'utf8')));
-  assert.equal(renderEvidenceReport(report), readFileSync(new URL('../eval/evidence-selection/report.md', import.meta.url), 'utf8'));
+  const historical = JSON.parse(readFileSync(new URL('../eval/evidence-selection/report.json', import.meta.url), 'utf8'));
+  // Only question-derived identity, text, digests and request bytes change. Keep
+  // every authored state, assessment, gate, denominator and expectation intact.
+  const mechanics = (row: typeof report.pairs[number]['baseline']) => {
+    const { questionVersion, questionDigest, payloadDigest, requestBytes, payload, ...recorded } = row;
+    const questions = Object.fromEntries(Object.entries(payload.questions).map(([key, question]) => {
+      const { instructions, ...shape } = question as { instructions: string; type: string; criteria: Record<string, string> };
+      return [key, shape];
+    }));
+    return { ...recorded, payload: { ...payload, questions } };
+  };
+  const projection = (value: typeof report) => ({ ...value,
+    pairs: value.pairs.map(pair => ({ ...pair, baseline: mechanics(pair.baseline), candidate: mechanics(pair.candidate) })) });
+  assert.deepEqual(projection(report), projection(historical));
+  assert.equal(renderEvidenceReport(historical), readFileSync(new URL('../eval/evidence-selection/report.md', import.meta.url), 'utf8'));
+  for (const [i, pair] of report.pairs.entries()) for (const side of ['baseline', 'candidate'] as const) {
+    assert.equal(historical.pairs[i][side].questionVersion, 'policy-rules-v7-evidence-selection');
+    assert.equal(pair[side].questionVersion, 'policy-rules-v7-ordinary-evidence');
+    assert.notEqual(pair[side].questionDigest, historical.pairs[i][side].questionDigest);
+    assert.notDeepEqual(pair[side].payload.questions, historical.pairs[i][side].payload.questions);
+  }
   assert.equal(report.pairs.length, corpus.fixtures.length);
   const exact = report.pairs.find(p => p.id === 'exact-inspection')!;
   assert.ok(exact.candidate.stateBytes < exact.baseline.stateBytes);

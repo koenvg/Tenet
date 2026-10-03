@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readFileSync } from 'node:fs';
-import { prepareEvidenceManifest } from '../eval/evidence-selection-inputs.js';
+import { readFileSync, readdirSync } from 'node:fs';
+import { readFrozenEvidenceManifest as prepareEvidenceManifest, prepareEvidenceManifest as prepareLiveManifest } from '../eval/evidence-selection-inputs.js';
+
+import { QUESTION_VERSION } from '../src/decision/assessment-contract.js';
 
 const original = JSON.parse(readFileSync(new URL('../eval/evidence-selection/report.json', import.meta.url), 'utf8'));
 test('live manifest pins the original 34 payloads, labels separately, and three offline controls', () => {
@@ -26,7 +28,9 @@ test('live manifest pins the original 34 payloads, labels separately, and three 
 import { mkdtempSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runEvidenceLive } from '../eval/evidence-selection-live.js';
+import { runEvidenceLive as runProductionEvidenceLive } from '../eval/evidence-selection-live.js';
+import { runScriptedEvidenceCampaign as runEvidenceLive } from './evidence-campaign-fixture.js';
+import { observeEvidenceCampaign } from '../eval/evidence-selection-observations.js';
 import { answer, sdkAnswers } from './helpers.js';
 
 const storage = () => realpathSync(mkdtempSync(join(tmpdir(), 'tenet29-test-')));
@@ -40,10 +44,37 @@ test('campaign rejects missing authorization or credentials before transport or 
   const root = storage(); let calls = 0;
   const fetch = async () => { calls++; throw Error('must not send'); };
   try {
-    await assert.rejects(runEvidenceLive({ storage: root, authorized: false, apiKey: 'offline', fetch }));
-    await assert.rejects(runEvidenceLive({ storage: root, authorized: true, apiKey: '', fetch }));
+    await assert.rejects(runProductionEvidenceLive({ storage: root, authorized: false, apiKey: 'offline', fetch }));
+    await assert.rejects(runProductionEvidenceLive({ storage: root, authorized: true, apiKey: '', fetch }));
     assert.equal(calls, 0);
     assert.equal(readFileSync(new URL('../eval/evidence-selection/report.json', import.meta.url), 'utf8'), JSON.stringify(original, null, 2) + '\n');
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('ordinary-evidence identity rejects the frozen historical campaign before transport or output reservation', async () => {
+  assert.equal(QUESTION_VERSION, 'policy-rules-v7-ordinary-evidence');
+  assert.ok(original.pairs.every((pair: any) => ['baseline', 'candidate'].every(side => pair[side].questionVersion === 'policy-rules-v7-evidence-selection')));
+  assert.throws(() => prepareLiveManifest(), /contract-drift/);
+  const root = storage(); let calls = 0;
+  try {
+    await assert.rejects(runProductionEvidenceLive({ storage: root, authorized: true, apiKey: 'offline', fetch: async () => {
+      calls++; throw Error('must not send historical questions as current');
+    } }), /contract-drift/);
+    assert.equal(calls, 0);
+    assert.deepEqual(readdirSync(root), []);
+    assert.equal(readFileSync(new URL('../eval/evidence-selection/report.json', import.meta.url), 'utf8'), JSON.stringify(original, null, 2) + '\n');
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('campaign mechanics have no implicit transport or SDK adapter', async () => {
+  const root = storage();
+  try {
+    const manifest = prepareEvidenceManifest();
+    await assert.rejects(observeEvidenceCampaign(manifest, { apiKey: 'offline', storage: root } as any,
+      () => { throw Error('must not construct SDK without transport'); }), /campaign-adapter-required/);
+    await assert.rejects(observeEvidenceCampaign(manifest, { apiKey: 'offline', storage: root,
+      fetch: async () => { throw Error('must not fetch without SDK adapter'); } }, undefined as any), /campaign-adapter-required/);
+    assert.deepEqual(readdirSync(root), []);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -290,7 +321,7 @@ test('interrupted request consumes one intent and stops before the next request'
 test('programmatic campaign rejects arbitrary payload or configuration scope before Fetch', async () => {
   const root = storage(); let calls = 0;
   try {
-    await assert.rejects(runEvidenceLive({ storage: root, authorized: true, apiKey: 'unit-auth-value', fetch: async () => { calls++; return Response.json({}); }, payload: { real: 'forbidden' } } as any));
+    await assert.rejects(runProductionEvidenceLive({ storage: root, authorized: true, apiKey: 'unit-auth-value', fetch: async () => { calls++; return Response.json({}); }, payload: { real: 'forbidden' } } as any));
     assert.equal(calls, 0);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
