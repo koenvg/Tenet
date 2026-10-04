@@ -103,6 +103,39 @@ async function embedded(mode: 'observe' | 'enforce', judgeOutcome: 'PASS' | 'FAI
 }
 
 for (const mode of ['observe', 'enforce'] as const) {
+  test(`embedded ${mode}: one stale override cannot replace session-local policies`, async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-local-runtime-')));
+    const { mkdir } = await import('node:fs/promises');
+    const submitted: string[][] = [], events: string[] = [];
+    const external = join(root, 'external.md');
+    await writeFile(external, 'Rule; external rule');
+    const runtime = new GuardRuntime({ env: { TENET_MODE: mode, TENET_POLICY: external },
+      activation: new ActivationStore(join(root, 'control.json')),
+      judge: async request => { submitted.push(request.policy.rules.map(rule => rule.text)); return answer(request.policy); },
+      emit: stage => { events.push(stage); } }, capabilities);
+    try {
+      for (const name of ['first', 'second', 'absent']) {
+        const cwd = join(root, name);
+        await mkdir(cwd);
+        if (name !== 'absent') await writeFile(join(cwd, 'TENET.md'), `Rule; ${name} local rule`);
+        const identity = { host: 'fixture', sessionId: name, contextId: 'main' };
+        await runtime.start(identity, cwd);
+        assert.equal(runtime.readiness.eligible, name !== 'absent');
+        if (name !== 'absent') assert.equal(runtime.readiness.policy.source, join(cwd, 'TENET.md'));
+        const invocation = { ...identity, cwd, callId: name, toolName: 'edit', input: {} };
+        const before = events.length;
+        assert.equal(await runtime.call({ ...invocation, current: () => invocation }), undefined);
+        if (name === 'absent') assert.equal(events.length, before);
+        else if (mode === 'observe') {
+          for (let i = 0; submitted.length < (name === 'first' ? 1 : 2) && i < 400; i++) await new Promise(resolve => setTimeout(resolve, 5));
+        }
+      }
+      assert.deepEqual(submitted, [['first local rule'], ['second local rule']]);
+    } finally { runtime.shutdown(); await rm(root, { recursive: true, force: true }); }
+  });
+}
+
+for (const mode of ['observe', 'enforce'] as const) {
   for (const outcome of ['PASS', 'FAIL', 'APPROVAL_REQUIRED'] as const) {
     test(`embedded ${mode}/${outcome} retains Pi assessment and has no implicit approval`, async () => {
       const pi = await guardHarness({ policy: 'Rule; BLOCK; Never commit.', hasUI: false, env: { TENET_MODE: mode }, judge: async r => answer(r.policy, outcome) });

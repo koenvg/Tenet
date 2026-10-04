@@ -32,7 +32,6 @@ export function readConfig(cwd: string, env: Record<string, string | undefined>)
     || !Number.isSafeInteger(evidence.maxBytes) || evidence.maxBytes < 1) throw new Error('configuration');
   const sensitiveFields: unknown = env.TENET_SENSITIVE_FIELDS === undefined ? [] : JSON.parse(env.TENET_SENSITIVE_FIELDS);
   if (!validConfig(decision) || !Array.isArray(sensitiveFields)
-      || !sensitiveFields.every(field => typeof field === 'string' && field.trim())
-      || env.TENET_POLICY?.trim() === '') throw new Error('configuration');
-  return { policyPath: resolve(cwd, env.TENET_POLICY ?? 'TENET.md'), decision, sensitiveFields, evidence, approvalTimeoutMs };
+      || !sensitiveFields.every(field => typeof field === 'string' && field.trim())) throw new Error('configuration');
+  return { policyPath: resolve(cwd, 'TENET.md'), decision, sensitiveFields, evidence, approvalTimeoutMs };
 }

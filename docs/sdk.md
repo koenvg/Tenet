@@ -216,7 +216,9 @@ Call IDs must be unique for the session's lifetime, including retries. `callId` 
 
 `current()` must reread live session/context/call identity, tool name and arguments before release. Forward native cancellation in `signal` and invalidate material context/session changes.
 
-A confirmed absent local `TENET.md` without `TENET_POLICY` is dormant. An explicit missing policy, malformed policy, invalid configuration or missing judge credential is unavailable. Status distinguishes `uninitialized`, `ready`, `dormant`, `unavailable` and `closed`, separately from activation and configured mode.
+Each session selects only `TENET.md` in its cwd. A confirmed absent local file is dormant in both modes. An unusable local policy, invalid configuration or missing judge credential is unavailable. Deletion after activation remains unavailable, not dormant. Status distinguishes `uninitialized`, `ready`, `dormant`, `unavailable` and `closed`, separately from activation and configured mode.
+
+For an older override-based setup, put an owner-reviewed policy at the session directory's `TENET.md` outside the guarded agent path before opening new sessions. Archive owners can follow migration through the [root installation guide](../README.md). Checkout developers can use the [repository policy migration steps](https://github.com/koenvg/Tenet/blob/main/docs/policy.md#migrate-from-tenet_policy).
 
 Dormant and off releases have `bypassReason` and `assessment.status: 'not-requested'`, never an ALLOW assessment. Unavailable observe releases have no would-decision. Enforce waits for current assessment and required consent. WARN diagnostics remain advisory.
 

@@ -132,7 +132,7 @@ Real assessed tool actions send policy, paths and evidence to TypeSafe and use q
    The script adds `-e ./src/pi/extension.ts`. Explicit extensions still load with `--no-extensions`. Do not use this path if Tenet is already registered as a Pi package.
 4. Check native `/tenet status`. Startup identifies policy source, SHA-256, count and question version.
 
-A local `TENET.md` or explicit `TENET_POLICY` makes the session eligible. Without either, it is dormant with no Tenet UI. Invalid active setup is unavailable, not a pass; observe permits and enforce blocks.
+Only `TENET.md` in the session working directory makes the session eligible. Without that file, it is dormant in both modes with no Tenet UI. Invalid active setup is unavailable, not a pass; observe permits and enforce blocks.
 
 An extension load error means Tenet did not load.
 
@@ -149,7 +149,7 @@ pi list
 
 This is user-level registration; do not add `-l`. Pi loads `src/pi/extension.ts` through `package.json` in place. Keep the checkout and dependencies.
 
-Launch plain `pi`, not a second `-e` copy or `bun run pi`. Each project still needs its own reviewed policy or explicit override.
+Launch plain `pi`, not a second `-e` copy or `bun run pi`. Each session directory needs its own reviewed `TENET.md`. For an older override-based setup, follow [local policy migration](docs/policy.md#migrate-from-tenet_policy) before restarting.
 
 Code and environment changes need a full Pi process restart. Under Pi 0.85.1 and Bun 1.3.14, `/reload` and `/new` can retain old imports. Policy-only changes can use session-start reload; check the new digest and count.
 

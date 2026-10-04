@@ -45,21 +45,28 @@ A dormant session has no Tenet footer, notifications or commands. An extension l
 
 ### Select a policy
 
-Tenet selects `TENET_POLICY` when set. Absolute paths stay absolute; relative paths resolve from the session working directory. An empty or whitespace-only explicit value is invalid.
-
-Without an override, Tenet selects only `TENET.md` in that directory. It does not search parent directories or the installation directory. No owner policy ships in the archive. An `@TENET.md` prompt attachment does not activate the guard.
+Tenet selects only `TENET.md` in the session working directory. It does not search parent directories or the installation directory. No owner policy ships in the archive. An `@TENET.md` prompt attachment does not activate the guard.
 
 ```text
-No override + no local file -> dormant in observe and enforce
-Selected file               -> validate policy and active prerequisites
-                                |
-                                +-- valid       -> assessment available
-                                +-- unavailable -> observe permits, enforce blocks
+No local file -> dormant in observe and enforce
+Local file    -> validate policy and active prerequisites
+                 |
+                 +-- valid       -> assessment available
+                 +-- unavailable -> observe permits, enforce blocks
 ```
 
-A present invalid or unreadable policy, missing explicit file, missing credentials or invalid guard configuration makes assessment unavailable, not a pass. Observe permits; enforce blocks. Policy deletion after activation stays unavailable rather than becoming dormant.
+A present invalid or unreadable policy, missing credentials or invalid guard configuration makes assessment unavailable, not a pass. Observe permits; enforce blocks. A broken local link is unavailable, not dormant. Policy deletion after activation stays unavailable rather than becoming dormant.
 
 A dormant session has no assessment, veto, approval, recording or Tenet UI. A file appearing later needs a new session or extension reload. `/tenet on` cannot activate a dormant session.
+
+#### Migrate from TENET_POLICY
+
+`TENET_POLICY` no longer selects a policy. All values have no effect, including empty or whitespace-only values. An override-only project becomes dormant even in enforce mode. Do not begin guarded work until its local policy is ready.
+
+1. Review the intended policy yourself and place it at `TENET.md` in each session working directory, outside the guarded agent's intercepted path. Tenet does not copy or create the file.
+2. Remove `TENET_POLICY` from the environment that launches Pi.
+3. Run the offline doctor for the project as shown above. Check its local source, digest and rule count, and resolve invalid setup.
+4. Restart Pi and verify `/tenet status` before separately authorized live work. Restoring the variable on the new version does not restore override support; rollback needs the prior archive and a process restart. Existing recordings remain unchanged.
 
 ### Write one-line rules
 
@@ -200,7 +207,6 @@ Set environment variables in the shell that launches Pi. Code and environment ch
 | Variable | Default | Valid value and effect |
 | --- | --- | --- |
 | `TENET_MODE` | `observe` | Exact `observe` or `enforce`; invalid selects observe with warning |
-| `TENET_POLICY` | Unset | Absolute or session-cwd-relative path; explicit empty/blank is invalid |
 | `TYPESAFE_API_KEY` | None | Nonblank TypeSafe credential, set securely; presence is not validity |
 | `TENET_EFFECT_THRESHOLD` | `0.90` | Finite number from `0` through `1`; minimum selected outcome probability |
 | `TENET_EVIDENCE_THRESHOLD` | `0.90` | Finite number from `0` through `1`; minimum P(SUFFICIENT) where applicable |
@@ -237,8 +243,8 @@ Run doctor outside Pi in the launch environment. It never starts hooks or submit
 
 | Symptom | What to check |
 | --- | --- |
-| No footer or `/tenet` command | Missing local policy without override is dormant. Registration supplies no policy. Check the selected cwd, author policy externally and restart. If policy exists, check `pi list` and load errors. A load error means no Tenet hook. |
-| Invalid or broken active policy | Malformed file, missing explicit path, empty override or stale policy is unavailable. Check UTF-8 `Rule;` lines, grammar and limits above. Review the selected path externally, reload or restart, and verify digest. Observe permits without a pass; enforce blocks. |
+| No footer or `/tenet` command | Missing local policy is dormant in both modes. Registration supplies no policy. Check the selected cwd, author policy externally and restart. For an older override setup, use the migration steps above. If policy exists, check `pi list` and load errors. A load error means no Tenet hook. |
+| Invalid or broken active policy | A malformed or unreadable local file, broken local link or stale policy is unavailable. Check UTF-8 `Rule;` lines, grammar and limits above. Review the local path externally, reload or restart, and verify digest. Observe permits without a pass; enforce blocks. |
 | Missing credentials or provider errors | Configure the key securely before relaunch. Doctor tests presence only. An invalid key, unreachable provider or timeout is not an all-clear. Live checks need separate authorization and disclose evidence to TypeSafe. |
 | `TENET OFF` or `CONTROL UNAVAILABLE` | `/tenet on` restores this process's mode, not enforce. Fix unsafe permissions/links outside Pi; repair safe malformed content through native on/off. Other processes notice asynchronously. |
 | Pending or lost findings | Check status for completed, unavailable, dropped, cancelled and cumulative loss counts. Queue limits and interruptions can lose work. Absence of a report is not `PASS`. |

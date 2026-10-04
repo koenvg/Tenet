@@ -10,7 +10,7 @@ You need an installed Tenet extension and a project directory you control. For a
 
 Edit the active policy yourself in an editor or owner shell, outside the guarded agent's intercepted path. Tenet's built-in integrity constraint protects it, but Tenet is not a filesystem sandbox. Keep policy creation, migration and weakening outside that agent path.
 
-1. Open or create `TENET.md` in your project directory. Without `TENET_POLICY`, Tenet selects only this file in the session working directory. It does not search parent directories or use the installation's policy.
+1. Open or create `TENET.md` in your project directory. Tenet selects only this file in the session working directory. It does not search parent directories or use the installation's policy.
 2. Add this declaration on one physical line:
 
    ```tenet-policy
@@ -53,7 +53,7 @@ Observe reports what enforcement would do but never vetoes or opens approval, in
 
 ## Choose your next policy task
 
-- To use a shared policy or diagnose dormancy, see [policy selection](#choose-the-policy-file).
+- To diagnose dormancy, see [policy selection](#choose-the-policy-file).
 - To add advisory rules or metadata, see [grammar and limits](#rule-grammar-and-limits).
 - To understand approval conditions and prohibitions, see [rule meaning](#check-what-a-rule-means).
 - To change an active policy, see [owner-only management and reload](#owner-only-policy-management-and-migration).
@@ -61,18 +61,16 @@ Observe reports what enforcement would do but never vetoes or opens approval, in
 ## Choose the policy file
 
 ```text
-TENET_POLICY is set ----> selected absolute or session-cwd-relative path
-TENET_POLICY is unset -> TENET.md in the session working directory only
-                          |
-                          +-- missing at startup -> dormant
-                          +-- present            -> validate the whole file
+TENET.md in the session working directory only
+  |
+  +-- missing at startup -> dormant
+  +-- present            -> validate the whole file
 ```
 
-- An absolute `TENET_POLICY` stays absolute. A relative value resolves against each session's working directory. Use an absolute path for a reviewed policy shared across projects.
-- An explicit override makes the session eligible even if its file is missing. An empty or whitespace-only override is invalid.
-- A missing implicit `TENET.md` makes both modes dormant. There is no assessment, veto, approval, recording, footer, notification or Tenet command. An `@TENET.md` prompt attachment does not activate the guard.
-- A present invalid or unreadable file, missing explicit path, missing credential or invalid guard configuration makes assessment unavailable. Observe permits without claiming a pass; enforce blocks. Deletion after activation is unavailable, not dormant.
+- A missing local `TENET.md` makes both modes dormant. There is no assessment, veto, approval, recording, footer, notification or Tenet command. An `@TENET.md` prompt attachment does not activate the guard.
+- A present invalid or unreadable file, missing credential or invalid guard configuration makes assessment unavailable. Observe permits without claiming a pass; enforce blocks. Deletion after activation is unavailable, not dormant.
 - A file that appears after dormant startup needs a new session or extension reload. `/tenet on` cannot activate a dormant session.
+- `TENET_POLICY` has no effect, even when empty or whitespace-only. For an older override-based setup, [migrate to a local policy](#migrate-from-tenet_policy) before restarting.
 
 ## Rule grammar and limits
 
@@ -166,6 +164,17 @@ Agent actions that modify, remove, replace, rename or redirect the active select
 
 In enforce mode, integrity blocks without an approval exception. User rules cannot weaken it. In observe mode, it reports without vetoing. Edit or migrate the policy yourself outside the intercepted agent path.
 
+### Migrate from TENET_POLICY
+
+`TENET_POLICY` no longer selects a policy. An override-only project becomes dormant in both modes, including enforce. Do not begin guarded work until its local policy is ready.
+
+1. Review the intended policy yourself and place it at `TENET.md` in each session working directory, outside the guarded agent's intercepted path. Tenet does not copy or create it for you.
+2. Remove `TENET_POLICY` from the environment that launches the host.
+3. Run the offline doctor for that project and check the local source, digest and rule count. Resolve invalid setup before launch.
+4. Restart the host process and verify native status in the eligible session before separately authorized live work. For Pi, use `/tenet status`.
+
+Restoring the environment variable on the new version does not restore override support. Rollback requires the prior Tenet version and a process restart; existing recordings remain unchanged.
+
 ### Convert unprefixed prose to a rule
 
 Existing unprefixed publication prose is no longer accepted. Tenet does not rewrite it. To migrate the original sentence, use:
@@ -214,9 +223,9 @@ Before rolling back per-rule threshold support, remove threshold metadata from d
 
 | Symptom | Next action |
 | --- | --- |
-| No footer or Tenet commands | Run doctor for the actual session directory. With no override and no local file, the session is dormant. Author a policy externally, then start a new session or restart. Also check extension load errors. |
+| No footer or Tenet commands | Run doctor for the actual session directory. With no local file, the session is dormant in both modes. Author a policy externally, then start a new session or restart. For an older override setup, use the migration steps above. Also check extension load errors. |
 | `policy-format` | Check case-sensitive prefixes, one-line declarations, UTF-8 and threshold grammar. Ordinary prose alone is not a policy. |
 | `policy-file-limit`, `policy-rule-count-limit` or `policy-rule-size-limit` | Reduce the file, rule count or final rule text to the limits above. Nothing is truncated automatically. |
-| `policy-unavailable` | Check the selected path, regular-file target and read access outside the guarded agent. A missing explicit path is not dormant. |
+| `policy-unavailable` | Check the local path, regular-file target and read access outside the guarded agent. A broken local link is unavailable, not dormant. |
 | `policy-stale` | Review the changed bytes and target externally, reload or restart, and check the new digest. Do not reuse a pending approval. |
 | Valid policy but unavailable assessment | Check credentials and configuration with doctor. `ready` still does not verify the live provider or hooks. |

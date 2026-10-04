@@ -9,19 +9,51 @@ import { handleHook, parseHook, denial } from '../src/claude/hook.js';
 
 const base = { session_id: 'native', cwd: '', hook_event_name: 'PreToolUse', tool_use_id: 'call-1', tool_name: 'mcp__demo__publish', tool_input: { target: 'local' } };
 const request: BridgeRequest = { version: 1, event: 'call', sessionId: 'native', contextId: 'main', cwd: '/tmp', callId: 'call-1', toolName: 'Bash', input: {} };
-async function fixture(outcome: 'PASS' | 'FAIL' | 'APPROVAL_REQUIRED', mode: 'enforce' | 'observe' = 'enforce') {
+async function fixture(outcome: 'PASS' | 'FAIL' | 'APPROVAL_REQUIRED', mode: 'enforce' | 'observe' = 'enforce', overrides: Record<string, string> = {}) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'tc-')));
   const cwd = join(dir, 'project');
   const { mkdir } = await import('node:fs/promises');
   await mkdir(cwd);
   await writeFile(join(cwd, 'TENET.md'), 'Rule; BLOCK; Never publish.');
-  const env = { TENET_MODE: mode, TENET_CONTROL_PATH: join(dir, 'control.json'), TENET_RECORDING_DIR: join(dir, 'recordings') };
+  const env = { TENET_MODE: mode, TENET_CONTROL_PATH: join(dir, 'control.json'), TENET_RECORDING_DIR: join(dir, 'recordings'), ...overrides };
+  const submitted: string[][] = [];
   const server = await startBridge({ directory: dir, env, judge: async r => {
+    submitted.push(r.policy.rules.map(rule => rule.text));
     assert.equal(r.resolvedAction?.status, 'unsupported', 'stock Claude has no executor resolver');
     return answer(r.policy, outcome);
   } });
   const hook = (event: Record<string, unknown>) => handleHook(JSON.stringify({ ...event, cwd }), { directory: dir, env, deadlineMs: 1200 });
-  return { dir, cwd, env, server, hook, close: async () => { await server.close(); await rm(dir, { recursive: true, force: true }); } };
+  return { dir, cwd, env, server, hook, submitted, close: async () => { await server.close(); await rm(dir, { recursive: true, force: true }); } };
+}
+
+for (const mode of ['observe', 'enforce'] as const) {
+  for (const value of ['external.md', 'missing.md', '', ' \t ']) {
+    for (const local of ['valid', 'absent', 'invalid'] as const) {
+      test(`Claude ${mode}: ${local} local policy ignores former override ${JSON.stringify(value)}`, async () => {
+        const f = await fixture('PASS', mode, { TENET_POLICY: value });
+        try {
+          await writeFile(join(f.cwd, 'external.md'), 'Rule; external rule');
+          if (local === 'absent') await unlink(join(f.cwd, 'TENET.md'));
+          if (local === 'invalid') await writeFile(join(f.cwd, 'TENET.md'), 'not a policy');
+          await f.hook({ session_id: 'native', hook_event_name: 'SessionStart', source: 'startup' });
+          const state = await readLocalState(f.dir, 'native');
+          assert.equal(state?.eligible, local !== 'absent');
+          const result = JSON.parse(await f.hook(base));
+          assert.equal(result.hookSpecificOutput?.permissionDecision === 'deny', local === 'invalid' && mode === 'enforce');
+          if (local === 'valid') {
+            for (let i = 0; !f.submitted.length && i < 400; i++) await new Promise(resolve => setTimeout(resolve, 5));
+            assert.deepEqual(f.submitted, [['Never publish.']]);
+          } else {
+            assert.deepEqual(f.submitted, []);
+            await f.server.close();
+            const { readArchive } = await import('../src/recording/archive.js');
+            const records = (await readArchive(join(f.dir, 'recordings'))).records;
+            if (local === 'absent') assert.deepEqual(records, []);
+          }
+        } finally { await f.close(); }
+      });
+    }
+  }
 }
 
 test('mapping accepts built-in and MCP inputs unchanged, never reads transcript or invents metadata', () => {

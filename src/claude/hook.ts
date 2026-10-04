@@ -33,8 +33,7 @@ export function parseHook(data: string, event: string): BridgeRequest {
   return { ...common, event: 'invalidate' };
 }
 /** Only SessionStart can establish a new dormant session. Missing state never implies dormancy. */
-async function eligible(cwd: string, env: Record<string, string | undefined>): Promise<boolean> {
-  if (env.TENET_POLICY !== undefined) return true;
+async function eligible(cwd: string): Promise<boolean> {
   try { await lstat(join(cwd, 'TENET.md')); return true; }
   catch (error) { return (error as NodeJS.ErrnoException).code !== 'ENOENT'; }
 }
@@ -60,7 +59,7 @@ export async function handleHook(data: string, options: { event?: string; direct
         throw error;
       });
       if (previous && previous.cwd !== request.cwd) return PASS; // Conflicting session identity cannot replace its marker.
-      const current = await eligible(request.cwd, env);
+      const current = await eligible(request.cwd);
       const source = (JSON.parse(data) as { source?: unknown }).source;
       if (!previous && !current && source !== 'startup') return PASS; // Lost state or resume is not a new dormant session.
       const isEligible = previous?.eligible || current;

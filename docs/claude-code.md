@@ -17,7 +17,11 @@ The bridge uses TypeSafe for live assessment. It sends policy text, paths, tool 
 Obtain separate authorization before live evaluation. The following setup instructions are not authorization to start live work.
 
 1. Choose a private directory with no symlinked ancestors. The default is `~/.tenet/claude`, with mode `0700`; its socket and session-state files use `0600`. To use another directory, set `TENET_CLAUDE_DIR` to an absolute private path in both bridge and hook environments.
-2. Set the same `TENET_MODE` on both sides. Start in `observe`, the default. Put `TENET.md` in the Claude session cwd, or set `TENET_POLICY` relative to that cwd. The bridge process needs `TYPESAFE_API_KEY`; hooks never read that key from tool input.
+2. Set the same `TENET_MODE` on both sides. Start in `observe`, the default. Put an owner-reviewed `TENET.md` in the Claude session cwd, outside the guarded agent's intercepted path. Without that local file, a fresh session is dormant in both modes.
+
+   For an older override-based setup, follow [local policy migration](policy.md#migrate-from-tenet_policy) before restarting the host and bridge.
+
+   The bridge process needs `TYPESAFE_API_KEY`; hooks never read that key from tool input.
 3. Choose capture before starting the bridge. It records submitted evidence by default in `~/.tenet/recordings`, including passes and observe-mode calls. Set `TENET_RECORDING=off` in the bridge process to opt out. Setting it only in hook clients does not disable bridge capture, and opt-out does not stop provider disclosure.
 4. Start the bridge in a terminal. Replace `/ABSOLUTE/TENET` with the checkout path. You can run this from any directory:
 
@@ -86,7 +90,7 @@ Use the same control path for Pi, the bridge and hook clients. The default is `~
 
 If you set `TENET_CONTROL_PATH`, set it in all three processes. Pi's explicit `controlPath` embedding option takes precedence.
 
-The control file uses mode `0600` in an owner-only directory without symlinked components. Bridge socket and markers remain in the separate private Claude directory. The CLI does not install hooks, start the bridge, change `TENET_MODE`, `TENET_POLICY` or `TENET_RECORDING`, or delete old recordings.
+The control file uses mode `0600` in an owner-only directory without symlinked components. Bridge socket and markers remain in the separate private Claude directory. The CLI does not install hooks, start the bridge, change `TENET_MODE` or `TENET_RECORDING`, or delete old recordings.
 
 ### Read status
 
