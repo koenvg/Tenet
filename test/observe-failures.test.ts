@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { unlink, writeFile } from 'node:fs/promises';
+import { symlink, unlink, writeFile } from 'node:fs/promises';
 import { guardHarness } from './guard-harness.js';
 import { answer } from './helpers.js';
 
@@ -13,13 +13,12 @@ for (const mode of ['observe', 'enforce'] as const) for (const failure of ['cred
     }
     if (failure === 'policy') options.policy = 'not a policy';
     if (failure === 'configuration') options.env!.TENET_EFFECT_THRESHOLD = 'invalid';
-    if (failure === 'missing-policy') options.env!.TENET_POLICY = 'TENET.md';
     if (failure === 'invalid-response') options.judge = async () => ({ rules: [] });
     if (failure === 'provider') options.judge = async () => { throw new Error('private transport failure'); };
     if (failure === 'timeout') { options.env!.TENET_JUDGE_DEADLINE_MS = '5'; options.judge = () => new Promise(() => {}); }
     const h = await guardHarness(options);
     try {
-      if (failure === 'missing-policy') await unlink(h.file);
+      if (failure === 'missing-policy') { await unlink(h.file); await symlink('missing-target', h.file); }
       await h.start();
       const result = await h.call('failure', failure === 'capture' ? { invalid: undefined } : {});
       assert.equal(result?.block, mode === 'enforce' ? true : undefined);

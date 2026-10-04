@@ -61,7 +61,9 @@ Before launching Pi, review these limits:
 
 Explicit `BLOCK`, advisory `WARN` and per-rule metadata are optional choices in [the rule reference](ARCHIVE-OPERATION.md#write-one-line-rules). Plain prose is not enforced. A declaration inside a Markdown fence is still active.
 
-No policy ships in the archive. Without `TENET_POLICY`, only the project's local `TENET.md` selects a policy. There is no parent search or bundled fallback. For complete grammar, limits, thresholds and owner controls, see [policy selection and limits](ARCHIVE-OPERATION.md#eligibility-and-owner-control).
+No policy ships in the archive. Only `TENET.md` in the session working directory selects a policy. There is no parent search or bundled fallback. Without a local policy, both modes are dormant, including enforce. For complete grammar, limits, thresholds and owner controls, see [policy selection and limits](ARCHIVE-OPERATION.md#eligibility-and-owner-control).
+
+For an older override-based setup, follow [local policy migration](ARCHIVE-OPERATION.md#migrate-from-tenet_policy) before restarting. The removed environment setting cannot activate the project.
 
 ### Check setup offline
 

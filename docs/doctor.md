@@ -54,7 +54,7 @@ Its presence is not proof of validity. After running doctor, use [states and exi
 | --- | --- | --- |
 | `ready` | Policy and active local prerequisites are valid | `0` |
 | `off` | Owner-selected cooperative control is off | `0` |
-| `dormant` | No local policy and no explicit override | `0` |
+| `dormant` | Confirmed absence of the project's local `TENET.md` | `0` |
 | `invalid` | Project, selected policy, configuration or control is invalid/unreadable | `1` |
 | `unavailable` | Delivery is incomplete, detected Pi version is untested, or active setup lacks credentials | `1` |
 
@@ -78,9 +78,9 @@ Externally derived paths, digests and detected versions are bounded, strip termi
 | Symptom | Next action |
 | --- | --- |
 | `project-unavailable` | Select an existing readable project directory with `--project`. |
-| Policy absent, state `dormant` | Author that project's `TENET.md` yourself outside the guarded action path, or select a reviewed policy with `TENET_POLICY`. Registration supplies no policy. |
+| Policy absent, state `dormant` | Author that project's `TENET.md` yourself outside the guarded action path. Registration supplies no policy. For an older override-based setup, follow local policy migration below. |
 | Policy invalid | Check UTF-8, case-sensitive `Rule;` lines, threshold syntax, file size and rule count. Repair externally; doctor neither prints nor repairs policy text. |
-| `configuration` | Check exact mode values, nonempty policy override, threshold/limit ranges, approval timeout and the JSON sensitive-field array. |
+| `configuration` | Check exact mode values, threshold/limit ranges, approval timeout and the JSON sensitive-field array. |
 | `control-unavailable` | Check the absolute control path and private same-user file/directory. Fix unsafe links or permissions outside Pi. Doctor does not repair control. |
 | `invalid-recording-setting` or `invalid-recording-directory` | Use exact `on`/`off` and an absolute recording directory, even when capture is off. |
 | `delivery-incomplete` | For a checkout, build SDK/CLI and inspector and install locked dependencies. For an archive, replace the incomplete installation and install its locked production dependencies. |
@@ -92,7 +92,9 @@ For exact policy and setting details, see the [repository archive operation guid
 
 ## Policy, mode and control
 
-`TENET_POLICY` selects an explicit policy. Relative paths resolve against `--project`. Without it, doctor checks only that project's `TENET.md`, not an ancestor or bundled policy. A missing local policy is dormant; a missing explicit policy is invalid.
+Doctor checks only `TENET.md` in the directory selected by `--project`, regardless of the command's working directory. It does not search ancestors or use a bundled policy. Confirmed local absence is dormant when other prerequisites are valid and control is on; an unusable local policy is invalid.
+
+`TENET_POLICY` has no effect, including when empty or whitespace-only. An older override-only project needs an owner-reviewed local policy before restarting. Archive owners can follow migration through the [root installation guide](../README.md). Checkout developers can use the [repository local policy migration steps](https://github.com/koenvg/Tenet/blob/main/docs/ARCHIVE-OPERATION.md#migrate-from-tenet_policy).
 
 Validation uses the runtime's UTF-8, line-based `Rule;` grammar and size/count limits. Output gives the selected source, SHA-256 digest and declared rule count, never rule text. The count excludes built-in integrity. Invalid policies have no validated digest/count.
 

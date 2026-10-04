@@ -42,7 +42,8 @@ node "$TENET_DIR/dist/cli/index.js" doctor --project "$PWD"</code></pre>
         <p>Write your project's <code>TENET.md</code> yourself, outside the guarded agent's intercepted path. No policy ships in the archive. This illustrative local rule is not a complete security policy:</p>
         <pre><code class="language-tenet-policy">Rule; Ask before overwriting owner-demo.txt.</code></pre>
         <p><code>Rule; text</code> is the supported short form. It defaults to <code>BLOCK</code>; explicit <code>BLOCK</code> is optional. Each rule uses one physical line and case-sensitive <code>Rule;</code> syntax.</p>
-        <p>Without <code>TENET_POLICY</code>, only the session directory's <code>TENET.md</code> activates Tenet. There is no parent search or bundled fallback.</p>
+        <p>Only the session directory's <code>TENET.md</code> activates Tenet. There is no parent search or bundled fallback. Without that local file, both modes are dormant, including enforce.</p>
+        <p>For an older override-based setup, follow <a href="https://github.com/koenvg/Tenet/blob/main/docs/policy.md#migrate-from-tenet_policy">local policy migration</a> before restarting.</p>
         <p>Follow <a href="https://github.com/koenvg/Tenet/blob/main/docs/policy.md#write-a-first-rule">first-policy steps</a>. For advisory <code>WARN</code> rules or per-rule metadata, look up <a href="https://github.com/koenvg/Tenet/blob/main/docs/policy.md#rule-grammar-and-limits">exact rule grammar and limits</a>.</p>
         <p>Rules are assessed individually. The judge can be wrong or unavailable. Review findings before relying on enforcement.</p>
       </section>

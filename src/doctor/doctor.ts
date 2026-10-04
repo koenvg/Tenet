@@ -16,7 +16,7 @@ export interface DoctorReport {
   project: string;
   mode: Mode;
   configuration: 'valid' | 'invalid';
-  policy: { selection: 'explicit' | 'local'; source: string; validation: 'valid' | 'invalid' | 'absent';
+  policy: { selection: 'local'; source: string; validation: 'valid' | 'invalid' | 'absent';
     digest: string | null; ruleCount: number; reason?: PolicyFailure };
   control: Activation;
   credentials: { presence: 'present' | 'missing'; validity: 'unverified' };
@@ -48,21 +48,19 @@ export async function diagnoseProject(options: {
   catch { invalid = true; issue('project-unavailable', 'Select an existing readable project directory with --project.'); }
   const selectedMode = readMode(env);
   let configuration: DoctorReport['configuration'] = 'valid';
-  let policyPath = resolve(project, env.TENET_POLICY ?? 'TENET.md');
+  let policyPath = resolve(project, 'TENET.md');
   try { policyPath = readConfig(project, env).policyPath; }
   catch { configuration = 'invalid'; }
   if (selectedMode.warning) configuration = 'invalid';
   if (configuration === 'invalid') {
     invalid = true;
-    issue('configuration', 'Check TENET_MODE, TENET_POLICY, decision/evidence limits, approval timeout and TENET_SENSITIVE_FIELDS. Mode must be observe or enforce.');
+    issue('configuration', 'Check TENET_MODE, decision/evidence limits, approval timeout and TENET_SENSITIVE_FIELDS. Mode must be observe or enforce.');
   }
-  let eligible = env.TENET_POLICY !== undefined;
-  if (!eligible) {
-    try { await lstat(policyPath); eligible = true; }
-    catch (error) { eligible = (error as NodeJS.ErrnoException).code !== 'ENOENT'; }
-  }
+  let eligible: boolean;
+  try { await lstat(policyPath); eligible = true; }
+  catch (error) { eligible = (error as NodeJS.ErrnoException).code !== 'ENOENT'; }
   const policy: DoctorReport['policy'] = {
-    selection: env.TENET_POLICY !== undefined ? 'explicit' : 'local', source: safeDiagnostic(policyPath),
+    selection: 'local', source: safeDiagnostic(policyPath),
     validation: 'absent', digest: null, ruleCount: 0,
   };
   if (eligible) {
@@ -73,7 +71,7 @@ export async function diagnoseProject(options: {
       policy.validation = 'invalid'; policy.reason = loaded.reason; invalid = true;
       issue(loaded.reason, 'Check the selected policy file and its UTF-8 Rule; declarations, size and rule limits. Doctor does not print or repair policy text.');
     }
-  } else limit('policy-absent', 'No local policy or explicit override selects this project. Author TENET.md outside the guarded action path to enable it.');
+  } else limit('policy-absent', 'No local TENET.md selects this project. Author it outside the guarded action path to enable it.');
   let control: Activation = 'unavailable';
   try { control = new ActivationStore(env.TENET_CONTROL_PATH).read(); } catch { /* Invalid paths are bounded diagnostics. */ }
   if (control === 'unavailable') {

@@ -162,7 +162,7 @@ test("docs link every reader journey and retain policy, privacy, mode and covera
   const prefix = "https://github.com/koenvg/Tenet/blob/main/";
   const links = [...html.matchAll(/<a\b[^>]*\bhref\s*=\s*(["'])(.*?)\1/gi)].map(match => match[2]);
   for (const destination of [
-    "docs/INSTALL-ARCHIVE.md", "docs/policy.md#write-a-first-rule", "docs/policy.md#rule-grammar-and-limits",
+    "docs/INSTALL-ARCHIVE.md", "docs/policy.md#write-a-first-rule", "docs/policy.md#rule-grammar-and-limits", "docs/policy.md#migrate-from-tenet_policy",
     "docs/inspector.md", "docs/inspector.md#sensitive-local-storage",
     "docs/doctor.md#fix-invalid-or-unavailable-setup", "docs/sdk.md", "docs/shared-runtime.md",
     "docs/configuration.md", "docs/limits.md", "docs/claude-code.md", "CONTRIBUTING.md",
@@ -171,7 +171,7 @@ test("docs link every reader journey and retain policy, privacy, mode and covera
   ]) expect(links).toContain(prefix + destination);
   for (const text of [
     "Rule; Ask before overwriting owner-demo.txt.", "supported short form", "defaults to <code>BLOCK</code>",
-    "explicit <code>BLOCK</code> is optional", "one physical line", "case-sensitive", "TENET_POLICY",
+    "explicit <code>BLOCK</code> is optional", "one physical line", "case-sensitive", "Only the session directory's", "both modes are dormant, including enforce",
     "outside the guarded agent's intercepted path", "No policy ships in the archive",
     "TypeSafe", "policy, paths, tool evidence and bounded recent observations", "use quota",
     "TYPESAFE_API_KEY", "through your secret manager", "secrets despite redaction",

@@ -37,10 +37,11 @@ Observe never vetoes or opens approval, including on invalid configuration, miss
 | Variable | Default | Accepted value and effect |
 | --- | --- | --- |
 | `TENET_MODE` | `observe` | Exact `observe` or `enforce`. Only exact `enforce` enables blocking. Mode is fixed for the process; restart to change it. Invalid values select observe and report `invalid-mode`. |
-| `TENET_POLICY` | Unset | Absolute or session-cwd-relative path. When set, selects an eligible policy even if the file is missing. Empty or whitespace-only values are invalid. |
 | `TYPESAFE_API_KEY` | None | Required nonblank TypeSafe credential for live assessment. Set it through your secret manager, never in policy, source, chat or command-line arguments. Doctor checks presence only. |
 
-Without `TENET_POLICY`, only `TENET.md` in the session working directory makes the session eligible. No parent search or bundled fallback occurs. A missing local file makes both modes dormant. A present invalid file or missing explicit path makes assessment unavailable. Policy deletion after activation is unavailable, not dormant. See [Policy selection and grammar](policy.md#choose-the-policy-file).
+Only `TENET.md` in the session working directory makes the session eligible. No parent search or bundled fallback occurs. A missing local file makes both modes dormant. A present invalid or unreadable file makes assessment unavailable. Policy deletion after activation is unavailable, not dormant. See [Policy selection and grammar](policy.md#choose-the-policy-file).
+
+`TENET_POLICY` is no longer supported and has no effect, including when empty or whitespace-only. Before restarting an override-only project, follow [local policy migration](policy.md#migrate-from-tenet_policy).
 
 Doctor reads process environment. It does not load dotenv files, query a secret manager or inspect Pi settings.
 

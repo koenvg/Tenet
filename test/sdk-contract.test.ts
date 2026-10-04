@@ -22,6 +22,50 @@ async function fixture(mode: 'observe' | 'enforce' = 'enforce', judge: Judge = a
   return { cwd, guard, session, events, call, before, close: async () => { await guard.close(); await rm(cwd, { recursive: true, force: true }); } };
 }
 
+for (const mode of ['observe', 'enforce'] as const) {
+  test(`SDK ${mode}: concurrent sessions ignore a shared external policy override`, async () => {
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), 'tenet-local-sdk-')));
+    const { mkdir } = await import('node:fs/promises');
+    const external = join(cwd, 'external.md');
+    await writeFile(external, 'Rule; external rule');
+    const submitted: string[][] = [], events: OwnerEvent[] = [];
+    const guard = createGuard({ ...host, env: { TENET_MODE: mode, TENET_POLICY: external, TENET_RECORDING: 'on', TENET_RECORDING_DIR: join(cwd, 'archive') },
+      judge: async request => { submitted.push(request.policy.rules.map(rule => rule.text)); return answer(request.policy); },
+      controlPath: join(cwd, 'private', 'control.json'), onOwnerEvent: event => events.push(event) });
+    try {
+      for (const name of ['first', 'second', 'absent']) {
+        const project = join(cwd, name);
+        await mkdir(project);
+        if (name !== 'absent') await writeFile(join(project, 'TENET.md'), `Rule; ${name} local rule`);
+        const identity = { sessionId: name, contextId: 'main' };
+        const session = guard.openSession(identity, project);
+        assert.equal((await session.ready).state, name === 'absent' ? 'dormant' : 'ready');
+        const call = { callId: name, toolName: 'edit', input: {} };
+        const before = events.length;
+        const permission = await session.beforeTool({ ...call, current: () => ({ ...identity, ...call }) });
+        if (name === 'absent') {
+          assert.equal(permission.bypassReason, 'dormant');
+          assert.equal(permission.assessment.status, 'not-requested');
+          assert.equal(events.length, before);
+        } else {
+          assert.equal(permission.permission, 'released');
+          if (mode === 'observe') {
+            for (let i = 0; !events.some(event => event.type === 'assessment' && event.callId === name && event.assessment.status === 'completed') && i < 400; i++)
+              await new Promise(resolve => setTimeout(resolve, 5));
+            assert.ok(events.some(event => event.type === 'assessment' && event.callId === name && event.assessment.status === 'completed'));
+          }
+        }
+      }
+      assert.deepEqual(submitted, [['first local rule'], ['second local rule']]);
+      await guard.close();
+      const { readArchive } = await import('../src/recording/archive.js');
+      const archive = await readArchive(join(cwd, 'archive'));
+      assert.ok(archive.records.length > 0);
+      assert.ok(archive.records.every(record => record.sessionId !== 'absent'));
+    } finally { await guard.close(); await rm(cwd, { recursive: true, force: true }); }
+  });
+}
+
 test('SDK distinguishes uninitialized, ready, dormant, unavailable, off and closed without invented assessments', async () => {
   const h = await fixture();
   try {

@@ -239,7 +239,6 @@ class SessionGuard {
   }
 
   private async localPolicyEligible(cwd: string): Promise<boolean> {
-    if (this.options.env.TENET_POLICY !== undefined) return true;
     try { await lstat(join(cwd, 'TENET.md')); return true; }
     catch (error) { return (error as NodeJS.ErrnoException).code !== 'ENOENT'; }
   }

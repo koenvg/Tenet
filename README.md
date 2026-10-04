@@ -21,7 +21,7 @@ The inspector is read-only and unauthenticated on loopback. Do not expose or pro
 This is the recommended path for Pi owners. You need Node 22.19+ with npm, Bun 1.3.14+ and a separate Pi 0.85.1 installation.
 
 1. [Install the production archive](docs/INSTALL-ARCHIVE.md) in a stable directory. It is a private, passing-`main` GitHub Actions artifact with 14-day retention, not an npm package or public release. No build is needed.
-2. [Write your first policy](docs/policy.md#write-a-first-rule) yourself, outside the guarded agent's intercepted path. The archive ships no policy. Only the project's `TENET.md` activates Tenet unless you set `TENET_POLICY`.
+2. [Write your first policy](docs/policy.md#write-a-first-rule) yourself, outside the guarded agent's intercepted path. The archive ships no policy. Only `TENET.md` in the session working directory activates Tenet.
 3. [Run doctor offline](docs/doctor.md#direct-invocation) in the environment the next Pi process will inherit. Replace both paths:
 
    ```sh

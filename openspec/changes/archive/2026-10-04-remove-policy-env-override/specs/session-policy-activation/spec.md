@@ -1,10 +1,6 @@
-# session-policy-activation Specification
+# Spec Delta
 
-## Purpose
-
-Selects whether a loaded Pi extension guards a session based on its policy source, without treating an absent local policy as a broken active policy.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Session policy eligibility
 At session start, TENET SHALL use only `TENET.md` in the session working directory for policy selection and eligibility across runtime-backed sessions, including Pi, Claude Code, and SDK sessions. `TENET_POLICY` SHALL have no effect, including when empty or whitespace-only. Only confirmed local absence SHALL make a new session ineligible. TENET SHALL NOT use a bundled fallback, search parent directories, or infer eligibility from `@TENET.md` prompt attachments.
@@ -41,17 +37,6 @@ At session start, TENET SHALL use only `TENET.md` in the session working directo
 - **WHEN** the session working directory has no `TENET.md` but a parent or installation directory has one
 - **THEN** the session remains ineligible and TENET does not select either other file
 
-### Requirement: Dormant guard has no session effects
-In an ineligible session TENET SHALL bypass tool calls and results without assessment, veto, approval, new TENET records, trajectory capture, archive capture, TENET footer or startup notifications, or TENET commands in the session UI. The global on/off choice SHALL NOT make an ineligible session active. Earlier archived records SHALL remain intact.
-
-#### Scenario: Dormant observe and enforce calls
-- **WHEN** an ineligible session in either observe or enforce mode receives tool calls and results
-- **THEN** TENET permits the calls without judge or approval requests, creates no new TENET evidence or session records, and shows no TENET UI
-
-#### Scenario: Global choice changes while dormant
-- **WHEN** the owner switches the shared choice to on or off in another eligible Pi session
-- **THEN** the ineligible session remains dormant and does not start recording or intercepting calls
-
 ### Requirement: Broken active policies stay conservative
 For eligible sessions TENET SHALL validate the local policy before normal operation. An unreadable, malformed, or otherwise invalid local policy SHALL remain unavailable: enforce blocks new calls and observe permits without claiming an assessment. `TENET_POLICY` SHALL NOT provide a replacement policy. Once eligible, a session SHALL NOT become dormant on policy change, deletion, or read failure. Eligibility SHALL be reconsidered on a new session or extension reload, not on each tool call.
 
@@ -74,6 +59,8 @@ For eligible sessions TENET SHALL validate the local policy before normal operat
 #### Scenario: Explicit missing policy
 - **WHEN** an enforce-mode session has a valid local `TENET.md` and the former `TENET_POLICY` override names a missing file
 - **THEN** TENET loads the local policy and does not report policy unavailability because of the missing external path
+
+## ADDED Requirements
 
 ### Requirement: Offline policy selection diagnostics
 Doctor SHALL inspect only `TENET.md` in the directory selected by `--project` and report local selection and that file's source. `TENET_POLICY` SHALL NOT affect policy diagnostics or configuration validity. With other prerequisites valid and control on, confirmed local absence SHALL report dormant and an unusable local policy SHALL report invalid. Doctor SHALL remain offline and SHALL NOT print policy text or create recordings.

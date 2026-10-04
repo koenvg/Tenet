@@ -40,7 +40,7 @@ Supply `Capabilities` at construction. The runtime copies and freezes them. `tru
 
 Each host/session pair has independent policy, readiness and lifecycle generation. Starting another session does not cancel the first session's work. An unstarted session is unavailable; it cannot borrow another session's policy.
 
-A confirmed missing local `TENET.md` without `TENET_POLICY` is dormant. An explicit missing source, unusable policy or bad configuration is unavailable. Mode is selected once at construction; observe is the default.
+The runtime selects only `TENET.md` in the session cwd. Confirmed local absence is dormant in both modes. An unusable local policy or bad configuration is unavailable, and deletion after activation does not make a session dormant. Mode is selected once at construction; observe is the default. For an older override-based setup, follow [local policy migration](policy.md#migrate-from-tenet_policy).
 
 ### Assess the current call
 
