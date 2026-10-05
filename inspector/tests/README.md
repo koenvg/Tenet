@@ -43,6 +43,8 @@ Vitest Browser Mode mounts React components in headless Chromium without a produ
 
 - Decisions, inert recorded Markdown, question formatting, and evidence navigation.
 - Resizing, initial selection, deep links, and loading/error/recovery states.
+- Shared summary hierarchy, check-selection focus, inert rule text and narrow Calls/Summary navigation at a 390px viewport and a 390px container inside a wide window.
+- Summary projection and rendered output exclude sentinel action arguments, submitted evidence, exact questions, provider bodies, raw policy and recording paths. The library mount updates and disposes without transport or shell-style changes.
 
 The API mock rejects unexpected or non-local requests. This suite does not check archive security.
 

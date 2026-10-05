@@ -11,16 +11,24 @@ test('safe summary shows recorded facts and inert rule text without standalone p
   view.rules[0]!.text = '<script>window.summaryProbe = true</script>';
   view.response = { value: { message: 'provider-response-sentinel' } };
   view.evidence = { ...view.evidence, unrelated: 'submitted-evidence-sentinel' };
+  view.identity!.cwd = '/raw-path-sentinel';
+  view.policy = { privateSource: 'raw-policy-sentinel' };
+  view.rules[0]!.questions = { outcome: 'exact-question-sentinel', evidence: 'exact-question-sentinel' };
+  view.rules[0]!.mapping = { reference: 'raw-mapping-sentinel' };
+  view.rules[0]!.result!.privateSource = 'raw-result-sentinel';
   const model = standaloneSummary(view);
   const serialized = JSON.stringify(model);
-  for (const raw of ['git status --short', 'Recorded instructions', 'window.hostile', 'first_outcome', 'payload', 'questions', 'response', 'mapping', 'provider-response-sentinel', 'submitted-evidence-sentinel']) {
+  for (const raw of ['git status --short', 'Recorded instructions', 'window.hostile', 'first_outcome', 'payload', 'questions', 'response', 'mapping', 'provider-response-sentinel', 'submitted-evidence-sentinel', 'raw-path-sentinel', 'raw-policy-sentinel', 'exact-question-sentinel', 'raw-mapping-sentinel', 'raw-result-sentinel']) {
     expect(serialized).not.toContain(raw);
   }
   const screen = await render(SummaryWorkspace, { model: { calls: [], selected: model, coverage: 'Best-effort synthetic capture.', loading: false, error: '', category: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } });
   await expect.element(screen.getByRole('region', { name: 'Actual execution' }).getByText('Ran', { exact: true })).toBeVisible();
+  await screen.getByText('Why this assessment', { exact: true }).click();
+  await screen.getByText('Selected check details', { exact: true }).click();
   await expect.element(screen.getByText('<script>window.summaryProbe = true</script>').first()).toBeVisible();
   expect(screen.container.querySelector('script')).toBeNull();
-  expect(screen.container.textContent).not.toContain('git status --short');
+  for (const raw of ['git status --short', 'provider-response-sentinel', 'submitted-evidence-sentinel', 'raw-path-sentinel', 'raw-policy-sentinel', 'exact-question-sentinel', 'raw-mapping-sentinel', 'raw-result-sentinel']) expect(screen.container.textContent).not.toContain(raw);
+  expect(Object.hasOwn(window, 'summaryProbe')).toBe(false);
   expect(screen.container.textContent).toContain('standalone inspector');
 });
 
@@ -38,6 +46,12 @@ for (const [viewport, container] of [[390, 390], [1280, 390], [1280, 1000]]) {
       await expect.element(screen.getByRole('region', { name: 'Actual execution' })).toBeVisible();
       await expect.element(screen.getByText('Synthetic coverage stays visible.')).toBeVisible();
       await expect.element(screen.getByRole('button', { name: 'Refresh archive' })).toBeVisible();
+      await screen.getByText('Why this assessment', { exact: true }).click();
+      await screen.getByRole('button', { name: 'Inspect evidence confidence' }).click();
+      await expect.element(screen.getByRole('heading', { name: 'Evidence confidence' })).toBeVisible();
+      await screen.getByText(/Browse all rules/).click();
+      await screen.getByRole('button', { name: /Record every file edit/ }).click();
+      await expect.element(screen.getByRole('heading', { name: 'Rule at line 9' })).toBeVisible();
       await navigation.getByRole('button', { name: 'Calls' }).click();
       await expect.element(screen.getByRole('complementary', { name: 'Call explorer' })).toBeVisible();
     } else {
@@ -49,6 +63,23 @@ for (const [viewport, container] of [[390, 390], [1280, 390], [1280, 1000]]) {
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
   });
 }
+test('shared workspace keeps the standalone summary hierarchy and check disclosures', async () => {
+  await page.viewport(1280, 900);
+  const screen = await render(SummaryWorkspace, { model: { calls: [], selected: standaloneSummary(makeView()), category: '', coverage: 'Synthetic', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } });
+  await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
+  expect(screen.container.querySelector('[aria-label="Decision map"]')?.checkVisibility()).toBe(false);
+  await screen.getByText('Why this assessment', { exact: true }).click();
+  await expect.element(screen.getByRole('group', { name: 'Decision map' })).toBeVisible();
+  await screen.getByRole('button', { name: 'Inspect evidence confidence' }).click();
+  await expect.element(screen.getByRole('heading', { name: 'Evidence confidence' })).toBeVisible();
+  expect(document.activeElement?.textContent).toContain('Evidence confidence');
+  await screen.getByText(/Browse all rules/).click();
+  await screen.getByRole('button', { name: /Record every file edit/ }).click();
+  await expect.element(screen.getByRole('heading', { name: 'Rule at line 9' })).toBeVisible();
+  expect(screen.container.querySelectorAll('.summary-content > details > summary')).toHaveLength(1);
+  expect(screen.container.querySelector('.evidence-dock')).toBeNull();
+});
+
 
 for (const [name, options, text] of [
   ['pass', { decision: 'ALLOW', gate: null }, 'No blocking issues or approval requirements were recorded.'],
@@ -70,6 +101,8 @@ test('historical thresholds and built-in identity are recorded inputs, not curre
   view.rules[0]!.thresholds.evidenceThreshold = .91;
   view.rules[0]!.builtin = true;
   const screen = await render(SummaryWorkspace, { model: { calls: [], selected: standaloneSummary(view), category: '', coverage: 'Synthetic', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } });
+  await screen.getByText('Why this assessment', { exact: true }).click();
+  await screen.getByText('Selected check details', { exact: true }).click();
   await expect.element(screen.getByText('Built-in integrity').first()).toBeVisible();
   expect(screen.container.querySelector('[role="meter"]')?.getAttribute('aria-valuetext')).toBe('0.85; required confidence 0.91');
 });

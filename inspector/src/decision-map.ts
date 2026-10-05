@@ -1,4 +1,5 @@
-import { confidenceReadings, gateLabels, type RuleView } from './presentation.js';
+import { confidenceReadings, gateLabels } from './presentation.js';
+import type { SummaryRule } from './shared/model.js';
 
 export interface MapCheck {
   id: string;
@@ -10,7 +11,7 @@ export interface MapCheck {
 }
 
 // This is a projection of archived diagnostics, never a policy evaluator.
-export function mapChecks(rule: RuleView | undefined): MapCheck[] {
+export function mapChecks(rule: SummaryRule | undefined): MapCheck[] {
   if (!rule) return [{ id: 'missing', label: 'Assessment', value: 'Not recorded', gate: null, unknown: true }];
   const gates = rule.gateIds;
   const outcome = rule.result?.outcome?.choice;

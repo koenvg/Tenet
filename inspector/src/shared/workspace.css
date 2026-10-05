@@ -1,59 +1,34 @@
-/* No document, body or shell selectors. Theme values inherit from the host. */
+/* Workspace shell only. Call and detail presentation live in presentation.css. */
 .tenet-summary-workspace.embedded {
-  --tenet-ink: var(--foreground, #202921); --tenet-muted: var(--muted-foreground, #606a61);
-  --tenet-chrome: var(--background, #fff); --tenet-soft: var(--muted, #f2f4f0);
-  --tenet-line: var(--border, #d9ddd7); --tenet-amber: var(--warning-text, #805516);
-  color: var(--tenet-ink); background: var(--tenet-chrome); font: 14px/1.5 var(--font-sans, system-ui, sans-serif);
+  --tenet-ink: var(--foreground, #171918); --tenet-muted: var(--muted-foreground, #5b605e);
+  --tenet-chrome: var(--background, #fff); --tenet-soft: var(--muted, #eff0ed);
+  --tenet-line: var(--border, #d4d7d4); --tenet-amber: var(--warning-text, #795617);
+  --tenet-danger: var(--destructive-text, #be3737);
+  --tenet-danger-bg: color-mix(in srgb, var(--tenet-danger) 10%, var(--tenet-chrome));
+  --tenet-amber-bg: color-mix(in srgb, var(--tenet-amber) 10%, var(--tenet-chrome));
   container: tenet-summary / inline-size; min-width: 0; width: 100%;
-  display: grid; grid-template-columns: minmax(200px, 30%) minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr); align-content: start;
+  display: grid; grid-template-columns: clamp(260px, 30%, 300px) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr); align-content: start; background: var(--tenet-soft);
 }
-.tenet-summary-workspace.embedded * { box-sizing: border-box; }
-.tenet-summary-workspace.embedded :is(h2, h3, p) { margin: 0 0 12px; }
-.tenet-summary-workspace.embedded :is(button, select) { font: inherit; color: inherit; background: var(--tenet-chrome); border: 1px solid var(--tenet-line); border-radius: 6px; padding: 8px; max-width: 100%; cursor: pointer; }
-.tenet-summary-workspace.embedded button:disabled { opacity: .6; cursor: default; }
-.tenet-summary-workspace.embedded :is(button, select):focus-visible { outline: 2px solid var(--tenet-ink); outline-offset: -2px; }
-.tenet-summary-workspace.embedded :is(.archive-messages, .mobile-nav) { grid-column: 1 / -1; padding: 12px; border-bottom: 1px solid var(--tenet-line); }
-.tenet-summary-workspace.embedded .archive-messages { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.tenet-summary-workspace.embedded .archive-messages p { margin: 0; flex: 1; min-width: 160px; }
 .tenet-summary-workspace.embedded .mobile-nav { display: none; gap: 8px; }
-.tenet-summary-workspace.embedded :is(.explorer, .inspection) { min-width: 0; padding: 16px; overflow-wrap: anywhere; }
-.tenet-summary-workspace.embedded .explorer { border-right: 1px solid var(--tenet-line); }
-.tenet-summary-workspace.embedded .triage-tools select { display: block; width: 100%; margin: 8px 0 16px; }
-.tenet-summary-workspace.embedded :is(.call-list, .rule-list) { display: flex; flex-direction: column; gap: 8px; max-height: 480px; overflow: auto; }
-.tenet-summary-workspace.embedded .call-row { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 8px; width: 100%; text-align: left; }
-.tenet-summary-workspace.embedded .call-row > .decision-icon { width: 24px; height: 24px; }
-.tenet-summary-workspace.embedded :is(.call-top, .call-state, .primary-badges, .story-title) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.tenet-summary-workspace.embedded .story-title > .decision-icon { width: 30px; height: 30px; }
-.tenet-summary-workspace.embedded :is(.call-concern, .call-mode, .explorer-footer, .raw-evidence-note) { color: var(--tenet-muted); font-size: 12px; }
-.tenet-summary-workspace.embedded .call-concern { display: block; }
-.tenet-summary-workspace.embedded .call-top time { color: var(--tenet-muted); font-size: 11px; }
-.tenet-summary-workspace.embedded [aria-pressed='true'] { background: var(--tenet-soft); }
-.tenet-summary-workspace.embedded :is(.rule-row, .rule-detail) { text-align: left; padding: 12px; border: 1px solid var(--tenet-line); border-radius: 6px; }
-.tenet-summary-workspace.embedded :is(.rule-row-top, .rule-text, .rule-finding) { display: block; }
-.tenet-summary-workspace.embedded .rule-detail { margin-top: 16px; }
-.tenet-summary-workspace.embedded .distributions { overflow: auto; }
-.tenet-summary-workspace.embedded table { width: 100%; border-collapse: collapse; }
-.tenet-summary-workspace.embedded :is(th, td) { text-align: left; padding: 4px; }
-.tenet-summary-workspace.embedded :is(.recording-inconsistency, .capture-warning, [role='alert']) { color: var(--destructive-text, #9b3534); }
-.tenet-summary-workspace.embedded .story-assessment { font-weight: 600; margin-top: 16px; }
-.tenet-summary-workspace.embedded .raw-evidence-note { margin: 16px 0; }
-.tenet-summary-workspace.embedded .gate-list { padding-left: 20px; }
-.tenet-summary-workspace.embedded .confidence-track { height: 12px; background: var(--tenet-soft); position: relative; margin: 12px 0; }
-.tenet-summary-workspace.embedded .confidence-fill { display: block; height: 100%; background: var(--tenet-amber); }
-.tenet-summary-workspace.embedded .confidence-threshold { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--tenet-ink); }
-.tenet-summary-workspace.embedded :is(.confidence-label, .confidence-values) { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
-.tenet-summary-workspace.embedded .status-chip { color: var(--tenet-ink); background: var(--tenet-soft); border-color: var(--tenet-line); }
-.tenet-summary-workspace.embedded .status-chip.positive { color: var(--success, #17623e); background: color-mix(in srgb, var(--success, #17623e) 10%, var(--tenet-chrome)); }
-.tenet-summary-workspace.embedded .status-chip.danger { color: var(--destructive-text, #9b3534); background: color-mix(in srgb, var(--destructive, #9b3534) 10%, var(--tenet-chrome)); }
-.tenet-summary-workspace.embedded .status-chip.caution { color: var(--tenet-amber); background: color-mix(in srgb, var(--warning, #805516) 10%, var(--tenet-chrome)); }
-.tenet-summary-workspace.embedded .status-chip.approval { color: var(--primary, #62419a); background: color-mix(in srgb, var(--primary, #62419a) 10%, var(--tenet-chrome)); }
-.tenet-summary-workspace.embedded .call-id { display: block; font-size: 12px; overflow-wrap: anywhere; }
-.tenet-summary-workspace.embedded .call-id[hidden] { display: none; }
-/* Children respond to the workspace container, not the browser window. */
+.tenet-summary-workspace.embedded :is(.archive-messages, .mobile-nav) { grid-column: 1 / -1; padding: 12px 24px; }
+.tenet-summary-workspace.embedded .archive-messages { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; color: var(--tenet-muted); font-size: 12px; }
+.tenet-summary-workspace.embedded .archive-messages p { flex: 1; min-width: 160px; }
+.tenet-summary-workspace.embedded .explorer { display: flex; flex-direction: column; min-width: 0; padding: 12px 0 20px; }
+.tenet-summary-workspace.embedded .call-list { max-height: 600px; }
+.tenet-summary-workspace.embedded .inspection { min-width: 0; overflow-wrap: anywhere; background: var(--tenet-chrome); border-radius: 16px; margin: 0 24px 20px 0; }
+.tenet-summary-workspace.embedded .invocation { height: auto; }
+.tenet-summary-workspace.embedded .raw-evidence-note { margin: 0 32px 24px; color: var(--tenet-muted); font-size: 12px; }
+.tenet-summary-workspace.embedded [role='alert'] { color: var(--tenet-danger); }
+.tenet-summary-workspace.embedded .call-id { overflow-wrap: anywhere; font-size: 12px; }
 @container tenet-summary (max-width: 650px) {
   .tenet-summary-workspace.embedded .mobile-nav { display: flex; }
+  .tenet-summary-workspace.embedded .mobile-nav button { flex: 1; text-align: center; }
+  .tenet-summary-workspace.embedded .mobile-nav button[aria-pressed='true'] { background: var(--tenet-soft); font-weight: 600; }
   .tenet-summary-workspace.embedded :is(.explorer, .inspection) { grid-column: 1 / -1; }
+  .tenet-summary-workspace.embedded .inspection { margin: 0; border-radius: 0; }
+  .tenet-summary-workspace.embedded .call-list { padding: 0 12px; }
+  .tenet-summary-workspace.embedded .call-row { border-radius: 12px; }
   .tenet-summary-workspace.embedded[data-mobile-view='calls'] .inspection { display: none; }
   .tenet-summary-workspace.embedded:not([data-mobile-view='calls']) .explorer { display: none; }
 }

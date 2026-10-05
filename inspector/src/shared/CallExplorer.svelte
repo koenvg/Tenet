@@ -31,7 +31,7 @@
     {#each calls as item}
       {@const status = primaryStatus(item)}
       {@const concern = callConcern(item)}
-      <button class="call-row" aria-pressed={selectedId === item.id} on:click={() => selectCall(item.id)}>
+      <button class="call-row" data-call-id={item.id} aria-pressed={selectedId === item.id} on:click={() => selectCall(item.id)}>
         <DecisionIcon kind={item.toolName === 'bash' ? 'action' : ['read', 'write', 'edit'].includes(item.toolName) ? 'document' : 'tool'} />
         <span class="call-copy">
           <span class="call-top"><strong>{toolLabel(item.toolName)}</strong><time>{timestamp(item.timestamp)}</time></span>

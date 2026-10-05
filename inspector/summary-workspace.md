@@ -42,6 +42,10 @@ This source-only preview uses authored summaries. It reads no archive, sends no 
 
 The list and summary appear beside each other above a 650px workspace width. The compact navigation uses the workspace container width, not the window width. If port 52351 is occupied, use the URL Vite prints.
 
+Open `http://127.0.0.1:52351/comparison-preview.html` for a side-by-side check. Both sides use the same synthetic recorded summary; the left adds standalone extensions and the right uses the summary-only library mount. Add `?container=390` to compare narrow containers inside a wide window.
+
+The fixture imports authored test records, not a local recording. Each side must expose the same assessment disclosures without horizontal overflow; only the left exposes raw-detail disclosures.
+
 ## Summary input
 
 The source contract is [shared/model.ts](src/shared/model.ts). It is a presentation contract, not the authenticated BB transport schema. Future BB host adapters must construct an allowlisted, validated summary before serialization. TypeScript types alone do not enforce a privacy boundary.
@@ -72,12 +76,16 @@ standalone HTTP -> explicit summary projection -> shared Svelte workspace
 planned BB host RPC     -> validated safe summary     -> React mount -> same workspace
 ```
 
-The standalone app uses [standalone-adapter.ts](src/shared/standalone-adapter.ts) and the shared call, status and rule views. Its private snippets keep action previews, assessment-map interactions, Evidence, exact questions, Response, Policy, recording details and uncertainty groups outside the summary model. Existing session links, history and polling stay in the standalone app.
+The standalone app uses [standalone-adapter.ts](src/shared/standalone-adapter.ts) to copy summary fields. Both hosts render [SummaryDetail.svelte](src/shared/SummaryDetail.svelte), including the decision summary, recorded assessment map, **Why this assessment**, **Selected check details** and **Browse all rules**. Call and detail spacing, hierarchy and disclosure styles live in [presentation.css](src/shared/presentation.css).
+
+Standalone [Detail.svelte](src/Detail.svelte) adds private action-preview and raw-detail snippets around that shared layout. Evidence, exact questions, Response, Policy and recording details stay outside the summary model.
+
+Rule selection still chooses the standalone dock's recorded rule. Existing session links, history, polling and uncertainty groups stay in the standalone app.
 
 The library entry is [library.svelte.ts](src/shared/library.svelte.ts). `mountSummaryWorkspace(target, input)` returns `update(input)` and asynchronous, idempotent `destroy()`. Updates after disposal do nothing. The entry exposes no raw-detail snippets, HTTP client, polling timer or global history handler.
 
 [SummaryWorkspaceMount](../bb-plugin-tenet-status/summary-workspace.tsx) is the typed React wrapper. It mounts once, updates the same Svelte instance for new input and destroys it on unmount. Key the wrapper by adapter scope when switching threads or sessions. The adapter must cancel old reads, ignore late completions and clear stale results after an unavailable read.
 
-Styles stay under `.tenet-summary-workspace.embedded` or Svelte-generated component selectors. They inherit BB theme tokens and do not import standalone document styles. The library opens no iframe, proxy or inspector listener. Standalone loopback, Host, Origin and frame restrictions remain unchanged.
+Styles stay under `.tenet-presentation`, `.tenet-summary-workspace.embedded` or Svelte-generated component selectors. They inherit BB theme tokens and do not import standalone document styles. The library opens no iframe, proxy or inspector listener. Standalone loopback, Host, Origin and frame restrictions remain unchanged.
 
 Raw evidence remains accessible only through the [standalone inspector](../docs/inspector.md). Safe summaries still include recorded rule text. They do not guarantee confidentiality against same-user code, complete capture, live evaluator connectivity, permission or execution.
