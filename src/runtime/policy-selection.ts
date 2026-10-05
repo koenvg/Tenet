@@ -1,7 +1,7 @@
-import type { Stats } from 'node:fs';
+import { probeFilesystemPresence, type PresenceFileSystem as SelectionFileSystem } from '../decision/filesystem-presence.js';
 import { lstat, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import type { PolicyCandidate } from '../decision/contracts.js';
 
@@ -31,38 +31,10 @@ export function policySelectionIdentity(cwd: string, env: Record<string, string 
   return createHash('sha256').update(JSON.stringify(policyCandidates(cwd, env).map(c => [c.role, c.selection, c.source]))).digest('hex');
 }
 
-type SelectionFileSystem = {
-  lstat(path: string): Promise<Pick<Stats, 'isDirectory' | 'isSymbolicLink'>>;
-  stat(path: string): Promise<Pick<Stats, 'isDirectory'>>;
-};
 async function inspect(candidate: ReturnType<typeof policyCandidates>[number], fs: SelectionFileSystem): Promise<SelectedCandidate> {
   if (candidate.failure) return { ...candidate, presence: 'unavailable' };
-  try {
-    await fs.lstat(candidate.source);
-    return { ...candidate, presence: 'present' };
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      // Missing directories are optional. Broken ancestor links are not absence.
-      let parent = dirname(candidate.source);
-      for (;;) {
-        let info;
-        try { info = await fs.lstat(parent); }
-        catch (ancestorError) {
-          if ((ancestorError as NodeJS.ErrnoException).code !== 'ENOENT') break;
-        }
-        if (info) {
-          try {
-            if (!(info.isSymbolicLink() ? await fs.stat(parent) : info).isDirectory()) break;
-            return { ...candidate, presence: 'absent' };
-          } catch { break; }
-        }
-        const next = dirname(parent);
-        if (next === parent) break;
-        parent = next;
-      }
-    }
-    return { ...candidate, presence: 'unavailable', failure: 'policy-unavailable' };
-  }
+  const presence = await probeFilesystemPresence(candidate.source, fs);
+  return { ...candidate, presence, ...(presence === 'unavailable' ? { failure: 'policy-unavailable' as const } : {}) };
 }
 
 /** Only confirmed absence of both implicit sources is dormant. FS injection is internal. */

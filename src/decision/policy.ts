@@ -3,8 +3,7 @@ import { constants } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import type { Policy, PolicyCandidate, PolicyFailure, PolicyRole, PolicySet, PolicySource, Rule } from './contracts.js';
-import { lstat, stat } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { probeFilesystemPresence } from './filesystem-presence.js';
 import { freeze } from './immutable.js';
 export const POLICY_CONTRACT = 'policy-sources-v1' as const;
 
@@ -55,7 +54,7 @@ export async function loadPolicy(input: string | readonly PolicyCandidate[]): Pr
     for (const candidate of candidates) {
       failedRole = candidate.role;
       if (candidate.presence === 'absent') {
-        if (candidate.selection !== 'local' || !await confirmedAbsent(candidate.source)) throw new PolicyError('policy-unavailable');
+        if (candidate.selection !== 'local' || (await probeFilesystemPresence(candidate.source)) !== 'absent') throw new PolicyError('policy-unavailable');
         continue;
       }
       if (candidate.presence !== 'present') throw new PolicyError('policy-unavailable');
@@ -115,48 +114,10 @@ export function combinedPolicyDigest(candidates: readonly PolicyCandidate[], sou
   })])).digest('hex');
 }
 
-async function confirmedAbsent(source: string): Promise<boolean> {
-  try { await lstat(source); return false; } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return false;
-  }
-  let parent = dirname(source);
-  for (;;) {
-    try { return (await stat(parent)).isDirectory(); } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return false;
-      try {
-        const ancestor = await lstat(parent);
-        if (!ancestor.isDirectory()) return false;
-        // Capture can create this directory after stat saw ENOENT.
-        // Candidate ENOENT can hide a broken link, so check the lower path too.
-        for (let child = dirname(source); child !== parent; child = dirname(child)) {
-          let info;
-          try { info = await lstat(child); } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return false;
-          }
-          if (info) {
-            try {
-              const target = info.isSymbolicLink() ? await stat(child) : info;
-              if (!target.isDirectory()) return false;
-            } catch { return false; }
-          }
-        }
-        try { await lstat(source); return false; } catch (error) {
-          return (error as NodeJS.ErrnoException).code === 'ENOENT';
-        }
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return false;
-      }
-    }
-    const next = dirname(parent);
-    if (next === parent) return false;
-    parent = next;
-  }
-}
-
 export async function policyIsCurrent(policy: PolicySet): Promise<boolean> {
   try {
     for (const c of policy.candidates) {
-      if (c.presence === 'absent') { if (!await confirmedAbsent(c.source)) return false; continue; }
+      if (c.presence === 'absent') { if ((await probeFilesystemPresence(c.source)) !== 'absent') return false; continue; }
       const s = policy.sources.find(s => s.role === c.role);
       if (!s) return false;
       const current = await snapshot(c.source);
