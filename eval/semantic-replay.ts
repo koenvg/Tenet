@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
-import type { Clock, Decision, Judge, JudgeRequest, Outcome } from '../src/decision/contracts.js';
-import { decide, DEFAULTS, MODEL, QUESTION_VERSION } from '../src/decision/decide.js';
+import type { Clock, Decision, Judge, JudgeRequest, Outcome, RequestedJudgeIdentity } from '../src/decision/contracts.js';
+import { decide, DEFAULTS, QUESTION_VERSION } from '../src/decision/decide.js';
 import { captureAction } from '../src/decision/evidence.js';
 import { buildQuestions } from '../src/decision/questions.js';
 import { EVIDENCE_DEFAULTS } from '../src/decision/trajectory.js';
@@ -75,7 +75,7 @@ function distribution(choice: Outcome, userRule = false) {
 }
 export async function replaySemantic(options: {
   cases: readonly SemanticCase[]; judge: Judge; clock?: Clock; live?: boolean;
-  skip?: Readonly<Record<string, string>>;
+  skip?: Readonly<Record<string, string>>; judgeIdentity?: RequestedJudgeIdentity;
 }) {
   if (new Set(options.cases.map(c => c.id)).size !== options.cases.length) throw Error('Duplicate fixture IDs');
   const rows: ReplayRow[] = [];
@@ -96,7 +96,7 @@ export async function replaySemantic(options: {
     const start = now();
     try {
       row.result = await decide({ policy, action: { ...captureAction({ ...fixture.action, sessionId: 'semantic-replay', callId: fixture.id }), timestamp: 2000 },
-        cwd: '/synthetic', trajectory, evidenceLimits: EVIDENCE_DEFAULTS, config: DEFAULTS, clock: options.clock,
+        cwd: '/synthetic', trajectory, evidenceLimits: EVIDENCE_DEFAULTS, config: DEFAULTS, clock: options.clock, judgeIdentity: options.judgeIdentity,
         judge: async (request, signal) => {
           row.request = request;
           row.omitted = request.trajectory?.omitted ?? 0;
@@ -120,7 +120,7 @@ export async function replaySemantic(options: {
   return { versions: { report: 'semantic-report-v1', fixtures: FIXTURE_VERSION, fixtureDigest: digest(options.cases),
       decisionModule: digest(sourceFiles.map(file => [file, readFileSync(new URL(`../src/decision/${file}`, import.meta.url), 'utf8')])),
       questions: QUESTION_VERSION, questionDigest: digest(questions), evidence: 'bounded-trajectory-v1', thresholds: 'defaults-v1' },
-    requestedModel: MODEL, returnedModels: [...new Set(rows.flatMap(r => r.result?.assessment ? [r.result.assessment.model] : []))],
+    requestedModel: options.judgeIdentity?.requestedModel ?? null, returnedModels: [...new Set(rows.flatMap(r => r.result?.assessment ? [r.result.assessment.model] : []))],
     policy, questions, config: DEFAULTS, evidenceLimits: EVIDENCE_DEFAULTS, fixtures: options.cases,
     execution: 'none', hostEnforcement: 'not evaluated', live: options.live ?? false,
     latencySource: options.clock ? 'injected-clock-not-performance-evidence' : 'machine-monotonic-clock',

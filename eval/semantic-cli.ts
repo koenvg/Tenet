@@ -1,6 +1,7 @@
 import { open } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { createJevJudge } from '../src/decision/jev.js';
+import { MODEL } from '../src/decision/typesafe-contract.js';
 import { semanticCases } from './semantic-fixtures.js';
 import { replaySemantic, scriptedJudge } from './semantic-replay.js';
 
@@ -28,6 +29,7 @@ export async function main(args = process.argv.slice(2), env = process.env) {
   try {
     report = await replaySemantic({ cases: semanticCases, live,
       judge: live ? createJevJudge({ apiKey: env.TYPESAFE_API_KEY }) : scriptedJudge,
+      judgeIdentity: live ? { provider: 'typesafe', requestedModel: MODEL } : undefined,
       // Offline durations are synthetic and deterministic, never performance evidence.
       clock: live ? undefined : { now: () => 0, schedule: () => () => {} },
     });
