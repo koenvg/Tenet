@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, watch, type FSWatcher } from 'node:fs';
+import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, watch, type FSWatcher, type Stats } from 'node:fs';
 import { open, rename, rm, lstat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join } from 'node:path';
@@ -9,6 +9,13 @@ export type Activation = 'on' | 'off' | 'unavailable';
 const MAX_BYTES = 1024;
 const privateOwner = (mode: number, uid: number) =>
   (mode & 0o077) === 0 && (process.getuid === undefined || uid === process.getuid());
+
+function sameFileState(before: Stats, after: Stats): boolean {
+  return after.isFile() && before.dev === after.dev && before.ino === after.ino
+    && before.mode === after.mode && before.uid === after.uid && before.gid === after.gid
+    && before.nlink === after.nlink && before.size === after.size
+    && before.mtimeMs === after.mtimeMs && before.ctimeMs === after.ctimeMs;
+}
 
 /** A cooperative same-user control, not a security boundary. */
 export class ActivationStore {
@@ -27,12 +34,14 @@ export class ActivationStore {
     try {
       const root = dirname(this.path);
       let ancestor = root;
+      const ancestors = new Map<string, Stats>();
       let missing = false;
       for (;;) {
         try {
           const info = lstatSync(ancestor);
           if (!info.isDirectory() || info.isSymbolicLink()
             || (ancestor === root && !privateOwner(info.mode, info.uid))) return 'unavailable';
+          ancestors.set(ancestor, info);
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return 'unavailable';
           missing = true;
@@ -48,9 +57,15 @@ export class ActivationStore {
       if (!info.isFile() || info.nlink !== 1 || !privateOwner(info.mode, info.uid) || info.size > MAX_BYTES) return 'unavailable';
       const buffer = Buffer.alloc(MAX_BYTES + 1);
       const count = readSync(fd, buffer, 0, buffer.length, null);
-      if (count > MAX_BYTES) return 'unavailable';
+      if (count > MAX_BYTES || count !== info.size || !sameFileState(info, fstatSync(fd))) return 'unavailable';
+      for (const [path, previous] of ancestors) {
+        const current = lstatSync(path);
+        if (!current.isDirectory() || current.isSymbolicLink()
+          || current.dev !== previous.dev || current.ino !== previous.ino
+          || (path === root && !privateOwner(current.mode, current.uid))) return 'unavailable';
+      }
       const selected = lstatSync(this.path);
-      if (!selected.isFile() || selected.dev !== info.dev || selected.ino !== info.ino) return 'unavailable';
+      if (!sameFileState(info, selected)) return 'unavailable';
       const parsed: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(0, count)));
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)
         || Object.keys(parsed).sort().join(',') !== 'activation,version'

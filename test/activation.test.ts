@@ -51,6 +51,31 @@ test('activation rejects malformed, oversized, unsafe and unreadable control pat
   await assert.rejects(store.write('on'));
 }));
 
+test('activation keeps the exact two-field control schema', async () => fixture(async path => {
+  const store = new ActivationStore(path);
+  for (const value of [
+    { version: 1, activation: 'off', extra: true },
+    { version: 2, activation: 'off' },
+    { version: 1 },
+    { version: 1, activation: 'unavailable' },
+    { version: '1', activation: 'on' },
+  ]) {
+    await writeFile(path, JSON.stringify(value), { mode: 0o600 });
+    assert.equal(store.read(), 'unavailable');
+  }
+}));
+
+test('activation keeps seen-absence rules for missing directories', async () => fixture(async path => {
+  const nested = join(path, '..', 'private', 'control.json');
+  const store = new ActivationStore(nested);
+  assert.equal(store.read(), 'on');
+  await store.write('off');
+  assert.equal(store.read(), 'off');
+  await rm(join(nested, '..'), { recursive: true });
+  assert.equal(store.read(), 'unavailable');
+  assert.equal(new ActivationStore(nested).read(), 'on');
+}));
+
 test('activation rejects a symlinked ancestor even when the final file is private', async () => fixture(async path => {
   const folder = join(path, '..', 'target-folder');
   await mkdir(join(folder, 'nested'), { recursive: true, mode: 0o700 });
