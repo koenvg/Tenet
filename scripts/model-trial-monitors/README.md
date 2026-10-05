@@ -20,7 +20,11 @@ BB must support `thread queue create --idempotency-key`. The keyed queue endpoin
 
 These are one-off trials. A new trial needs a new automation ID. Reusing an ID and deleting its state can conflict with the saved receipt. Existing `terminal_notified` state remains final and causes only a pause.
 
-Queue acceptance does not prove provider execution or a user-visible answer. BB owns later queue dispatch. Connection-interruption alerts still use best-effort delivery.
+After three consecutive failed status checks, each monitor saves a connection event with the exact alert and a unique key `model-trial:<automation-id>:connection:<uuid>`. It retries the saved event before another status check and records `connection_alerted` only after BB accepts the request.
+
+A successful status check clears that event and resets the failure count. A later interruption gets a new key and can produce a new alert.
+
+Queue acceptance does not prove provider execution or a user-visible answer. BB owns later queue dispatch.
 
 ## Update a stored monitor
 
