@@ -51,7 +51,9 @@ function validSettings(value: unknown): value is OwnerSettings {
 const filesystem = { lstatSync, openSync, fstatSync, readSync, closeSync };
 const sameOwner = (info: Stats) => process.getuid === undefined || info.uid === process.getuid();
 const privateOwner = (info: Stats) => sameOwner(info) && (info.mode & 0o077) === 0;
-const sameIdentity = (a: Stats, b: Stats) => a.dev === b.dev && a.ino === b.ino && a.mode === b.mode && a.uid === b.uid && a.nlink === b.nlink;
+// Directory link counts can change when unrelated child directories are added or removed.
+const sameDirectoryIdentity = (a: Stats, b: Stats) => a.dev === b.dev && a.ino === b.ino && a.mode === b.mode && a.uid === b.uid;
+const sameFileIdentity = (a: Stats, b: Stats) => sameDirectoryIdentity(a, b) && a.nlink === b.nlink;
 const missing = (error: unknown) => (error as NodeJS.ErrnoException)?.code === 'ENOENT';
 
 /** Read-only, bounded owner configuration. No project search, repair, watcher or content diagnostics. */
@@ -72,7 +74,7 @@ export function readOwnerSettings(home = ownerHome(), io = filesystem): Settings
     }
     const unchangedAncestors = () => {
       for (const [ancestor, before] of ancestors) {
-        try { const after = io.lstatSync(ancestor); if (!before || !sameIdentity(before, after) || !after.isDirectory()) return false; }
+        try { const after = io.lstatSync(ancestor); if (!before || !sameDirectoryIdentity(before, after) || !after.isDirectory()) return false; }
         catch (error) { if (before || !missing(error)) return false; }
       }
       return true;
@@ -89,7 +91,7 @@ export function readOwnerSettings(home = ownerHome(), io = filesystem): Settings
     if (selected.size > SETTINGS_MAX_BYTES) return invalid('oversized');
     fd = io.openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     const opened = io.fstatSync(fd);
-    if (!safeFile(opened) || !sameIdentity(selected, opened)) return invalid('unsafe');
+    if (!safeFile(opened) || !sameFileIdentity(selected, opened)) return invalid('unsafe');
     if (opened.size > SETTINGS_MAX_BYTES) return invalid('oversized');
     const buffer = Buffer.alloc(SETTINGS_MAX_BYTES + 1);
     let count = 0;
@@ -100,7 +102,7 @@ export function readOwnerSettings(home = ownerHome(), io = filesystem): Settings
     }
     if (count > SETTINGS_MAX_BYTES) return invalid('oversized');
     const after = io.fstatSync(fd), current = io.lstatSync(path);
-    if (!safeFile(after) || !sameIdentity(opened, after) || !sameIdentity(after, current)
+    if (!safeFile(after) || !sameFileIdentity(opened, after) || !sameFileIdentity(after, current)
       || after.size !== count || after.size !== opened.size || after.mtimeMs !== opened.mtimeMs || after.ctimeMs !== opened.ctimeMs
       || !unchangedAncestors()) return invalid('unsafe');
     let parsed: unknown;
