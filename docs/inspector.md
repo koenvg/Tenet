@@ -78,6 +78,14 @@ For an installed archive, use `npm run inspector:serve` with the same variable. 
 
 For local frontend development only, `bun inspector` starts Vite with live reloading from the repository root. Vite development and preview try `http://127.0.0.1:52320/`, then successive ports if occupied. Both development and production retain loopback binding, Host/Origin checks and read-only routing. Plain URLs and reloads work without a token.
 
+## Shared summaries and standalone evidence
+
+The developer checkout now shares call, status and rule-summary presentation with a Svelte workspace prepared for BB. The BB overview is not registered by this preparation step. Its summary input excludes raw arguments, action previews, submitted evidence, exact questions and provider response bodies.
+
+The standalone inspector retains those detail views and its existing links. Sharing presentation neither exposes nor proxies its loopback listener. Rule text renders as inert text, but recorded policy text can still contain secrets. Same-user access limits remain unchanged.
+
+For checkout-only library builds and a synthetic source preview, use the [shared summary developer reference](../inspector/summary-workspace.md). These commands do not install or reload the BB plugin.
+
 ## Select a session, call and rule
 
 1. Filter by the exact project directory. Choose a suggested path or enter one. New project paths are canonical working directories, not Git remote groups. Older records retain their captured paths.

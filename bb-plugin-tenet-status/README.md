@@ -7,10 +7,10 @@ Use this plugin to read recorded Pi findings in a BB thread. It does not activat
 Local recordings can contain secrets despite redaction. This read-only view is not a protection, approval or confidentiality boundary. Before enabling capture, read [capture and deletion limits](../docs/inspector.md#sensitive-local-storage).
 
 1. Complete the separate [Pi installation](../docs/INSTALL-ARCHIVE.md). Configure the policy and credentials before any real assessed action. Those actions disclose evidence to TypeSafe and use quota; installing this read-only plugin makes no evaluator request.
-2. From the root of a stable Tenet checkout, build and install the plugin:
+2. Complete the [locked development setup](../CONTRIBUTING.md#set-up). From the root of a stable Tenet checkout, build and install the plugin:
 
    ```sh
-   bb plugin build bb-plugin-tenet-status
+   bun run plugin:build
    bb plugin install /absolute/path/to/Tenet/bb-plugin-tenet-status
    ```
 
@@ -73,11 +73,20 @@ The host caches validated metadata. Every refresh bounds scanning and shares a 2
 
 Summary RPCs return counts and bounded coverage codes, not rule text or action strings. Details return selected rule text, a policy-snapshot hash and allowlisted call/classification fields. Policy text renders as escaped text. Raw submitted evidence, arguments and provider responses stay on the host.
 
+## Shared summary build
+
+The checkout includes a typed React mount for the shared Svelte summary workspace. It does not register an overview page or thread panel yet. The existing flagged-rule views remain active.
+
+Before importing the mount or running its tests, build the ignored `.summary-workspace/` output with `bun run summary:build` from the repository root. `bun run plugin:build` rebuilds that output, then builds the plugin. Building files installs or reloads nothing. A missing or stale shared artifact stops `npm run build` with the required command.
+
+See the [checkout-only summary input, lifecycle and synthetic preview reference](../inspector/summary-workspace.md). Raw evidence stays outside the input. Recorded policy text can itself contain secrets; this is not a confidentiality boundary against same-user code.
+
 ## Validation
 
 Developer-checkout checks are offline. Use installed frozen dependencies. First build the SDK and inspector as required by [development verification](../CONTRIBUTING.md#check-a-change). Then run from the repository root:
 
 ```sh
+bun run summary:build
 bun test bb-plugin-tenet-status
 cd bb-plugin-tenet-status
 npx vitest run --config vitest.config.ts
@@ -85,7 +94,7 @@ npx tsc --noEmit
 cd ..
 bun test --isolate --max-concurrency=1 --timeout=30000
 bun run typecheck
-bb plugin build bb-plugin-tenet-status
+bun run plugin:build
 ```
 
 Success means each command exits zero. The parent contribution checks require builds before the full Bun suite; see [development verification](../CONTRIBUTING.md#check-a-change) for prerequisites and failures.

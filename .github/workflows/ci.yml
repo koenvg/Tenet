@@ -36,6 +36,8 @@ jobs:
       - run: bun run inspector:build
       # Website content checks read the prerendered React pages.
       - run: bun run site:build
+      # The typed React summary mount imports ignored generated library output.
+      - run: bun run summary:build
       # Isolate node:test-based Pi smoke tests from other Bun test files.
       - run: bun test --isolate --max-concurrency=1 --timeout=30000
       - run: bun run typecheck

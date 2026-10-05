@@ -1,4 +1,5 @@
 import type { InvocationView } from '../../src/inspector/view.js';
+import type { SummaryDecision, SummaryRule } from './shared/model.js';
 import { categoryLabels, uncertaintyKeys, type FindingCategory } from '../../src/decision/finding-triage.js';
 
 export type StatusTone = 'neutral' | 'positive' | 'danger' | 'caution' | 'approval';
@@ -48,11 +49,11 @@ export function callConcern(facts: { execution?: string | null; permission?: str
   return { text, tone: conflict ? 'danger' : finding?.tone ?? 'caution', description: categories.map(c => categoryLabels[c]).join(' · ') };
 }
 
-export function gateTone(rule: RuleView, gate: string): StatusTone {
+export function gateTone(rule: SummaryRule, gate: string): StatusTone {
   if (uncertaintyKeys({ assessmentStatus: '', rules: [{ ruleId: rule.id, gates: [gate] }] }).length || rule.enforcement === 'WARN') return 'caution';
   return gate === 'rule-fail' ? 'danger' : 'neutral';
 }
-export function contributionExplanation(rule: RuleView, mode?: string): string {
+export function contributionExplanation(rule: SummaryRule, mode?: string): string {
   if (rule.enforcement === 'BLOCK' && !!rule.gateIds?.length) return mode === 'observe'
     ? 'Recorded blocking gates. Observe mode did not enforce this assessment.'
     : 'Recorded blocking gates. Actual permission is shown separately.';
@@ -65,7 +66,7 @@ export type DockTab = 'Evidence' | 'Questions' | 'Response' | 'Policy';
 export type MobileView = 'calls' | 'assessment';
 
 export const pretty = (value: unknown) => value == null ? 'Unavailable: not recorded.' : JSON.stringify(value, null, 2);
-export const ruleName = (rule: RuleView) => rule.builtin ? 'Built-in integrity' : `Line ${rule.line ?? 'unavailable'}`;
+export const ruleName = (rule: SummaryRule) => rule.builtin ? 'Built-in integrity' : `Line ${rule.line ?? 'unavailable'}`;
 export const gateLabels: Record<string, string> = {
   'rule-fail': 'Reported FAIL',
   'outcome-unknown': 'Outcome unknown',
@@ -81,7 +82,7 @@ export const contributions: Record<string, string> = {
   'approval-required': 'Requires approval. Another rule may still block the invocation.',
   'advisory-approval': 'Advisory approval requirement. WARN does not request confirmation.',
 };
-export function gateExplanation(gate: string, rule: RuleView): string {
+export function gateExplanation(gate: string, rule: SummaryRule): string {
   const outcome = rule.result?.outcome;
   switch (gate) {
     case 'rule-fail': return 'The evaluator selected FAIL for this rule.';
@@ -93,20 +94,20 @@ export function gateExplanation(gate: string, rule: RuleView): string {
     default: return `Unrecognized recorded gate: ${gate}`;
   }
 }
-export function hasFinding(rule: RuleView) {
+export function hasFinding(rule: SummaryRule) {
   return !!rule.gateIds?.length || ['approval-required', 'advisory-approval'].includes(rule.contribution);
 }
-export function orderedRules(rules: RuleView[]) {
-  const rank = (rule: RuleView) => hasFinding(rule) ? rule.enforcement === 'BLOCK' ? 0 : 1 : rule.result ? 3 : 2;
+export function orderedRules<T extends SummaryRule>(rules: T[]) {
+  const rank = (rule: SummaryRule) => hasFinding(rule) ? rule.enforcement === 'BLOCK' ? 0 : 1 : rule.result ? 3 : 2;
   return [...rules].sort((a, b) => rank(a) - rank(b));
 }
 // Presentation of recorded outputs only. No threshold comparisons or evaluator imports.
-function uncertaintyNotice(view: InvocationView, blockers = view.rules.filter(r => r.enforcement === 'BLOCK' && r.gateIds?.length)): string | null {
+function uncertaintyNotice(view: SummaryDecision, blockers = view.rules.filter(r => r.enforcement === 'BLOCK' && r.gateIds?.length)): string | null {
   if (view.decision !== 'BLOCK' || view.reason !== 'insufficient-evidence' || !view.noRulesClassifiedViolated || !blockers.length
     || !blockers.every(rule => rule.gateIds?.every(gate => ['outcome-unknown', 'outcome-confidence-below-threshold', 'evidence-insufficient', 'evidence-confidence-below-threshold', 'applicability-unresolved'].includes(gate)))) return null;
   return `No rule was classified as violated. ${view.identity?.mode === 'observe' ? 'The assessment would block in enforce mode' : 'The recorded assessment is blocked'} by uncertainty. This is not a safety guarantee.`;
 }
-export function explainDecision(view: InvocationView): string {
+export function explainDecision(view: SummaryDecision): string {
   const blockers = orderedRules(view.rules).filter(r => r.enforcement === 'BLOCK' && r.gateIds?.length);
   if (view.decision === 'BLOCK' && blockers.length) {
     const first = blockers[0]!;
@@ -145,8 +146,9 @@ export function actionPreview(view: InvocationView): string | null {
   }
   return null;
 }
-export function decisionReason(view: InvocationView): string {
-  if (!['validated', 'completed'].includes(view.assessmentStatus)) return `Assessment ${view.assessmentStatus}. No completed assessment is available.`;
+export function decisionReason(view: SummaryDecision): string {
+  const assessmentStatus = view.evaluatorState?.status ?? view.assessmentStatus;
+  if (!['validated', 'completed'].includes(assessmentStatus)) return `Assessment ${assessmentStatus}. No completed assessment is available.`;
   const uncertainty = uncertaintyNotice(view);
   if (uncertainty) return 'No rule was classified as violated. The assessment is uncertain.';
   const blocker = orderedRules(view.rules).find(r => r.enforcement === 'BLOCK' && r.gateIds?.length);
@@ -167,10 +169,10 @@ export function decisionReason(view: InvocationView): string {
     : explainDecision(view);
   return explainDecision(view);
 }
-export function confidenceReadings(rule: RuleView) {
+export function confidenceReadings(rule: SummaryRule) {
   const readings = [
     { gate: 'outcome-confidence-below-threshold', label: 'Outcome confidence', value: rule.result?.outcome?.probabilities?.[rule.result?.outcome?.choice], threshold: rule.thresholds.effectThreshold },
     { gate: 'evidence-confidence-below-threshold', label: 'Evidence confidence', value: rule.result?.evidence?.probabilities?.SUFFICIENT, threshold: rule.thresholds.evidenceThreshold },
   ];
-  return readings.filter(r => rule.gateIds?.includes(r.gate) && typeof r.value === 'number' && Number.isFinite(r.value) && r.value >= 0 && r.value <= 1 && typeof r.threshold === 'number' && Number.isFinite(r.threshold) && r.threshold >= 0 && r.threshold <= 1);
+  return readings.filter((r): r is typeof r & { value: number; threshold: number } => !!rule.gateIds?.includes(r.gate) && typeof r.value === 'number' && Number.isFinite(r.value) && r.value >= 0 && r.value <= 1 && typeof r.threshold === 'number' && Number.isFinite(r.threshold) && r.threshold >= 0 && r.threshold <= 1);
 }

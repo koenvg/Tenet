@@ -2,6 +2,9 @@
   "name": "bb-plugin-tenet-status",
   "version": "0.1.0",
   "type": "module",
+  "scripts": {
+    "build": "bun ../scripts/check-summary-build.ts && bb plugin build ."
+  },
   "engines": {
     "bb": ">=0.43",
     "bbPluginSdk": ">=0.5.9"

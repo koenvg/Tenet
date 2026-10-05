@@ -47,11 +47,12 @@ The temporary Bun wrapper prevents `.env` auto-loading in checks and child proce
 
 If Chromium was installed in the original home's cache, set `PLAYWRIGHT_BROWSERS_PATH` inside the shell to that cache's absolute path before browser checks. Do not use a signed-in browser.
 
-1. Build the SDK, inspector and website before the Bun suite:
+1. Build the SDK, inspector, website and shared summary before the Bun suite and plugin checks:
 
    ```sh
    bun run sdk:build
    bun run inspector:build
+   bun run summary:build
    bun run site:build
    ```
 
@@ -60,6 +61,7 @@ If Chromium was installed in the original home's cache, set `PLAYWRIGHT_BROWSERS
    Global discovery makes isolation required for validation. Start checks with a realpath disposable process `HOME`, unset provider credentials and `TENET_POLICY`, and keep all selected owner-home data in fixtures. Passing `env.HOME` to a guard alone does not change `node:os.homedir()`.
 
    Use a separate child process for each global-policy fixture. Do not read or copy the owner's personal policy.
+   Plugin mount tests import the generated summary library. See the [checkout-only summary build and input reference](inspector/summary-workspace.md).
 
 2. Run the isolated, serial Bun suite, including Pi smoke tests, then the application type check:
 
@@ -85,6 +87,7 @@ If Chromium was installed in the original home's cache, set `PLAYWRIGHT_BROWSERS
    cd bb-plugin-tenet-status
    ./node_modules/.bin/tsc --noEmit
    ./node_modules/.bin/vitest run --config vitest.config.ts
+   npm run build
    cd ..
    ```
 
