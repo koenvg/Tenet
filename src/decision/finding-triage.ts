@@ -23,7 +23,7 @@ export function classifyFinding(facts: FindingFacts): FindingCategory[] {
   return findingCategories.filter(category => {
     switch (category) {
       case 'violation': return rules.some(r => r.outcome === 'FAIL' || r.gates.includes('rule-fail'));
-      case 'uncertainty': return uncertaintyKeys(facts).length > 0;
+      case 'uncertainty': return rules.some(r => r.outcome === 'UNKNOWN') || uncertaintyKeys(facts).length > 0;
       case 'approval': return !!facts.approvalRules?.length || rules.some(r => r.outcome === 'APPROVAL_REQUIRED');
       case 'unavailable': return facts.assessmentStatus === 'failed' || facts.assessmentStatus === 'unavailable';
       case 'pending': return ['incomplete', 'pending', 'dropped', 'cancelled'].includes(facts.assessmentStatus);

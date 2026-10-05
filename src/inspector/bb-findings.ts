@@ -23,7 +23,7 @@ export function projectThreadFinding(records: ArchiveRecord[], id: string, threa
     return { item: null, gaps: ['detail-unavailable'] };
   const stage = (name: string) => object(records.findLast(r => r.stage === name)?.data);
   const facts = foldFindingStages(records.map(findingStage));
-  if (stage('validation').valid !== true || facts.failure !== null)
+  if (stage('validation').valid !== true || facts.evaluatorState.status !== 'completed')
     return { item: null, gaps: ['detail-unavailable'] };
   const assessment = object(stage('assessment').assessment);
   if (typeof assessment.model !== 'string' || !Array.isArray(assessment.rules)) return { item: null, gaps: ['detail-unavailable'] };

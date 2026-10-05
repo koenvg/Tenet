@@ -1,5 +1,5 @@
 import { type FindingCategory } from '../decision/finding-triage.js';
-import { findingStage, foldFindingStages, type FindingStage } from './finding-view.js';
+import { findingStage, foldFindingStages, type FindingStage, type EvaluatorState, type EvaluatorFailureCode } from './finding-view.js';
 import { lstat, opendir } from 'node:fs/promises';
 import type { Dir } from 'node:fs';
 import { join } from 'node:path';
@@ -38,6 +38,7 @@ function countIssue(target: Counts, reason: string, sign = 1): void {
 export interface ThreadStatus {
   coverage: 'unknown' | 'partial'; linkedCalls: number; failures: number; issues: string[];
   notices: { approvals: number; uncertain: number; incomplete: number };
+  assessments: Record<EvaluatorState['status'], number> & { reasons: { code: EvaluatorFailureCode; count: number }[] };
 }
 
 /** Persist only bounded rule facts for the BB thread summary, never assessment evidence. */
@@ -479,7 +480,7 @@ export class ArchiveIndex {
   private selectedFailure(records: Metadata[]): boolean {
     records.sort((a, b) => a.writerId === b.writerId ? a.sequence - b.sequence : a.timestamp - b.timestamp || a.eventId.localeCompare(b.eventId));
     if (!records.some(r => r.stage === 'validation' && r.valid === true)
-      || foldFindingStages(records.map(r => r.finding)).failure !== null) return false;
+      || foldFindingStages(records.map(r => r.finding)).evaluatorState.status !== 'completed') return false;
     const begin = records.findLast(r => r.stage === 'begin');
     const request = records.findLast(r => r.stage === 'request');
     const assessment = records.findLast(r => r.stage === 'assessment');
@@ -493,6 +494,8 @@ export class ArchiveIndex {
     const issues = new Set(this.issues().map(issue => issue.reason));
     if (writerLoss) issues.add('writer-loss');
     const notices = { approvals: 0, uncertain: 0, incomplete: 0 };
+    const assessments: ThreadStatus['assessments'] = { completed: 0, unavailable: 0, pending: 0, dropped: 0, cancelled: 0, incomplete: 0, reasons: [] };
+    const reasons = new Map<EvaluatorFailureCode, number>();
     const candidates: { id: string; timestamp: number; session: string; invocation: string; expectedEvents: Set<string> }[] = [];
     for (const [id, records] of groups) {
       if (!['begin', 'request', 'response', 'validation', 'assessment', 'decision', 'permission', 'execution']
@@ -502,17 +505,20 @@ export class ArchiveIndex {
         expectedEvents: new Set(records.map(r => r.eventId)) });
       const facts = foldFindingStages(records.map(r => r.finding));
       if (facts.categories.includes('approval')) notices.approvals++;
-      if (facts.categories.includes('uncertainty') || records.some(r => r.stage === 'assessment' && r.finding.rules?.some(rule => rule.outcome === 'UNKNOWN'))) notices.uncertain++;
-      if (facts.failure || facts.categories.includes('pending')) notices.incomplete++;
+      if (facts.categories.includes('uncertainty')) notices.uncertain++;
+      assessments[facts.evaluatorState.status]++;
+      if (facts.evaluatorState.reason) reasons.set(facts.evaluatorState.reason, (reasons.get(facts.evaluatorState.reason) ?? 0) + 1);
+      if (facts.evaluatorState.status === 'incomplete') notices.incomplete++;
     }
+    assessments.reasons = [...reasons].sort(([a], [b]) => a.localeCompare(b)).map(([code, count]) => ({ code, count }));
     const status: ThreadStatus = { coverage: groups.size ? 'partial' : 'unknown', linkedCalls: groups.size,
-      failures: candidates.length, notices, issues: [...issues].slice(0, 20) };
+      failures: candidates.length, notices, assessments, issues: [...issues].slice(0, 20) };
     return { status, candidates };
   }
   threadStatus(bbThreadId: string): ThreadStatus { return this.threadSnapshot(bbThreadId).status; }
   /** At most five candidate calls per page, each re-read by detail's 64-stage / 16-MiB cap. */
   async threadFindings(bbThreadId: string, cursor?: string): Promise<{ coverage: ThreadStatus['coverage']; linkedCalls: number;
-    notices: ThreadStatus['notices']; issues: string[]; items: ThreadFinding[]; next: string | null }> {
+    notices: ThreadStatus['notices']; assessments: ThreadStatus['assessments']; issues: string[]; items: ThreadFinding[]; next: string | null }> {
     const { status, candidates } = this.threadSnapshot(bbThreadId);
     const selection = page(candidates, { limit: 5, cursor }, `thread-findings:${bbThreadId}`);
     const issues = new Set(status.issues);
@@ -528,7 +534,7 @@ export class ArchiveIndex {
       for (const gap of projected.gaps) issues.add(gap);
       if (projected.item) items.push(projected.item);
     }
-    return { coverage: status.coverage, linkedCalls: status.linkedCalls, notices: status.notices, issues: [...issues].slice(0, 20),
+    return { coverage: status.coverage, linkedCalls: status.linkedCalls, notices: status.notices, assessments: status.assessments, issues: [...issues].slice(0, 20),
       items, next: selection.next };
   }
   async detail(session: string, invocation: string, bbThreadId?: string) {

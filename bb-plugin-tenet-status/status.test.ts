@@ -47,7 +47,7 @@ test('synthetic archive through host and BB RPC keeps linked FAIL, pass, history
     assert.equal(linked.coverage, 'partial');
     assert.equal(linked.linkedCalls, 2);
     assert.equal(linked.failures, 1);
-    assert.deepEqual(Object.keys(linked).sort(), ['coverage', 'failures', 'issues', 'linkedCalls', 'notices']);
+    assert.deepEqual(Object.keys(linked).sort(), ['assessments', 'coverage', 'failures', 'issues', 'linkedCalls', 'notices']);
     assert.ok(!JSON.stringify(linked).includes('secret-bearing-action'));
     assert.ok(!JSON.stringify(linked).includes('<img'));
     const unmonitored = await fake.harness.behavior.callRpc('status', { threadId: 'thr_000000001234' }) as Status;

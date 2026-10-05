@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TENET-43 synthetic status preview</title>
+  <style>
+    body { margin: 0; background: #15181d; color: #e6e8ee; font: 15px/1.6 system-ui, sans-serif; }
+    main { max-width: 1000px; margin: auto; padding: 24px; }
+    .cases { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 20px; }
+    article { min-width: 0; padding: 20px; border: 1px solid #495363; border-radius: 8px; background: #20252d; }
+    h1 { font-size: 24px; } h2 { font-size: 20px; }
+    p, li { overflow-wrap: anywhere; } summary { cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    svg { width: 16px; height: 16px; flex: 0 0 auto; }
+    .flex { display: flex; align-items: center; gap: 8px; }
+    ul { padding-left: 20px; } details { margin-top: 12px; }
+    summary:focus-visible { outline: 2px solid #a8c8ff; outline-offset: 4px; }
+  </style>
+</head>
+<body>
+  <div id="preview"></div>
+  <script type="module" src="./evaluator-state.preview.tsx"></script>
+</body>
+</html>
