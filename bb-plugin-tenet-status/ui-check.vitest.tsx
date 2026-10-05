@@ -2,7 +2,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { act, fireEvent } from '@testing-library/react';
 import { loadPluginApp, renderSlot } from '@get-bb/plugin-sdk/testing/app';
-import type { Status } from './contract';
+import { rpcContract, type Status } from './contract';
 
 const threadId = 'thr_abcdefgh1234';
 const linked: Status = { coverage: 'partial', linkedCalls: 2, failures: 1, issues: [] };
@@ -128,7 +128,7 @@ describe('Pi thread rule action', () => {
       rules: [{ ruleId: 'r1', severity: 'BLOCK', policyText: '<img src=x onerror=alert(1)>', confidence: 0.72 }],
       wouldDecision: 'BLOCK', actualPermission: 'released', observedExecution: 'unknown', missingStages: ['execution'] };
     const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, {
-      rpc: { findings: ({ cursor }: { cursor?: string }) => { reads++; if (cursor) throw new Error('invalid-page');
+      rpc: { findings: (input) => { const { cursor } = rpcContract.findings.input.parse(input); reads++; if (cursor) throw new Error('invalid-page');
         return { coverage: 'partial', linkedCalls: 1, issues: ['indexing-in-progress', 'writer-loss'], items: [row], next: 'cursor-2' }; } } });
     try {
       expect(await slot.findByText('edit-1')).toBeTruthy();
@@ -179,10 +179,12 @@ describe('Pi thread rule action', () => {
   it('keeps earlier detail gaps visible across successful pages and clears them on Refresh', async () => {
     const app = await loadPluginApp(() => import('./app'));
     let first = 0;
-    const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: ({ cursor }: { cursor?: string }) => cursor
+    const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: (input) => {
+      const { cursor } = rpcContract.findings.input.parse(input);
+      return cursor
       ? { coverage: 'partial', linkedCalls: 2, issues: [], items: [{ id: 'b', callId: 'edit-2', toolName: 'edit', timestamp: 200,
         mode: 'observe', rules: [{ ruleId: 'r1', policyText: 'Rule', severity: 'WARN', confidence: 0.9 }], wouldDecision: 'unknown', actualPermission: 'unknown', observedExecution: 'unknown', missingStages: [] }], next: null }
-      : { coverage: 'partial', linkedCalls: 2, issues: first++ === 0 ? ['detail-unavailable'] : [], items: [], next: 'next' } } });
+      : { coverage: 'partial', linkedCalls: 2, issues: first++ === 0 ? ['detail-unavailable'] : [], items: [], next: 'next' }; } } });
     try {
       expect(await slot.findByText(/Some flagged calls could not be read/)).toBeTruthy();
       fireEvent.click(slot.getByRole('button', { name: 'Load more findings' }));
@@ -260,10 +262,11 @@ describe('Pi thread rule action', () => {
     let unavailable = false;
     const row = (id: string) => ({ id, snapshot: 'a'.repeat(64), callId: id, toolName: 'edit',
       rules: [{ ruleId: 'r1', policyText: 'Rule', severity: 'WARN', confidence: 0.9, uncertain: false, kind: 'policy' }] });
-    const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: ({ cursor }: { cursor?: string }) =>
-      unavailable ? { coverage: 'unavailable', linkedCalls: 0, issues: [], items: [], next: null }
+    const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: (input) => {
+      const { cursor } = rpcContract.findings.input.parse(input);
+      return unavailable ? { coverage: 'unavailable', linkedCalls: 0, issues: [], items: [], next: null }
         // Nine linked calls include seven without selected FAILs; only two findings are paginated.
-        : { coverage: 'partial', linkedCalls: 9, issues: [], items: [row(cursor ? 'older' : 'newer')], next: cursor ? null : 'next' } } });
+        : { coverage: 'partial', linkedCalls: 9, issues: [], items: [row(cursor ? 'older' : 'newer')], next: cursor ? null : 'next' }; } } });
     try {
       await act(async () => { await Promise.resolve(); });
       expect(slot.getByText('9 saved calls in this thread. Rule counts include only the calls shown.')).toBeTruthy();
