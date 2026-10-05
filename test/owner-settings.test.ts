@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { chmodSync, linkSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, linkSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { readOwnerSettings } from '../src/runtime/settings.js';
 import { prepareConfiguration } from '../src/runtime/configuration.js';
@@ -19,6 +19,7 @@ function fixture(work: (home: string, file: string) => void) {
   try { work(home, join(home, '.tenet/config.json')); } finally { rmSync(home, { recursive: true, force: true }); }
 }
 const put = (file: string, value: unknown) => writeFileSync(file, JSON.stringify(value), { mode: 0o600 });
+const changed = (info: ReturnType<typeof lstatSync>, values: object) => Object.assign(Object.create(Object.getPrototypeOf(info)), info, values);
 test('absent settings and both closed providers', () => fixture((home, file) => {
   assert.equal(readOwnerSettings(home).state, 'absent');
   for (const value of [typesafe, apus]) {
@@ -30,6 +31,82 @@ test('absent settings and both closed providers', () => fixture((home, file) => 
   assert.equal(readOwnerSettings(home).state, 'absent');
   assert.throws(() => lstatSync(join(home, '.tenet')), { code: 'ENOENT' });
 }));
+for (const state of ['absent', 'valid'] as const) {
+  for (const churn of ['creation', 'removal'] as const) {
+    test(`unrelated sibling directory ${churn} preserves ${state} owner settings`, () => fixture((home, file) => {
+      if (state === 'valid') put(file, typesafe);
+      const sibling = join(home, 'sibling');
+      if (churn === 'removal') mkdirSync(sibling);
+      const before = lstatSync(home);
+      let churned = false;
+      const io = { closeSync, fstatSync, openSync, readSync, lstatSync: ((path: string) => {
+        if (path === file && !churned) {
+          if (churn === 'creation') mkdirSync(sibling); else rmSync(sibling, { recursive: true });
+          churned = true;
+        }
+        const info = lstatSync(path);
+        // Model child-directory link counts on filesystems that do not report them.
+        return path === home && churned ? changed(info, { nlink: before.nlink + (churn === 'creation' ? 1 : -1) }) : info;
+      }) as typeof lstatSync };
+      assert.deepEqual(readOwnerSettings(home, io), state === 'absent' ? { state: 'absent' } : { state: 'valid', value: typesafe });
+      assert.ok(churned);
+    }));
+  }
+}
+for (const state of ['absent', 'valid'] as const) {
+  for (const replacement of ['directory', 'symlink'] as const) {
+    test(`ancestor ${replacement} replacement rejects ${state} owner settings`, () => fixture((home, file) => {
+      if (state === 'valid') put(file, typesafe);
+      const root = join(home, '.tenet'), retired = join(home, 'retired');
+      let replaced = false;
+      const io = { closeSync, fstatSync, openSync, readSync, lstatSync: ((path: string) => {
+        if (path === file && !replaced) {
+          renameSync(root, retired);
+          if (replacement === 'symlink') symlinkSync(retired, root);
+          else { mkdirSync(root, { mode: 0o700 }); if (state === 'valid') put(file, typesafe); }
+          replaced = true;
+        }
+        return lstatSync(path);
+      }) as typeof lstatSync };
+      assert.deepEqual(readOwnerSettings(home, io), { state: 'invalid', reason: 'unsafe' });
+      assert.ok(replaced);
+    }));
+  }
+  test(`ancestor security metadata changes reject ${state} owner settings`, () => fixture((home, file) => {
+    if (state === 'valid') put(file, typesafe);
+    for (const target of [home, join(home, '.tenet')]) {
+      const before = lstatSync(target);
+      for (const change of [{ dev: before.dev + 1 }, { ino: before.ino + 1 }, { uid: before.uid + 1 }, { mode: before.mode ^ 0o020 }]) {
+        let selected = false;
+        const io = { closeSync, fstatSync, openSync, readSync, lstatSync: ((path: string) => {
+          if (path === file) selected = true;
+          const info = lstatSync(path);
+          return selected && path === target ? changed(info, change) : info;
+        }) as typeof lstatSync };
+        assert.deepEqual(readOwnerSettings(home, io), { state: 'invalid', reason: 'unsafe' });
+      }
+    }
+  }));
+}
+for (const stage of ['before open', 'during read', 'final path lookup'] as const) {
+  test(`config-file hard-link race ${stage} is rejected`, () => fixture((home, file) => {
+    put(file, typesafe);
+    let linked = false, lookups = 0, closed = 0;
+    const link = () => { if (!linked) { linkSync(file, join(home, 'hard')); linked = true; } };
+    const io = {
+      fstatSync,
+      lstatSync: ((path: string) => {
+        if (path === file && ++lookups === 2 && stage === 'final path lookup') link();
+        return lstatSync(path);
+      }) as typeof lstatSync,
+      openSync: ((path: string, flags: number) => { if (stage === 'before open') link(); return openSync(path, flags); }) as typeof openSync,
+      readSync: ((...args: Parameters<typeof readSync>) => { if (stage === 'during read') link(); return readSync(...args); }) as typeof readSync,
+      closeSync: (fd: number) => { closed++; closeSync(fd); },
+    };
+    assert.deepEqual(readOwnerSettings(home, io), { state: 'invalid', reason: 'unsafe' });
+    assert.ok(linked); assert.equal(closed, 1);
+  }));
+}
 test('strict types, keys, aliases, destination and timer bounds', () => fixture((home, file) => {
   const bad = [null, [], {}, { ...typesafe, version: 2 }, { ...typesafe, version: '1' }, { version: 1 },
     ...['credentials', 'activation', 'mode', 'policy', 'thresholds', 'capture'].map(key => ({ ...typesafe, [key]: 'forbidden' })),
@@ -77,7 +154,6 @@ test('unsafe files, directories, ancestors and hard links do not get repaired', 
 test('internal IO seam rejects wrong owners, unreadability, races and growing reads; descriptors are bounded and closed', () => fixture((home, file) => {
   put(file, typesafe);
   const io = { closeSync, fstatSync, lstatSync, openSync, readSync };
-  const changed = (info: ReturnType<typeof lstatSync>, values: object) => Object.assign(Object.create(Object.getPrototypeOf(info)), info, values);
   for (const target of [file, join(home, '.tenet')]) {
     const wrongOwner = { ...io, lstatSync: ((path: string) => changed(lstatSync(path), path === target ? { uid: (process.getuid?.() ?? 0) + 1 } : {})) as typeof lstatSync };
     assert.equal(readOwnerSettings(home, wrongOwner).state, 'invalid');
