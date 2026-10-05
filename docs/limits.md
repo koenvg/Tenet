@@ -8,14 +8,14 @@ Look up the limit that affects your action:
 
 - [Observe versus enforce](#observe-first-enforce-later) and [one-call approval](#enforcement-decisions-and-approval).
 - [A block diagnostic](#read-a-block-diagnostic) or [lost observation coverage](#background-observation-can-lose-coverage).
-- [What TypeSafe receives](#data-disclosure-and-audit) and [local storage](inspector.md#sensitive-local-storage).
+- [What the selected judge receives](#data-disclosure-and-audit) and [local storage](inspector.md#sensitive-local-storage).
 - [Host duties](#host-contract-and-remaining-limits), [action targets](#optional-host-authenticated-action-targets) and [cooperative control](#owner-control-is-not-isolation).
 
 ## Observe first, enforce later
 
 `observe` is the default. It never vetoes or requests approval, including for integrity findings, missing credentials, invalid configuration, timeouts or reporting failures. Host restrictions, cancellation and ordinary tool errors still apply. Only exact `TENET_MODE=enforce` enables enforcement. An invalid value selects observe and reports `invalid-mode`.
 
-Mode is fixed for the process. To change it, close Pi and start a new process. This is a live-capable launch, not an offline test. Assessed actions send data to TypeSafe and use quota. Read [disclosure](#data-disclosure-and-audit) before authorizing any real action.
+Mode is fixed for the process. To change it, close Pi and start a new process. This is a live-capable launch, not an offline test. Assessed actions send data to the selected judge. TypeSafe uses quota; APUS uses the owner-operated backend. Read [disclosure](#data-disclosure-and-audit) before authorizing any real action.
 
 From an installed archive's project directory:
 
@@ -33,6 +33,10 @@ Execution records depend on host result correlation. Current SDK-backed Pi execu
 
 In an eligible Pi session, the footer shows mode, pending/completed/loss counts and coverage status. Bare `/tenet` opens up to 100 recent nontrivial reports plus outstanding pending assessments, newest first. Select a report for rule locations, settings, labels and exact score gates. Native selectors scroll; Escape closes a view. There are no per-call popups.
 
+Reports name the recorded provider and requested/returned model, not the current selection. APUS is experimental under `judge-report-v1`. Configuration readiness is not connectivity or successful assessment.
+
+Completed execution, expected-label matching and calibration remain distinct; deterministic NONE probability one is not model confidence or authenticated coverage.
+
 Pending entries cannot evict a later finding. Older terminal reports have a visible eviction count. A dormant session has no Tenet footer, notifications or commands.
 
 Observe findings describe what enforcement would do, separately from permission and execution. A low-confidence PASS is uncertainty, not a detected violation. Pending, unavailable, cancelled, dropped or missing evidence is not an all-clear.
@@ -43,7 +47,7 @@ Findings never enter agent messages, tool results or later evaluator evidence, i
 
 Observe returns permission after bounded pre-execution capture. The judge later assesses that frozen snapshot, possibly after a result or agent turn. It does not revalidate against post-execution state or revoke a released action.
 
-| Observation queue limit | Value |
+| Observation queue limit | Built-in default |
 | --- | --- |
 | Running assessments | 2 |
 | Waiting assessments | 32 |
@@ -52,13 +56,17 @@ Observe returns permission after bounded pre-execution capture. The judge later 
 
 Excess or expired work is dropped without a pass, block or approval. Queue wait is separate from the configured provider deadline, which starts after dequeue. `/tenet status` distinguishes pending, completed, unavailable, dropped and cancelled work and shows cumulative queue losses. Capture opt-out leaves observation and reporting active.
 
+Owner JSON and SDK limits can replace these defaults. Check the frozen effective limits in status, rather than assuming APUS uses a model-specific timeout or queue. See [judge settings and precedence](judge.md#defaults-limits-and-precedence).
+
 Off, context/session replacement, stale policy and shutdown cancel work and suppress late findings. Shutdown does not wait indefinitely for a judge, and its bounded archive drain can lose unwritten stages. Agent-turn end marks unmatched results unknown but does not cancel valid background assessments. Already released calls cannot be recalled.
 
 If every reporting channel fails, observation still permits calls and reports can be lost. Reporting failures appear in the footer when it remains available. A crash can leave a pending record incomplete. Results are recorded independently of permission and assessment; missing stages stay unknown.
 
 ## Enforcement decisions and approval
 
-One bounded request to Jev, TypeSafe's evaluator, asks outcome and evidence-sufficiency questions for every rule, plus fact-reference questions for user-rule applicability. Threshold settings do not change semantic instructions. Tenet validates the complete response, then deterministically combines BLOCK rules and integrity. WARN is owner-only and does not vote, veto or open approval.
+One canonical assessment asks outcome and evidence-sufficiency questions for every rule, plus fact-reference questions for user-rule applicability. TypeSafe sends one `systemOne` request; experimental APUS uses sequential native scoring under one deadline.
+
+Threshold settings do not change semantic instructions. Both use common complete-response validation and deterministic BLOCK/integrity gates. WARN remains owner-only and does not vote, veto or open approval.
 
 | Validated blocking results in enforce mode | Decision |
 | --- | --- |
@@ -119,7 +127,13 @@ Owner detail and inspector explanations do not include provider prose, labels or
 
 ## Data disclosure and audit
 
-TypeSafe receives declared rule text, policy identity/paths, host working directory, built-in integrity constraint and a copied action snapshot. The snapshot includes tool name, available description/schema, field-redacted arguments, identities, timestamp, original-argument digest and limitations. Bounded observations contain earlier tool calls and text or structured tool results. Each has session/call/tool identity, host origin and timestamp, with explicit missing-metadata markers.
+The selected judge receives declared rule text, policy identity/paths, host working directory, built-in integrity constraint and a copied action snapshot. The snapshot includes tool name, available description/schema, field-redacted arguments, identities, timestamp, original-argument digest and limitations. Bounded observations contain earlier tool calls and text or structured tool results. Each has session/call/tool identity, host origin and timestamp, with explicit missing-metadata markers.
+
+The default TypeSafe destination is fixed. Experimental APUS sends the complete rendering to the configured loopback backend, or Pika through owner-operated private forwarding.
+
+No TypeSafe key is forwarded. Backend logging, retention and resource use remain the owner's responsibility. Capture-off does not stop that disclosure or backend logs.
+
+Any live evaluation needs separate authorization.
 
 Findings, decisions and native approval outcomes remain owner records. They do not enter evaluator history.
 
@@ -129,7 +143,7 @@ Pending arguments and current resolved facts remain intact. Optional current too
 
 Large strings use UTF-8-safe head/tail excerpts with original sizes and ranges. Unsupported structures have explicit omissions. Selection prefers newer recorded call/result groups, shortens before dropping whole groups and preserves provenance. Batch admission inspects at most 4,096 recent slots. Excluded prefixes and invalid envelopes remain prior omissions. Missing, reused or preceding-result identities do not authenticate a pair.
 
-If protected state or the minimal history envelope cannot fit, Tenet reports insufficient evidence without calling Jev. Only enforce vetoes. Missing history never proves execution or success. Exact budgets, representations and historical counters are in [inspection evidence](inspection-evidence.md).
+If protected state or the minimal history envelope cannot fit, Tenet reports insufficient evidence without calling the judge. Only enforce vetoes. Missing history never proves execution or success. Exact budgets, representations and historical counters are in [inspection evidence](inspection-evidence.md).
 
 At session start and after re-enabling, Pi restores bounded tool observations from the selected branch. `nativeHistory` admits calls/results only when their call ID has a matching same-session Tenet record inside the inspected window. That record must have mode `observe` or `enforce` and either:
 
@@ -140,7 +154,7 @@ These records establish admission, not consent or execution. The translator emit
 
 The owner view separately restores validated version-3 permission records from that branch. Recovered history and tool content remain untrusted, not grants. Later sibling results cannot change an in-flight request. Tenet calls no tools to gather missing context.
 
-Retries are disabled. Cancellation reaches the SDK; a late response cannot change a blocked decision. Requests use `jev-latest`, a provider alias, not an immutable release. Audit entries retain requested and returned model identities. SDK logging is disabled and requests use the official TypeSafe endpoint.
+Retries and cross-provider fallback are disabled. Native requests share the whole-assessment deadline. Client cancellation prevents acceptance of late responses but does not prove backend CPU work stopped. TypeSafe requests `jev-latest` at its official endpoint with SDK logging disabled. APUS checks the configured alias against backend metadata; an alias is not proof of weights. Archives retain requested identity on failure and returned assessment identity only after complete validation.
 
 ### Native records and archive payloads differ
 
@@ -165,6 +179,8 @@ Released calls without results become `unknown` at agent end or lifecycle invali
 Native custom records omit raw arguments, schemas, payloads, results and unsolicited provider prose/errors. Startup records include policy declarations. Pi transcripts and other extensions log separately. A successful result does not independently verify remote effects, and no final log after a crash is not success.
 
 The separate local archive can contain the exact submitted application payload and bounded SDK response. Its writer uses schema 4; native custom-record version 3 is not archive schema 3. See [storage budgets, redaction, retention and deletion](inspector.md#sensitive-local-storage) and [historical archive attribution](cross-host-recordings.md).
+
+APUS retains this canonical payload and adds versioned native rendering/mapping snapshots under the same capture controls. Responses are bounded, untrusted and sanitized, with explicit omissions. Owner findings name APUS experimental and distinguish deterministic selectors from model scores. See [the native recording contract](assessment-contract.md#native-recording-contract).
 
 ## Optional host-authenticated action targets
 

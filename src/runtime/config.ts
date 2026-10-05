@@ -12,7 +12,7 @@ export function readMode(env: Record<string, string | undefined>): { mode: Mode;
 }
 
 export interface GuardConfig { policyPath: string; decision: Config; sensitiveFields: string[]; evidence: EvidenceLimits; approvalTimeoutMs: number }
-export function readConfig(cwd: string, env: Record<string, string | undefined>): GuardConfig {
+export function readConfig(cwd: string, env: Record<string, string | undefined>, deadlineMs = DEFAULTS.deadlineMs): GuardConfig {
   function number(key: string, fallback: number) {
     const value = env[key];
     if (value === undefined) return fallback;
@@ -22,7 +22,7 @@ export function readConfig(cwd: string, env: Record<string, string | undefined>)
   const decision = {
     effectThreshold: number('TENET_EFFECT_THRESHOLD', DEFAULTS.effectThreshold),
     evidenceThreshold: number('TENET_EVIDENCE_THRESHOLD', DEFAULTS.evidenceThreshold),
-    deadlineMs: number('TENET_JUDGE_DEADLINE_MS', DEFAULTS.deadlineMs),
+    deadlineMs: number('TENET_JUDGE_DEADLINE_MS', deadlineMs),
   };
   const approvalTimeoutMs = number('TENET_APPROVAL_TIMEOUT_MS', 60_000);
   if (!Number.isSafeInteger(approvalTimeoutMs) || approvalTimeoutMs < 1 || approvalTimeoutMs > 2_147_483_647) throw new Error('configuration');

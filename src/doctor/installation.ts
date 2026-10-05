@@ -9,6 +9,10 @@ export const DELIVERY_FILES = Object.freeze([
   'package.json', 'LICENSE', 'dist/cli/index.js', 'dist/doctor/doctor.js', 'dist/doctor/installation.js',
   'dist/sdk/index.js', 'dist/sdk/index.d.ts', 'dist/runtime/guard.js',
   'dist/runtime/config.js', 'dist/runtime/activation.js', 'dist/runtime/resources.js',
+  'dist/runtime/settings.js', 'dist/runtime/configuration.js', 'dist/runtime/judge.js',
+  'dist/decision/apus.js', 'dist/decision/apus-native.js', 'dist/decision/apus-renderer.js', 'dist/decision/apus-transport.js',
+  'dist/decision/assessment-answers.js', 'dist/decision/typesafe-contract.js',
+  'docs/judge.md', 'third-party/apus/LICENSE', 'third-party/apus/NOTICE',
   'dist/decision/policy.js', 'dist/decision/jev.js', 'dist/recording/archive.js',
   'inspector/dist/index.html', 'docs/doctor.md',
 ]);

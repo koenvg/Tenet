@@ -58,10 +58,10 @@
       <p class="muted format-help">Rich text formats recorded Markdown. HTML, links and images remain inert.</p>
       <dl class="metadata"><div><dt>Version</dt><dd>{String(view.questionVersion ?? 'not recorded')}</dd></div><div><dt>Rule reference</dt><dd>{rule?.mapping?.reference ?? 'not recorded'}</dd></div></dl>
     </details>
-    {#each ['outcome', 'evidence'] as kind}
-      <h5>{kind === 'outcome' ? 'Outcome question' : 'Evidence question'}</h5>
+    {#each ['outcome', 'evidence', ...(rule?.mapping?.factsKey ? ['facts'] : [])] as kind}
+      <h5>{kind === 'outcome' ? 'Outcome question' : kind === 'facts' ? 'Fact-reference question' : 'Evidence question'}</h5>
       <p class="question-key">{rule?.mapping?.[kind + 'Key'] ?? 'Mapping not recorded'}</p>
-      <QuestionView question={rule?.questions?.[kind as 'outcome' | 'evidence']} format={questionFormat} />
+      <QuestionView question={rule?.questions?.[kind as 'outcome' | 'evidence' | 'facts']} format={questionFormat} />
     {/each}
   </div>
   <div id="panel-Response" role="tabpanel" aria-labelledby="tab-Response" aria-label="Response" class="dock-panel" tabindex="0" hidden={activeTab !== 'Response'}>
@@ -70,6 +70,15 @@
     {#if view.response?.unavailable}<p>Response snapshot unavailable. The response could not be safely serialized within capture limits.</p>
     {:else if view.response?.truncated}<p>Response truncated. Preview limited to 1 MiB; serialized size after field omissions: {view.response.bytes} bytes.</p>
     {:else if !view.response}<p>No application response recorded. This does not prove the provider returned nothing.</p>{/if}
+    {#if view.native}
+      <details class="native-exchanges">
+        <summary>Recorded native exchanges</summary>
+        <p>Bounded, sanitized snapshots, not an unredacted wire log. Omitted fields stay omitted. Native strings can contain secrets.</p>
+        {#each view.native.snapshots as snapshot, index}
+          <details><summary>Exchange {index + 1}</summary><pre>{pretty(snapshot)}</pre></details>
+        {/each}
+      </details>
+    {/if}
     <pre>{pretty(view.response)}</pre><h4>Validation</h4><pre>{pretty(view.validation)}</pre>
   </div>
   <div id="panel-Policy" role="tabpanel" aria-labelledby="tab-Policy" aria-label="Policy" class="dock-panel" tabindex="0" hidden={activeTab !== 'Policy'}>

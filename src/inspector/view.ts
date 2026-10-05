@@ -1,5 +1,6 @@
 import { validationIssue } from '../decision/response-validation.js';
 import { findingStage, foldFindingStages } from './finding-view.js';
+import { nativeHistory, recordedJudge, validNativeContract } from '../recording/native.js';
 import type { ArchiveRecord } from '../recording/contract.js';
 import { validEvidenceContext } from '../decision/evidence-context-contract.js';
 import { freeze } from '../decision/immutable.js';
@@ -48,6 +49,7 @@ export function invocationView(records: ArchiveRecord[]) {
     adapterCoverage: records[0]?.schemaVersion !== 1 ? object(begin.adapterCoverage) : { limitations: ['legacy-pi-coverage-not-recorded'] },
     config, questionVersion: request.questionVersion ?? begin.questionVersion ?? null,
     assessmentProfile: findings.profile,
+    judge: recordedJudge(records), native: nativeHistory(records),
     failure: findings.failure, assessmentStatus: findings.assessmentStatus,
     evidenceContext: recordedContext ? freeze(structuredClone(recordedContext)) : null,
     noRulesClassifiedViolated: ['ALLOW', 'ASK', 'BLOCK'].includes(decision.decision)
@@ -56,7 +58,8 @@ export function invocationView(records: ArchiveRecord[]) {
     validationIssue: validationIssue(decision.validationIssue ?? stage('assessment').validationIssue ?? validation.validationIssue ?? lifecycle.validationIssue),
     queueWaitMs: typeof lifecycle.queueWaitMs === 'number' ? lifecycle.queueWaitMs : null,
     providerDurationMs: typeof lifecycle.providerDurationMs === 'number' ? lifecycle.providerDurationMs : null,
-    requestStatus: request.payload ? 'submitted application payload' : submitted ? 'submitted; payload unavailable'
+    requestStatus: validNativeContract(request.nativeContract) ? 'captured canonical payload; native exchanges are separate'
+      : request.payload ? 'submitted application payload' : submitted ? 'submitted; payload unavailable'
       : notSubmitted ? 'not submitted' : 'payload unavailable; capture incomplete',
     captureHealth: captureHealth(records),
     coverage: 'Best-effort capture. Missing stages are unknown, not proof of success.',
@@ -79,7 +82,8 @@ export function invocationView(records: ArchiveRecord[]) {
         evidenceGate: text(contribution?.evidenceGate, 'unavailable'),
         profile: text(contribution?.profile, findings.profile),
         mapping: mapping ?? null,
-        questions: mapping ? { outcome: questions[mapping.outcomeKey] ?? null, evidence: questions[mapping.evidenceKey] ?? null } : null };
+        questions: mapping ? { outcome: questions[mapping.outcomeKey] ?? null, evidence: questions[mapping.evidenceKey] ?? null,
+          ...(typeof mapping.factsKey === 'string' ? { facts: questions[mapping.factsKey] ?? null } : {}) } : null };
     }),
   };
 }

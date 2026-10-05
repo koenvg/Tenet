@@ -6,16 +6,16 @@ import { dirname, join, posix } from 'node:path';
 export const runtimeModules = [
   'sdk/index', 'sdk/types', 'sdk/capabilities',
   'cli/index', 'doctor/doctor', 'doctor/installation',
-  ...['assessment-contract', 'assessment-shape', 'contracts', 'decide', 'diagnostics', 'evidence', 'evidence-budget',
+  ...['apus', 'apus-native', 'apus-renderer', 'apus-transport', 'assessment-answers', 'typesafe-contract', 'assessment-contract', 'assessment-shape', 'contracts', 'decide', 'diagnostics', 'evidence', 'evidence-budget',
     'evidence-context', 'evidence-context-contract', 'finding-triage', 'history-capture', 'history-content',
     'history-envelope', 'history-groups', 'history-selection', 'immutable', 'jev', 'judge-evidence', 'policy',
     'questions', 'response-validation', 'thresholds', 'trajectory'].map(n => `decision/${n}`),
-  ...['activation', 'approval', 'config', 'consequences', 'guard', 'observation-queue', 'owner-record', 'resolved-action', 'resources'].map(n => `runtime/${n}`),
-  ...['archive', 'contract', 'files', 'rules'].map(n => `recording/${n}`),
+  ...['activation', 'approval', 'config', 'configuration', 'judge', 'settings', 'consequences', 'guard', 'observation-queue', 'owner-record', 'resolved-action', 'resources'].map(n => `runtime/${n}`),
+  ...['archive', 'contract', 'files', 'judge', 'native', 'rules'].map(n => `recording/${n}`),
   ...['approval', 'boundary', 'config', 'extension', 'guard', 'history', 'inspector-command', 'owner-reports', 'report-history'].map(n => `pi/${n}`),
   ...['archive-index', 'assessment-completeness', 'bb-findings', 'finding-view', 'serve-cli', 'server', 'view'].map(n => `inspector/${n}`),
 ];
-export const documentFiles = ['README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'docs/operation.md', 'docs/sdk.md', 'docs/doctor.md'];
+export const documentFiles = ['README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'docs/operation.md', 'docs/sdk.md', 'docs/doctor.md', 'docs/judge.md', 'third-party/apus/LICENSE', 'third-party/apus/NOTICE'];
 
 type SourceManifest = {
   version: string; engines: Record<string, string>; dependencies: Record<string, string>; peerDependencies: Record<string, string>;

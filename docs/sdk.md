@@ -63,13 +63,16 @@ If `tenet` cannot be imported, check the package installation or run the checkou
 
 The repository-only [scripted host example](https://github.com/koenvg/Tenet/blob/main/examples/sdk.ts) exercises ready, dormant, uninitialized and unavailable sessions, pending observe permission, late counterfactual BLOCK, matched execution, trusted approval and off.
 
-It uses temporary paths and an injected judge, with no production credential. These assertions test mechanics, not evaluator accuracy.
+It uses temporary paths and an injected judge, with no production credential. The command below also isolates owner settings in a canonical temporary process home. These assertions test mechanics, not evaluator accuracy.
 
 1. For a developer checkout, use Bun 1.3.14+ and Node 22.19+. Complete the repository-only [development setup](https://github.com/koenvg/Tenet/blob/main/CONTRIBUTING.md#set-up).
 2. From the repository root, run:
 
    ```sh
-   bun run sdk:example
+   testhome=$(mktemp -d /tmp/tenet-sdk-example.XXXXXX)
+   testhome=$(cd "$testhome" && pwd -P)
+   trap 'rm -rf "$testhome"' EXIT
+   env -u TYPESAFE_API_KEY HOME="$testhome" TMPDIR=/tmp bun run sdk:example
    ```
 
 The script builds the SDK and example, then runs the example under Node. Success exits zero and prints:
@@ -131,15 +134,21 @@ A judge can be wrong. An assessment does not grant permission, and permission do
 
 ## Disclosure before use
 
-By default, opening an eligible session enables local capture. Assessed calls submit rule text, tool arguments, metadata and bounded recent host observations to TypeSafe.
+By default, opening an eligible session enables local capture. The default judge submits rule text, tool arguments, metadata and bounded recent host observations to TypeSafe.
 
-Live use sends this data to an external service and uses API quota. Obtain separate authorization before live evaluation. Source and secrets can remain in submitted strings and recordings despite field redaction.
+Configured APUS submits the complete assessment to the owner-operated loopback backend, or Pika through owner forwarding. APUS probabilities are normalized but UNCALIBRATED; it is not general chat-model support.
+
+An injected judge receives the same assessment request; its SDK caller controls any further disclosure.
+
+Default live use sends this data to TypeSafe and uses API quota. APUS backend logs and resource use remain the owner's responsibility.
+
+Obtain separate authorization before live evaluation. Source and secrets can remain in submitted strings and recordings despite field redaction.
 
 Default capture lives in `~/.tenet/recordings`; cooperative owner control lives in `~/.tenet/control.json`. Set `TENET_RECORDING=off` before construction to disable local capture. This does not stop provider disclosure.
 
 Owner control `off` stops new assessment and capture, but does not erase old archives or recall dispatched work.
 
-Imports and guard construction create no files, watches or provider requests. An eligible initialized session starts control observation. The provider is constructed lazily only on an assessment request. Dormant sessions produce no evidence or owner events.
+Imports have no file or network side effects. Guard construction reads owner settings but creates no files, watches or provider requests. An eligible initialized session starts control observation. The provider is constructed lazily only on an assessment request. Dormant sessions produce no evidence or owner events.
 
 Mode is fixed at construction, with observe as the default. Observe does not block execution. `setActivation('on')` restores configured operation; it does not select enforcement or improve host coverage.
 
@@ -148,7 +157,7 @@ Mode is fixed at construction, with observe as the default. Observe does not blo
 The runtime exports are `createGuard` and `SDK_VERSION`. The public type exports are:
 
 ```text
-EvidenceContext, Judge, JudgeRequest, Assessment, RuleAssessment, Policy,
+EvidenceContext, Judge, JudgeIdentity, JudgeStatus, ConfigurationStatus, JudgeRequest, Assessment, RuleAssessment, Policy,
 Action, Outcome, Json, Approval, ApprovalRequest, ActionResolver, ActionFacts,
 ActionBinding, ResolvedAction, OperationSemantics, RecordingSink, Mode,
 HistoryCaptureMetadata, Activation, Capabilities, Capability, SessionIdentity,
@@ -167,13 +176,36 @@ This is a name list, not a copyable import. The shipped `dist/sdk/index.d.ts` an
 | `capabilities` | Optional readonly list of host guarantees, described below. Omission is an empty list. |
 | `hostVersion`, `hostProfile`, `limitations` | Verified host metadata and additional limitations. Omitted version/profile report `null`. |
 | `env` | Complete environment object. Omission takes a snapshot of `process.env`; later environment changes do not reconfigure the guard. |
-| `judge`, `createJudge` | Inject a `Judge`, or construct one lazily with `createJudge`. The normal live judge uses `TYPESAFE_API_KEY`. |
+| `judge`, `createJudge` | `judge` takes precedence over lazy `createJudge`; either overrides the JSON provider and its credential requirement. Common settings must still be valid. |
+| `judgeIdentity` | Optional `{ requestedModel: string }` for an injected judge or factory. Omission means unknown. Ignored for a configured provider without injection. |
 | `actionResolver` | Trusted, executing-tool-bound resolver. Omission leaves resolution unsupported. |
 | `controlPath` | Absolute isolated control path for tests, or shared owner control path. Takes precedence over `TENET_CONTROL_PATH`. |
 | `bindRecording` | Caller-owned best-effort sink instead of the local archive. External health and disposal remain the caller's responsibility. |
 | `onOwnerEvent`, `onOwnerRecord` | Local, bounded, owner-only callbacks. Never route their data into agent history or evaluator evidence. |
-| `observationLimits` | Optional overrides for `running`, `waiting`, `bytes`, `ageMs`. Defaults are two, 32, 1 MiB and 5000 ms. |
+| `observationLimits` | Optional overrides for `running`, `waiting`, `bytes`, `ageMs`, after JSON and defaults. Counts/bytes must be positive safe integers; age must also be at most 2147483647 ms. Invalid merged limits make configuration unavailable. |
 | `disposalTimeoutMs` | Safe integer from 0 to 5000 ms. Default 1000 ms. Invalid values throw `invalid-disposal-timeout`. |
+
+### Judge readiness and identity
+
+Both `guard.status().judge` and `session.status().judge` give the same frozen `JudgeStatus`. `provider` is `typesafe`, `apus-llamacpp`, `injected` or `unknown` for invalid settings without a selected provider. `requestedModel` is the requested alias or `null` for unknown. TypeSafe requests `jev-latest` at its fixed official destination; injected judges never inherit that identity.
+
+`availability` is local readiness, not a provider check. Unavailable reasons are `missing-credentials` and `configuration`. Valid APUS settings report `ready` and `experimental: true` without a TypeSafe key. APUS uses complete canonical assessments and existing decision gates; it never falls back to TypeSafe. An injected judge still overrides valid provider settings.
+
+`connectivity` stays `unverified`. Status does not construct a client, validate a key, attest weights or prove assessment accuracy. Policy eligibility, activation and host coverage remain separate.
+
+Both status methods also expose frozen `configuration` with the owner source, settings state, availability, optional safe failure category, effective `deadlineMs` and `observation` limits. Invalid effective configuration reports `null` limits.
+
+The guard reads `~/.tenet/config.json` once at construction, including invalid results; new sessions do not reread it. Use a full process restart after edits, not Pi `/reload`. For the closed schema, defaults and precedence, see the [owner judge settings reference](judge.md).
+
+Set `judgeIdentity` in trusted SDK code, not agent input. The requested model must contain non-whitespace text, have at most 256 characters and contain no terminal control characters. Invalid identities throw `invalid-judge-identity`. The guard copies the identity at construction; later edits do not change it.
+
+Owner permission and assessment reports use `judgeReportVersion: 'judge-report-v1'`. They keep `requestedProvider` and `requestedModel` on failure or pending work. `returnedModel` is present only after a complete validated assessment, never copied from the requested alias or partial backend metadata. This contract records APUS as experimental.
+
+Historical records keep their recorded fields, schema and question contracts; no reader substitutes today's identity. These additive assessment fields do not change archive schema 4 or the semantic question version.
+
+APUS archives separately record `nativeContract.version: 'apus-recording-v1'`, rendering `jev.dynamic.prompt.v2`, the pinned renderer revision and protocol `llamacpp-b11118-choice-v1`. The canonical request remains separate from bounded native exchanges.
+
+Deterministic NONE probability one is not model confidence or authenticated coverage. See the repository-only [native recording contract](https://github.com/koenvg/Tenet/blob/main/docs/assessment-contract.md#native-recording-contract) for fields and historical reader rules.
 
 ## Host obligations and approval
 
@@ -209,7 +241,7 @@ One handle owns one host session and context. Close it before replacing that con
 | `setHistory(history: readonly ObservedHistory[], capture?: HistoryCaptureMetadata): void` | Replace bounded untrusted tool observations. See history admission below. |
 | `endTurn(): void` | Mark unmatched releases unknown. Valid background observations survive; pending enforcement is invalidated. |
 | `invalidate(reason: string): void` | Revoke pending authorization and background observations for this context. |
-| `status(): SessionStatus` | Read a frozen snapshot of state, identity, mode, activation, capabilities, policy and assessment identities. |
+| `status(): SessionStatus` | Read a frozen snapshot of state, identity, mode, activation, capabilities, policy, judge readiness and assessment identities. |
 | `close(): Promise<boolean>` | Revoke this session, prevent further assessed calls and drain local writes within the deadline. Repeated close is safe. |
 
 Call IDs must be unique for the session's lifetime, including retries. `callId` and `toolName` must be nonempty strings of at most 256 characters. Forward original arguments, not field-redacted evaluator evidence.
@@ -266,7 +298,7 @@ The SDK bounds approval wait even if the UI ignores abort. Late confirmation can
 
 Observe releases after bounded snapshot capture without awaiting the judge. Background work defaults to two running, 32 waiting, 1 MiB total snapshots and five-second queue age. Terminal owner assessment events distinguish completed, unavailable, dropped and cancelled work. Pending, dropped and unavailable work has no passing assessment.
 
-`guard.status()` reports `closed`, session count, mode, activation, aggregate `observations` queue health and configured `capture` destination. Neither queue health nor capture status guarantees complete interception or durable recording.
+`guard.status()` reports `closed`, session count, mode, activation, local `judge` readiness, frozen effective `configuration`, aggregate `observations` queue health and configured `capture` destination. Neither queue health nor capture status guarantees complete interception or durable recording.
 
 ## Runtime coverage diagnostics
 
@@ -308,6 +340,10 @@ Off suppresses new capture without changing its configured destination. Queued w
 Local counters describe only this guard's writer. `written` counts completed stage-file writes, not durable or complete invocation coverage.
 
 `bindRecording` takes precedence over `TENET_RECORDING=off`, which disables only the local archive. External health stays unknown even after successful sink calls or caught binder/sink errors. The SDK has no external health-reporting contract and does not drain or dispose external sinks. Successful `close()` says nothing about external durability.
+
+APUS uses the same controls and snapshot limits. Capture-disabled guards create no raw local request/response archive.
+
+Native prompts, provider errors and archive evidence do not enter owner transcript reports or agent messages/tool results. Sanitized responses preserve omission markers rather than restoring credential, header or token fields.
 
 Recording configuration and health never determine permission. A failed archive or sink cannot block a permitted call or release a blocked call. Dispatch only from fresh `beforeTool` permission.
 
@@ -370,6 +406,8 @@ Context replacement, off, detected policy staleness and close cancel applicable 
 
 `guard.setActivation(value: 'on' | 'off'): Promise<Activation>` writes cooperative owner control. `guard.close(): Promise<boolean>` revokes all sessions and closes the local archive with a bounded drain. The default is one second, configurable from zero to five seconds. A false close result means incomplete archive drain, not valid permission. `setActivation` after close throws `guard-closed`.
 
-Disposal does not await a provider or trusted UI and cannot release caller-owned external resources that ignore cancellation. For isolated embedding/tests, pass a complete `env`, an injected `judge` or lazy `createJudge`, an absolute isolated `controlPath`, and `TENET_RECORDING: 'off'` or an isolated recording directory. Dispose caller-owned sinks yourself.
+Disposal does not await a provider or trusted UI and cannot release caller-owned external resources that ignore cancellation. Dispose caller-owned sinks yourself.
+
+For isolated tests, set process `HOME` to a canonical private temporary home before guard construction. An SDK `env.HOME` value does not redirect owner settings. Pass a complete `env`, an injected `judge` or lazy `createJudge`, an absolute isolated `controlPath`, and `TENET_RECORDING: 'off'` or an isolated recording directory.
 
 The SDK retains `applicability-v1`, current questions, thresholds, built-in integrity and capture defaults. Historical readers use each record's contract, not today's policy to reevaluate old findings.

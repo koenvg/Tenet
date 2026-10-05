@@ -1,4 +1,5 @@
 import { validEvidenceContext } from '../decision/evidence-context-contract.js';
+import { validNativeCapture } from './native.js';
 // Recording is a one-way diagnostic channel, never a decision input.
 export const SCHEMA_VERSION = 4;
 // Readers preserve original payloads from historical schemas.
@@ -56,6 +57,7 @@ function object(value: unknown): value is Record<string, unknown> {
 }
 function validStage(r: ArchiveRecord): boolean {
   const d = r.data;
+  if (!validNativeCapture(r.stage, d)) return false;
   if (r.schemaVersion === 4 && ['request', 'assessment', 'decision', 'permission', 'assessment-status'].includes(r.stage)
     && !validEvidenceContext(d.evidenceContext)) return false;
   if (r.schemaVersion === 4 && r.stage === 'request' && d.selectionVersion !== (d.evidenceContext as { selectionVersion: string }).selectionVersion) return false;

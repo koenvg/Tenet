@@ -38,7 +38,20 @@ fsp.mkdir = trap; fsp.writeFile = trap; fsp.rename = trap;
 http.request = trap; https.request = trap; globalThis.fetch = trap;
 syncBuiltinESMExports();
 const before = fs.readdirSync(process.cwd(), { recursive: true }).sort();
+const originals = {}; let importReads = 0;
+const moduleRead = (key, fn) => (path, ...args) => {
+  // Node's ESM loader reads compiled modules through these same builtins.
+  if (!String(path).includes('/node_modules/tenet/')) { importReads++; trap(); }
+  return fn(path, ...args);
+};
+for (const key of ['lstatSync', 'openSync', 'readFileSync', 'statSync']) { originals[key] = fs[key]; fs[key] = moduleRead(key, fs[key]); }
+for (const key of ['lstat', 'open', 'readFile', 'stat']) { originals['p_' + key] = fsp[key]; fsp[key] = moduleRead(key, fsp[key]); }
+syncBuiltinESMExports();
 const sdk = await import('tenet');
+assert.equal(importReads, 0, 'import must not inspect owner settings or other local setup');
+for (const key of ['lstatSync', 'openSync', 'readFileSync', 'statSync']) fs[key] = originals[key];
+for (const key of ['lstat', 'open', 'readFile', 'stat']) fsp[key] = originals['p_' + key];
+syncBuiltinESMExports();
 assert.deepEqual(Object.keys(sdk).sort(), ['SDK_VERSION', 'createGuard']);
 assert.equal(sdk.SDK_VERSION, 'alpha-1');
 const guard = sdk.createGuard({ host: 'isolated', env: { TENET_RECORDING: 'off' } });

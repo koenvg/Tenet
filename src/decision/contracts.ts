@@ -85,6 +85,12 @@ export interface JudgeRequest {
 }
 // Treat responses as untrusted, including responses from injected judges.
 export type Judge = (request: JudgeRequest, signal: AbortSignal, recording?: RecordingSink) => Promise<unknown>;
+/** Owner-supplied requested alias, not attestation of returned weights or accuracy. */
+export interface JudgeIdentity { readonly requestedModel: string }
+export interface RequestedJudgeIdentity {
+  readonly provider: 'typesafe' | 'apus-llamacpp' | 'injected' | 'unknown';
+  readonly requestedModel: string | null;
+}
 export interface Clock {
   now(): number;
   schedule(callback: () => void, ms: number): () => void;
@@ -118,7 +124,8 @@ export interface Decision {
   durationMs: number;
   config: Config;
   questionVersion: string;
-  requestedModel: string;
+  requestedModel: string | null;
+  requestedProvider?: RequestedJudgeIdentity['provider'];
 }
 export class JudgeFailure extends Error {
   constructor(readonly reason: Reason, readonly validationIssue?: ValidationIssue) { super(reason); }

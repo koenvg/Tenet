@@ -42,6 +42,7 @@ test('doctor reports policy identity, local readiness and honest verification li
   assert.match(report.policy.digest!, /^[a-f0-9]{64}$/); assert.equal(report.policy.ruleCount, 1);
   assert.equal(report.mode, 'observe'); assert.equal(report.control, 'on');
   assert.deepEqual(report.credentials, { presence: 'present', validity: 'unverified' });
+  assert.deepEqual(report.judge, { provider: 'typesafe', requestedModel: 'jev-latest', availability: 'ready', connectivity: 'unverified' });
   assert.equal(report.capture.state, 'local-archive'); assert.equal(report.capture.writability, 'unverified');
   assert.equal(report.compatibility.status, 'unknown'); assert.equal(report.hooks, 'unverified');
   assert.equal(report.provider, 'unverified'); assert.equal(report.assessment, 'not-requested');
@@ -254,10 +255,16 @@ syncBuiltinESMExports();`);
             { env: f.env, cwd: f.root, encoding: 'utf8', timeout: 10000 });
           assert.equal(child.status, exitCode, child.stderr || child.stdout);
           assert.ok(!child.stdout.includes(canary)); assert.ok(!child.stdout.includes('Private policy content'));
+          assert.ok(!child.stdout.includes('private-settings-canary')); assert.ok(!child.stdout.includes('http://127.0.0.1:8088'));
           assert.ok(!child.stdout.includes('Never publish')); assert.equal(child.stderr, '');
           if (json) {
             const report = JSON.parse(child.stdout);
             assert.equal(report.state, state); assert.equal(report.policy.selection, 'local');
+            if (report.judge.provider === 'apus-llamacpp') {
+              assert.equal(report.judge.availability, 'ready'); assert.equal(report.judge.experimental, true);
+              assert.equal(report.settings.deadlineMs, 120000); assert.equal(report.settings.observation.running, 1);
+              assert.ok(!report.limitations.some((i: { code: string }) => i.code === 'missing-credentials'));
+            }
             assert.equal(report.policy.source, join(f.project, 'TENET.md'));
             if (state === 'ready') assert.equal(report.policy.digest, createHash('sha256').update(policyText).digest('hex'));
           }
@@ -290,6 +297,16 @@ syncBuiltinESMExports();`);
   await check('unavailable', 1);
   await mkdir(join(f.env.HOME!, '.tenet'), { mode: 0o700 });
   await writeFile(f.env.TENET_CONTROL_PATH!, '{"version":1,"activation":"off"}', { mode: 0o600 });
+  const settings = join(f.env.HOME!, '.tenet/config.json');
+  await writeFile(settings, JSON.stringify({ version: 1, judge: { provider: 'apus-llamacpp', baseUrl: 'http://127.0.0.1:8088', model: 'apus-openjev-v1-4b-q8' },
+    decision: { deadlineMs: 120000 }, observation: { running: 1, waiting: 8, bytes: 1048576, ageMs: 120000 } }), { mode: 0o600 });
+  await check('off', 0);
+  await rm(f.env.TENET_CONTROL_PATH!);
+  await check('ready', 0);
+  await writeFile(settings, '{private-settings-canary');
+  await check('invalid', 1);
+  await rm(settings);
+  await writeFile(f.env.TENET_CONTROL_PATH!, '{"version":1,"activation":"off"}', { mode: 0o600 });
   await check('off', 0);
   await rm(join(f.project, 'TENET.md')); await rm(f.env.TENET_CONTROL_PATH!);
   await check('dormant', 0);
@@ -304,4 +321,22 @@ syncBuiltinESMExports();`);
   delete f.env.TENET_MODE;
   await rm(join(f.delivery, 'inspector/dist/index.html'));
   await check('unavailable', 1);
+}));
+
+test('offline doctor names APUS experimental and separates execution, label matching and calibration', async () => fixture(async f => {
+  await mkdir(join(f.env.HOME!, '.tenet'), { mode: 0o700 });
+  await writeFile(join(f.env.HOME!, '.tenet/config.json'), JSON.stringify({ version: 1,
+    judge: { provider: 'apus-llamacpp', baseUrl: 'http://127.0.0.1:8088', model: 'apus-openjev-v1-4b-q8' } }), { mode: 0o600 });
+  delete f.env.TYPESAFE_API_KEY;
+  const before = globalThis.fetch;
+  const oldHome = process.env.HOME; process.env.HOME = f.env.HOME;
+  globalThis.fetch = async () => { throw new Error('doctor must stay offline'); };
+  try {
+    const report = await diagnoseProject({ projectDir: f.project, deliveryDir: f.delivery, env: f.env });
+    const output = formatDoctor(report);
+    assert.match(output, /Judge: apus-llamacpp experimental; requested model: apus-openjev-v1-4b-q8/);
+    assert.match(output, /Provider execution: not-requested; label matching: unverified; calibration: unverified/);
+    assert.equal(report.judge.connectivity, 'unverified');
+    assert.equal(report.assessment, 'not-requested');
+  } finally { globalThis.fetch = before; if (oldHome === undefined) delete process.env.HOME; else process.env.HOME = oldHome; }
 }));

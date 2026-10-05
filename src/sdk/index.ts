@@ -26,7 +26,8 @@ const assessmentStatus = (status: AssessmentStatus['status'], permission?: Permi
 };
 const text = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 256;
 const ownerReport = (binding: Pick<OwnerReport, 'invocationId' | 'callId' | 'toolName'>, permission: Permission,
-  mode: OwnerReport['mode'], assessmentStatus?: OwnerReport['assessmentStatus']): OwnerReport => ({
+  mode: OwnerReport['mode'], assessmentStatus: OwnerReport['assessmentStatus'], judge: import('../runtime/judge.js').JudgeStatus): OwnerReport => ({
+  judgeReportVersion: 'judge-report-v1', requestedProvider: judge.provider, requestedModel: judge.requestedModel,
   ...permission, mode, invocationId: binding.invocationId, callId: binding.callId, toolName: binding.toolName, assessmentStatus,
 });
 
@@ -50,7 +51,7 @@ export function createGuard(options: GuardOptions): Guard {
       if (!session || session.closed || closed) return;
       deliver({ type: 'assessment', identity: session.identity, invocationId: id.invocationId, callId: id.callId,
         assessment: assessmentStatus(status, permission, reason),
-        report: permission ? ownerReport(id, permission, runtime.mode, status) : undefined });
+        report: permission ? ownerReport(id, permission, runtime.mode, status, resources.judgeStatus) : undefined });
     },
     emit: (stage, data) => {
       deliverOwnerRecord(options.onOwnerRecord, stage, data, runtime.mode);
@@ -93,6 +94,8 @@ export function createGuard(options: GuardOptions): Guard {
           reason: entry.closed || closed ? 'session-closed' : ready.unavailable,
           mode: coverage.mode, modeWarning: runtime.modeWarning, activation: coverage.activation, capabilities: coverage.adapter,
           profile: ready.profile, questionVersion: ready.questionVersion,
+          judge: resources.judgeStatus,
+          configuration: resources.configurationStatus,
           policy: { source: ready.policy.source, digest: ready.policy.available ? ready.policy.digest : null, ruleCount: ready.ruleCount } });
       };
       const unavailable = (reason: string): BeforeToolResult => immutable({
@@ -155,7 +158,7 @@ export function createGuard(options: GuardOptions): Guard {
           const report = () => {
             if (!entry.closed && !closed && activation.read() === 'on') deliver({ type: 'permission', identity: id, callId: invocation.callId, result,
               report: permission && reportBinding ? ownerReport(reportBinding, { ...permission, outcome: result.permission, reason: result.reason }, runtime.mode,
-                result.assessment.status === 'not-requested' ? undefined : result.assessment.status) : undefined });
+                result.assessment.status === 'not-requested' ? undefined : result.assessment.status, resources.judgeStatus) : undefined });
           };
           report();
           // Owner delivery and the runtime await can both revoke a prepared release.
@@ -206,6 +209,8 @@ export function createGuard(options: GuardOptions): Guard {
     },
     status() {
       return immutable({ closed, sessions: sessions.size, mode: runtime.mode, activation: activation.read(),
+        judge: resources.judgeStatus,
+        configuration: resources.configurationStatus,
         observations: runtime.observationQueue.health(),
         capture: captureStatus() });
     },

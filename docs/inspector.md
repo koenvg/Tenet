@@ -13,7 +13,7 @@ Recordings can contain secrets in submitted source, commands and other strings d
 
 Capture is on by default in `~/.tenet/recordings`, whether the inspector is running or not. `TENET_RECORDING=off` disables new local capture, not provider disclosure, observation or native findings. Old files remain. See [capture, retention and deletion](#sensitive-local-storage).
 
-Opening retained evidence is offline and makes no evaluator request. Real assessed Pi actions contact TypeSafe and use provider quota. Before authorizing such an action, read [what TypeSafe receives](limits.md#data-disclosure-and-audit). There is no live mock fallback.
+Opening retained evidence is offline and makes no evaluator request. Real assessed Pi actions contact the selected judge. TypeSafe uses quota; APUS sends full native rendering to the owner-operated backend, including Pika through forwarding. Before authorizing such an action, read [what the selected judge receives](limits.md#data-disclosure-and-audit). There is no live mock fallback.
 
 ## Open it from Pi
 
@@ -85,6 +85,10 @@ For local frontend development only, `bun inspector` starts Vite with live reloa
 3. Open **Why this assessment** for the recorded assessment map, selected check and all rules. Open **Evidence** for the tabbed evidence dock, or **Details** for exact lifecycle, versions, coverage and validation diagnostics.
 4. Select any rule, including PASS and built-in integrity. Read the policy decision, permission and execution separately. Inspect the recorded policy, application-level questions and choices, bounded/redacted submitted state, SDK response, validation and rule contributions.
 
+For APUS, open **Details**, then **Native scoring mappings**. Read captured letter/token mappings and deterministic NONE selectors separately from model probabilities.
+
+Open **Evidence**, then **Response** and **Recorded native exchanges** for every bounded snapshot and omission marker, not just the final backend reply. Partial exchanges never establish a complete returned assessment.
+
 Evidence and response text are inert. The inspector never reevaluates policy or invents model reasoning.
 
 ```text
@@ -137,6 +141,8 @@ Cold indexing reads each stage envelope once, then discards its evidence. Later 
 
 New writes use schema 4. The reader also preserves schemas 1 through 3, their submitted payloads and recorded thresholds. Missing historical diagnostics say **Not recorded**. Pending or dropped assessments have no invented would-decision or final history counters. Unsupported newer records, corrupt files and incomplete indexing produce a prominent partial-coverage warning even while supported calls remain readable.
 
+Provider/model fields come only from recorded data. APUS's additive native recording contract leaves schema 4 unchanged. Missing historical fields stay not recorded; the reader never uses today's settings to rebuild native prompts or label old providers. See [the recorded native contract](assessment-contract.md#native-recording-contract).
+
 See [evidence provenance and historical interpretation](inspection-evidence.md#recorded-and-inspector-explanations) and [host/session attribution](cross-host-recordings.md). Incomplete archives are unknown, never passes.
 
 ## Sensitive local storage
@@ -145,13 +151,17 @@ Capture preserves the exact submitted application payload. It does not reconstru
 
 | Capture limit | Exact behavior |
 | --- | --- |
-| SDK response snapshot | 1 MiB, with explicit truncation markers |
+| SDK/native response snapshot | 1 MiB, with explicit truncation markers |
 | Response traversal | Reject error instances, accessors, custom serialization, more than 100,000 values or depth greater than 64; show unavailable instead |
 | Record | 4 MiB; oversized or unserializable records are dropped and counted |
 | Asynchronous writer queue | 64 pending records and 16 MiB total |
 | Normal shutdown drain | Up to one second |
 
 Response byte counts measure serialized content after credential/header field omissions. A dropped or truncated record is never silently labeled exact. Directories use `0700`; files use `0600`. Storage is unencrypted and owner-restricted, not a confidentiality boundary against the agent or another same-user process.
+
+Native APUS requests and responses use the same bounded snapshot path. Sanitization also omits fields named `token`; it does not remove submitted tokenizer IDs in `prompt` or `labelIds`.
+
+These snapshots are not an unredacted wire log. Native metadata, timing and cache counters cannot prove calibration, physical weights or authenticated coverage.
 
 Capture failures do not change enforcement, approval or permission. Owner UI shows archive location, pending/loss counters and drain timeouts. On storage recovery, a reserved health write records cumulative writer-wide failure, dropped-stage and drain-timeout counts without using queue space. These counts can span sessions. Do not sum repeated snapshots from one writer. If storage never recovers or the process exits first, health may reach only live owner UI.
 

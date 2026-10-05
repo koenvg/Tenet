@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,9 +8,9 @@ import { verifyArchive } from './verify-delivery.js';
 
 const repository = fileURLToPath(new URL('..', import.meta.url));
 const output = resolve(process.argv[2] ?? join(repository, 'delivery/tenet.tar.gz'));
-const temporary = await mkdtemp(join(tmpdir(), 'tenet-package-'));
+const temporary = await realpath(await mkdtemp(join(tmpdir(), 'tenet-package-')));
 const home = join(temporary, 'home');
-await mkdir(home);
+await mkdir(home, { mode: 0o700 });
 const env = { PATH: process.env.PATH!, HOME: home, CI: '1', COPYFILE_DISABLE: '1', npm_config_userconfig: join(home, '.npmrc'), npm_config_globalconfig: join(home, '.npm-globalrc') };
 const run = (file: string, args: string[], cwd: string) => execFileSync(file, args, { cwd, env, stdio: 'inherit', timeout: 180_000 });
 try {
@@ -20,7 +20,8 @@ try {
   run('bun', ['run', 'vite', 'build', 'inspector', '--outDir', join(stage, 'inspector/dist')], repository);
   for (const [source, destination] of [
     ['docs/INSTALL-ARCHIVE.md', 'README.md'], ['docs/ARCHIVE-OPERATION.md', 'docs/operation.md'], ['docs/sdk.md', 'docs/sdk.md'],
-    ['docs/doctor.md', 'docs/doctor.md'],
+    ['docs/doctor.md', 'docs/doctor.md'], ['docs/judge.md', 'docs/judge.md'],
+    ['third-party/apus/LICENSE', 'third-party/apus/LICENSE'], ['third-party/apus/NOTICE', 'third-party/apus/NOTICE'],
     ['LICENSE', 'LICENSE'], ['docs/ARCHIVE-NOTICES.md', 'THIRD_PARTY_NOTICES.md'],
     ['inspector/src/fonts/OFL-Kode-Mono.txt', 'inspector/OFL-Kode-Mono.txt'],
     ['node_modules/svelte/LICENSE.md', 'inspector/LICENSE-Svelte.md'],
@@ -31,7 +32,7 @@ try {
       // This reference becomes the archive root README; relocate its sibling links.
       const guide = await readFile(join(stage, destination!), 'utf8');
       await writeFile(join(stage, destination!), guide.replaceAll('](ARCHIVE-OPERATION.md', '](docs/operation.md')
-        .replaceAll('](doctor.md', '](docs/doctor.md').replaceAll('](sdk.md', '](docs/sdk.md'));
+        .replaceAll('](judge.md', '](docs/judge.md').replaceAll('](doctor.md', '](docs/doctor.md').replaceAll('](sdk.md', '](docs/sdk.md'));
     }
   }
   const source = JSON.parse(await readFile(join(repository, 'package.json'), 'utf8'));

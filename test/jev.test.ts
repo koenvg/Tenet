@@ -7,6 +7,7 @@ import { captureAction } from '../src/decision/evidence.js';
 import { INTEGRITY_ID, INTEGRITY_TEXT } from '../src/decision/policy.js';
 import { answer, policy, sdkAnswers } from './helpers.js';
 import { Observations } from '../src/decision/trajectory.js';
+import { assembleAssessment } from '../src/decision/assessment-answers.js';
 
 const selected = { ...policy, rules: [...policy.rules, { id: 'second', line: 2, text: 'Never delete files outside the project directory.', enforcement: 'BLOCK' as const }] };
 const action = captureAction({ sessionId: 's', callId: 'c', toolName: 'new-tool', arguments: { objects: ['code'], authorization: 'hidden' } });
@@ -15,6 +16,19 @@ function response() {
   const assessment = answer(selected);
   const answers = sdkAnswers(assessment, 0.1);
   return { model: 'jev-returned', answers, usage: { input_tokens: 12, output_tokens: 2 } };
+}
+
+for (const outcome of ['PASS', 'FAIL', 'UNKNOWN', 'APPROVAL_REQUIRED'] as const) {
+  test(`canonical answer assembly retains TypeSafe ${outcome} decisions and gates`, async () => {
+    const assessment = answer(selected, outcome);
+    const raw = { model: 'same-scripted-model', answers: sdkAnswers(assessment) };
+    const clock = { now: () => 0, schedule: () => () => {} };
+    const typesafe = await decide({ ...base, clock,
+      judge: createJevJudge({ apiKey: 'offline', fetch: async () => Response.json(raw) }) });
+    const canonical = await decide({ ...base, clock, judge: async request => assembleAssessment(raw, request) });
+    assert.deepEqual(canonical, typesafe);
+    assert.equal(canonical.requestedModel, null);
+  });
 }
 
 test('one official SDK request assesses every rule with generic evidence and trusted context', async () => {

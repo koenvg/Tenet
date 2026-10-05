@@ -1,0 +1,22 @@
+APUS OpenJev renderer attribution
+
+This directory contains the unchanged Apache License 2.0 from APUS AI-LAB's
+APUS-OpenJev-v1-4B-GGUF repository, revision
+7389d774472c9e29ddc84fffb392951f0f25de74.
+
+Upstream authors: gumpcheng (xDAN2099), zhangxu, APUS AI-LAB.
+Source: https://huggingface.co/apus-ailab/APUS-OpenJev-v1-4B-GGUF/tree/7389d774472c9e29ddc84fffb392951f0f25de74
+
+Tenet ports render_prompt_parts, render_prompt and label_mapping from
+openjev_contracts.py to src/decision/apus-renderer.ts. It uses the no-thinking
+CHAT constant from examples/openjev_local.py. Changes: TypeScript implementation,
+canonical Tenet choice input, sorted state serialization and returned rendering
+parts. There is no upstream Python execution or download in the product.
+
+The native transport and validation are Tenet code. No model weights or inference
+runtime are bundled. Backend aliases do not attest to a weight revision.
+
+Upstream files and SHA-256:
+openjev_contracts.py d8e8e5270ecd6dab917d886dda2d684c24696b811faa968bb3c399ceef5e356a
+examples/openjev_local.py b3ff3c081653c8aed429dd21bedd83ddcb17f11625755d29359c8c1b384aa279
+LICENSE bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a

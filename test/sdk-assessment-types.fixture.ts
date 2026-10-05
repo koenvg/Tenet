@@ -1,5 +1,11 @@
 // Compiled in an isolated consumer against the built `tenet` package.
-import type { AssessmentStatus, BeforeToolResult, Guard, GuardSession, OwnerEvent, EvidenceContext } from 'tenet';
+import type { AssessmentStatus, BeforeToolResult, Guard, GuardSession, OwnerEvent, EvidenceContext, GuardOptions, JudgeIdentity, JudgeStatus } from 'tenet';
+const judgeIdentity: JudgeIdentity = { requestedModel: 'offline-script' };
+const options: GuardOptions = { host: 'offline', judgeIdentity, judge: async () => ({}) };
+const judgeStatus: JudgeStatus = { provider: 'injected', requestedModel: null, availability: 'ready', connectivity: 'unverified' };
+// @ts-expect-error explicit identities require a model string
+const invalidIdentity: JudgeIdentity = { requestedModel: null };
+void [options, judgeStatus, invalidIdentity];
 
 type Decision = 'ALLOW' | 'ASK' | 'BLOCK';
 
@@ -106,6 +112,21 @@ export async function useStatus(guard: Guard, session: GuardSession, event: Owne
   // @ts-expect-error capability limitations are immutable
   status.capabilities.limitations.push('new');
   const health = guard.status();
+  const requestedModel: string | null = health.judge.requestedModel;
+  const provider: 'typesafe' | 'apus-llamacpp' | 'injected' | 'unknown' = status.judge.provider;
+  const deadline: number | null = status.configuration.deadlineMs;
+  // @ts-expect-error effective configuration is immutable
+  status.configuration.deadlineMs = 5;
+  if (health.configuration.observation) {
+    // @ts-expect-error nested effective limits are immutable
+    health.configuration.observation.running = 9;
+  }
+  void deadline;
+  // @ts-expect-error requested identities are immutable
+  health.judge.requestedModel = 'changed';
+  // @ts-expect-error readiness does not verify connectivity
+  status.judge.connectivity = 'verified';
+  void [requestedModel, provider];
   // @ts-expect-error guard snapshot fields are immutable
   health.closed = true;
   // @ts-expect-error observation health is immutable

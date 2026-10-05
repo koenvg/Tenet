@@ -22,6 +22,10 @@ export async function verifyArchive(archive: string): Promise<void> {
       assert.ok(entry.startsWith('-') || entry.startsWith('d'), 'archive contains a link or special file');
     run('tar', ['-xzf', resolve(archive), '-C', root], root);
     const installation = join(root, 'tenet');
+    assert.equal(await readFile(join(installation, 'third-party/apus/LICENSE'), 'utf8'),
+      await readFile(new URL('../third-party/apus/LICENSE', import.meta.url), 'utf8'), 'archive must retain unchanged APUS license');
+    assert.equal(await readFile(join(installation, 'third-party/apus/NOTICE'), 'utf8'),
+      await readFile(new URL('../third-party/apus/NOTICE', import.meta.url), 'utf8'), 'archive must retain renderer attribution');
     await assertDelivery(installation);
     run('npm', ['ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'], installation);
     const requireInstalled = createRequire(join(installation, 'package.json'));
@@ -34,6 +38,9 @@ export async function verifyArchive(archive: string): Promise<void> {
     await cp(new URL('./fixtures/archive-consumer.mjs', import.meta.url), join(consumer, 'check.mjs'));
     for (const runtime of ['node', 'bun']) console.log(run(runtime, ['check.mjs'], consumer).trim());
 
+    for (const name of ['archive-judge.mjs', 'archive-native.mjs', 'archive-offline-trap.mjs'])
+      await cp(new URL(`./fixtures/${name}`, import.meta.url), join(consumer, name));
+    for (const runtime of ['node', 'bun']) console.log(run(runtime, ['archive-judge.mjs'], consumer).trim());
     // Test tools are installed separately, after the production-only imports and HTTP checks.
     const host = join(root, 'host'); await mkdir(host);
     const source = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
@@ -47,6 +54,8 @@ export async function verifyArchive(archive: string): Promise<void> {
       '--moduleResolution', 'NodeNext', '--target', 'ES2023', '--typeRoots', join(host, 'node_modules/@types'), '--traceResolution', 'check.ts'], consumer);
     assert.ok(trace.includes(join(installation, 'dist/sdk/index.d.ts')), 'consumer must resolve delivered declarations');
     console.log('Isolated TypeScript declarations resolved.');
+    for (const name of ['archive-native.mjs', 'archive-offline-trap.mjs'])
+      await cp(new URL(`./fixtures/${name}`, import.meta.url), join(host, name));
     await cp(new URL('./fixtures/archive-pi.mjs', import.meta.url), join(host, 'check.mjs'));
     for (const runtime of ['node', 'bun']) console.log(run(runtime, ['check.mjs', installation], host).trim());
 
@@ -76,6 +85,57 @@ export async function verifyArchive(archive: string): Promise<void> {
       console.log(run(runtime, ['owner.mjs', installation, project, 'observe'], host, ownerEnv).trim());
       console.log(run(runtime, ['owner.mjs', installation, project, 'enforce'], host, { ...ownerEnv, TENET_MODE: 'enforce' }).trim());
     }
+    const expectedDoctor = (runtime: string, expectedExit: number) => {
+      let output: string;
+      try {
+        output = run(runtime, ['--import', join(host, 'archive-offline-trap.mjs'), ...doctorArgs, '--json'], root, { PATH: ownerEnv.PATH });
+        assert.equal(expectedExit, 0, 'doctor must reject invalid/incomplete setup');
+      } catch (error) {
+        const failed = error as { status?: number; stdout?: string; stderr?: string };
+        assert.equal(failed.status, expectedExit); assert.equal(failed.stderr, '');
+        assert.equal(typeof failed.stdout, 'string'); output = failed.stdout!;
+      }
+      return JSON.parse(output);
+    };
+    // Parse the ACTUAL archive's maintained examples, never a source-only substitute.
+    const judgeGuide = await readFile(join(installation, 'docs/judge.md'), 'utf8');
+    const examples = [...judgeGuide.matchAll(/```json\n([\s\S]*?)\n```/g)].map(m => JSON.parse(m[1]!));
+    const apus = examples.find(value => value.judge.provider === 'apus-llamacpp');
+    assert.ok(apus); assert.equal(examples.length, 2);
+    const settingsDirectory = join(home, '.tenet');
+    await mkdir(settingsDirectory, { recursive: true, mode: 0o700 });
+    const settingsFile = join(settingsDirectory, 'config.json');
+    await writeFile(settingsFile, JSON.stringify(apus), { mode: 0o600 });
+    const trap = join(host, 'archive-offline-trap.mjs');
+    for (const runtime of ['node', 'bun']) {
+      const diagnosis = JSON.parse(run(runtime, ['--import', trap, ...doctorArgs, '--json'], root, { PATH: ownerEnv.PATH }));
+      assert.equal(diagnosis.state, 'ready'); assert.equal(diagnosis.delivery.status, 'complete');
+      assert.equal(diagnosis.judge.provider, 'apus-llamacpp'); assert.equal(diagnosis.judge.requestedModel, apus.judge.model);
+      assert.equal(diagnosis.judge.experimental, true); assert.equal(diagnosis.judge.connectivity, 'unverified');
+      assert.equal(diagnosis.settings.deadlineMs, apus.decision.deadlineMs);
+      assert.deepEqual(diagnosis.settings.observation, apus.observation);
+      assert.equal(diagnosis.provider, 'unverified'); assert.equal(diagnosis.assessment, 'not-requested');
+      assert.match(run(runtime, ['--import', trap, ...doctorArgs], root, { PATH: ownerEnv.PATH }), /Judge: apus-llamacpp/);
+      for (const mode of ['observe', 'enforce'])
+        console.log(run(runtime, ['owner.mjs', installation, project, mode, 'apus-llamacpp'], host,
+          { PATH: ownerEnv.PATH, TENET_MODE: mode, TENET_RECORDING: 'off' }).trim());
+    }
+    // Missing renderer attribution is an incomplete installation, even with otherwise valid settings.
+    const notice = join(installation, 'third-party/apus/NOTICE');
+    const noticeBytes = await readFile(notice); await rm(notice);
+    try {
+      const incomplete = expectedDoctor('node', 1);
+      assert.equal(incomplete.delivery.status, 'incomplete');
+      assert.ok(incomplete.delivery.missing.includes('third-party/apus/NOTICE'));
+    } finally { await writeFile(notice, noticeBytes); }
+    await writeFile(settingsFile, JSON.stringify({ ...apus, forbidden: 'private-settings-canary' }), { mode: 0o600 });
+    for (const runtime of ['node', 'bun']) {
+      const invalid = expectedDoctor(runtime, 1);
+      assert.equal(invalid.state, 'invalid'); assert.equal(invalid.judge.provider, 'unknown');
+      assert.equal(invalid.judge.reason, 'configuration');
+      assert.ok(!JSON.stringify(invalid).includes('private-settings-canary'));
+    }
+    await rm(settingsFile);
     // Removing the extension must leave the owner's policy and historical evidence intact.
     const recordings = join(home, '.tenet/recordings');
     const retained = await readdir(recordings);

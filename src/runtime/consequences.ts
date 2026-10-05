@@ -8,6 +8,11 @@ export interface Permission {
   evidenceContext?: EvidenceContext;
   profile?: string;
   questionVersion?: string;
+  judgeReportVersion?: 'judge-report-v1';
+  requestedProvider?: Decision['requestedProvider'];
+  requestedModel?: string | null;
+  /** Only a complete validated assessment supplies this alias. */
+  returnedModel?: string;
   outcome: 'released' | 'blocked';
   wouldDecision?: Decision['decision'];
   reason: string;
@@ -43,6 +48,8 @@ export class Consequences {
     const wouldDecision = failure ? (this.mode === 'observe' ? undefined : 'BLOCK') : result?.decision ?? (this.mode === 'observe' ? undefined : 'BLOCK');
     return {
       ...ASSESSMENT_METADATA,
+      ...(result ? { judgeReportVersion: 'judge-report-v1' as const, requestedProvider: result.requestedProvider,
+        requestedModel: result.requestedModel, ...(result.assessment ? { returnedModel: result.assessment.model } : {}) } : {}),
       evidenceContext: result?.evidenceContext ?? UNAVAILABLE_EVIDENCE_CONTEXT,
       outcome: this.mode === 'enforce' && failure ? 'blocked' : 'released',
       wouldDecision, reason: failure ?? result?.reason ?? 'guard-error',

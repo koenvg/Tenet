@@ -10,9 +10,10 @@ import { ASSESSMENT_METADATA, ASSESSMENT_PROFILE, supportsExemption } from './as
 import type { JudgeRequest } from './contracts.js';
 import { evidenceContext, UNAVAILABLE_EVIDENCE_CONTEXT } from './evidence-context.js';
 import { assessmentShapeIssue } from './assessment-shape.js';
+import type { RequestedJudgeIdentity } from './contracts.js';
 
 export { QUESTION_VERSION } from './assessment-contract.js';
-export const MODEL = 'jev-latest';
+export { MODEL } from './typesafe-contract.js';
 export const DEFAULTS: Readonly<Config> = Object.freeze({ effectThreshold: 0.90, evidenceThreshold: 0.90, deadlineMs: 2500 });
 const clockDefault: Clock = {
   now: () => performance.now(),
@@ -47,6 +48,7 @@ export function validateAssessment(value: unknown, policy: PolicySet, request?: 
 export async function decide(options: {
   policy: Policy; action: Action; cwd: string; judge: Judge; config?: Partial<Config>; clock?: Clock; signal?: AbortSignal;
   trajectory?: Trajectory; evidenceLimits?: EvidenceLimits; recording?: RecordingSink; resolvedAction?: import('../runtime/resolved-action.js').ResolvedAction;
+  judgeIdentity?: RequestedJudgeIdentity;
 }): Promise<Decision> {
   const { policy, action, cwd, judge, signal } = options;
   const clock = options.clock ?? clockDefault;
@@ -55,7 +57,8 @@ export async function decide(options: {
   let context = UNAVAILABLE_EVIDENCE_CONTEXT;
   const result = (decision: Decision['decision'], reason: Reason, assessment: Assessment | null = null, ruleIds: string[] = [], diagnostics: Decision['diagnostics'] = []): Decision => ({
     decision, reason, assessment, ruleIds, diagnostics, evidenceContext: context, durationMs: Math.max(0, clock.now() - start), config,
-    ...ASSESSMENT_METADATA, requestedModel: MODEL,
+    ...ASSESSMENT_METADATA, requestedModel: options.judgeIdentity?.requestedModel ?? null,
+    requestedProvider: options.judgeIdentity?.provider ?? 'injected',
   });
   if (!policy.available) return result('BLOCK', policy.reason);
   if (!validConfig(config) || typeof cwd !== 'string' || !cwd.trim()) return result('BLOCK', 'configuration');
