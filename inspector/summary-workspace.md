@@ -42,9 +42,11 @@ This source-only preview uses authored summaries. It reads no archive, sends no 
 
 The list and summary appear beside each other above a 650px workspace width. The compact navigation uses the workspace container width, not the window width. If port 52351 is occupied, use the URL Vite prints.
 
-Open `http://127.0.0.1:52351/comparison-preview.html` for a side-by-side check. Both sides use the same synthetic recorded summary; the left adds standalone extensions and the right uses the summary-only library mount. Add `?container=390` to compare narrow containers inside a wide window.
+Open `http://127.0.0.1:52351/comparison-preview.html` for the common-summary-only comparison. Both adapters receive the same authored fixture, selection and category filter. Summary disclosures and compact navigation stay synchronized when you use either side.
 
-The fixture imports authored test records, not a local recording. Each side must expose the same assessment disclosures without horizontal overflow; only the left exposes raw-detail disclosures.
+Add `?container=390` to compare 390px containers inside a wide window. Check that shared fields have the same content, order and positions, not only that they fit. The preview starts without raw extensions, so omitted raw content cannot change the common layout.
+
+Select **Show standalone-only inspection**, or add `?raw=1`, to show the separate raw section after the left summary. **Recorded action**, **Evidence** and **Details** are standalone-only additions; BB receives no raw values. The left workspace can become taller; its common summary rows retain their positions.
 
 ## Summary input
 
@@ -76,9 +78,11 @@ standalone HTTP -> explicit summary projection -> shared Svelte workspace
 planned BB host RPC     -> validated safe summary     -> React mount -> same workspace
 ```
 
-The standalone app uses [standalone-adapter.ts](src/shared/standalone-adapter.ts) to copy summary fields. Both hosts render [SummaryDetail.svelte](src/shared/SummaryDetail.svelte), including the decision summary, recorded assessment map, **Why this assessment**, **Selected check details** and **Browse all rules**. Call and detail spacing, hierarchy and disclosure styles live in [presentation.css](src/shared/presentation.css).
+The standalone app uses [standalone-adapter.ts](src/shared/standalone-adapter.ts) to copy summary fields. Both hosts render [SummaryDetail.svelte](src/shared/SummaryDetail.svelte) for call identity, recorded assessment status and reason, and the decision summary.
 
-Standalone [Detail.svelte](src/Detail.svelte) adds private action-preview and raw-detail snippets around that shared layout. Evidence, exact questions, Response, Policy and recording details stay outside the summary model.
+The same component renders the recorded map and the **Why this assessment**, **Selected check details** and **Browse all rules** disclosures. Shared spacing, hierarchy and disclosure styles live in [presentation.css](src/shared/presentation.css).
+
+Standalone [Detail.svelte](src/Detail.svelte) adds a separate **Standalone-only inspection** section after the complete common summary. Its **Recorded action**, **Evidence** and **Details** disclosures hold action previews, exact questions, Response, Policy and recording details. No raw extension changes the content or order of common summary rows.
 
 Rule selection still chooses the standalone dock's recorded rule. Existing session links, history, polling and uncertainty groups stay in the standalone app.
 

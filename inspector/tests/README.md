@@ -84,13 +84,17 @@ Verification rewrites no archive or policy and restarts no active service. Owner
 
 ## Simplified first view
 
-TENET-42 keeps the action, actual status, mode, findings and one brief reason visible. The sidebar uses one actual-status chip, quiet mode text and one concern cue.
+The first view keeps call identity, recorded assessment status, actual execution, mode, findings and one brief reason visible. Both adapters use the same safe summary rows. The sidebar uses one actual-status chip, quiet mode text and one concern cue.
 
 A `+N` cue counts additional finding categories, not additional violated rules. All categories remain in the selected call and category filters are unchanged.
 
-**Why this assessment** opens the recorded Open map, selected check and all rules. **Evidence** opens the existing tabbed dock. **Details** opens exact lifecycle, versions, coverage and validation diagnostics.
+**Why this assessment** opens the recorded map, selected check and all rules. The separate **Standalone-only inspection** section contains **Recorded action**, the **Evidence** tabbed dock and **Details** for exact lifecycle, versions, coverage and validation diagnostics.
 
 Native disclosures stay closed on a new selection and remain mounted through polls. Tests open these public entry points before interaction; no old regression was skipped. New desktop/narrow tests check the simpler default and keyboard disclosure path.
+
+The common-only comparison checks identical safe DOM content/order and element positions at wide and 390px container widths. Selection, filters, check details and disclosures stay synchronized across adapters. A raw-extension toggle must not move or change common summary rows; provider failure and coverage facts remain visible.
+
+Browser Back tests check selected-call association, action preview, submitted evidence and exact question access after standalone extension placement changes. These use synthetic archive HTTP and public controls at desktop and 390px viewport sizes.
 
 Expanded Details groups recorded outcomes, recording metadata and coverage. Keys and values align at desktop and narrow widths. Rule notes stay separate from capture counters.
 

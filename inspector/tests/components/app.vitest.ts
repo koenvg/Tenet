@@ -52,12 +52,12 @@ test('fresh visits select the latest call, then navigate without an archive serv
   const screen = await render(createElement(App));
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
   expect(screen.container.querySelector('.call-row[aria-pressed="true"] .call-id')?.textContent).toBe('latest');
-  expect(screen.container.querySelector('.decision-title h2 span')?.textContent).toBe('latest');
+  expect(screen.container.querySelector('.call-label')?.textContent).toBe('Call latest');
   expect(requests).toContain(`/api/sessions/${sessionId}/invocations/${latestId}`);
   expect(location.search).toContain(`invocation=${latestId}`);
   await screen.getByRole('navigation', { name: 'Invocations' }).getByRole('button').nth(1).click();
   await expect.element(screen.getByRole('region', { name: 'Actual execution' }).getByText('Ran', { exact: true })).toBeVisible();
-  expect(screen.container.querySelector('.decision-title h2 span')?.textContent).toBe('older');
+  expect(screen.container.querySelector('.call-label')?.textContent).toBe('Call older');
   expect(location.search).toContain(`invocation=${olderId}`);
   expect(requests).toContain(`/api/sessions/${sessionId}/invocations/${olderId}`);
 });
@@ -68,7 +68,7 @@ test('a deep link selects the requested call instead of the newest', async () =>
   const screen = await render(createElement(App));
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
   expect(screen.container.querySelector('.call-row[aria-pressed="true"] .call-id')?.textContent).toBe('older');
-  expect(screen.container.querySelector('.decision-title h2 span')?.textContent).toBe('older');
+  expect(screen.container.querySelector('.call-label')?.textContent).toBe('Call older');
   expect(requests).toContain(`/api/sessions/${sessionId}/invocations/${olderId}`);
   expect(requests).not.toContain(`/api/sessions/${sessionId}/invocations/${latestId}`);
 });

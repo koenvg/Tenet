@@ -18,7 +18,6 @@
 .tenet-summary-workspace.embedded .call-list { max-height: 600px; }
 .tenet-summary-workspace.embedded .inspection { min-width: 0; overflow-wrap: anywhere; background: var(--tenet-chrome); border-radius: 16px; margin: 0 24px 20px 0; }
 .tenet-summary-workspace.embedded .invocation { height: auto; }
-.tenet-summary-workspace.embedded .raw-evidence-note { margin: 0 32px 24px; color: var(--tenet-muted); font-size: 12px; }
 .tenet-summary-workspace.embedded [role='alert'] { color: var(--tenet-danger); }
 .tenet-summary-workspace.embedded .call-id { overflow-wrap: anywhere; font-size: 12px; }
 @container tenet-summary (max-width: 650px) {

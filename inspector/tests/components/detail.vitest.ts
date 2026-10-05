@@ -10,9 +10,27 @@ import { makeView, recordedQuestion } from './fixtures.js';
 import '../../src/style.css';
 import '../../src/summary.css';
 
-test('the first view tells the call story and keeps diagnostics behind three disclosures', async () => {
+test('common summary includes recorded identity and failure, with raw inspection separate', async () => {
+  const view = makeView({ execution: 'executed', failure: 'provider-error' });
+  view.evidence.action.arguments.command = 'RAW_ACTION_SENTINEL';
+  const screen = await render(createElement(Detail, { view }));
+  const common = screen.getByRole('region', { name: 'Common call summary' });
+  await expect.element(common.getByText('Call offline-call', { exact: true })).toBeVisible();
+  await expect.element(common.getByText('Recorded assessment: failed · provider-error.', { exact: true })).toBeVisible();
+  await expect.element(common.getByRole('region', { name: 'Actual execution' }).getByText('Ran', { exact: true })).toBeVisible();
+  expect(common.element().textContent).not.toContain('RAW_ACTION_SENTINEL');
+  const raw = screen.getByRole('region', { name: 'Standalone-only inspection' });
+  await raw.getByText('Recorded action', { exact: true }).click();
+  await expect.element(raw.getByText('RAW_ACTION_SENTINEL', { exact: true })).toBeVisible();
+  await raw.getByText('Evidence', { exact: true }).first().click();
+  await expect.element(raw.getByRole('heading', { name: 'Evidence dock' })).toBeVisible();
+});
+
+test('the first view tells the call story and separates summary from standalone inspection disclosures', async () => {
   const screen = await render(createElement(Detail, { view: makeView({ execution: 'executed' }) }));
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
+  expect(screen.container.querySelector('.common-summary')?.textContent).not.toContain('git status --short');
+  await screen.getByText('Recorded action', { exact: true }).click();
   await expect.element(screen.getByText('git status --short', { exact: true }).first()).toBeVisible();
   expect(screen.container.querySelector('.primary-badges')?.textContent).toContain('Ran');
   expect(screen.container.querySelector('.primary-badges')?.textContent).toContain('Observe');
@@ -20,8 +38,8 @@ test('the first view tells the call story and keeps diagnostics behind three dis
   expect(screen.container.querySelector('.decision-map')?.checkVisibility()).toBe(false);
   expect(screen.container.querySelector('.evidence-dock')?.checkVisibility()).toBe(false);
   expect(screen.container.querySelector('.lifecycle')?.checkVisibility()).toBe(false);
-  const entries = [...screen.container.querySelectorAll('.summary-content > details > summary')].map(el => el.textContent?.trim());
-  expect(entries).toEqual(['Why this assessment', 'Evidence', 'Details']);
+  const entries = [...screen.container.querySelectorAll('.common-summary > details > summary, .standalone-inspection > details > summary')].map(el => el.textContent?.trim());
+  expect(entries).toEqual(['Why this assessment', 'Recorded action', 'Evidence', 'Details']);
   await screen.getByText('Why this assessment', { exact: true }).click();
   await expect.element(screen.getByRole('group', { name: 'Decision map' })).toBeVisible();
   await screen.getByText('Evidence', { exact: true }).first().click();

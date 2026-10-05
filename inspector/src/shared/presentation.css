@@ -14,7 +14,8 @@
 .tenet-presentation .pane-heading { display: flex; align-items: center; justify-content: space-between; }
 .tenet-presentation .inspection { container: tenet-detail / inline-size; }
 .tenet-presentation .invocation { height: 100%; min-height: 0; min-width: 0; }
-.tenet-presentation .assessment-state, .tenet-presentation .call-label { margin: 12px 32px 0; color: var(--tenet-muted, #5b605e); font-size: 12px; }
+.tenet-presentation .recorded-context { padding: 24px 32px 0; display: grid; gap: 6px; color: var(--tenet-muted, #5b605e); font-size: 12px; }
+.tenet-presentation .summary-privacy-note { margin: 24px 32px 0; color: var(--tenet-muted, #5b605e); font-size: 12px; }
 
 .tenet-presentation .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .tenet-presentation .call-top time { color: var(--tenet-muted, #5b605e); font-size: .75rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -66,11 +67,9 @@
 .tenet-presentation .story-title { display: flex; align-items: center; gap: 12px; }
 .tenet-presentation .story-title > .decision-icon { width: 28px; height: 28px; flex: none; }
 .tenet-presentation .primary-status h2 { font-size: 24px; margin: 0; font-weight: 600; }
-.tenet-presentation .story-action { font: 15px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; padding: 0; margin: 12px 0 24px; background: none; border: 0; max-height: 120px; overflow: auto; white-space: pre-wrap; }
-.tenet-presentation .primary-badges { display: flex; flex-wrap: wrap; gap: 8px; }
+.tenet-presentation .primary-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
 .tenet-presentation .primary-badges .status-chip { font-size: 15px; }
 .tenet-presentation .story-assessment { margin-top: 24px; font-size: 17px; font-weight: 600; }
-.tenet-presentation .primary-status .action-unavailable { margin: 12px 0 24px; max-width: 65ch; }
 .tenet-presentation .primary-status .summary-reason { padding: 4px 0 0; border: 0; font-size: 15px; font-weight: 400; max-width: 65ch; }
 .tenet-presentation .primary-status .finding-tags { margin-top: 16px; }
 .tenet-presentation .recording-inconsistency { display: block; padding: 8px; margin: 8px 0; border: 1px solid var(--tenet-danger, #be3737); color: var(--tenet-danger, #be3737); background: var(--tenet-danger-bg, #fbefee); font-size: 13px; }
@@ -117,8 +116,6 @@
 .tenet-presentation .map-action { left: 3.1%; top: calc(41% - clamp(33px, 2.9cqw, 45px)); width: 30%; }
 .tenet-presentation .map-action .map-symbol { margin-left: 2.5cqw; }
 .tenet-presentation .map-endpoint h3 { font-size: 28px; font-weight: 650; margin: 12px 0 8px; }
-.tenet-presentation .action-preview { font: 15px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; padding: 0; margin: 0; background: none; border: 0; max-height: 130px; overflow: auto; max-width: 95%; }
-.tenet-presentation .action-unavailable { color: var(--tenet-muted, #5b605e); max-width: 30ch; font-size: 14px; }
 .tenet-presentation .map-check { left: 47.1%; top: calc(var(--node-y) - clamp(33px, 2.9cqw, 45px)); width: 31%; }
 .tenet-presentation .map-check.danger .map-symbol { color: var(--tenet-danger, #be3737); }
 .tenet-presentation .map-check.caution .map-symbol { color: var(--tenet-amber, #795617); }
@@ -185,7 +182,6 @@
   .tenet-presentation .map-symbol { width: 52px; height: 52px; border-width: 2px; }
   .tenet-presentation .map-action .map-symbol, .tenet-presentation .map-policy .map-symbol { margin: 0; }
   .tenet-presentation .map-endpoint h3 { font-size: 24px; }
-  .tenet-presentation .action-preview { font-size: 13px; max-width: 100%; max-height: 160px; }
   .tenet-presentation .map-checks { margin-left: 25px; border-left: 1px solid #9c9f9b; padding: 8px 0 8px 30px; }
   .tenet-presentation .map-check { position: relative; inset: auto; margin: 0 0 30px; }
   .tenet-presentation .map-check::before { content: ''; position: absolute; left: -30px; top: 26px; width: 30px; border-top: 1px solid #9c9f9b; }
@@ -197,6 +193,8 @@
   .tenet-presentation .map-verdict { font-size: 24px; }
   .tenet-presentation .execution-summary { font-size: 14px; }
   .tenet-presentation .primary-status { padding: 24px; }
+  .tenet-presentation .recorded-context { padding: 24px 24px 0; }
+  .tenet-presentation .summary-privacy-note { margin: 24px 24px 0; }
   .tenet-presentation .why-disclosure { margin-left: 24px; margin-right: 24px; }
   .tenet-presentation .assessment-pane, .tenet-presentation .evidence-disclosure, .tenet-presentation .capture-details { margin-left: 24px; margin-right: 24px; }
   .tenet-presentation .distributions { grid-template-columns: 1fr; }

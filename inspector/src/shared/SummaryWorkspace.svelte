@@ -39,12 +39,9 @@
   <div class="inspection">
     {#if inspection}{@render inspection()}
     {:else if model.selected}
-      <p class="call-label">Call {model.selected.identity?.callId ?? 'Identity unavailable'}</p>
-      <p class="assessment-state">Recorded assessment: {model.selected.evaluatorState?.status ?? model.selected.assessmentStatus}{(model.selected.evaluatorState?.reason ?? model.selected.failure) ? ` · ${model.selected.evaluatorState?.reason ?? model.selected.failure}` : ''}.</p>
       {#key model.selectedId ?? model.selected.identity?.callId}
         <SummaryDetail view={model.selected} moreRules={model.moreRules ?? false} loading={model.loading} loadMoreRules={actions.loadMoreRules} />
       {/key}
-      <p class="raw-evidence-note">Raw evidence, action previews, exact questions and provider responses remain in the standalone inspector on the selected machine.</p>
     {:else}<section class="empty-state" aria-live="polite"><h2>{model.loading ? 'Reading invocation…' : 'Choose a call to investigate'}</h2></section>{/if}
   </div>
 </main>
