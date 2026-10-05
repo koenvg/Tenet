@@ -1,11 +1,82 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
 import { act, fireEvent } from '@testing-library/react';
-import { loadPluginApp, renderSlot } from '@get-bb/plugin-sdk/testing/app';
-import { rpcContract, type Status } from './contract';
+import type { ComponentType } from 'react';
+import { createFakePluginHost } from '@get-bb/plugin-sdk/testing';
+import { loadPluginApp, renderSlot as renderSdkSlot, type PluginRpcTestHandlers, type RenderSlotOptions } from '@get-bb/plugin-sdk/testing/app';
+import { rpcContract, type Findings, type Status } from './contract';
+
+// The SDK's default mock contract accepts unknown outputs. Pin these mocks to Tenet.
+type TenetSlotOptions = Omit<RenderSlotOptions, 'rpc'> & {
+  rpc?: Partial<PluginRpcTestHandlers<typeof rpcContract>>;
+};
+function renderSlot<Props extends object>(registration: { component: ComponentType<Props> }, props: Props, options: TenetSlotOptions = {}) {
+  const { status, findings } = options.rpc ?? {};
+  return renderSdkSlot(registration, props, { ...options, rpc: {
+    ...(status ? { status: async (input: unknown) => rpcContract.status.output.parse(await status(rpcContract.status.input.parse(input))) } : {}),
+    ...(findings ? { findings: async (input: unknown) => rpcContract.findings.output.parse(await findings(rpcContract.findings.input.parse(input))) } : {}),
+  } });
+}
 
 const threadId = 'thr_abcdefgh1234';
 const linked: Status = { coverage: 'partial', linkedCalls: 2, failures: 1, issues: [] };
+
+type Finding = Findings['items'][number];
+const savedFinding: Finding = {
+  id: 'a'.repeat(64), snapshot: 'a'.repeat(64), callId: 'edit-1', toolName: 'edit', timestamp: 100, mode: 'observe',
+  rules: [{ ruleId: 'r1', severity: 'BLOCK', policyText: 'Recorded rule', confidence: 0.8, uncertain: false, kind: 'policy' }],
+  wouldDecision: 'BLOCK', actualPermission: 'released', observedExecution: 'unknown', missingStages: [],
+};
+
+describe('finding RPC output contract', () => {
+  const page: Findings = { coverage: 'partial', linkedCalls: 1, issues: [], items: [savedFinding], next: null };
+  const { snapshot, ...withoutSnapshot } = savedFinding;
+  const { timestamp, ...withoutTimestamp } = savedFinding;
+  const { uncertain, ...withoutUncertain } = savedFinding.rules[0]!;
+  const { kind, ...withoutKind } = savedFinding.rules[0]!;
+  const { next, ...withoutNext } = page;
+
+  // These invalid handlers must fail static checking and the real RPC output validator.
+  const rejectedMocks: { name: string; handler: PluginRpcTestHandlers<typeof rpcContract>['findings']; path: (string | number)[] }[] = [
+    { name: 'a missing snapshot', path: ['items', 0, 'snapshot'],
+      // @ts-expect-error A findings mock must include the snapshot.
+      handler: () => ({ ...page, items: [withoutSnapshot] }) },
+    { name: 'a missing timestamp in an async result', path: ['items', 0, 'timestamp'],
+      // @ts-expect-error Async findings mocks must also include all required fields.
+      handler: async () => ({ ...page, items: [withoutTimestamp] }) },
+    { name: 'a missing rule uncertainty', path: ['items', 0, 'rules', 0, 'uncertain'],
+      // @ts-expect-error Finding rules must include uncertain.
+      handler: () => ({ ...page, items: [{ ...savedFinding, rules: [withoutUncertain] }] }) },
+    { name: 'a missing rule kind', path: ['items', 0, 'rules', 0, 'kind'],
+      // @ts-expect-error Finding rules must include kind.
+      handler: () => ({ ...page, items: [{ ...savedFinding, rules: [withoutKind] }] }) },
+    { name: 'a missing page cursor', path: ['next'],
+      // @ts-expect-error A findings result must include next, even on the last page.
+      handler: () => withoutNext },
+    { name: 'a short finding ID', path: ['items', 0, 'id'],
+      handler: () => ({ ...page, items: [{ ...savedFinding, id: 'a' }] }) },
+    { name: 'a non-hex snapshot', path: ['items', 0, 'snapshot'],
+      handler: () => ({ ...page, items: [{ ...savedFinding, snapshot: 'z'.repeat(64) }] }) },
+  ];
+
+  it('accepts a complete finding through the RPC output validator', async () => {
+    const fake = createFakePluginHost();
+    try {
+      fake.bb.rpc.register(rpcContract, { status: () => linked, findings: () => page });
+      expect(await fake.harness.behavior.callRpc('findings', { threadId })).toEqual(page);
+    } finally { await fake.harness.lifecycle.dispose(); }
+  });
+
+  it.each(rejectedMocks)('rejects $name at the RPC output boundary', async ({ handler, path }) => {
+    const fake = createFakePluginHost();
+    try {
+      fake.bb.rpc.register(rpcContract, { status: () => linked, findings: handler });
+      await expect(fake.harness.behavior.callRpc('findings', { threadId })).rejects.toMatchObject({
+        code: 'invalid_output', issues: expect.arrayContaining([expect.objectContaining({ path })]),
+      });
+    } finally { await fake.harness.lifecycle.dispose(); }
+  });
+});
 
 describe('Pi thread rule action', () => {
   it('does not show an action on non-Pi threads', async () => {
@@ -124,9 +195,9 @@ describe('Pi thread rule action', () => {
   it('paginates linked details and recovers from a rejected cursor with page-one Refresh', async () => {
     const app = await loadPluginApp(() => import('./app'));
     let reads = 0;
-    const row = { id: 'a', callId: 'edit-1', toolName: 'edit', timestamp: 100, mode: 'observe',
-      rules: [{ ruleId: 'r1', severity: 'BLOCK', policyText: '<img src=x onerror=alert(1)>', confidence: 0.72 }],
-      wouldDecision: 'BLOCK', actualPermission: 'released', observedExecution: 'unknown', missingStages: ['execution'] };
+    const row: Finding = { ...savedFinding,
+      rules: [{ ruleId: 'r1', severity: 'BLOCK', policyText: '<img src=x onerror=alert(1)>', confidence: 0.72, uncertain: false, kind: 'policy' }],
+      missingStages: ['execution'] };
     const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, {
       rpc: { findings: (input) => { const { cursor } = rpcContract.findings.input.parse(input); reads++; if (cursor) throw new Error('invalid-page');
         return { coverage: 'partial', linkedCalls: 1, issues: ['indexing-in-progress', 'writer-loss'], items: [row], next: 'cursor-2' }; } } });
@@ -156,11 +227,10 @@ describe('Pi thread rule action', () => {
   });
   it('groups selected rule text under the matching tool call and falls back to rule ID', async () => {
     const app = await loadPluginApp(() => import('./app'));
-    const finding = (id: string, callId: string, ruleId: string, policyText: string | null) => ({
-      id, callId, toolName: 'edit', timestamp: 100, mode: 'observe', rules: [{ ruleId, severity: 'BLOCK', policyText, confidence: 0.8 }],
-      wouldDecision: 'BLOCK', actualPermission: 'released', observedExecution: 'unknown', missingStages: [] });
+    const finding = (id: string, callId: string, ruleId: string, policyText: string | null): Finding => ({
+      ...savedFinding, id, callId, rules: [{ ruleId, severity: 'BLOCK', policyText, confidence: 0.8, uncertain: false, kind: 'policy' }] });
     const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: () => ({ coverage: 'partial', linkedCalls: 2, issues: [],
-      items: [finding('a', 'edit-1', 'r1', 'Do not edit secrets'), finding('b', 'edit-2', 'r2', null)], next: null }) } });
+      items: [finding('a'.repeat(64), 'edit-1', 'r1', 'Do not edit secrets'), finding('b'.repeat(64), 'edit-2', 'r2', null)], next: null }) } });
     try {
       const first = (await slot.findByText('edit-1')).closest('ol > li');
       const second = slot.getByText('edit-2').closest('ol > li');
@@ -182,8 +252,8 @@ describe('Pi thread rule action', () => {
     const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: (input) => {
       const { cursor } = rpcContract.findings.input.parse(input);
       return cursor
-      ? { coverage: 'partial', linkedCalls: 2, issues: [], items: [{ id: 'b', callId: 'edit-2', toolName: 'edit', timestamp: 200,
-        mode: 'observe', rules: [{ ruleId: 'r1', policyText: 'Rule', severity: 'WARN', confidence: 0.9 }], wouldDecision: 'unknown', actualPermission: 'unknown', observedExecution: 'unknown', missingStages: [] }], next: null }
+      ? { coverage: 'partial', linkedCalls: 2, issues: [], items: [{ ...savedFinding, id: 'b'.repeat(64), callId: 'edit-2', timestamp: 200,
+        rules: [{ ruleId: 'r1', policyText: 'Rule', severity: 'WARN', confidence: 0.9, uncertain: false, kind: 'policy' }], wouldDecision: 'unknown', actualPermission: 'unknown' }], next: null }
       : { coverage: 'partial', linkedCalls: 2, issues: first++ === 0 ? ['detail-unavailable'] : [], items: [], next: 'next' }; } } });
     try {
       expect(await slot.findByText(/Some flagged calls could not be read/)).toBeTruthy();
@@ -221,12 +291,12 @@ describe('Pi thread rule action', () => {
   });
   it('groups repeated calls by snapshot and keeps uncertain FAIL and integrity visible', async () => {
     const app = await loadPluginApp(() => import('./app'));
-    const row = (id: string, snapshot: string, kind = 'policy') => ({
-      id, snapshot, callId: id, toolName: 'edit', rules: [{ ruleId: 'r1', policyText: 'Recorded rule', severity: 'WARN', confidence: 0.6, uncertain: true, kind }],
+    const row = (id: string, callId: string, snapshot: string, kind: Finding['rules'][number]['kind'] = 'policy'): Finding => ({
+      ...savedFinding, id, snapshot, callId, rules: [{ ruleId: 'r1', policyText: 'Recorded rule', severity: 'WARN', confidence: 0.6, uncertain: true, kind }],
     });
     const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: () => ({
       coverage: 'partial', linkedCalls: 4, issues: [], next: null, notices: { approvals: 1, uncertain: 2, incomplete: 1 },
-      items: [row('one', 'a'.repeat(64)), row('two', 'a'.repeat(64)), row('three', 'b'.repeat(64)), row('four', 'c'.repeat(64), 'integrity')],
+      items: [row('1'.repeat(64), 'one', 'a'.repeat(64)), row('2'.repeat(64), 'two', 'a'.repeat(64)), row('3'.repeat(64), 'three', 'b'.repeat(64)), row('4'.repeat(64), 'four', 'c'.repeat(64), 'integrity')],
     }) } });
     try {
       await slot.findByText('one');
@@ -242,7 +312,7 @@ describe('Pi thread rule action', () => {
     vi.useFakeTimers();
     let reads = 0;
     const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: () => ++reads === 1
-      ? { coverage: 'partial', linkedCalls: 1, issues: [], next: null, items: [] } : new Promise(() => {}) } });
+      ? { coverage: 'partial', linkedCalls: 1, issues: [], next: null, items: [] } : new Promise<Findings>(() => {}) } });
     try {
       await act(async () => { await Promise.resolve(); });
       expect(slot.getByText('No flagged calls to show.')).toBeTruthy();
@@ -260,7 +330,7 @@ describe('Pi thread rule action', () => {
     const app = await loadPluginApp(() => import('./app'));
     vi.useFakeTimers();
     let unavailable = false;
-    const row = (id: string) => ({ id, snapshot: 'a'.repeat(64), callId: id, toolName: 'edit',
+    const row = (callId: string): Finding => ({ ...savedFinding, id: (callId === 'older' ? 'b' : 'a').repeat(64), callId,
       rules: [{ ruleId: 'r1', policyText: 'Rule', severity: 'WARN', confidence: 0.9, uncertain: false, kind: 'policy' }] });
     const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: (input) => {
       const { cursor } = rpcContract.findings.input.parse(input);
@@ -299,7 +369,7 @@ describe('Pi thread rule action', () => {
     const app = await loadPluginApp(() => import('./app'));
     const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: () => ({
       coverage: 'partial', linkedCalls: 1, issues: ['writer-loss'], next: null, notices: { approvals: 1, uncertain: 1, incomplete: 0 },
-      items: [{ id: 'a', snapshot: 'a'.repeat(64), callId: 'private-call-id', toolName: 'edit', rules: [
+      items: [{ ...savedFinding, callId: 'private-call-id', rules: [
         { ruleId: 'r1', policyText: 'Do not edit secrets', severity: 'WARN', confidence: 0.6, uncertain: true, kind: 'policy' },
       ] }],
     }) } });
