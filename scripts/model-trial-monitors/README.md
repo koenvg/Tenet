@@ -2,15 +2,36 @@
 
 Use these developer-checkout scripts to maintain the one-off APUS and Clef monitors on Pika. They are not part of the Tenet installation archive.
 
-## Run the offline tests
+## Build and test offline
 
-You need Python 3. From the repository root, run:
+You need Python 3. This supported checkout procedure makes no SSH, BB, model, or TypeSafe calls.
 
-```sh
-python3 -B scripts/model-trial-monitors/test_watch.py
+1. Edit [the shared lifecycle](lifecycle.py) for durable saves, delivery, retries, failure thresholds, recovery, and terminal pause. Edit [the APUS rules](apus.py) or [the Clef rules](clef.py) for probes, messages, and terminal conditions.
+2. From the repository root, generate the standalone copies:
+
+   ```sh
+   python3 -B scripts/model-trial-monitors/generate.py
+   ```
+
+3. Check that the generated files match their sources, then run the offline tests:
+
+   ```sh
+   python3 -B scripts/model-trial-monitors/generate.py --check
+   python3 -B scripts/model-trial-monitors/test_watch.py
+   ```
+
+Generation prints `Generated standalone monitor scripts`. The check prints `Monitor scripts are current`, and tests report `OK`. If the check reports stale scripts, regenerate them. Do not edit `apus_watch.py` or `clef_watch.py` directly.
+
+The maintained files combine as follows:
+
+```text
+lifecycle.py + apus.py -> apus_watch.py
+lifecycle.py + clef.py -> clef_watch.py
 ```
 
-Success reports `OK`. The tests use temporary state files and a local SQLite queue to simulate accepted delivery, rejection, and timeouts. They make no SSH, BB, model, or TypeSafe calls. BB queue API and CLI tests live in the separate BB checkout.
+Each generated script includes the lifecycle code and uses only the Python standard library. It needs no local imports when stored alone.
+
+The tests use temporary state files and a local SQLite queue to simulate accepted delivery, crashes, rejection, timeouts, recovery, and terminal pause. They also run copied scripts in isolated Python processes with fake commands. The suite checks generation drift in application CI. BB queue API and CLI tests live in the separate BB checkout.
 
 ## Delivery contract
 
@@ -28,6 +49,6 @@ Queue acceptance does not prove provider execution or a user-visible answer. BB 
 
 ## Update a stored monitor
 
-Editing these source files does not update an automation. BB runs its stored copy. Keep the automation paused until the new queue support is installed and checked.
+Editing or generating these files does not update an automation. BB runs its stored copy of `apus_watch.py` or `clef_watch.py`. Keep the automation paused until the new queue support is installed and checked.
 
 A live monitor reads status and logs from Pika over SSH and sends them to a BB thread. Get separate approval before running or resuming it. Installing or restarting BB also needs separate approval. Updating a paused stored script does not grant approval to run it.

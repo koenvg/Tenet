@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import sqlite3
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -17,6 +18,86 @@ def load_monitor(model):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+class GeneratedMonitorTests(unittest.TestCase):
+    def test_generated_monitors_match_maintained_sources(self):
+        result = subprocess.run([sys.executable, "-B", str(ROOT / "generate.py"), "--check"],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_each_stored_script_runs_alone(self):
+        for model in ("apus", "clef"):
+            with self.subTest(model=model), tempfile.TemporaryDirectory() as directory:
+                script = Path(directory) / "watch.py"
+                script.write_bytes((ROOT / (model + "_watch.py")).read_bytes())
+                result = subprocess.run([sys.executable, "-I", "-B", str(script), "--self-test"],
+                                        cwd=directory, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("Monitor state checks passed", result.stdout)
+
+    def test_stored_main_runs_without_checkout_imports(self):
+        bootstrap = """
+import json
+import os
+import runpy
+import subprocess
+import sys
+from unittest.mock import patch
+
+monitor = runpy.run_path(sys.argv[1], run_name="offline_monitor")
+calls = []
+def run(command, **kwargs):
+    calls.append(command)
+    if command[0] == "ssh":
+        return subprocess.CompletedProcess(command, 0, json.dumps({
+            "status": "complete", "installer_alive": False,
+        }))
+    assert command[1:4] == ["thread", "queue", "create"] or command[1:3] == ["automation", "pause"]
+    return subprocess.CompletedProcess(command, 0, "{}")
+
+with patch.dict(os.environ, {"BB_PROJECT_ID": monitor["PROJECT"], "BB_AUTOMATION_ID": "isolated-test", "BB_CLI": "bb-test-only"}), patch.object(subprocess, "run", side_effect=run):
+    monitor["main"]()
+    monitor["main"]()
+assert len(calls) == 4
+assert calls[0][0] == "ssh"
+assert calls[1][1:4] == ["thread", "queue", "create"]
+assert all(command[1:3] == ["automation", "pause"] for command in calls[2:])
+"""
+        for model in ("apus", "clef"):
+            with self.subTest(model=model), tempfile.TemporaryDirectory() as directory:
+                script = Path(directory) / "watch.py"
+                script.write_bytes((ROOT / (model + "_watch.py")).read_bytes())
+                result = subprocess.run([sys.executable, "-I", "-B", "-c", bootstrap, str(script)],
+                                        cwd=directory, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_check_rejects_stale_scripts_without_writing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ("generate.py", "lifecycle.py", "apus.py", "clef.py", "apus_watch.py", "clef_watch.py"):
+                (root / name).write_bytes((ROOT / name).read_bytes())
+            target = root / "apus_watch.py"
+            target.write_text("# stale\n")
+            before = {path.name: path.read_bytes() for path in root.iterdir()}
+            command = [sys.executable, "-B", str(root / "generate.py")]
+            result = subprocess.run(command + ["--check"], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("apus_watch.py", result.stderr)
+            self.assertEqual(before, {path.name: path.read_bytes() for path in root.iterdir()})
+            result = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(target.read_bytes(), (ROOT / "apus_watch.py").read_bytes())
+
+    def test_model_rules_stay_distinct(self):
+        apus, clef = load_monitor("apus"), load_monitor("clef")
+        probe = {"status": "failed:1", "installer_alive": True}
+        self.assertTrue(apus.terminal(probe))
+        self.assertFalse(clef.terminal(probe))
+        self.assertIn("question_count=1, and server_stopped=true", apus.completion_message({}))
+        self.assertIn("five reported cases", clef.completion_message({}))
+        self.assertIn("local-models/apus-openjev-4b", apus.PROBE)
+        self.assertIn("local-models/clef-flash", clef.PROBE)
 
 
 class MonitorTests(unittest.TestCase):
