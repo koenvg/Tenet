@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { semanticCases } from '../eval/semantic-fixtures.js';
 import { replaySemantic, summarize, scriptedJudge } from '../eval/semantic-replay.js';
-import { parseReplayArgs } from '../eval/semantic-cli.js';
+import { main, parseReplayArgs } from '../eval/semantic-cli.js';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { answer, sdkAnswers } from './helpers.js';
 
 const clock = { now: () => 0, schedule: () => () => {} };
 test('paired replay is deterministic, generic and never validates offline semantics', async () => {
@@ -14,12 +18,30 @@ test('paired replay is deterministic, generic and never validates offline semant
   assert.equal(a.canonicalPassed, true);
   assert.ok(a.byMode.trajectory.semanticSuccess.count > 0);
   assert.ok(a.rows.every(r => r.result?.questionVersion === a.versions.questions));
+  assert.equal(a.requestedModel, null);
+  assert.ok(a.rows.every(r => r.result?.requestedModel === a.requestedModel));
+  assert.deepEqual(a.returnedModels, ['scripted-v1']);
   assert.ok(a.paired.find(r => r.id === 'context-upload')?.decisionChanged);
   assert.ok(a.rows.every(r => !JSON.stringify(r.request).includes('expectedEffect')));
   const renamed = semanticCases.map(c => ({ ...c, family: 'irrelevant-reporting-tag' }));
   const b = await replaySemantic({ cases: renamed, judge: scriptedJudge, clock });
   assert.deepEqual(a.rows.map(r => r.request), b.rows.map(r => r.request));
   assert.deepEqual(a.rows.map(r => r.result), b.rows.map(r => r.result));
+});
+
+test('injected requested identity stays separate from returned identity and the live label', async () => {
+  const cases = [semanticCases[0]!];
+  for (const live of [false, true]) {
+    const unknown = await replaySemantic({ cases, judge: scriptedJudge, clock, live });
+    assert.equal(unknown.requestedModel, null);
+    assert.ok(unknown.rows.every(r => r.result?.requestedModel === null));
+    const known = await replaySemantic({ cases, judge: scriptedJudge, clock, live,
+      judgeIdentity: { provider: 'injected', requestedModel: 'owner-selected-alias' } });
+    assert.equal(known.requestedModel, 'owner-selected-alias');
+    assert.ok(known.rows.every(r => r.result?.requestedModel === 'owner-selected-alias'));
+    assert.ok(known.rows.every(r => r.result?.requestedProvider === 'injected'));
+    assert.deepEqual(known.returnedModels, ['scripted-v1']);
+  }
 });
 
 test('fixed dataset exposes blanket blocking, skipped cases, missing evidence and host failures', async () => {
@@ -81,6 +103,50 @@ test('live-labeled canonical failure cannot validate a POC', async () => {
   assert.equal(report.byTool['trajectory:quux_73']!.falseAllows.count, 1);
 });
 
+
+for (const failed of [false, true]) test(`live CLI reports its explicit hosted selection with offline ${failed ? 'failure' : 'response'}`, async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'semantic-identity-'));
+  const output = join(directory, 'report.json');
+  const originalFetch = globalThis.fetch;
+  const originalExitCode = process.exitCode;
+  const submittedModels: unknown[] = [];
+  globalThis.fetch = async (_input, init) => {
+    submittedModels.push(JSON.parse(String(init?.body)).model);
+    if (failed) throw Error('offline transport failure');
+    return Response.json({ model: 'offline-hosted-response', answers: sdkAnswers(answer()) });
+  };
+  try {
+    await main(['--live', '--authorize-evidence-disclosure', '--output', output], { TYPESAFE_API_KEY: 'offline-test-key' });
+    const report: Awaited<ReturnType<typeof replaySemantic>> = JSON.parse(await readFile(output, 'utf8'));
+    assert.ok(submittedModels.length > 0);
+    assert.ok(submittedModels.every(model => model === 'jev-latest'));
+    assert.equal(report.requestedModel, 'jev-latest');
+    assert.ok(report.rows.every(r => r.result?.requestedModel === 'jev-latest'));
+    assert.ok(report.rows.every(r => r.result?.requestedProvider === 'typesafe'));
+    assert.equal(report.summary.providerFailures.count, failed ? report.rows.length : 0);
+    assert.equal(report.summary.assessed.count, failed ? 0 : report.rows.length);
+    assert.deepEqual(report.returnedModels, failed ? [] : ['offline-hosted-response']);
+  } finally {
+    globalThis.fetch = originalFetch;
+    process.exitCode = originalExitCode ?? 0;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('offline CLI output leaves requested identity unknown', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'semantic-offline-identity-'));
+  const output = join(directory, 'report.json');
+  try {
+    await main(['--output', output], {});
+    const report: Awaited<ReturnType<typeof replaySemantic>> = JSON.parse(await readFile(output, 'utf8'));
+    assert.equal(report.requestedModel, null);
+    assert.ok(report.rows.every(r => r.result?.requestedModel === null));
+    assert.ok(report.rows.every(r => r.result?.requestedProvider === 'injected'));
+    assert.deepEqual(report.returnedModels, ['scripted-v1']);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test('live CLI requires explicit disclosure authorization and credentials before replay', () => {
   assert.throws(() => parseReplayArgs(['--live', '--output', 'r.json'], { TYPESAFE_API_KEY: 'dummy' }));
