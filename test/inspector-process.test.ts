@@ -15,7 +15,7 @@ function writer(root: string, sessionId: string, project: string, prefix: string
       const sessionId = JSON.parse(encodedSession);
       const writer = new ArchiveWriter({ enabled: true, directory });
       for (let n = 0; n < 12; n++) {
-        const sink = writer.bind({ sessionId, cwd, invocationId: prefix + n, callId: 'reused', toolName: 'edit', mode: 'observe' });
+        const sink = writer.bindHistorical({ sessionId, cwd, invocationId: prefix + n, callId: 'reused', toolName: 'edit', mode: 'observe' }, 1);
         sink('begin', { policy: { rules: [], marker: prefix } });
         sink('decision', { decision: n % 2 ? 'ASK' : 'ALLOW' });
       }

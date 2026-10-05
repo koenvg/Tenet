@@ -3,8 +3,8 @@ import { test } from 'node:test';
 import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readArchive, sessionKey } from '../src/recording/archive.js';
-import { ArchiveWriter } from './legacy-recording-fixture.js';
+import { readArchive, qualifiedSessionKey, recordInvocationKey } from '../src/recording/archive.js';
+import { ArchiveWriter } from '../src/recording/archive.js';
 import { responseSnapshot } from '../src/recording/contract.js';
 import { writeStageFile } from '../src/recording/files.js';
 import { invocationView } from '../src/inspector/view.js';
@@ -20,7 +20,7 @@ import { ArchiveIndex } from '../src/inspector/archive-index.js';
 import { readPrivateFile } from '../src/recording/files.js';
 import { recordFailureFixture } from './failure-fixture.js';
 
-const identity = { sessionId: 'failures', invocationId: 'one', callId: 'one', toolName: 'edit', cwd: '/project', mode: 'observe' as const };
+const identity = { host: 'pi', contextId: 'main', sessionId: 'failures', invocationId: 'one', callId: 'one', toolName: 'edit', cwd: '/project', mode: 'observe' as const };
 async function temporary(run: (dir: string) => Promise<void>) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'tenet-failures-')));
   try { await run(dir); } finally { await rm(dir, { recursive: true, force: true }); }
@@ -51,7 +51,7 @@ test('persisted provider failures and absent submissions remain distinct after r
   for (const secret of ['private-api-key', 'private-error-body', 'private-header']) assert.ok(!JSON.stringify(records).includes(secret));
   const app = await startInspector({ directory: dir });
   try {
-    const detail: any = await (await fetch(`${app.origin}/api/sessions/${sessionKey(identity.sessionId)}/invocations/${sessionKey('credentials')}`)).json();
+    const detail: any = await (await fetch(`${app.origin}/api/sessions/${qualifiedSessionKey(identity.host, identity.sessionId, identity.contextId)}/invocations/${recordInvocationKey({ ...identity, schemaVersion: 4, invocationId: 'credentials' })}`)).json();
     assert.equal(detail.view.failure, 'missing-credentials');
     assert.equal(detail.view.requestStatus, 'not submitted');
   } finally { await app.close(); }
@@ -62,7 +62,7 @@ test('temporary, corrupt and unsupported records are separate issues beside brow
   writer.bind(identity)('begin', {});
   await writer.close();
   const original = (await readArchive(dir)).records[0]!;
-  const folder = join(dir, sessionKey(identity.sessionId));
+  const folder = join(dir, qualifiedSessionKey(identity.host, identity.sessionId, identity.contextId));
   await writeFile(join(folder, 'partial.tmp'), '{', { mode: 0o600 });
   await writeFile(join(folder, 'corrupt.json'), '{', { mode: 0o600 });
   await writeFile(join(folder, 'unsupported.json'), JSON.stringify({ ...original, schemaVersion: 999 }), { mode: 0o600 });
@@ -80,7 +80,7 @@ test('temporary, corrupt and unsupported records are separate issues beside brow
   try {
     const sessions: any = await (await fetch(`${app.origin}/api/sessions`)).json();
     assert.equal(sessions.sessions.length, 1); assert.equal(sessions.issues.length, 3);
-    const timeline: any = await (await fetch(`${app.origin}/api/sessions/${sessionKey(identity.sessionId)}`)).json();
+    const timeline: any = await (await fetch(`${app.origin}/api/sessions/${qualifiedSessionKey(identity.host, identity.sessionId, identity.contextId)}`)).json();
     assert.equal(timeline.invocations[0].assessmentStatus, 'incomplete');
   } finally { await app.close(); }
 }));
@@ -155,8 +155,8 @@ test('bounded shutdown reports pending writes and persists timeout health if sto
 
 test('process exit after submission preserves incomplete API state and exposes a partial file', () => temporary(async dir => {
   const child = spawnSync('bun', ['-e', `
-    import {sessionKey} from './src/recording/archive.ts';
-    import {ArchiveWriter} from './test/legacy-recording-fixture.ts';
+    import {qualifiedSessionKey} from './src/recording/archive.ts';
+    import {ArchiveWriter} from './src/recording/archive.ts';
     import {createJevJudge} from './src/decision/jev.ts';
     import {decide} from './src/decision/decide.ts';
     import {captureAction} from './src/decision/evidence.ts';
@@ -164,20 +164,20 @@ test('process exit after submission preserves incomplete API state and exposes a
     import {writeFile} from 'node:fs/promises';
     import {join} from 'node:path';
     const writer = new ArchiveWriter({enabled:true,directory:process.argv[1]});
-    const sink = writer.bind({sessionId:'interrupted',invocationId:'call',callId:'call',toolName:'edit',cwd:'/project',mode:'observe'});
+    const sink = writer.bind({host:'pi',contextId:'main',sessionId:'interrupted',invocationId:'call',callId:'call',toolName:'edit',cwd:'/project',mode:'observe'});
     sink('begin',{});
     await decide({policy,cwd:'/project',recording:sink,
       action:captureAction({sessionId:'interrupted',callId:'call',toolName:'edit',arguments:{}}),
       judge:createJevJudge({apiKey:'offline',fetch:async()=>{
         await writer.drain();
-        await writeFile(join(process.argv[1],sessionKey('interrupted'),'response.tmp'),'{', {mode:0o600});
+        await writeFile(join(process.argv[1],qualifiedSessionKey('pi', 'interrupted', 'main'),'response.tmp'),'{', {mode:0o600});
         process.exit(23);
       }})});
   `, dir], { encoding: 'utf8', timeout: 10000 });
   assert.equal(child.status, 23, child.stderr);
   const app = await startInspector({ directory: dir });
   try {
-    const detail: any = await (await fetch(`${app.origin}/api/sessions/${sessionKey('interrupted')}/invocations/${sessionKey('call')}`)).json();
+    const detail: any = await (await fetch(`${app.origin}/api/sessions/${qualifiedSessionKey('pi', 'interrupted', 'main')}/invocations/${recordInvocationKey({ ...identity, schemaVersion: 4, sessionId: 'interrupted', invocationId: 'call' })}`)).json();
     assert.equal(detail.view.requestStatus, 'submitted application payload');
     assert.equal(detail.view.assessmentStatus, 'incomplete');
     assert.equal(detail.view.response, null);
@@ -243,7 +243,7 @@ test('metadata index retains failure summaries and health without rereading resp
   const index = new ArchiveIndex(dir, async (...args) => { reads++; return readPrivateFile(...args); });
   await index.refresh();
   const initialReads = reads;
-  const session = sessionKey('failure-history');
+  const session = qualifiedSessionKey('pi', 'failure-history', 'main');
   const timeline = index.invocations(session).items;
   assert.equal(timeline.find(i => i.callId === 'provider-error')?.failure, 'provider-error');
   assert.equal(timeline.find(i => i.callId === 'interrupted')?.assessmentStatus, 'incomplete');

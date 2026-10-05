@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { ArchiveWriter } from './legacy-recording-fixture.js';
+import { HistoricalArchiveWriter as ArchiveWriter } from './legacy-recording-fixture.js';
 import { writeStageFile } from '../src/recording/files.js';
 
 /** Static archives must be complete before a reader starts. Production shutdown stays bounded. */

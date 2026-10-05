@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { readArchive, sessionKey } from '../src/recording/archive.js';
-import { ArchiveWriter } from './legacy-recording-fixture.js';
+import { readArchive, qualifiedSessionKey } from '../src/recording/archive.js';
+import { ArchiveWriter } from '../src/recording/archive.js';
 import { responseSnapshot } from '../src/recording/contract.js';
 import { createJevJudge } from '../src/decision/jev.js';
 import { decide } from '../src/decision/decide.js';
@@ -10,7 +10,7 @@ import { policy } from './helpers.js';
 
 // Offline failure history, including deliberately interrupted and damaged recordings.
 export async function recordFailureFixture(directory: string) {
-  const identity = { sessionId: 'failure-history', invocationId: '', callId: '', toolName: 'edit', cwd: '/synthetic/project', mode: 'observe' as const };
+  const identity = { host: 'pi', contextId: 'main', sessionId: 'failure-history', invocationId: '', callId: '', toolName: 'edit', cwd: '/synthetic/project', mode: 'observe' as const };
   const writer = new ArchiveWriter({ enabled: true, directory });
   for (const kind of ['missing-credentials', 'provider-error', 'invalid-response', 'truncated-response', 'interrupted', 'unavailable-response', 'missing-payload']) {
     const sink = writer.bind({ ...identity, invocationId: kind, callId: kind });
@@ -37,7 +37,7 @@ export async function recordFailureFixture(directory: string) {
   const sink = overflow.bind({ ...identity, invocationId: 'capture-loss', callId: 'capture-loss' });
   sink('begin', {}); sink('decision', { decision: 'ALLOW' });
   await overflow.close();
-  const folder = join(directory, sessionKey(identity.sessionId));
+  const folder = join(directory, qualifiedSessionKey(identity.host, identity.sessionId, identity.contextId));
   await writeFile(join(folder, 'interrupted.tmp'), '{', { mode: 0o600 });
   await writeFile(join(folder, 'corrupt.json'), '{', { mode: 0o600 });
   await writeFile(join(folder, 'unsupported.json'), JSON.stringify({ ...request, schemaVersion: 999 }), { mode: 0o600 });

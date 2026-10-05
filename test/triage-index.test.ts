@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ArchiveWriter } from './legacy-recording-fixture.js';
+import { HistoricalArchiveWriter as ArchiveWriter } from './legacy-recording-fixture.js';
 import { ArchiveIndex } from '../src/inspector/archive-index.js';
 import { sessionKey } from '../src/recording/archive.js';
 
@@ -13,7 +13,7 @@ test('index groups captured uncertainty by policy, profile, rule and gate while 
     const writer = new ArchiveWriter({ enabled: true, directory: root });
     for (const [id, digest, profile] of [['one', 'digest-a', 'legacy'], ['two', 'digest-a', 'legacy'],
       ['other-policy', 'digest-b', 'legacy'], ['other-profile', 'digest-a', 'candidate']] as const) {
-      const sink = writer.bind({ sessionId: 'triage', invocationId: id, callId: id, toolName: 'read', cwd: '/triage', mode: 'observe' });
+      const sink = writer.bindHistorical({ sessionId: 'triage', invocationId: id, callId: id, toolName: 'read', cwd: '/triage', mode: 'observe' }, 1);
       sink('begin', { policy: { source: '/p/TENET.md', target: '/p/TENET.md', digest, rules: [{ id: 'rule-1', line: 1, text: 'Rule', enforcement: 'BLOCK' }] }, config: { assessmentProfile: profile } });
       sink('assessment', { assessment: { model: 'offline', rules: [{ ruleId: 'rule-1', outcome: { choice: 'PASS' } }] } });
       sink('decision', { decision: 'BLOCK', reason: 'insufficient-evidence', contributions: [
@@ -45,7 +45,7 @@ test('validation-only assessment keeps approval in details, counts, filters and 
   const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-partial-triage-')));
   try {
     const writer = new ArchiveWriter({ enabled: true, directory: root });
-    const sink = writer.bind({ sessionId: 'partial', invocationId: 'one', callId: 'one', toolName: 'read', cwd: '/p', mode: 'observe' });
+    const sink = writer.bindHistorical({ sessionId: 'partial', invocationId: 'one', callId: 'one', toolName: 'read', cwd: '/p', mode: 'observe' }, 1);
     sink('begin', { policy: { source: '/p/TENET.md', digest: 'digest-a', rules: [{ id: 'r', line: 1, text: 'Ask', enforcement: 'BLOCK' }] } });
     sink('validation', { valid: true, assessment: { model: 'offline', rules: [{ ruleId: 'r', outcome: { choice: 'APPROVAL_REQUIRED' } }] } });
     sink('decision', { decision: 'BLOCK', reason: 'insufficient-evidence', contributions: [{ ruleId: 'r', gates: ['evidence-confidence-below-threshold'] }] });
@@ -70,7 +70,7 @@ test('group endpoint is separate from paginated calls and preserves target ident
   try {
     const writer = new ArchiveWriter({ enabled: true, directory: root });
     for (const target of ['/p/a/TENET.md', '/p/b/TENET.md']) {
-      const sink = writer.bind({ sessionId: 'targets', invocationId: target, callId: target, toolName: 'read', cwd: '/p', mode: 'observe' });
+      const sink = writer.bindHistorical({ sessionId: 'targets', invocationId: target, callId: target, toolName: 'read', cwd: '/p', mode: 'observe' }, 1);
       sink('begin', { policy: { source: '/p/TENET.md', digest: 'same', target, rules: [{ id: 'r', text: 'Rule', enforcement: 'BLOCK' }] } });
       sink('assessment', { assessment: { model: 'offline', rules: [{ ruleId: 'r', outcome: { choice: 'PASS' } }] } });
       sink('decision', { decision: 'BLOCK', reason: 'insufficient-evidence', contributions: [{ ruleId: 'r', gates: ['evidence-confidence-below-threshold'] }] });
