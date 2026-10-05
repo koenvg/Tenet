@@ -10,7 +10,7 @@ export const runtimeModules = [
     'evidence-context', 'evidence-context-contract', 'finding-triage', 'history-capture', 'history-content',
     'history-envelope', 'history-groups', 'history-selection', 'immutable', 'jev', 'judge-evidence', 'policy',
     'questions', 'response-validation', 'thresholds', 'trajectory'].map(n => `decision/${n}`),
-  ...['activation', 'approval', 'config', 'configuration', 'judge', 'settings', 'consequences', 'guard', 'observation-queue', 'owner-record', 'resolved-action', 'resources'].map(n => `runtime/${n}`),
+  ...['activation', 'approval', 'config', 'configuration', 'judge', 'settings', 'consequences', 'guard', 'invocation-authorization', 'observation-queue', 'owner-record', 'resolved-action', 'resources'].map(n => `runtime/${n}`),
   ...['archive', 'contract', 'files', 'judge', 'native', 'rules'].map(n => `recording/${n}`),
   ...['approval', 'boundary', 'config', 'extension', 'guard', 'history', 'inspector-command', 'owner-reports', 'report-history'].map(n => `pi/${n}`),
   ...['archive-index', 'assessment-completeness', 'bb-findings', 'finding-view', 'serve-cli', 'server', 'view'].map(n => `inspector/${n}`),

@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { lstat } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { Action, Decision, Judge, Policy, RuleDiagnostic } from '../decision/contracts.js';
-import { confirmInvocation } from './approval.js';
+import type { Action, Decision, Judge, Policy } from '../decision/contracts.js';
+import { InvocationAuthorizations } from './invocation-authorization.js';
 import { decide } from '../decision/decide.js';
-import { argumentDigest, captureAction } from '../decision/evidence.js';
+import { captureAction } from '../decision/evidence.js';
 import { loadPolicy, policyIsCurrent, INTEGRITY_ID, INTEGRITY_TEXT } from '../decision/policy.js';
 import { Observations } from '../decision/trajectory.js';
 import { ruleContributions } from '../recording/rules.js';
@@ -94,10 +94,8 @@ class SessionGuard {
   private unavailable?: string = 'not-started';
   private session?: RuntimeIdentity;
   private loadToken = 0;
-  private generation = new AbortController();
-  private contexts = new Map<string, AbortController>();
+  private readonly authorizations: InvocationAuthorizations;
   private observations = new Map<string, Observations>();
-  private pending = new Map<string, { context: string; block: (reason: string) => unknown }>();
   private seen = new Set<string>();
   private released = new Map<string, InvocationIdentity & RuntimeIdentity>();
   private resultCallIds: Set<string>;
@@ -114,6 +112,7 @@ class SessionGuard {
     this.capabilities = Object.freeze({ ...capabilities, limitations: Object.freeze([...capabilities.limitations]) });
     this.resultCallIds = shared.resultCallIds;
     this.ambiguousResults = shared.ambiguousResults;
+    this.authorizations = new InvocationAuthorizations(this.mode, options.activation);
   }
 
   get readiness(): Readiness { return { ...this.metadata, eligible: this.eligible, policy: this.policy, config: this.config, unavailable: this.unavailable,
@@ -187,17 +186,8 @@ class SessionGuard {
   invalidate(reason: string, context?: RuntimeIdentity): void {
     if (!context && reason !== 'tenet-off' && reason !== 'control-unavailable') this.loadToken++;
     const selected = context ? scope(context) : undefined;
-    if (selected) {
-      this.contexts.get(selected)?.abort(reason);
-      this.contexts.set(selected, new AbortController());
-    } else {
-      this.generation.abort(reason);
-      this.generation = new AbortController();
-      for (const controller of this.contexts.values()) controller.abort(reason);
-      this.contexts.clear();
-    }
     try {
-      for (const entry of this.pending.values()) if (!selected || entry.context === selected) entry.block(reason);
+      this.authorizations.invalidate(reason, context);
       if (this.options.activation.read() !== 'on') this.recordings.clear();
     } finally {
       if (reason === 'tenet-off' || reason === 'control-unavailable')
@@ -212,7 +202,7 @@ class SessionGuard {
 
   shutdown(): void {
     this.unavailable = 'session-shutdown'; this.invalidate('session-shutdown');
-    this.observations.clear(); this.recordings.clear(); this.pending.clear(); this.seen.clear(); this.disabled.clear(); this.contexts.clear();
+    this.observations.clear(); this.recordings.clear(); this.seen.clear(); this.disabled.clear();
   }
 
   async start(identity: RuntimeIdentity, cwd: string, hasJudge = true): Promise<Readiness | undefined> {
@@ -275,12 +265,9 @@ class SessionGuard {
     if (this.resultCallIds.has(correlation)) this.ambiguousResults.add(correlation);
     this.resultCallIds.add(correlation);
     const selectedPolicy = this.policy, selectedConfig = this.config;
-    const generation = this.generation;
+    const invocationContext = this.authorizations.context(call);
     const context = scope(call);
-    let contextController = this.contexts.get(context);
-    if (!contextController) { contextController = new AbortController(); this.contexts.set(context, contextController); }
-    const signal = AbortSignal.any([generation.signal, contextController.signal, ...(call.signal ? [call.signal] : [])]);
-    const observationSignal = AbortSignal.any([generation.signal, contextController.signal]);
+    const { signal, observationSignal } = invocationContext;
     const identity: InvocationIdentity & RuntimeIdentity = { ...ASSESSMENT_METADATA, host: call.host, contextId: call.contextId, sessionId: call.sessionId,
       callId: call.callId, toolName: call.toolName, argumentDigest: '', policyDigest: selectedPolicy.available ? selectedPolicy.digest : null, invocationId: randomUUID() };
     let submitted = false;
@@ -290,7 +277,7 @@ class SessionGuard {
     const recording: RecordingSink = (stage, data) => {
       // Terminal permission is owed even when cancellation invalidated the assessment.
       if (this.options.activation.read() !== 'on' || (!['permission', 'execution'].includes(stage)
-        && ((this.mode === 'observe' ? observationSignal : signal).aborted || generation !== this.generation))) return;
+        && !invocationContext.current())) return;
       data = { evidenceContext: UNAVAILABLE_EVIDENCE_CONTEXT, ...data, ...this.metadata };
       if (stage === 'request') submitted = true;
       capture(sink, stage, () => stage === 'permission' ? { ...data, requestStatus: submitted ? 'submitted' : 'not-submitted' } : data);
@@ -300,40 +287,30 @@ class SessionGuard {
       integrity: { id: INTEGRITY_ID, text: INTEGRITY_TEXT }, evidenceLimits: selectedConfig?.evidence ?? null,
       requestedProvider: this.options.judgeStatus?.provider ?? 'injected', requestedModel: this.options.judgeStatus?.requestedModel ?? null,
       ...this.metadata, request: 'not-yet-submitted', adapterCoverage: this.capabilities }));
-    const consequences = new Consequences(this.mode, selectedPolicy);
-    let terminalPermission: Permission | undefined;
-    const commit = (permission: Permission): Permission => {
-      if (terminalPermission) return terminalPermission;
-      terminalPermission = permission;
-      this.pending.delete(identity.invocationId);
-      if (this.options.activation.read() === 'on') {
+    const authorization = this.authorizations.begin(invocationContext, {
+      call, identity, policy: selectedPolicy,
+      ready: () => !this.unavailable && this.policy === selectedPolicy
+        && this.session?.host === identity.host && this.session.sessionId === identity.sessionId,
+      unavailable: () => this.unavailable,
+      policyStale: () => {
+        this.unavailable = 'policy-stale'; this.invalidate('policy-stale');
+        this.record('status', { status: 'unavailable', reason: 'policy-stale', policyDigest: identity.policyDigest });
+      },
+      approval: (outcome, ruleIds) => this.record('approval', { ...identity, outcome, ruleIds }),
+      disabled: () => { this.disabled.add(callKey); },
+      finalized: permission => {
         if (permission.outcome === 'released') this.trackRelease(callKey, identity);
         this.publishPermission(() => this.record('permission', { ...identity, ...permission }),
           !!call.onAuthorization && permission.outcome === 'released');
         try { call.onPermission?.(identity, permission); } catch { /* Owner UI cannot veto. */ }
-      }
-      return permission;
-    };
-    const finish = (failure?: string, ruleIds?: string[], diagnostics?: RuleDiagnostic[], preserveAsk = false) => {
-      const state = this.options.activation.refresh();
-      if (state !== 'on') failure = state === 'off' ? 'tenet-off' : 'control-unavailable';
-      const permission = consequences.permission(failure, ruleIds, diagnostics);
-      if (preserveAsk && failure === 'approval-unavailable') permission.wouldDecision = 'ASK';
-      return consequences.veto(commit(permission));
-    };
-    const block = (reason: string, ruleIds?: string[], diagnostics?: RuleDiagnostic[], preserveAsk = false) => {
-      if (reason === 'tenet-off' || reason === 'control-unavailable') this.disabled.add(callKey);
-      return finish(reason, ruleIds, diagnostics, preserveAsk);
-    };
-    this.pending.set(identity.invocationId, { context, block });
-    const current = () => this.options.activation.refresh() === 'on' && !(this.mode === 'observe' ? observationSignal : signal).aborted && generation === this.generation
-      && contextController === this.contexts.get(context) && !this.unavailable && this.policy === selectedPolicy
-      && this.session?.host === identity.host && this.session.sessionId === identity.sessionId;
+      },
+    });
+    const { current, block } = authorization;
     const dropOversized = () => {
       const permission: Permission = { ...this.metadata, outcome: 'released', reason: 'snapshot-capacity', assessmentAvailable: false,
         evidenceContext: UNAVAILABLE_EVIDENCE_CONTEXT,
         ruleIds: [], diagnostics: [], rules: selectedPolicy.available ? selectedPolicy.rules.map(({ id, line, enforcement, text }) => ({ id, line, enforcement, text })) : [], approvalRules: [] };
-      commit(permission);
+      authorization.commit(permission);
       this.queue.submit(Number.POSITIVE_INFINITY, observationSignal, async () => 'unavailable', (status, reason) => {
         if (this.options.activation.read() !== 'on') return;
         this.record('assessment-status', { ...identity, status, reason, profile: this.profile, queueWaitMs: 0 });
@@ -396,7 +373,7 @@ class SessionGuard {
         const permission: Permission = { ...this.metadata, outcome: 'released', reason: 'assessment-pending', assessmentAvailable: false,
           evidenceContext: UNAVAILABLE_EVIDENCE_CONTEXT,
           ruleIds: [], diagnostics: [], rules: selectedPolicy.rules.map(({ id, line, enforcement, text }) => ({ id, line, enforcement, text })), approvalRules: [] };
-        commit(permission);
+        authorization.commit(permission);
         let resultPermission: Permission | undefined;
         let terminalReason: string | undefined;
         let providerDuration = 0;
@@ -449,7 +426,7 @@ class SessionGuard {
       }
       const result = await decide({ policy: selectedPolicy, action, trajectory, resolvedAction: resolved.evidence, evidenceLimits: selectedConfig.evidence,
         cwd: call.cwd, judge: this.options.judge, judgeIdentity: this.options.judgeStatus, config: selectedConfig.decision, signal, recording });
-      consequences.assessed(result);
+      authorization.assessed(result);
       try { call.onDecision?.(result); } catch { /* Owner reporting cannot change authorization. */ }
       if (!current()) return block('guard-state-changed');
       this.record('assessment', { ...identity, assessment: result.assessment, reason: result.reason,
@@ -461,59 +438,8 @@ class SessionGuard {
         evidenceContext: result.evidenceContext,
         ...(result.validationIssue ? { validationIssue: result.validationIssue } : {}),
         diagnostics: result.diagnostics, questionVersion: result.questionVersion }, { contributions: ruleContributions(result, selectedPolicy) });
-      const fresh = async () => {
-        const upToDate = await policyIsCurrent(selectedPolicy);
-        if (!current()) return false;
-        if (upToDate) return true;
-        this.unavailable = 'policy-stale';
-        this.invalidate('policy-stale');
-        this.record('status', { status: 'unavailable', reason: 'policy-stale', policyDigest: selectedPolicy.digest });
-        call.onPolicyStale?.();
-        return false;
-      };
-      if (!await fresh()) return block('policy-stale');
-      if (result.decision === 'BLOCK') return block(result.reason, result.ruleIds, result.diagnostics);
-      const unchanged = () => {
-        const now = call.current();
-        return now.host === identity.host && now.sessionId === identity.sessionId && now.contextId === identity.contextId && now.toolName === identity.toolName
-          && now.callId === identity.callId && argumentDigest(now.input) === action.argumentDigest;
-      };
-      if (!unchanged()) return block('arguments-changed');
-      if (result.decision === 'ASK' && this.mode === 'enforce') {
-        if (!this.capabilities.trustedApproval || !call.approve) return block('approval-unavailable', result.ruleIds, result.diagnostics, true);
-        const approval = await confirmInvocation({ policy: selectedPolicy, action, ruleIds: result.ruleIds,
-          timeoutMs: selectedConfig.approvalTimeoutMs, signal,
-          valid: async () => current() && unchanged() && await fresh() && current() && unchanged() }, call.approve);
-        if (!current()) return block('guard-state-changed');
-        this.record('approval', { ...identity, outcome: approval, ruleIds: result.ruleIds });
-        if (approval !== 'approved') return block(`approval-${approval}`);
-      }
-      if (result.decision === 'ASK' && !await fresh()) return block('policy-stale');
-      if (!current()) return block('guard-state-changed');
-      if (!unchanged()) return block('arguments-changed');
-      if (!await resolved.revalidate(signal)) return block('action-resolution-stale');
-      if (!await fresh()) return block('policy-stale');
-      if (!current()) return block('guard-state-changed');
-      if (!unchanged()) return block('arguments-changed');
-      if (call.onAuthorization) {
-        const bound = () => !terminalPermission && current() && unchanged() && current();
-        call.onAuthorization({
-          revalidate: async () => bound() && await fresh() && bound()
-            && await resolved.revalidate(signal) && await fresh() && bound(),
-          current: bound,
-          commit: release => {
-            if (!terminalPermission) {
-              try { finish(release && bound() ? undefined : this.unavailable ?? 'guard-state-changed'); }
-              catch { finish('guard-error'); }
-            }
-            return terminalPermission!;
-          },
-        });
-        // Preparation is not permission: keep lifecycle ownership until SDK commit.
-        try { call.onPermission?.(identity, consequences.permission()); } catch { /* Best effort. */ }
-        return undefined;
-      }
-      return finish();
+      return await authorization.authorize(action, resolved, result,
+        { timeoutMs: selectedConfig.approvalTimeoutMs, trusted: this.capabilities.trustedApproval });
     } catch {
       return block('guard-error');
     }
