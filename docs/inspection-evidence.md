@@ -206,6 +206,8 @@ New schema-4 writes put the diagnostic on request, assessment, decision, permiss
 
 Schemas 1 through 3 keep original payloads, thresholds, questions and assessment identities. Missing historical context says `Not recorded`, not complete coverage. Readers older than schema 4 must report unsupported schema. Rollback never rewrites archives.
 
+APUS keeps the same canonical evidence capture and selection counters. Its separately recorded `apus-recording-v1` contract describes native rendering, transport mapping and deterministic selectors. Neither native token/cache counters nor NONE probability one authenticate coverage. See [the native recording contract](assessment-contract.md#native-recording-contract).
+
 ### Explain uncertainty conservatively
 
 The inspector prefers finalized recorded preparation over an earlier pending value. It never recomputes decisions. An uncertainty-only BLOCK may say "No rule was classified as violated" only with:

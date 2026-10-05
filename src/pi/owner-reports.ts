@@ -1,3 +1,4 @@
+import { recordedJudgeReport } from '../recording/judge.js';
 import { validationMessages, validationIssue } from '../decision/response-validation.js';
 import { classifyFinding, categoryLabels, type FindingCategory } from '../decision/finding-triage.js';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
@@ -89,6 +90,8 @@ export class OwnerReports {
         this.markAssessment(d.invocationId, d.status, undefined, typeof d.reason === 'string' ? d.reason : undefined);
         const report = this.recent.findLast(r => r.invocationId === d.invocationId);
         if (report && validEvidenceContext(d.evidenceContext)) report.evidenceContext = freeze(structuredClone(d.evidenceContext));
+        const judge = recordedJudgeReport(d);
+        if (report && judge) Object.assign(report, judge);
         const issue = validationIssue(d.validationIssue);
         if (report && d.status === 'unavailable' && d.reason === 'invalid-response' && issue) report.validationIssue = issue;
       }
@@ -169,6 +172,15 @@ export class OwnerReports {
       `Mode: ${report.mode.toUpperCase()}`, `Tool: ${text(report.toolName)}`, `Call: ${text(report.callId)}`,
       `Assessment profile: ${report.profile ?? 'legacy (historical)'}`,
       `Judge questions: ${report.questionVersion ?? 'not recorded'}`,
+      `Judge: ${report.requestedProvider ?? 'not recorded'}${report.judgeReportVersion === 'judge-report-v1' && report.requestedProvider === 'apus-llamacpp' ? ' experimental' : ''}`,
+      `Requested model: ${report.requestedModel ? text(report.requestedModel, 256) : 'not recorded'}`,
+      `Returned model: ${report.returnedModel ? text(report.returnedModel, 256) : 'not recorded; no complete returned identity'}`,
+      `Judge report contract: ${report.judgeReportVersion ?? 'not recorded'}`,
+      ...(report.judgeReportVersion === 'judge-report-v1' && report.requestedProvider === 'apus-llamacpp' ? [
+        'APUS scores are uncalibrated candidate probabilities.',
+        'Deterministic NONE is not model confidence or authenticated coverage.',
+        'Completed assessment is not proof of label matching, calibration or physical weights.',
+      ] : []),
       `TENET permission: ${report.outcome}`, `Would enforce: ${report.wouldDecision}`,
       `Finding categories: ${this.categories(report).map(c => categoryLabels[c]).join(', ') || 'not recorded'} (may overlap)`,
       `Assessment: ${report.assessmentStatus ?? (report.assessmentAvailable ? 'completed' : 'unavailable')}`, `Reason: ${text(report.reason)}`,

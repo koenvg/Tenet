@@ -36,6 +36,17 @@ async function harness(judge: Judge = pass, options: { confirm?: () => Promise<b
   return { cwd, file, call, emit, restart, records, tools, prompts, notifications, statuses, controller, close: () => rm(cwd, { recursive: true, force: true }) };
 }
 
+test('injected judge disclosure is owner-only and does not claim TypeSafe submission', async () => {
+  const h = await harness();
+  try {
+    const startup = h.notifications.find(message => message.includes('Rule text'))!;
+    assert.match(startup, /injected judge/);
+    assert.match(startup, /requested model "unknown"/);
+    assert.doesNotMatch(startup, /reach TypeSafe/);
+    assert.equal(h.records.find(record => record.stage === 'status').judge.provider, 'injected');
+  } finally { await h.emit({ type: 'session_shutdown' }); await h.close(); }
+});
+
 test('trajectory identifies an opaque upload and never grants approval from observed text', async () => {
   const requests: any[] = [];
   const h = await harness(async request => {

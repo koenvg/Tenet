@@ -16,7 +16,7 @@ export class ObservationQueue {
   readonly counts = { completed: 0, unavailable: 0, dropped: 0, cancelled: 0 };
   constructor(limits: Partial<ObservationLimits> = {}) {
     this.limits = Object.freeze({ ...OBSERVATION_LIMITS, ...limits });
-    if (Object.values(this.limits).some(v => !Number.isSafeInteger(v) || v < 1)) throw new Error('invalid-observation-limits');
+    if (Object.values(this.limits).some(v => !Number.isSafeInteger(v) || v < 1) || this.limits.ageMs > 2147483647) throw new Error('invalid-observation-limits');
   }
   health() { return { running: this.running, waiting: this.waiting.length, retainedBytes: this.bytes, ...this.counts, limits: this.limits }; }
   submit(bytes: number, signal: AbortSignal, run: Job['run'], status: Job['status']): void {

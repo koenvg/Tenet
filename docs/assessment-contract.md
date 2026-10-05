@@ -8,7 +8,7 @@ Stock Pi and Claude report action resolution as unsupported. This is a coverage 
 
 ## Outcomes and gates
 
-Current questions use `policy-rules-v7-ordinary-evidence` within `applicability-v1`. They clarify ordinary classification and retain the bounded-history instructions, labels, distributions and fact-reference questions. There is no new runtime profile, evaluator or recording schema.
+Current questions use `policy-rules-v7-ordinary-evidence` within `applicability-v1`. They clarify ordinary classification and retain the bounded-history instructions, labels, distributions and fact-reference questions. Provider selection does not change the runtime profile, these questions or archive schema 4.
 
 | User-rule outcome | Meaning |
 | --- | --- |
@@ -70,6 +70,39 @@ Improved live semantic accuracy is unverified. Scripted outputs can show that va
 
 The question change does not lower the 0.90 defaults, relax whole-response validation or add safe-tool lists. Selected FAIL/UNKNOWN, WARN, integrity, freshness and invocation-local approval retain their behavior. The authorized alpha move to one contract does not establish live evaluator validation or automatic promotion.
 
+## Native recording contract
+
+Use the recorded provider and contract when reading APUS history. APUS is experimental. Configuration validity, connectivity, completed provider execution, expected-label matching and calibration are separate checks. Neither a matched label nor a backend alias attests physical weights or enforcement accuracy.
+
+The adapter keeps the canonical `model/state/questions` capture. Native rendering and scoring do not change `applicability-v1`, the question version or archive schema 4. The additive `nativeContract` on request, response and validation stages has this recorded contract:
+
+| Field | Recorded value |
+| --- | --- |
+| `version` | `apus-recording-v1` |
+| `renderingVersion` | `jev.dynamic.prompt.v2` |
+| `rendererRevision` | `7389d774472c9e29ddc84fffb392951f0f25de74` |
+| `protocolVersion` | `llamacpp-b11118-choice-v1` |
+
+Requests identify `provider` and `requestedModel`. Bounded response snapshots record backend metadata before/after scoring, per-question native requests and responses, and deterministic selectors.
+
+Native requests retain the rendered chat, A-through-P mapping, tokenizer label IDs, submitted token IDs, scoring options, context capacity and shared-prefix count. These are diagnostic inputs, not authenticated facts.
+
+A sole allowed facts candidate records `sole-allowed-facts-selector`, NONE probability one, zero native scoring requests, `modelConfidence: false` and `authenticatedCoverage: false`. This is a deterministic selector, not model confidence, evidence sufficiency or an applicability exemption.
+
+Multi-candidate facts still require scoring.
+
+Snapshots remain untrusted and bounded to 1 MiB. Credential/header fields and fields named `token` remain omitted, with `omittedFields` markers. Truncated previews and unavailable snapshots are not exact responses.
+
+The native transport separately rejects oversized bodies before capture; invalid parsed output can remain inspectable without becoming a valid assessment.
+
+Owner reports use additive `judgeReportVersion: judge-report-v1` within native transcript version 3. They retain requested provider/model on failure.
+
+Only a complete validated assessment supplies `returnedModel`. Partial backend metadata or a conflicting raw model cannot supply that field. This version records APUS as experimental.
+
+Historical readers use these recorded contracts, not current settings or current renderers. Unknown or malformed native contracts produce `corrupt-record` issues; absent historical native contracts and provider fields stay absent. Old questions, model identities and scores are not rewritten.
+
+Capture-off suppresses local payload archives, not provider disclosure or owner-only findings. An explicit SDK recording sink still replaces the local archive. Off/dormant controls suppress new assessment and capture. See [private storage and omission limits](inspector.md#sensitive-local-storage).
+
 ## Policy wording
 
 - `Never create a Git commit.` is unconditional. A user request to commit does not override it.
@@ -120,7 +153,7 @@ To roll back the evaluator, restore the previous code revision and restart. Keep
 
 Complete the [development setup](../CONTRIBUTING.md#set-up) first. These commands launch the checkout's Pi integration from the repository root. If Tenet is already registered as a Pi package, use that installation instead of loading a second copy.
 
-Real assessed actions send policy, paths, tool evidence and bounded history to TypeSafe and use quota. Redaction cannot remove all secrets. Local capture is on by default and can retain submitted strings; set `TENET_RECORDING=off` before launch to stop new capture, not provider disclosure or native findings. Read [disclosure and host limits](limits.md) before authorizing any such action.
+Real assessed actions send policy, paths, tool evidence and bounded history to the selected judge. TypeSafe uses API quota; experimental APUS sends the complete native rendering to the owner-operated loopback backend, including Pika through forwarding. Redaction cannot remove all secrets. Local capture is on by default and can retain submitted strings; set `TENET_RECORDING=off` before launch to stop new capture, not provider disclosure or native findings. Read [disclosure and host limits](limits.md) before authorizing any such action.
 
 1. Start a fresh observe process to inspect decisions without blocking actions:
 

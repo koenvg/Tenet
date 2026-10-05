@@ -46,7 +46,8 @@ test('production contract accepts only the complete curated delivery', async () 
   try { await assertDelivery(root); } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-for (const path of ['TENET.md', '.env', '.pi/settings.json', '.tenet/records.jsonl', 'test/fixture.json', 'eval/answers.json',
+for (const path of ['TENET.md', '.env', '.pi/settings.json', '.tenet/records.jsonl', 'test/fixture.json', 'eval/answers.json', 'weights/model.gguf', 'python/openjev.py', '.tenet/config.json',
+  'pika-trial.sh', 'scripts/fixtures/apus.json',
   'node_modules/typescript/index.js', 'src/sdk/index.ts', 'dist/sdk/credentials.js', 'inspector/dist/assets/recording.json', 'docs/private.md', 'inspector/dist/assets/credentials-123abc.js']) {
   test(`rejects contaminated delivery: ${path}`, async () => {
     const root = await fixture();
@@ -76,6 +77,22 @@ test('delivery includes the compiled offline doctor and its reference', async ()
   try {
     await rm(join(root, 'dist/cli/index.js'));
     await assert.rejects(assertDelivery(root), /missing delivery file: dist\/cli\/index.js/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('delivery includes the configured native judge and its attribution', async () => {
+  for (const name of ['decision/apus', 'decision/apus-native', 'decision/apus-renderer', 'decision/apus-transport',
+    'decision/assessment-answers', 'decision/typesafe-contract', 'runtime/judge', 'runtime/settings', 'runtime/configuration'])
+    assert.ok(runtimeModules.includes(name), `missing reviewed module: ${name}`);
+  for (const name of ['docs/judge.md', 'third-party/apus/LICENSE', 'third-party/apus/NOTICE'])
+    assert.ok(documentFiles.includes(name), `missing maintained guide or attribution: ${name}`);
+  const { DELIVERY_FILES } = await import('../src/doctor/installation.js');
+  for (const name of ['dist/decision/apus.js', 'dist/runtime/settings.js', 'docs/judge.md', 'third-party/apus/LICENSE', 'third-party/apus/NOTICE'])
+    assert.ok(DELIVERY_FILES.includes(name), `missing readiness entry: ${name}`);
+  const root = await fixture();
+  try {
+    await rm(join(root, 'third-party/apus/NOTICE'));
+    await assert.rejects(assertDelivery(root), /missing delivery file: third-party\/apus\/NOTICE/);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 

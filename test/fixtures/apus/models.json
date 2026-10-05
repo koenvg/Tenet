@@ -1,0 +1,25 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "apus-openjev-v1-4b-q8",
+      "aliases": [
+        "apus-openjev-v1-4b-q8"
+      ],
+      "tags": [],
+      "object": "model",
+      "created": 0,
+      "owned_by": "llamacpp",
+      "meta": {
+        "vocab_type": 2,
+        "n_vocab": 300000,
+        "n_ctx": 32768,
+        "n_ctx_train": 32768,
+        "n_embd": 2560,
+        "n_params": 4000000000,
+        "size": 4482403168,
+        "ftype": 7
+      }
+    }
+  ]
+}

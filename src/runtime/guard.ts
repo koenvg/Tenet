@@ -18,6 +18,8 @@ import { evidenceWithinBudget } from '../decision/evidence-budget.js';
 import { ActionResolution, type ActionResolver, type ResolvedInvocation } from './resolved-action.js';
 import { ASSESSMENT_METADATA } from '../decision/assessment-contract.js';
 import { UNAVAILABLE_EVIDENCE_CONTEXT } from '../decision/evidence-context.js';
+import type { JudgeStatus } from './judge.js';
+import type { PreparedConfiguration } from './configuration.js';
 
 export interface RuntimeIdentity { host: string; sessionId: string; contextId: string }
 export interface Capabilities {
@@ -63,6 +65,8 @@ export interface InvocationIdentity extends Pick<Action, 'sessionId' | 'callId' 
 export interface RuntimeOptions {
   env: Record<string, string | undefined>;
   judge: Judge;
+  judgeStatus?: JudgeStatus;
+  configuration?: PreparedConfiguration;
   actionResolver?: ActionResolver;
   activation: { read(): Activation; refresh(): Activation };
   bindRecording?: (identity: InvocationIdentity & RuntimeIdentity & { cwd: string; mode: Mode }) => RecordingSink;
@@ -125,6 +129,8 @@ class SessionGuard {
   private record(stage: string, data: Record<string, unknown>, archiveData: Record<string, unknown> = {}): void {
     data = { ...data, ...this.metadata };
     if (['assessment', 'decision', 'permission', 'assessment-status'].includes(stage)) data = { evidenceContext: UNAVAILABLE_EVIDENCE_CONTEXT, ...data };
+    if (['assessment', 'decision', 'assessment-status', 'permission'].includes(stage)) data = {
+      judgeReportVersion: 'judge-report-v1', requestedProvider: this.options.judgeStatus?.provider ?? 'injected', requestedModel: this.options.judgeStatus?.requestedModel ?? null, ...data };
     if (!this.eligible || this.options.activation.read() !== 'on') return;
     if (typeof data.invocationId === 'string' && STAGES.includes(stage as Stage)) {
       capture(this.recordings.get(data.invocationId)?.sink, stage as Stage, () => ({ ...data, ...archiveData }));
@@ -225,12 +231,15 @@ class SessionGuard {
     this.config = undefined;
     this.observations.clear();
     try {
-      const config = readConfig(cwd, this.options.env);
+      if (this.options.configuration && !this.options.configuration.common) throw new Error('configuration');
+      const config: GuardConfig = this.options.configuration?.common
+        ? { ...this.options.configuration.common, policyPath: join(cwd, 'TENET.md') }
+        : readConfig(cwd, this.options.env);
       const policy = await loadPolicy(config.policyPath);
       if (starting !== this.loadToken) return undefined;
       this.config = config;
       this.policy = policy;
-      this.unavailable = !policy.available ? policy.reason : !hasJudge ? 'missing-credentials' : undefined;
+      this.unavailable = !policy.available ? policy.reason : !hasJudge ? this.options.judgeStatus?.reason ?? 'missing-credentials' : undefined;
     } catch {
       if (starting !== this.loadToken) return undefined;
       this.unavailable = 'configuration';
@@ -246,6 +255,8 @@ class SessionGuard {
   status(): void {
     const { policy, config, unavailable, ruleCount } = this.readiness;
     this.record('status', { status: unavailable ? 'unavailable' : 'ready', reason: unavailable ?? null, modeWarning: this.modeWarning ?? null,
+      judge: this.options.judgeStatus,
+      configuration: this.options.configuration?.status,
       policy, ruleCount, ...this.metadata, config: config?.decision ?? null, scope: 'configured-rules',
       evidence: config?.evidence ?? null, approvalTimeoutMs: config?.approvalTimeoutMs ?? null });
   }
@@ -287,6 +298,7 @@ class SessionGuard {
     this.recordings.set(identity.invocationId, { sink: recording, assessmentDone: false, executionDone: false });
     capture(recording, 'begin', () => ({ policy: selectedPolicy, config: selectedConfig?.decision ?? null,
       integrity: { id: INTEGRITY_ID, text: INTEGRITY_TEXT }, evidenceLimits: selectedConfig?.evidence ?? null,
+      requestedProvider: this.options.judgeStatus?.provider ?? 'injected', requestedModel: this.options.judgeStatus?.requestedModel ?? null,
       ...this.metadata, request: 'not-yet-submitted', adapterCoverage: this.capabilities }));
     const consequences = new Consequences(this.mode, selectedPolicy);
     let terminalPermission: Permission | undefined;
@@ -392,6 +404,7 @@ class SessionGuard {
           if (state === 'pending' || this.options.activation.read() === 'on')
             this.record('assessment-status', { ...identity, status: state, reason: reason ?? terminalReason,
               evidenceContext: resultPermission?.evidenceContext ?? UNAVAILABLE_EVIDENCE_CONTEXT,
+              ...(resultPermission?.returnedModel ? { returnedModel: resultPermission.returnedModel } : {}),
               ...(resultPermission?.validationIssue ? { validationIssue: resultPermission.validationIssue } : {}),
               profile: snapshot.profile, queueWaitMs: waitMs ?? 0, providerDurationMs: providerDuration });
           try { call.onAssessment?.(identity, state, resultPermission, reason ?? terminalReason); } catch { /* Best effort. */ }
@@ -401,7 +414,7 @@ class SessionGuard {
         this.queue.submit(bytes, observationSignal, async () => {
           if (!current()) return 'unavailable';
           const result = await decide({ policy: snapshot.policy, action: snapshot.action, trajectory: snapshot.trajectory, resolvedAction: snapshot.resolvedAction,
-            evidenceLimits: snapshot.evidence, cwd: snapshot.cwd, judge: this.options.judge, config: snapshot.config, signal: observationSignal, recording });
+            evidenceLimits: snapshot.evidence, cwd: snapshot.cwd, judge: this.options.judge, judgeIdentity: this.options.judgeStatus, config: snapshot.config, signal: observationSignal, recording });
           providerDuration = result.durationMs;
           if (!current()) return 'unavailable';
           if (!await policyIsCurrent(selectedPolicy)) {
@@ -416,7 +429,7 @@ class SessionGuard {
           this.record('assessment', { ...identity, assessment: result.assessment, reason: result.reason,
             evidenceContext: result.evidenceContext,
             ...(result.validationIssue ? { validationIssue: result.validationIssue } : {}),
-            durationMs: result.durationMs, requestedModel: result.requestedModel, questionVersion: result.questionVersion,
+            durationMs: result.durationMs, requestedModel: result.requestedModel, requestedProvider: result.requestedProvider, questionVersion: result.questionVersion,
             config: result.config, evidenceLimits: snapshot.evidence, redactedFields: action.redactedFields, limitations: action.limitations, resolvedAction: snapshot.resolvedAction });
           terminalReason = result.reason;
           if (!result.assessment) {
@@ -435,14 +448,14 @@ class SessionGuard {
         return undefined;
       }
       const result = await decide({ policy: selectedPolicy, action, trajectory, resolvedAction: resolved.evidence, evidenceLimits: selectedConfig.evidence,
-        cwd: call.cwd, judge: this.options.judge, config: selectedConfig.decision, signal, recording });
+        cwd: call.cwd, judge: this.options.judge, judgeIdentity: this.options.judgeStatus, config: selectedConfig.decision, signal, recording });
       consequences.assessed(result);
       try { call.onDecision?.(result); } catch { /* Owner reporting cannot change authorization. */ }
       if (!current()) return block('guard-state-changed');
       this.record('assessment', { ...identity, assessment: result.assessment, reason: result.reason,
         evidenceContext: result.evidenceContext,
         ...(result.validationIssue ? { validationIssue: result.validationIssue } : {}),
-        durationMs: result.durationMs, requestedModel: result.requestedModel, questionVersion: result.questionVersion,
+        durationMs: result.durationMs, requestedModel: result.requestedModel, requestedProvider: result.requestedProvider, questionVersion: result.questionVersion,
         config: result.config, evidenceLimits: selectedConfig.evidence, redactedFields: action.redactedFields, limitations: action.limitations, resolvedAction: resolved.evidence });
       this.record('decision', { ...identity, decision: result.decision, reason: result.reason, ruleIds: result.ruleIds,
         evidenceContext: result.evidenceContext,

@@ -4,10 +4,11 @@ import { join } from 'node:path';
 import { createAgentSession, DefaultResourceLoader, ModelRuntime, SessionManager, SettingsManager } from '@earendil-works/pi-coding-agent';
 import { createAssistantMessageEventStream, InMemoryCredentialStore } from '@earendil-works/pi-ai';
 import { Type } from 'typebox';
+import { alias, scriptedNative } from './archive-native.mjs';
 
 // A fresh process loads the registered production entry. Only model output and
 // judge transport are scripted; no alternate guard factory or release path.
-const [installation, project, expectedMode] = process.argv.slice(2);
+const [installation, project, expectedMode, provider = 'typesafe'] = process.argv.slice(2);
 assert.equal(process.env.TENET_MODE ?? 'observe', expectedMode);
 const settingsManager = SettingsManager.create(project, process.env.PI_CODING_AGENT_DIR);
 const statuses = [], notifications = [], views = [], confirmations = [];
@@ -15,7 +16,7 @@ let outcome = 'FAIL', approved = false, executed = 0, requests = 0, session;
 let releaseAssessment;
 const assessmentHeld = new Promise(resolve => { releaseAssessment = resolve; });
 const originalFetch = globalThis.fetch;
-globalThis.fetch = async (url, init) => {
+const typesafeFetch = async (url, init) => {
   assert.equal(String(url), 'https://api.typesafe.ai/v1/systemone', 'no non-scripted network destination');
   requests++;
   const body = JSON.parse(init.body);
@@ -32,6 +33,13 @@ globalThis.fetch = async (url, init) => {
   }));
   return Response.json({ model: 'offline-owner-script', answers });
 };
+const native = scriptedNative({ outcome: () => outcome, beforeCompletion: async question => {
+  if (question === 0) {
+    requests++;
+    if (expectedMode === 'observe') await assessmentHeld;
+  }
+} });
+globalThis.fetch = provider === 'apus-llamacpp' ? native.fetch : typesafeFetch;
 try {
   const loader = new DefaultResourceLoader({ cwd: project, agentDir: process.env.PI_CODING_AGENT_DIR, settingsManager,
     noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true,
@@ -73,7 +81,9 @@ try {
   await session.prompt('/tenet status');
   assert.ok(statuses.some(s => s.startsWith(`TENET ON ${expectedMode.toUpperCase()}`)));
   assert.match(notifications.at(-1), /argument stability|arguments-not-frozen/);
-  assert.ok(notifications.some(s => s.includes('TypeSafe')));
+  assert.ok(notifications.some(s => s.includes(`judge ${provider}`) && s.includes('connectivity unverified')),
+    'explicit native status identifies the selected judge independently of startup UI timing');
+  if (provider === 'apus-llamacpp') assert.ok(notifications.some(s => s.includes(`judge ${provider} experimental`)));
   if (expectedMode === 'observe') {
     // Permission and the local effect happen while judgment is still pending.
     await invoke(); assert.equal(executed, 1); assert.equal(confirmations.length, 0);
@@ -104,11 +114,22 @@ try {
   }
   assert.equal(await readFile(join(project, 'owner-demo.txt'), 'utf8'), 'harmless');
   assert.ok(records().some(r => r.stage === 'execution' && r.outcome === 'unknown'), 'native results are not exact execution proof');
+  if (provider === 'apus-llamacpp') {
+    assert.ok(records().some(r => r.stage === 'assessment' && r.requestedProvider === provider && r.requestedModel === alias));
+    const findings = records().filter(r => ['assessment', 'permission', 'assessment-status'].includes(r.stage));
+    assert.ok(findings.length > 0);
+    assert.ok(findings.every(r => r.version === 3 && r.judgeReportVersion === 'judge-report-v1'
+      && r.requestedProvider === provider && r.requestedModel === alias));
+    assert.ok(findings.some(r => r.returnedModel === alias), 'validated owner findings retain returned identity');
+    assert.equal(native.calls.filter(c => c.path === '/completion').length, expectedMode === 'observe' ? 4 : 16);
+    assert.ok(!records().some(r => r.stage === 'request' || r.stage === 'response'), 'capture-off must not store native payloads');
+    assert.ok(!JSON.stringify(session.messages).includes('<|im_start|>'), 'native prompts remain out of agent history');
+  }
   if (expectedMode === 'observe')
     assert.ok(!session.messages.some(m => JSON.stringify(m).includes('rule-fail')), 'observation findings stay out of agent messages');
   await session.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' });
   session.dispose(); session = undefined;
-  console.log(`${process.versions.bun ? 'Bun' : 'Node'} registered owner flow ${expectedMode}: native status/findings, ${executed} local writes, ${confirmations.length} native confirmations; no live requests.`);
+  console.log(`${process.versions.bun ? 'Bun' : 'Node'} registered owner flow ${provider}/${expectedMode}: native status/findings, ${executed} local writes, ${confirmations.length} native confirmations; no live requests.`);
 } finally {
   releaseAssessment();
   if (session) {

@@ -35,7 +35,7 @@ test('replay reports repeated decisions, independent error counts, input identit
   assert.equal(rows[0]!.questionDigest, digest(rows[0]!.questions));
   assert.match(rows[0]!.fixtureDigest, /^[0-9a-f]{64}$/);
   assert.equal(rows[0]!.result.questionVersion, 'policy-rules-v7-ordinary-evidence');
-  assert.equal(rows[0]!.result.requestedModel, 'jev-latest');
+  assert.equal(rows[0]!.result.requestedModel, null);
   assert.equal(rows[0]!.result.assessment?.model, 'jev-offline');
   assert.equal(rows[0]!.result.config.effectThreshold, 0.9);
   assert.equal(rows[0]!.result.config.evidenceThreshold, 0.9);
@@ -118,7 +118,7 @@ test('cross-domain replay retains authored outcomes across mechanisms without ex
   for (const row of report.rows) {
     assert.equal(row.questionDigest, digest(row.questions));
     assert.match(row.fixtureDigest, /^[0-9a-f]{64}$/);
-    assert.equal(row.result.requestedModel, 'jev-latest');
+    assert.equal(row.result.requestedModel, null);
     assert.deepEqual(row.result.assessment?.rules.map(r => r.outcome.choice), row.expectedOutcomes);
   }
   for (const [id, [outcome, decision]] of Object.entries(expected)) {

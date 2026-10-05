@@ -14,6 +14,9 @@ export type { Mode } from '../runtime/config.js';
 export type { HistoryCaptureMetadata } from '../decision/history-capture.js';
 export type { Activation } from '../runtime/activation.js';
 
+export type { JudgeIdentity } from '../decision/contracts.js';
+export type { JudgeStatus } from '../runtime/judge.js';
+export type { ConfigurationStatus } from '../runtime/configuration.js';
 export type Capabilities = Readonly<RuntimeCapabilities>;
 export type Capability = 'interception' | 'result-correlation' | 'lifecycle-invalidation' | 'argument-stability' | 'trusted-approval';
 export interface SessionIdentity { sessionId: string; contextId: string }
@@ -56,6 +59,8 @@ export interface BeforeToolResult {
   readonly execution: 'unknown';
 }
 export interface SessionStatus {
+  readonly judge: import('../runtime/judge.js').JudgeStatus;
+  readonly configuration: import('../runtime/configuration.js').ConfigurationStatus;
   readonly state: 'uninitialized' | 'ready' | 'dormant' | 'unavailable' | 'closed';
   readonly reason?: string;
   readonly identity: Readonly<SessionIdentity>;
@@ -72,6 +77,11 @@ export interface OwnerReport {
   readonly mode: Mode;
   readonly invocationId: string; readonly callId: string; readonly toolName: string;
   readonly profile?: string; readonly questionVersion?: string;
+  readonly judgeReportVersion?: 'judge-report-v1';
+  readonly requestedProvider?: Decision['requestedProvider'];
+  readonly requestedModel?: string | null;
+  /** Backend-reported alias from a complete assessment, not proof of weights. */
+  readonly returnedModel?: string;
   readonly outcome: 'released' | 'blocked';
   readonly wouldDecision?: Decision['decision'];
   readonly reason: string;
@@ -105,6 +115,8 @@ export interface GuardOptions {
   limitations?: readonly string[];
   /** Defaults to a snapshot of process.env. Supply a complete isolated environment in tests. */
   env?: Record<string, string | undefined>;
+  /** Requested identity for injected judge dependencies. Omitted means unknown. Ignored for configured providers without injection. */
+  judgeIdentity?: import('../decision/contracts.js').JudgeIdentity;
   judge?: Judge;
   createJudge?: () => Judge;
   actionResolver?: ActionResolver;
@@ -138,6 +150,8 @@ export type CaptureStatus =
       readonly written: number; readonly pending: number; readonly drainTimeouts: number }
   | { readonly kind: 'external'; readonly health: 'unknown' };
 export interface GuardStatus {
+  readonly judge: import('../runtime/judge.js').JudgeStatus;
+  readonly configuration: import('../runtime/configuration.js').ConfigurationStatus;
   readonly closed: boolean;
   readonly sessions: number;
   readonly mode: Mode;

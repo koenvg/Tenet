@@ -14,7 +14,9 @@ Pi loads `dist/pi/extension.js`, which registers the native guard and inspector 
 
 ## Check status before a live action
 
-A real assessment sends policy, paths, tool evidence and bounded recent observations to TypeSafe and uses quota. Secret-bearing strings can survive field redaction. Default local capture also saves submitted strings in `~/.tenet/recordings`. Review disclosure before any assessed action.
+A real assessment sends full policy, paths, selected tool evidence and bounded observations to the selected judge. TypeSafe uses quota; APUS through private SSH forwarding sends these to Pika and uses CPU. Secrets can survive field redaction.
+
+Default local capture saves submitted strings in `~/.tenet/recordings`. `TENET_RECORDING=off` stops neither disclosure nor all backend logs; the owner controls backend log access/retention.
 
 Observe never vetoes or opens approval, including for unavailable assessment or integrity findings. Tenet is not an OS sandbox. Pi cannot freeze arguments after hook release or inspect subprocesses. Pi installation does not verify the Claude Code prototype.
 
@@ -27,6 +29,11 @@ Observe never vetoes or opens approval, including for unavailable assessment or 
    ```
 
    Doctor sends no evidence and changes no files. `ready` means local readiness, not credential validity, provider connectivity or active hooks. See [doctor states and exits](doctor.md#states-and-exits).
+
+   Before live-capable launch or evidence submission, obtain separate authorization for the exact full policy/selected evidence and selected TypeSafe or Pika service. Secrets can survive redaction. Expect quota/CPU cost, default capture and owner-controlled backend logs; capture-off stops neither disclosure nor all logs.
+
+   A launch approval does not authorize evidence submission or deployment changes.
+
 2. Start a fresh Pi process from the project with explicit mode selection:
 
    ```sh
@@ -63,12 +70,16 @@ A dormant session has no assessment, veto, approval, recording or Tenet UI. A fi
 
 `TENET_POLICY` no longer selects a policy. All values have no effect, including empty or whitespace-only values. An override-only project becomes dormant even in enforce mode. Do not begin guarded work until its local policy is ready.
 
+Before these policy/owner-file changes, obtain separate authorization. Future assessments disclose the full changed policy and selected evidence to TypeSafe or Pika, with secrets possible despite redaction, quota/CPU cost, default capture and backend logs. Capture-off stops neither disclosure nor all logs. Manage policy externally; do not ask the guarded agent to change it.
+
 1. Review the intended policy yourself and place it at `TENET.md` in each session working directory, outside the guarded agent's intercepted path. Tenet does not copy or create the file.
 2. Remove `TENET_POLICY` from the environment that launches Pi.
 3. Run the offline doctor for the project as shown above. Check its local source, digest and rule count, and resolve invalid setup.
 4. Restart Pi and verify `/tenet status` before separately authorized live work. Restoring the variable on the new version does not restore override support; rollback needs the prior archive and a process restart. Existing recordings remain unchanged.
 
 ### Write one-line rules
+
+Before writing owner policy, obtain separate authorization. Future assessments send full policy and selected evidence to TypeSafe or Pika, with possible secrets despite redaction, quota/CPU cost, default capture and backend logs. Capture-off stops neither disclosure nor all logs.
 
 Author policy yourself outside the guarded agent's intercepted path. This example is illustrative, not complete protection:
 
@@ -122,6 +133,8 @@ Outcome confidence remains global, default `0.9`. Lowering evidence confidence d
 
 ### Owner-only policy management
 
+Before changing or rolling back owner policy, obtain separate authorization. Future assessments disclose full policy and selected evidence to TypeSafe or Pika, with possible secrets despite redaction, quota/CPU cost, default capture and backend logs. Capture-off stops neither disclosure nor all logs.
+
 Do not ask the guarded agent to create, migrate or weaken its active policy. Edit it yourself in an editor or owner shell outside the intercepted path.
 
 Built-in integrity covers modifying, removing, replacing, renaming or redirecting the selected path and resolved target, including evidenced aliases and parent-directory replacement. Reading policy is permitted. In enforce mode, integrity blocks without an approval exception and user rules cannot weaken it. Observe reports without vetoing.
@@ -152,6 +165,8 @@ Before rolling back per-rule thresholds, remove that metadata externally; older 
 
 ### Use the cooperative on/off switch
 
+Before an activation or control-file change, obtain separate authorization. Turning on permits full policy/selected-evidence disclosure to TypeSafe or Pika, with possible secrets despite redaction, quota/CPU cost, capture and backend logs. Capture-off stops neither disclosure nor all logs. Turning off disables assessment and capture, not old evidence or already released actions.
+
 In an eligible Pi session, `/tenet off` stops new assessment, approvals, trajectory capture and recording through `~/.tenet/control.json`. `/tenet on` restores the process's existing mode and capture settings. Both commands are safe to repeat; neither changes mode or activates a dormant session.
 
 A fresh missing control defaults to on. A malformed or unsafe control is unavailable, not a passing policy decision. Enforce blocks; observe permits without assessing or recording. Native on/off can repair safe malformed content. Fix unsafe permissions or symlinks outside Pi.
@@ -166,13 +181,13 @@ Pending archive writes can finish after off. Previous recordings remain.
 
 Observe is the default. It releases calls after bounded pre-execution capture and evaluates a fixed snapshot in the background. Results can arrive after tool completion or turn end. Findings remain owner-only, not agent messages, tool results or later evaluator evidence, including on recovery.
 
-Up to two assessments run, 32 wait and retained snapshots total at most 1 MiB. Waiting snapshots expire after five seconds. Excess work is dropped without a pass, block or approval.
+Absent settings allow two running assessments, 32 waiting and at most 1 MiB retained snapshots, with five-second waiting age. Valid owner JSON can change these limits. The experimental Pika example uses one running, eight waiting, 1 MiB and 120000 ms queue age; it is not a throughput guarantee. Capacity/age excess is dropped without a pass, block or approval.
 
 Provider deadlines apply after dequeue. Pending, dropped, cancelled or unavailable work is never an all-clear.
 
 Off, context/session replacement, stale policy and shutdown cancel background work and suppress late findings. Agent-turn end need not cancel valid observations; missing results become unknown. A crash or bounded shutdown drain can leave incomplete records. Reporting failure does not revoke a released call; reports can be lost.
 
-To select enforcement, close Pi and start a new process from the project:
+Before selecting enforcement, obtain separate activation authorization. Full policy and selected evidence reach TypeSafe or Pika, with possible secrets despite redaction, quota/CPU cost, default capture and owner-controlled backend logs. Capture-off stops neither disclosure nor all logs. APUS is experimental; normalized Q8 scores do not establish enforcement safety. After approval, close Pi and start a new process from the project:
 
 ```sh
 TENET_MODE=enforce pi
@@ -202,6 +217,8 @@ Approval waits are serialized and the timeout includes queue time. A late answer
 
 ## Settings before launch
 
+Private provider selection and JSON deadline/queue limits are in the shipped [judge/settings guide](judge.md). Settings live only in owner `~/.tenet/config.json`, separate from activation. Confirmed absence retains TypeSafe/`jev-latest`; invalid settings are unavailable, never a fallback. APUS needs no TypeSafe key. Only local readiness is checked offline.
+
 Set environment variables in the shell that launches Pi. Code and environment changes require a full process restart. Under Pi 0.85.1 and Bun 1.3.14, `/reload` and `/new` can retain old imports. Doctor reads process environment, not dotenv files or Pi settings.
 
 | Variable | Default | Valid value and effect |
@@ -210,7 +227,7 @@ Set environment variables in the shell that launches Pi. Code and environment ch
 | `TYPESAFE_API_KEY` | None | Nonblank TypeSafe credential, set securely; presence is not validity |
 | `TENET_EFFECT_THRESHOLD` | `0.90` | Finite number from `0` through `1`; minimum selected outcome probability |
 | `TENET_EVIDENCE_THRESHOLD` | `0.90` | Finite number from `0` through `1`; minimum P(SUFFICIENT) where applicable |
-| `TENET_JUDGE_DEADLINE_MS` | `2500` | Finite number greater than `0`, at most `2147483647`; overall judge deadline, not per-rule; fractional values accepted |
+| `TENET_JUDGE_DEADLINE_MS` | `2500` | Finite number greater than `0`, at most `2147483647`; overrides JSON deadline; whole-assessment, not per-rule; fractional environment values accepted |
 | `TENET_APPROVAL_TIMEOUT_MS` | `60000` | Safe integer from `1` through `2147483647`; includes dialog queue time |
 | `TENET_RECENT_EVENTS` | `12` | Safe integer from `0` through `9007199254740991`; `0` omits history |
 | `TENET_EVIDENCE_MAX_BYTES` | `24576` | Safe integer from `1` through `9007199254740991`; serialized judge-state UTF-8 byte limit |
@@ -245,7 +262,7 @@ Run doctor outside Pi in the launch environment. It never starts hooks or submit
 | --- | --- |
 | No footer or `/tenet` command | Missing local policy is dormant in both modes. Registration supplies no policy. Check the selected cwd, author policy externally and restart. For an older override setup, use the migration steps above. If policy exists, check `pi list` and load errors. A load error means no Tenet hook. |
 | Invalid or broken active policy | A malformed or unreadable local file, broken local link or stale policy is unavailable. Check UTF-8 `Rule;` lines, grammar and limits above. Review the local path externally, reload or restart, and verify digest. Observe permits without a pass; enforce blocks. |
-| Missing credentials or provider errors | Configure the key securely before relaunch. Doctor tests presence only. An invalid key, unreachable provider or timeout is not an all-clear. Live checks need separate authorization and disclose evidence to TypeSafe. |
+| Invalid settings or selected provider errors | Check provider/alias, deadline and queue with doctor, then the [private setup and rollback guide](judge.md). TypeSafe needs its key; APUS does not. Unreachable Pika, closed forwarding, timeout or a mismatched backend is unavailable, not a pass or fallback. Live connectivity checks require separate full-payload/service authorization. |
 | `TENET OFF` or `CONTROL UNAVAILABLE` | `/tenet on` restores this process's mode, not enforce. Fix unsafe permissions/links outside Pi; repair safe malformed content through native on/off. Other processes notice asynchronously. |
 | Pending or lost findings | Check status for completed, unavailable, dropped, cancelled and cumulative loss counts. Queue limits and interruptions can lose work. Absence of a report is not `PASS`. |
 | Native findings but no inspector history | Recording opt-out leaves native reporting active. Otherwise check capture location and loss/drain counts. Unsafe directories, full disk or queue loss can prevent capture without changing permission. Stop writers before storage repair. |
@@ -256,7 +273,7 @@ Run doctor outside Pi in the launch environment. It never starts hooks or submit
 
 ### Store and inspect evidence safely
 
-Assessment sends policy text and identity/paths, host cwd, built-in integrity, copied tool name/description/schema, field-redacted arguments, identities, timestamp, original-argument digest and limitations to TypeSafe.
+Assessment sends policy text and identity/paths, host cwd, built-in integrity, copied tool name/description/schema, field-redacted arguments, identities, timestamp, original-argument digest and limitations to the selected judge, TypeSafe or APUS on Pika through owner forwarding. This is full policy and selected evidence, not a harmless health probe.
 
 Bounded recent observations contain earlier tool calls and tool results. Findings, decisions and native approval outcomes remain owner records, not evaluator history. Tool observations remain untrusted evidence, not grants.
 
@@ -270,11 +287,15 @@ The archive queue permits 64 pending records and 16 MiB total. Normal shutdown d
 
 UI shows loss/pending counters and drain timeouts. A crash, full disk or exhausted queue can leave incomplete stages. Records are best-effort diagnostics, not a transactional audit log.
 
+Before starting an inspector service, obtain separate authorization to expose retained full policy and selected evidence to same-user loopback readers. Strings can retain secrets despite redaction. This sends no new judge request, but capture-off does not erase old records/backend logs or stop future provider disclosure. Keep access private.
+
 For retained evidence, run `/tenet-inspector`, or from the stable installation use `npm run inspector:serve`. No Pi or TypeSafe credential is needed for the standalone reader. Use the same `TENET_RECORDING_DIR` as the writer.
 
 The server is read-only, loopback-only and unauthenticated. Do not expose or proxy secret-bearing evidence to another machine.
 
-`TENET_RECORDING=off` stops new local capture only. Off and uninstall leave old recordings and Pi session files. There is no automatic expiry. Stop all writers and readers before deleting retained evidence. Removing control separately resets the cooperative choice, not historical evidence.
+`TENET_RECORDING=off` stops new local capture only, not provider disclosure or all backend logs. The owner controls Pika log access and retention. Off and uninstall leave old recordings and Pi session files. There is no automatic expiry.
+
+Before deleting retained full policy/evidence or owner control, obtain separate authorization. Secrets can survive redaction; local capture-off does not erase records, backend logs or future disclosure to TypeSafe/Pika. Stop all writers and readers before deleting retained evidence. Removing control separately resets the cooperative choice, not historical evidence.
 
 ### Know the host boundary
 

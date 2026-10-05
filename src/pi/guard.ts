@@ -7,7 +7,7 @@ import { OwnerReports } from './owner-reports.js';
 import { nativeHistory } from './history.js';
 import { readConfig } from '../runtime/config.js';
 
-type Options = Pick<GuardOptions, 'judge' | 'createJudge' | 'actionResolver' | 'env' | 'controlPath'> & { onEligible?: () => void };
+type Options = Pick<GuardOptions, 'judge' | 'createJudge' | 'judgeIdentity' | 'actionResolver' | 'env' | 'controlPath'> & { onEligible?: () => void };
 
 /** Pi owns native translation, trusted UI and dispatch. The documented SDK owns the guard. */
 export function registerGuard(pi: ExtensionAPI, options: Options = {}): void {
@@ -54,7 +54,8 @@ export function registerGuard(pi: ExtensionAPI, options: Options = {}): void {
       if (!adapter) return 'uninitialized';
       const missing = [!adapter.resultCorrelation && 'result correlation', !adapter.argumentStability && 'argument stability',
         !adapter.lifecycleInvalidation && 'lifecycle', !adapter.interception && 'interception', !adapter.trustedApproval && 'trusted approval'].filter(Boolean).join(', ');
-      return `${adapter.host} ${adapter.version ?? 'version unverified'} (${adapter.profile ?? 'profile unverified'}); coverage ${missing || 'declared'}; limits ${adapter.limitations.join(', ')}`;
+      const judge = guard.status().judge;
+      return `${adapter.host} ${adapter.version ?? 'version unverified'} (${adapter.profile ?? 'profile unverified'}); coverage ${missing || 'declared'}; limits ${adapter.limitations.join(', ')}; judge ${judge.provider}${judge.experimental ? ' experimental' : ''}, requested model ${display(judge.requestedModel ?? 'unknown')}, local availability ${judge.availability}, connectivity unverified; settings ${guard.status().configuration.source}, ${guard.status().configuration.settings}; deadline ${guard.status().configuration.deadlineMs ?? 'unavailable'}ms; queue ${JSON.stringify(guard.status().configuration.observation)}`;
     }, () => guard.status().observations);
   const approvals = new ApprovalQueue();
   let commandsRegistered = false;
@@ -111,7 +112,7 @@ export function registerGuard(pi: ExtensionAPI, options: Options = {}): void {
         const capture = guard.status().capture;
         reportRecording(() => ctx.ui.notify(capture.kind === 'external' ? 'TENET recording EXTERNAL: health unknown.'
           : `TENET recording ${capture.kind === 'local-archive' ? 'ON' : 'OFF'}: ${display(capture.directory)}. Submitted evidence may contain secrets. TENET_RECORDING=off disables capture.${capture.issue ? ` ${capture.issue}` : ''}`, 'info'));
-        ctx.ui.notify(`TENET ${mode.toUpperCase()} ${ready.modeWarning ?? ''} ${ready.reason ? `unavailable (${ready.reason}); ${mode === 'enforce' ? 'intercepted calls BLOCK' : 'observation unavailable'}.` : `ready: ${ready.policy.ruleCount} rules plus policy integrity.`} Assessment profile: ${ready.profile}. Judge questions: ${ready.questionVersion}. ${ready.policy.digest ? `Policy ${display(ready.policy.source)}, SHA-256 ${ready.policy.digest}.` : 'Load a UTF-8 policy with nonempty Rule; declarations, then reload or restart.'} Rule text, selected tool evidence and bounded recent observations reach TypeSafe. No filesystem sandbox or subprocess observation.`, ready.reason || ready.modeWarning ? 'error' : 'info');
+        ctx.ui.notify(`TENET ${mode.toUpperCase()} ${ready.modeWarning ?? ''} ${ready.reason ? `unavailable (${ready.reason}); ${mode === 'enforce' ? 'intercepted calls BLOCK' : 'observation unavailable'}.` : `ready: ${ready.policy.ruleCount} rules plus policy integrity.`} Assessment profile: ${ready.profile}. Judge questions: ${ready.questionVersion}. ${ready.policy.digest ? `Policy ${display(ready.policy.source)}, SHA-256 ${ready.policy.digest}.` : 'Load a UTF-8 policy with nonempty Rule; declarations, then reload or restart.'} Judge: ${ready.judge.provider === 'typesafe' ? 'TypeSafe' : ready.judge.provider === 'apus-llamacpp' ? 'APUS llama.cpp experimental' : ready.judge.provider === 'injected' ? 'injected judge' : 'unknown'}; requested model ${display(ready.judge.requestedModel ?? 'unknown')}; local availability ${ready.judge.availability}, connectivity unverified. Settings: ${ready.configuration.source}; ${ready.configuration.settings}; deadline ${ready.configuration.deadlineMs ?? 'unavailable'}ms; queue ${JSON.stringify(ready.configuration.observation)}. Rule text, selected tool evidence and bounded recent observations reach ${ready.judge.provider === 'typesafe' ? 'TypeSafe' : ready.judge.provider === 'apus-llamacpp' ? 'the owner-selected APUS loopback backend, including Pika through private forwarding' : ready.judge.provider === 'injected' ? 'the injected judge, whose destination the SDK caller controls' : 'no provider while settings are invalid'}. No filesystem sandbox or subprocess observation.`, ready.reason || ready.modeWarning ? 'error' : 'info');
       }
     }
   });

@@ -3,6 +3,7 @@
   import { validationMessages } from '../../src/decision/response-validation';
   import { explainDecision, primaryStatus } from './presentation';
   import EvidenceCoverage from './EvidenceCoverage.svelte';
+  import NativeMappings from './NativeMappings.svelte';
   export let view: InvocationView;
 </script>
 
@@ -31,12 +32,23 @@
     <div><dt>Adapter version</dt><dd>{view.adapterCoverage?.version ?? 'unverified'}</dd></div>
     <div><dt>Recording schemas</dt><dd>{view.identity?.schemas.join(', ') ?? 'unknown'}</dd></div>
     <div><dt>Assessment profile</dt><dd>{view.assessmentProfile}</dd></div>
+    <div><dt>Provider</dt><dd>{view.judge.provider ?? 'Provider not recorded'}{view.judge.experimental === true ? ' experimental' : ''}</dd></div>
+    <div><dt>Requested model</dt><dd>{view.judge.requestedModel ?? 'not recorded'}</dd></div>
+    <div class="record-wide"><dt>Returned model</dt><dd>{view.judge.returnedModel ?? 'not recorded; no complete returned assessment'}</dd></div>
+    <div class="record-wide"><dt>Judge questions</dt><dd>{view.questionVersion ?? 'not recorded'}</dd></div>
+    {#if view.native}
+      <div><dt>Native recording</dt><dd>{view.native.contract.version}</dd></div>
+      <div><dt>Native rendering</dt><dd>{view.native.contract.renderingVersion}</dd></div>
+      <div class="record-wide"><dt>Native protocol</dt><dd>{view.native.contract.protocolVersion}</dd></div>
+      <div class="record-wide"><dt>Renderer revision</dt><dd>{view.native.contract.rendererRevision}</dd></div>
+    {/if}
     <div><dt>Queue wait</dt><dd>{view.queueWaitMs === null ? 'unknown' : `${view.queueWaitMs} ms`}</dd></div>
     <div><dt>Provider duration</dt><dd>{view.providerDurationMs === null ? 'unknown' : `${view.providerDurationMs} ms`}</dd></div>
     <div class="record-wide"><dt>Request</dt><dd>{view.requestStatus}</dd></div>
     <div class="record-wide"><dt>Archive coverage</dt><dd>{view.coverage}</dd></div>
     <div class="record-wide"><dt>Missing stages</dt><dd>{view.missing.join(', ') || 'none observed'}</dd></div>
   </dl>
+  {#if view.native}<NativeMappings native={view.native} />{/if}
   <details class="record-identifiers record-note">
     <summary>Record identifiers</summary>
     <dl class="record-fields">

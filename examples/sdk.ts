@@ -26,6 +26,7 @@ const gate = new Promise<void>(resolve => { finishObservation = resolve; });
 const observe = createGuard({ ...host, judge: async (...args) => { await gate; return judge(...args); },
   env: { TENET_RECORDING: 'off' }, controlPath: join(root, 'control', 'state.json'), onOwnerEvent: e => events.push(e) });
 const enforce = createGuard({ ...host, judge, env: { TENET_MODE: 'enforce', TENET_RECORDING: 'off' },
+  judgeIdentity: { requestedModel: 'scripted-requested' },
   controlPath: join(root, 'control', 'state.json') });
 try {
   const active = join(root, 'active'); const invalid = join(root, 'invalid');
@@ -39,6 +40,8 @@ try {
   assert.equal(session.status().state, 'uninitialized');
   assert.equal((await session.beforeTool({ ...invocation, current })).assessment.status, 'unavailable');
   assert.equal((await session.ready).state, 'ready');
+  assert.deepEqual(session.status().judge, { provider: 'injected', requestedModel: null, availability: 'ready', connectivity: 'unverified' });
+  assert.equal(enforce.status().judge.requestedModel, 'scripted-requested');
   const permission = await session.beforeTool({ ...invocation, current });
   assert.equal(permission.permission, 'released'); assert.equal(permission.assessment.status, 'pending');
   assert.equal(permission.assessment.wouldDecision, undefined);

@@ -1,0 +1,143 @@
+[
+  {
+    "name": "unicode-sorted-state",
+    "request": {
+      "id": "unicode-sorted-state",
+      "group_id": "golden",
+      "state": "{\"10\": \"ten\", \"2\": \"two\", \"a\": \"quote \\\" slash \\\\ tab\\t newline\\n    \", \"z\": {\"a\": [true, null, 7], \"β\": \"café / 中文 / 😀\"}, \"\": \"bmp key\", \"𐀀\": \"astral key\"}",
+      "instructions": "Choose “é” or 中文. Preserve é and 😀.",
+      "primitive": "choice",
+      "criteria": [
+        {
+          "id": "second",
+          "description": "中文 / 😀"
+        },
+        {
+          "id": "first",
+          "description": "é and é; \"quotes\""
+        }
+      ]
+    },
+    "prefix": "Shared state:\n{\"10\": \"ten\", \"2\": \"two\", \"a\": \"quote \\\" slash \\\\ tab\\t newline\\n    \", \"z\": {\"a\": [true, null, 7], \"β\": \"café / 中文 / 😀\"}, \"\": \"bmp key\", \"𐀀\": \"astral key\"}\n\n",
+    "suffix": "{\"criteria\": [{\"description\": \"中文 / 😀\", \"label\": \"A\"}, {\"description\": \"é and é; \\\"quotes\\\"\", \"label\": \"B\"}], \"instructions\": \"Choose “é” or 中文. Preserve é and 😀.\", \"primitive\": \"choice\"}\nReturn only the selected letter: A, B.\nAnswer:",
+    "prompt": "Shared state:\n{\"10\": \"ten\", \"2\": \"two\", \"a\": \"quote \\\" slash \\\\ tab\\t newline\\n    \", \"z\": {\"a\": [true, null, 7], \"β\": \"café / 中文 / 😀\"}, \"\": \"bmp key\", \"𐀀\": \"astral key\"}\n\n{\"criteria\": [{\"description\": \"中文 / 😀\", \"label\": \"A\"}, {\"description\": \"é and é; \\\"quotes\\\"\", \"label\": \"B\"}], \"instructions\": \"Choose “é” or 中文. Preserve é and 😀.\", \"primitive\": \"choice\"}\nReturn only the selected letter: A, B.\nAnswer:",
+    "chat": "<|im_start|>user\nShared state:\n{\"10\": \"ten\", \"2\": \"two\", \"a\": \"quote \\\" slash \\\\ tab\\t newline\\n    \", \"z\": {\"a\": [true, null, 7], \"β\": \"café / 中文 / 😀\"}, \"\": \"bmp key\", \"𐀀\": \"astral key\"}\n\n{\"criteria\": [{\"description\": \"中文 / 😀\", \"label\": \"A\"}, {\"description\": \"é and é; \\\"quotes\\\"\", \"label\": \"B\"}], \"instructions\": \"Choose “é” or 中文. Preserve é and 😀.\", \"primitive\": \"choice\"}\nReturn only the selected letter: A, B.\nAnswer:<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+    "mapping": {
+      "A": "second",
+      "B": "first"
+    },
+    "stateInput": {
+      "z": {
+        "β": "café / 中文 / 😀",
+        "a": [
+          true,
+          null,
+          7
+        ]
+      },
+      "2": "two",
+      "10": "ten",
+      "𐀀": "astral key",
+      "": "bmp key",
+      "a": "quote \" slash \\ tab\t newline\n    "
+    }
+  },
+  {
+    "name": "sixteen-ordered-criteria",
+    "request": {
+      "id": "sixteen-ordered-criteria",
+      "group_id": "golden",
+      "state": "Shared evidence.\nNo extra system turn.",
+      "instructions": "Keep the given order.",
+      "primitive": "choice",
+      "criteria": [
+        {
+          "id": "id-15",
+          "description": "candidate 0"
+        },
+        {
+          "id": "id-14",
+          "description": "candidate 1"
+        },
+        {
+          "id": "id-13",
+          "description": "candidate 2"
+        },
+        {
+          "id": "id-12",
+          "description": "candidate 3"
+        },
+        {
+          "id": "id-11",
+          "description": "candidate 4"
+        },
+        {
+          "id": "id-10",
+          "description": "candidate 5"
+        },
+        {
+          "id": "id-9",
+          "description": "candidate 6"
+        },
+        {
+          "id": "id-8",
+          "description": "candidate 7"
+        },
+        {
+          "id": "id-7",
+          "description": "candidate 8"
+        },
+        {
+          "id": "id-6",
+          "description": "candidate 9"
+        },
+        {
+          "id": "id-5",
+          "description": "candidate 10"
+        },
+        {
+          "id": "id-4",
+          "description": "candidate 11"
+        },
+        {
+          "id": "id-3",
+          "description": "candidate 12"
+        },
+        {
+          "id": "id-2",
+          "description": "candidate 13"
+        },
+        {
+          "id": "id-1",
+          "description": "candidate 14"
+        },
+        {
+          "id": "id-0",
+          "description": "candidate 15"
+        }
+      ]
+    },
+    "prefix": "Shared state:\nShared evidence.\nNo extra system turn.\n\n",
+    "suffix": "{\"criteria\": [{\"description\": \"candidate 0\", \"label\": \"A\"}, {\"description\": \"candidate 1\", \"label\": \"B\"}, {\"description\": \"candidate 2\", \"label\": \"C\"}, {\"description\": \"candidate 3\", \"label\": \"D\"}, {\"description\": \"candidate 4\", \"label\": \"E\"}, {\"description\": \"candidate 5\", \"label\": \"F\"}, {\"description\": \"candidate 6\", \"label\": \"G\"}, {\"description\": \"candidate 7\", \"label\": \"H\"}, {\"description\": \"candidate 8\", \"label\": \"I\"}, {\"description\": \"candidate 9\", \"label\": \"J\"}, {\"description\": \"candidate 10\", \"label\": \"K\"}, {\"description\": \"candidate 11\", \"label\": \"L\"}, {\"description\": \"candidate 12\", \"label\": \"M\"}, {\"description\": \"candidate 13\", \"label\": \"N\"}, {\"description\": \"candidate 14\", \"label\": \"O\"}, {\"description\": \"candidate 15\", \"label\": \"P\"}], \"instructions\": \"Keep the given order.\", \"primitive\": \"choice\"}\nReturn only the selected letter: A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P.\nAnswer:",
+    "prompt": "Shared state:\nShared evidence.\nNo extra system turn.\n\n{\"criteria\": [{\"description\": \"candidate 0\", \"label\": \"A\"}, {\"description\": \"candidate 1\", \"label\": \"B\"}, {\"description\": \"candidate 2\", \"label\": \"C\"}, {\"description\": \"candidate 3\", \"label\": \"D\"}, {\"description\": \"candidate 4\", \"label\": \"E\"}, {\"description\": \"candidate 5\", \"label\": \"F\"}, {\"description\": \"candidate 6\", \"label\": \"G\"}, {\"description\": \"candidate 7\", \"label\": \"H\"}, {\"description\": \"candidate 8\", \"label\": \"I\"}, {\"description\": \"candidate 9\", \"label\": \"J\"}, {\"description\": \"candidate 10\", \"label\": \"K\"}, {\"description\": \"candidate 11\", \"label\": \"L\"}, {\"description\": \"candidate 12\", \"label\": \"M\"}, {\"description\": \"candidate 13\", \"label\": \"N\"}, {\"description\": \"candidate 14\", \"label\": \"O\"}, {\"description\": \"candidate 15\", \"label\": \"P\"}], \"instructions\": \"Keep the given order.\", \"primitive\": \"choice\"}\nReturn only the selected letter: A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P.\nAnswer:",
+    "chat": "<|im_start|>user\nShared state:\nShared evidence.\nNo extra system turn.\n\n{\"criteria\": [{\"description\": \"candidate 0\", \"label\": \"A\"}, {\"description\": \"candidate 1\", \"label\": \"B\"}, {\"description\": \"candidate 2\", \"label\": \"C\"}, {\"description\": \"candidate 3\", \"label\": \"D\"}, {\"description\": \"candidate 4\", \"label\": \"E\"}, {\"description\": \"candidate 5\", \"label\": \"F\"}, {\"description\": \"candidate 6\", \"label\": \"G\"}, {\"description\": \"candidate 7\", \"label\": \"H\"}, {\"description\": \"candidate 8\", \"label\": \"I\"}, {\"description\": \"candidate 9\", \"label\": \"J\"}, {\"description\": \"candidate 10\", \"label\": \"K\"}, {\"description\": \"candidate 11\", \"label\": \"L\"}, {\"description\": \"candidate 12\", \"label\": \"M\"}, {\"description\": \"candidate 13\", \"label\": \"N\"}, {\"description\": \"candidate 14\", \"label\": \"O\"}, {\"description\": \"candidate 15\", \"label\": \"P\"}], \"instructions\": \"Keep the given order.\", \"primitive\": \"choice\"}\nReturn only the selected letter: A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P.\nAnswer:<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+    "mapping": {
+      "A": "id-15",
+      "B": "id-14",
+      "C": "id-13",
+      "D": "id-12",
+      "E": "id-11",
+      "F": "id-10",
+      "G": "id-9",
+      "H": "id-8",
+      "I": "id-7",
+      "J": "id-6",
+      "K": "id-5",
+      "L": "id-4",
+      "M": "id-3",
+      "N": "id-2",
+      "O": "id-1",
+      "P": "id-0"
+    }
+  }
+]
