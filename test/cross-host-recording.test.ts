@@ -4,7 +4,7 @@ import { mkdtemp, readdir, readFile, realpath, rm, writeFile, mkdir } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readArchive, sessionKey, recordSessionKey, recordInvocationKey } from '../src/recording/archive.js';
-import { ArchiveWriter } from './legacy-recording-fixture.js';
+import { HistoricalArchiveWriter as ArchiveWriter } from './legacy-recording-fixture.js';
 import { ArchiveIndex } from '../src/inspector/archive-index.js';
 import { invocationView } from '../src/inspector/view.js';
 import { exchange, startBridge, writeLocalState } from '../src/claude/bridge.js';
@@ -24,11 +24,11 @@ async function registerSession(directory: string, sessionId: string, cwd: string
 
 test('schema 1 links remain stable beside host/context qualified schema 2 and unsupported records stay visible', () => fixture(async root => {
   const writer = new ArchiveWriter({ enabled: true, directory: root });
-  const old = writer.bind(common);
+  const old = writer.bindHistorical(common, 1);
   old('begin', { policy: { rules: [] }, config: { effectThreshold: 0.83 } });
   old('decision', { decision: 'BLOCK' });
   for (const [host, contextId] of [['pi', 'main'], ['claude-code', 'main'], ['claude-code', 'child']] as const) {
-    const sink = writer.bind({ ...common, host, contextId });
+    const sink = writer.bindHistorical({ ...common, host, contextId }, 2);
     sink('begin', { adapterCoverage: { limitations: ['host-version-unverified'], resultCorrelation: false } });
     sink('decision', { decision: 'ALLOW' });
     sink('permission', { outcome: 'released' });
@@ -38,7 +38,7 @@ test('schema 1 links remain stable beside host/context qualified schema 2 and un
   const archive = await readArchive(root);
   assert.deepEqual(archive.issues, []);
   assert.equal(archive.records.filter(r => r.schemaVersion === 1).length, 2);
-  assert.equal(archive.records.filter(r => r.schemaVersion === 4).length, 9);
+  assert.equal(archive.records.filter(r => r.schemaVersion === 2).length, 9);
   assert.equal(recordSessionKey(archive.records[0]!), sessionKey('same'));
   const index = new ArchiveIndex(root); await index.refresh();
   const sessions = index.sessions().items;

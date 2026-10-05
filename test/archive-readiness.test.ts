@@ -22,7 +22,7 @@ test('static archive readiness follows persistence completion, not the shutdown 
     persisted();
   });
   try {
-    writer.bind({ sessionId: 's', invocationId: 'i', callId: 'c', toolName: 'read', cwd: '/tmp', mode: 'observe' })('begin', {});
+    writer.bind({ host: 'pi', contextId: 'main', sessionId: 's', invocationId: 'i', callId: 'c', toolName: 'read', cwd: '/tmp', mode: 'observe' })('begin', {});
     await writer.complete();
     let reads = 0;
     const index = new ArchiveIndex(root, async (directory, file) => { reads++; return readPrivateFile(directory, file); });
@@ -42,7 +42,7 @@ test('static archive readiness rejects capture loss instead of accepting a parti
   const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-readiness-loss-')));
   const writer = new FixtureArchiveWriter({ enabled: true, directory: root }, { events: 1, bytes: 10000 });
   try {
-    const sink = writer.bind({ sessionId: 's', invocationId: 'i', callId: 'c', toolName: 'read', cwd: '/tmp', mode: 'observe' });
+    const sink = writer.bind({ host: 'pi', contextId: 'main', sessionId: 's', invocationId: 'i', callId: 'c', toolName: 'read', cwd: '/tmp', mode: 'observe' });
     sink('begin', {}); sink('decision', { decision: 'ALLOW' });
     await assert.rejects(writer.complete(), /Static archive fixture did not finish cleanly/);
     assert.equal(writer.health().dropped, 1);

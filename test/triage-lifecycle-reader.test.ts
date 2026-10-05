@@ -4,7 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { mkdtemp, realpath, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ArchiveWriter, readArchive, qualifiedSessionKey, recordInvocationKey } from '../src/recording/archive.js';
+import { readArchive, qualifiedSessionKey, recordInvocationKey } from '../src/recording/archive.js';
+import { HistoricalArchiveWriter as ArchiveWriter } from './legacy-recording-fixture.js';
 import { ArchiveIndex } from '../src/inspector/archive-index.js';
 import { invocationView } from '../src/inspector/view.js';
 
@@ -19,13 +20,12 @@ test('read-only schema 3 lifecycle folds pending and dropped records with schema
   const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-schema3-')));
   try {
     const writer = new ArchiveWriter({ enabled: true, directory: root });
-    writer.bind({ sessionId: 'same', invocationId: 'old', callId: 'old', toolName: 'read', cwd: '/p', mode: 'observe', host: 'pi', contextId: 'main' })('begin', {});
+    writer.bindHistorical({ sessionId: 'same', invocationId: 'old', callId: 'old', toolName: 'read', cwd: '/p', mode: 'observe', host: 'pi', contextId: 'main' }, 2)('begin', {});
     await writer.close();
     const folder = join(root, qualifiedSessionKey('pi', 'same', 'main'));
     const original = (await readdir(folder))[0]!;
     const base = JSON.parse(await readFile(join(folder, original), 'utf8'));
     await lifecycle(root, base, 'pending', 'pending');
-    await writeFile(join(folder, original), JSON.stringify({ ...base, schemaVersion: 2 }), { mode: 0o600 });
     await lifecycle(root, base, 'dropped', 'dropped');
     const index = new ArchiveIndex(root); await index.refresh();
     const archive = await readArchive(root);

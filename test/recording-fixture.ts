@@ -23,6 +23,8 @@ export async function recordFixture(directory: string) {
     await h.assessed('concerning');
     await h.shutdownCaptured();
     const archived = await readArchive(directory);
+    assert.deepEqual(archived.issues, [], 'Current capture must satisfy archive validation');
+    assert.ok(archived.records.every(record => record.schemaVersion === 4), 'Current capture must not use historical fixtures');
     assert.equal(archived.records.filter(r => r.stage === 'request').length, 2);
     assert.deepEqual(archived.records.filter(r => r.stage === 'request').map(r => r.data.payload), submitted);
     assert.ok(!JSON.stringify(archived).includes('fixture-transport-secret'));

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, test } from 'vitest';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { sessionKey, qualifiedSessionKey } from '../../../src/recording/archive.js';
-import { ArchiveWriter } from '../../../test/legacy-recording-fixture.js';
+import { HistoricalArchiveWriter as ArchiveWriter } from '../../../test/legacy-recording-fixture.js';
 import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
 import { openEvidence } from '../ui-navigation.js';
 
@@ -30,6 +30,7 @@ test('fresh visits select the latest call without displaying another session’s
 test('polling discovers another session and delayed execution without losing the selected rule or evidence scroll', async () => {
   await withInspector('live-updates', async ({ page, directory, recorded }) => {
     const concerning = recorded!.records.find(record => record.callId === 'concerning')!;
+    if (concerning.schemaVersion !== 4) throw new Error('Current capture requires schema 4');
     await page.locator('.call-row').filter({ has: page.locator('.call-id', { hasText: 'concerning' }) }).waitFor();
     const row = page.locator('.call-row').filter({ has: page.locator('.call-id', { hasText: 'concerning' }) });
     await row.click();
@@ -40,7 +41,7 @@ test('polling discovers another session and delayed execution without losing the
     expect(scroll).toBeGreaterThan(0);
     const selectedRule = await page.locator('.rule-row[aria-pressed="true"]').textContent();
     const discovered = new ArchiveWriter({ enabled: true, directory });
-    const sink = discovered.bind({ sessionId: 'live-session', invocationId: 'live-invocation', callId: 'live-call', toolName: 'edit', cwd: '/live-project', mode: 'observe' });
+    const sink = discovered.bindHistorical({ sessionId: 'live-session', invocationId: 'live-invocation', callId: 'live-call', toolName: 'edit', cwd: '/live-project', mode: 'observe' }, 1);
     sink('begin', {}); sink('decision', { decision: 'ALLOW', reason: 'all-rules-pass' });
     sink('permission', { outcome: 'released' }); await discovered.close();
     await expect.poll(() => page.locator('.session-row strong').allTextContents(), { timeout: 10_000 }).toContain('live-session');

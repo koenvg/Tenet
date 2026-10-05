@@ -79,8 +79,8 @@ test('project filters and cursor pagination retain a safe deep link through back
     await linked.close();
   }, { base: false, seed: async directory => {
     const writer = new ArchiveWriter({ enabled: true, directory });
-    for (let n = 0; n < 55; n++) writer.bind({ sessionId: arbitrary, invocationId: `page-${n}`, callId: 'reused', toolName: 'edit', cwd: '/second-project', mode: 'observe' })('begin', {});
-    writer.bind({ sessionId: 'fork', invocationId: 'fork-call', callId: 'reused', toolName: 'edit', cwd: '/third-project', mode: 'observe' })('begin', {});
+    for (let n = 0; n < 55; n++) writer.bindHistorical({ sessionId: arbitrary, invocationId: `page-${n}`, callId: 'reused', toolName: 'edit', cwd: '/second-project', mode: 'observe' }, 1)('begin', {});
+    writer.bindHistorical({ sessionId: 'fork', invocationId: 'fork-call', callId: 'reused', toolName: 'edit', cwd: '/third-project', mode: 'observe' }, 1)('begin', {});
     await writer.complete();
   } });
 });
@@ -95,10 +95,10 @@ test('fresh link opens an older session omitted from the first picker page', asy
     expect((await page.locator('.session-picker summary').textContent())?.trim()).toBe('Selected session');
   }, { base: false, path: `/?session=${oldKey}`, seed: async directory => {
     const writer = new ArchiveWriter({ enabled: true, directory });
-    writer.bind({ sessionId: 'older-session', invocationId: 'older-call', callId: 'older-call', toolName: 'read', mode: 'observe', cwd: '/old-project' })('begin', {});
+    writer.bindHistorical({ sessionId: 'older-session', invocationId: 'older-call', callId: 'older-call', toolName: 'read', mode: 'observe', cwd: '/old-project' }, 1)('begin', {});
     await writer.settle();
     await new Promise(resolve => setTimeout(resolve, 25)); // Distinct sort timestamp for the first page.
-    for (let n = 0; n < 52; n++) writer.bind({ sessionId: `new-${n}`, invocationId: `new-${n}`, callId: `new-${n}`, toolName: 'read', mode: 'observe', cwd: '/new-project' })('begin', {});
+    for (let n = 0; n < 52; n++) writer.bindHistorical({ sessionId: `new-${n}`, invocationId: `new-${n}`, callId: `new-${n}`, toolName: 'read', mode: 'observe', cwd: '/new-project' }, 1)('begin', {});
     await writer.complete();
   } });
 });
@@ -164,7 +164,7 @@ test('corrupt and interrupted captures remain unavailable, and archive errors re
   }, { base: false, seed: async directory => {
     await recordFailureFixture(directory);
     const writer = new ArchiveWriter({ enabled: true, directory });
-    const sink = writer.bind({ sessionId: 'historical-incomplete', invocationId: 'incomplete', callId: 'incomplete', toolName: 'edit', mode: 'enforce', cwd: '/historical' });
+    const sink = writer.bindHistorical({ sessionId: 'historical-incomplete', invocationId: 'incomplete', callId: 'incomplete', toolName: 'edit', mode: 'enforce', cwd: '/historical' }, 1);
     sink('begin', { policy: { rules: [{ id: 'old-rule', line: 7, text: 'Historical rule', enforcement: 'BLOCK' }] } });
     sink('decision', { decision: 'BLOCK', reason: 'timeout' });
     sink('response', { preview: '<script>window.hostile=true</script>', truncated: true, bytes: 2000000 });
@@ -201,7 +201,7 @@ test('mixed schema-1 Pi and host-qualified Pi/Claude links keep evidence and out
   }, { base: false, seed: async directory => {
     const writer = new ArchiveWriter({ enabled: true, directory });
     const identity = { sessionId: 'same', invocationId: 'same', callId: 'same', toolName: 'Bash', cwd: '/historical', mode: 'observe' as const };
-    const legacy = writer.bind(identity);
+    const legacy = writer.bindHistorical(identity, 1);
     legacy('begin', { policy: { rules: [{ id: 'old', text: 'Historical rule', line: 1, enforcement: 'BLOCK' }] }, config: { effectThreshold: 0.83 } });
     legacy('decision', { decision: 'BLOCK' });
     for (const [host, contextId] of [['pi', 'main'], ['claude-code', 'main'], ['claude-code', 'child']] as const) {
@@ -277,7 +277,7 @@ test('real archive filters overlapping categories, expands grouped calls and war
   }, { base: false, path: `/?session=${key}`, seed: async directory => {
     const writer = new ArchiveWriter({ enabled: true, directory });
     for (const [id, target] of [['first', '/triage/TENET.md'], ['second', '/triage/TENET.md'], ['third', '/triage/alternate/TENET.md']] as const) {
-      const sink = writer.bind({ sessionId: 'triage-browser', invocationId: id, callId: id, toolName: 'read', cwd: '/triage', mode: 'observe' });
+      const sink = writer.bindHistorical({ sessionId: 'triage-browser', invocationId: id, callId: id, toolName: 'read', cwd: '/triage', mode: 'observe' }, 1);
       const policy = { source: '/triage/TENET.md', digest: 'A', target, rules: [{ id: 'r', text: 'Rule', line: 1, enforcement: 'BLOCK' }] };
       sink('begin', { policy, config: { assessmentProfile: 'legacy' } });
       if (id === 'second') sink('validation', { valid: true, assessment: { model: 'offline', rules: [{ ruleId: 'r', outcome: { choice: 'APPROVAL_REQUIRED' } }] } });
@@ -311,7 +311,7 @@ test('schema 3 lifecycle deep links keep pending and dropped apart from permissi
     }
   }, { base: false, path: `/?session=${key}`, seed: async directory => {
     const writer = new ArchiveWriter({ enabled: true, directory });
-    writer.bind({ sessionId: 'lifecycle-browser', invocationId: 'old', callId: 'old', toolName: 'read', cwd: '/p', mode: 'observe', host: 'pi', contextId: 'main' })('begin', {});
+    writer.bindHistorical({ sessionId: 'lifecycle-browser', invocationId: 'old', callId: 'old', toolName: 'read', cwd: '/p', mode: 'observe', host: 'pi', contextId: 'main' }, 2)('begin', {});
     await writer.complete();
     const folder = join(directory, key), base = JSON.parse(await readFile(join(folder, (await readdir(folder))[0]!), 'utf8'));
     for (const [id, status] of [['pending', 'pending'], ['dropped', 'dropped']] as const) {

@@ -4,7 +4,7 @@ import { mkdtemp, realpath, rm, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { sessionKey, qualifiedSessionKey } from '../src/recording/archive.js';
-import { ArchiveWriter } from './legacy-recording-fixture.js';
+import { HistoricalArchiveWriter as ArchiveWriter } from './legacy-recording-fixture.js';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import tenet from '../src/pi/extension.js';
 import { launchArc, registerInspectorCommand } from '../src/pi/inspector-command.js';
@@ -60,7 +60,10 @@ test('deep link hashes the Pi session ID and the API still lists other projects'
   const directory = await realpath(await mkdtemp(join(tmpdir(), 'tenet-command-link-')));
   const writer = new ArchiveWriter({ enabled: true, directory });
   for (const [sessionId, cwd] of [['current-session', '/one'], ['other-session', '/two']] as const) {
-    const sink = writer.bind({ sessionId, ...(sessionId === 'current-session' ? { host: 'pi', contextId: 'main' } : {}), invocationId: sessionId, callId: 'read', toolName: 'read', mode: 'observe', cwd });
+    const identity = { sessionId, invocationId: sessionId, callId: 'read', toolName: 'read', mode: 'observe' as const, cwd };
+    const sink = sessionId === 'current-session'
+      ? writer.bind({ ...identity, host: 'pi', contextId: 'main' })
+      : writer.bindHistorical(identity, 1);
     sink('begin', {}); sink('decision', { decision: 'ALLOW', reason: 'all-rules-pass' });
   }
   await writer.close();

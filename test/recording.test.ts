@@ -3,23 +3,23 @@ import { test } from 'node:test';
 import { mkdtemp, readdir, stat, symlink, writeFile, rm, realpath, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readArchive, recordingConfig, sessionKey } from '../src/recording/archive.js';
-import { ArchiveWriter as ProductionArchiveWriter, qualifiedSessionKey } from '../src/recording/archive.js';
-import { ArchiveWriter } from './legacy-recording-fixture.js';
+import { readArchive, recordingConfig } from '../src/recording/archive.js';
+import { ArchiveWriter, qualifiedSessionKey } from '../src/recording/archive.js';
 import { createJevJudge } from '../src/decision/jev.js';
 import { decide } from '../src/decision/decide.js';
 import { captureAction } from '../src/decision/evidence.js';
 import { answer, policy, sdkAnswers } from './helpers.js';
 
-const identity = { sessionId: '../session', invocationId: 'invocation', callId: 'call', toolName: 'edit', cwd: '/project', mode: 'observe' as const };
+const identity = { host: 'pi', contextId: 'main', sessionId: '../session', invocationId: 'invocation', callId: 'call', toolName: 'edit', cwd: '/project', mode: 'observe' as const };
 async function temporary(run: (dir: string) => Promise<void>) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'tenet-archive-')));
   try { await run(join(dir, 'recordings')); } finally { await rm(dir, { recursive: true, force: true }); }
 }
 test('production writer requires host/context; schema 1 is an explicit fixture only', () => temporary(async dir => {
-  const writer = new ProductionArchiveWriter({ enabled: true, directory: dir });
+  const writer = new ArchiveWriter({ enabled: true, directory: dir });
+  const { host, contextId, ...legacyIdentity } = identity;
   // @ts-expect-error A production recording cannot omit the host and context.
-  const missing: Parameters<ProductionArchiveWriter['bind']>[0] = identity;
+  const missing: Parameters<ArchiveWriter['bind']>[0] = legacyIdentity;
   assert.throws(() => writer.bind(missing), /invalid-recording-identity/);
   assert.throws(() => writer.bind({ ...identity, host: 'pi', contextId: '' }), /invalid-recording-identity/);
   writer.bind({ ...identity, host: 'pi', contextId: 'main' })('begin', {});
@@ -43,7 +43,7 @@ test('archive persists immutable private records across writers and reader resta
   assert.equal(archive.records.length, 2); assert.deepEqual(archive.issues, []);
   assert.equal(new Set(archive.records.map(r => r.eventId)).size, 2);
   assert.equal((await stat(dir)).mode & 0o777, 0o700);
-  const folder = join(dir, sessionKey(identity.sessionId));
+  const folder = join(dir, qualifiedSessionKey(identity.host, identity.sessionId, identity.contextId));
   for (const file of await readdir(folder)) assert.equal((await stat(join(folder, file))).mode & 0o777, 0o600);
 }));
 
@@ -56,7 +56,7 @@ test('config opt-out and invalid path disable only recording; unsafe storage and
   assert.deepEqual((await readArchive(dir)).records, []);
   const writer = new ArchiveWriter({ enabled: true, directory: dir });
   writer.bind(identity)('begin', {}); await writer.drain();
-  const folder = join(dir, sessionKey(identity.sessionId));
+  const folder = join(dir, qualifiedSessionKey(identity.host, identity.sessionId, identity.contextId));
   await writeFile(join(folder, 'bad.json'), '{', { mode: 0o600 });
   await symlink('/etc/passwd', join(folder, 'escape.json'));
   const read = await readArchive(dir);
@@ -85,6 +85,8 @@ test('SDK submitted payload is captured exactly after redaction, with response a
   assert.equal(result.decision, 'ALLOW');
   const { records } = await readArchive(dir);
   const captured = records.find(r => r.stage === 'request')!;
+  assert.deepEqual((await readArchive(dir)).issues, []);
+  assert.ok(records.length > 0 && records.every(record => record.schemaVersion === 4), 'Current SDK capture must use the production contract');
   assert.deepEqual(captured.data.payload, outbound);
   assert.equal(outbound.state.trajectory.observations.length, 1);
   assert.equal(outbound.state.trajectory.omitted, 2);
@@ -124,7 +126,7 @@ test('reader rejects oversized, malformed-stage and public files independently',
   const writer = new ArchiveWriter({ enabled: true, directory: dir });
   writer.bind(identity)('begin', {}); await writer.close();
   const original = (await readArchive(dir)).records[0]!;
-  const folder = join(dir, sessionKey(identity.sessionId));
+  const folder = join(dir, qualifiedSessionKey(identity.host, identity.sessionId, identity.contextId));
   await writeFile(join(folder, 'oversized.json'), 'x'.repeat(4 * 1024 * 1024 + 1), { mode: 0o600 });
   await writeFile(join(folder, 'malformed.json'), JSON.stringify({ ...original, stage: 'request', data: { payload: 'not-a-request' } }), { mode: 0o600 });
   await writeFile(join(folder, 'public.json'), JSON.stringify(original), { mode: 0o644 });

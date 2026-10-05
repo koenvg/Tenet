@@ -4,20 +4,20 @@ import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readArchive } from '../src/recording/archive.js';
-import { ArchiveWriter } from './legacy-recording-fixture.js';
+import { HistoricalArchiveWriter as ArchiveWriter } from './legacy-recording-fixture.js';
 import { startInspector } from '../src/inspector/server.js';
 
 test('independent server reads retained and delayed lifecycle stages without authentication', async () => {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'tenet-inspector-')));
   const writer = new ArchiveWriter({ enabled: true, directory: dir });
-  const sink = writer.bind({ sessionId: '../../s', invocationId: 'one', callId: 'c', toolName: 'edit', mode: 'observe', cwd: '/project' });
+  const sink = writer.bindHistorical({ sessionId: '../../s', invocationId: 'one', callId: 'c', toolName: 'edit', mode: 'observe', cwd: '/project' }, 1);
   sink('begin', { policy: { rules: [{ id: 'r', text: '<script>alert(1)</script>', line: 1, enforcement: 'BLOCK' }] } });
   sink('decision', { decision: 'BLOCK', reason: 'rule-failed' });
   sink('permission', { outcome: 'released' });
-  const approved = writer.bind({ sessionId: '../../s', invocationId: 'approved', callId: 'approved', toolName: 'publish', mode: 'enforce', cwd: '/project' });
+  const approved = writer.bindHistorical({ sessionId: '../../s', invocationId: 'approved', callId: 'approved', toolName: 'publish', mode: 'enforce', cwd: '/project' }, 1);
   approved('begin', {}); approved('decision', { decision: 'ASK', reason: 'approval-required' });
   approved('approval', { outcome: 'approved' }); approved('permission', { outcome: 'released' });
-  const denied = writer.bind({ sessionId: '../../s', invocationId: 'denied', callId: 'denied', toolName: 'publish', mode: 'enforce', cwd: '/project' });
+  const denied = writer.bindHistorical({ sessionId: '../../s', invocationId: 'denied', callId: 'denied', toolName: 'publish', mode: 'enforce', cwd: '/project' }, 1);
   denied('begin', {}); denied('decision', { decision: 'ASK', reason: 'approval-required' });
   denied('approval', { outcome: 'denied-or-dismissed' }); denied('permission', { outcome: 'blocked' });
   await writer.drain();
@@ -73,7 +73,7 @@ test('independent server reads retained and delayed lifecycle stages without aut
     assert.equal(updated.invocations.find((item: any) => item.callId === 'c').execution, 'executed');
     assert.equal((await get(`/api/sessions/${'a'.repeat(64)}/invocations/${invocation}`)).status, 404);
     await app.close(); appClosed = true;
-    writer.bind({ sessionId: '../../s', invocationId: 'after-close', callId: 'after-close', toolName: 'edit', mode: 'observe', cwd: '/project' })('begin', {});
+    writer.bindHistorical({ sessionId: '../../s', invocationId: 'after-close', callId: 'after-close', toolName: 'edit', mode: 'observe', cwd: '/project' }, 1)('begin', {});
     await writer.drain();
     assert.ok((await readArchive(dir)).records.some(record => record.callId === 'after-close'));
   } finally { await writer.close(); if (!appClosed) await app.close(); await rm(dir, { recursive: true, force: true }); }
