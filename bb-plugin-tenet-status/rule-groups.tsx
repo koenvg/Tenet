@@ -35,6 +35,7 @@ export function RuleGroups({ items }: { items: Findings['items'] }) {
               <span>{rule.confidence === null ? 'Confidence unavailable' : `${Math.round(rule.confidence * 100)}% confidence`}{rule.uncertain !== false ? ' · Uncertain' : ''}</span>
             </li>;
           })}</ul>
+          {group.rule.kind === 'policy' && <p className="break-all text-xs">Source: {group.rule.origin?.role ?? 'unknown, not recorded'}{group.rule.origin?.source ? ` | ${group.rule.origin.source}` : ''}{group.rule.origin?.line ? ` | line ${group.rule.origin.line}` : ''}</p>}
           <p className="break-all text-xs">Rule version: {group.snapshot ?? 'unknown'}</p>
         </div>
       </details>

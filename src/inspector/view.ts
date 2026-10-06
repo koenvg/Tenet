@@ -1,3 +1,4 @@
+import { recordedOrigin } from '../recording/policy-contract.js';
 import { validationIssue } from '../decision/response-validation.js';
 import { findingStage, foldFindingStages } from './finding-view.js';
 import { nativeHistory, recordedJudge, validNativeContract } from '../recording/native.js';
@@ -73,7 +74,7 @@ export function invocationView(records: ArchiveRecord[]) {
       const diagnostic = list(decision.diagnostics).find(r => r.ruleId === rule.id);
       const contribution = list(decision.contributions).find(r => r.ruleId === rule.id);
       const recorded = contribution ?? diagnostic;
-      return { id: text(rule.id), text: text(rule.text), line: rule.line ?? null, enforcement: text(rule.enforcement),
+      return { origin: rule.id === integrity.id ? null : recordedOrigin(records.findLast(r => r.stage === 'request' || r.stage === 'begin')?.schemaVersion, rule, policy), id: text(rule.id), text: text(rule.text), line: rule.line ?? null, enforcement: text(rule.enforcement),
         builtin: rule.id === integrity.id, result: result ?? null,
         gates: diagnostic ?? null, gateIds: Array.isArray(recorded?.gates) ? recorded.gates.filter((g: unknown): g is string => typeof g === 'string') : null,
         contribution: text(contribution?.contribution),

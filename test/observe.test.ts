@@ -45,7 +45,7 @@ for (const outcome of ['FAIL', 'APPROVAL_REQUIRED', 'UNKNOWN', 'integrity', 'sco
       const lifecycle = await h.assessed('c');
       assert.equal(lifecycle.status, outcome === 'unavailable' ? 'unavailable' : 'completed');
       const report = h.records.find(r => r.stage === 'permission');
-      assert.equal(report.version, 3);
+      assert.equal(report.version, 4);
       assert.equal(report.mode, 'observe');
       assert.equal(report.outcome, 'released');
       assert.equal(report.wouldDecision, undefined);

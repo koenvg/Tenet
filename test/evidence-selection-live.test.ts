@@ -52,7 +52,7 @@ test('campaign rejects missing authorization or credentials before transport or 
 });
 
 test('ordinary-evidence identity rejects the frozen historical campaign before transport or output reservation', async () => {
-  assert.equal(QUESTION_VERSION, 'policy-rules-v7-ordinary-evidence');
+  assert.equal(QUESTION_VERSION, 'policy-rules-v8-source-set');
   assert.ok(original.pairs.every((pair: any) => ['baseline', 'candidate'].every(side => pair[side].questionVersion === 'policy-rules-v7-evidence-selection')));
   assert.throws(() => prepareLiveManifest(), /contract-drift/);
   const root = storage(); let calls = 0;

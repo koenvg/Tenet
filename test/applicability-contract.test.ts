@@ -53,7 +53,7 @@ test('scripted ordinary PASS keeps its evidence gate with unsupported resolution
   assert.equal(result.evidenceContext.resolution.status, 'unsupported');
   const submitted = stages.find(s => s.stage === 'request')!.data;
   assert.equal(submitted.profile, 'applicability-v1');
-  assert.equal(submitted.questionVersion, 'policy-rules-v7-ordinary-evidence');
+  assert.equal(submitted.questionVersion, 'policy-rules-v8-source-set');
   assert.equal(result.questionVersion, submitted.questionVersion);
   assert.deepEqual(ruleContributions(result, policy)!.map(r => [r.evidenceGate, r.effectThreshold, r.evidenceThreshold]),
     [['applicable', 0.9, 0.9], ['applicable', 0.9, 0.9]]);
@@ -65,7 +65,7 @@ test('candidate SDK mapping records fact references and genuinely absent evidenc
   const judge = createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => { payload = JSON.parse(init!.body as string); return Response.json(rawResponse(refs.digest)); } });
   const result = await decide({ ...req, judge });
   assert.equal(result.decision, 'ALLOW');
-  assert.equal(result.questionVersion, 'policy-rules-v7-ordinary-evidence');
+  assert.equal(result.questionVersion, 'policy-rules-v8-source-set');
   assert.equal(result.assessment!.rules[0]!.evidence, null);
   assert.deepEqual(result.assessment!.rules[0]!.factReferences, refs);
   assert.equal(payload.state.profile, 'applicability-v1');

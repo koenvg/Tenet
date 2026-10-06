@@ -64,6 +64,12 @@ If every reporting channel fails, observation still permits calls and reports ca
 
 ## Enforcement decisions and approval
 
+Global declarations and project declarations are assessed independently, in that order. Project permission, WARN severity or a lower threshold cannot weaken a global rule.
+
+Both sources share at most 64 KiB of file bytes and 16 user declarations; each rule has at most 4096 UTF-8 bytes. The boundary values are allowed. Equal declarations and the same target selected twice count twice.
+
+Any invalid present source rejects the complete set without truncation or a valid subset.
+
 One canonical assessment asks outcome and evidence-sufficiency questions for every rule, plus fact-reference questions for user-rule applicability. TypeSafe sends one `systemOne` request; experimental APUS uses sequential native scoring under one deadline.
 
 Threshold settings do not change semantic instructions. Both use common complete-response validation and deterministic BLOCK/integrity gates. WARN remains owner-only and does not vote, veto or open approval.
@@ -78,7 +84,7 @@ Threshold settings do not change semantic instructions. Both use common complete
 
 WARN remains advisory in every row and in either mode. There is no majority vote or averaging across rules. Experimental probabilities are not calibrated correctness or safety guarantees.
 
-ASK opens one native confirmation for the pending invocation. It lists every approval-requiring rule, source lines, policy digest, session/tool/call identity, original-argument digest and field-redacted arguments.
+ASK opens one native confirmation for the pending invocation. It lists every approval-requiring rule, source roles and lines, source paths/targets and digests, combined policy digest, session/tool/call identity, original-argument digest and field-redacted arguments.
 
 Only an explicit positive response releases that unchanged invocation. Denial, dismissal, missing UI, UI failure, cancellation or timeout blocks it. Chat, task text and historical approvals are never permission. Approval does not cover another tool, a later call, a retry or the session. A prohibition has no approval exception.
 
@@ -86,15 +92,15 @@ Native dialogs are serialized. `TENET_APPROVAL_TIMEOUT_MS` defaults to `60000`, 
 
 Session-start reload, shutdown and switch/fork/tree hooks invalidate pending work. Agent end invalidates pending enforcement but permits valid background observations to finish. Even a cancelled branch/switch attempt discards approvals; a fresh call needs assessment again. Session and policy identity are checked before enforce release and before publishing observe findings.
 
-A policy-byte or resolved-target change cancels pending work and latches `policy-stale`. Enforcement stays blocked until session-start reload or restart; observation permits with unavailable coverage. Read failure also prevents enforcement release. Changes during confirmation never authorize the pending action. Edit the active policy outside the intercepted agent path. [Policy integrity](policy.md) is semantic protection, not filesystem isolation.
+A change in either source's bytes, readability, resolved target or selected candidate presence cancels pending work and latches `policy-stale`. Enforcement stays blocked until session-start reload or restart; observation permits with unavailable coverage. Read failure also prevents enforcement release. Changes during confirmation never authorize the pending action. Edit the active policy outside the intercepted agent path. [Policy integrity](policy.md) is semantic protection, not filesystem isolation.
 
 ## Read a block diagnostic
 
 Both global probability thresholds default to `0.90`. Selected FAIL always blocks a BLOCK rule, even below that probability. A passing label can also block:
 
 ```text
-TENET blocked: insufficient-evidence. Rules: line 4.
-line 4: outcome-confidence-below-threshold; outcome=PASS p=0.88 threshold=0.9; evidence=SUFFICIENT p(SUFFICIENT)=0.93 threshold=0.9
+TENET blocked: insufficient-evidence. Rules: project line 4.
+project line 4: outcome-confidence-below-threshold; outcome=PASS p=0.88 threshold=0.9; evidence=SUFFICIENT p(SUFFICIENT)=0.93 threshold=0.9
 ```
 
 Here evidence is sufficient; only outcome confidence fails. The aggregate `insufficient-evidence` reason is retained for compatibility. Each blocking rule lists all triggered gates:
@@ -127,7 +133,7 @@ Owner detail and inspector explanations do not include provider prose, labels or
 
 ## Data disclosure and audit
 
-The selected judge receives declared rule text, policy identity/paths, host working directory, built-in integrity constraint and a copied action snapshot. The snapshot includes tool name, available description/schema, field-redacted arguments, identities, timestamp, original-argument digest and limitations. Bounded observations contain earlier tool calls and text or structured tool results. Each has session/call/tool identity, host origin and timestamp, with explicit missing-metadata markers.
+The selected judge receives declared rule text from both global and project sources, policy identity/paths, host working directory, built-in integrity constraint and a copied action snapshot. The snapshot includes tool name, available description/schema, field-redacted arguments, identities, timestamp, original-argument digest and limitations. Bounded observations contain earlier tool calls and text or structured tool results. Each has session/call/tool identity, host origin and timestamp, with explicit missing-metadata markers.
 
 The default TypeSafe destination is fixed. Experimental APUS sends the complete rendering to the configured loopback backend, or Pika through owner-operated private forwarding.
 
@@ -152,13 +158,13 @@ At session start and after re-enabling, Pi restores bounded tool observations fr
 
 These records establish admission, not consent or execution. The translator emits only `tool-call` and `tool-result` observations. Findings, decision records and approval outcomes do not enter judge history, live or recovered. Off-state and other calls without this correlation are excluded.
 
-The owner view separately restores validated version-3 permission records from that branch. Recovered history and tool content remain untrusted, not grants. Later sibling results cannot change an in-flight request. Tenet calls no tools to gather missing context.
+The owner view separately restores validated version-3 and version-4 permission records from that branch. Recovered history and tool content remain untrusted, not grants. Later sibling results cannot change an in-flight request. Tenet calls no tools to gather missing context.
 
 Retries and cross-provider fallback are disabled. Native requests share the whole-assessment deadline. Client cancellation prevents acceptance of late responses but does not prove backend CPU work stopped. TypeSafe requests `jev-latest` at its official endpoint with SDK logging disabled. APUS checks the configured alias against backend metadata; an alias is not proof of weights. Archives retain requested identity on failure and returned assessment identity only after complete validation.
 
 ### Native records and archive payloads differ
 
-Version-3 `tenet` custom records include mode and these stages:
+Current version-4 `tenet` custom records include mode and these stages:
 
 | Stage | Recorded meaning |
 | --- | --- |
@@ -172,13 +178,13 @@ Version-3 `tenet` custom records include mode and these stages:
 
 Older records can lack diagnostics; their recorded assessment/configuration remains available. Version-2 records and historical evaluation reports keep their original enforcement meaning. Do not reclassify them as observe results.
 
-Each intercepted call has an `invocationId`, distinct from the host call ID. Assessment, decision, approval, permission and execution retain it with session, tool, call, policy digest and assessed original-argument digest.
+Each intercepted call has an `invocationId`, distinct from the host call ID. Assessment, decision, approval, permission and execution retain it with session, tool, call, combined policy digest and assessed original-argument digest.
 
 Released calls without results become `unknown` at agent end or lifecycle invalidation. Current SDK-backed Pi execution remains `unknown` even when native results report success or failure; historical executed/failed outcomes remain recorded. Retries need a new host call ID, fresh assessment and any required approval. Duplicate host IDs invalidate pending work instead of ambiguously linking results.
 
 Native custom records omit raw arguments, schemas, payloads, results and unsolicited provider prose/errors. Startup records include policy declarations. Pi transcripts and other extensions log separately. A successful result does not independently verify remote effects, and no final log after a crash is not success.
 
-The separate local archive can contain the exact submitted application payload and bounded SDK response. Its writer uses schema 4; native custom-record version 3 is not archive schema 3. See [storage budgets, redaction, retention and deletion](inspector.md#sensitive-local-storage) and [historical archive attribution](cross-host-recordings.md).
+The separate local archive can contain the exact submitted application payload and bounded SDK response. Its writer uses schema 5; native custom-record version 4 is not archive schema 4. See [storage budgets, redaction, retention and deletion](inspector.md#sensitive-local-storage) and [historical archive attribution](cross-host-recordings.md).
 
 APUS retains this canonical payload and adds versioned native rendering/mapping snapshots under the same capture controls. Responses are bounded, untrusted and sanitized, with explicit omissions. Owner findings name APUS experimental and distinguish deterministic selectors from model scores. See [the native recording contract](assessment-contract.md#native-recording-contract).
 

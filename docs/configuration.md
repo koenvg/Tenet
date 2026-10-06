@@ -37,11 +37,12 @@ Observe never vetoes or opens approval, including on invalid configuration, miss
 | Variable | Default | Accepted value and effect |
 | --- | --- | --- |
 | `TENET_MODE` | `observe` | Exact `observe` or `enforce`. Only exact `enforce` enables blocking. Mode is fixed for the process; restart to change it. Invalid values select observe and report `invalid-mode`. |
+| `TENET_POLICY` | Unset | Replaces only the project candidate, never global. Alternative project policy path, absolute or relative to the session directory. Empty or whitespace-only is invalid. No fallback occurs if the selected file is missing or unusable. |
 | `TYPESAFE_API_KEY` | None | Required nonblank TypeSafe credential for live assessment. Set it through your secret manager, never in policy, source, chat or command-line arguments. Doctor checks presence only. |
 
-Only `TENET.md` in the session working directory makes the session eligible. No parent search or bundled fallback occurs. A missing local file makes both modes dormant. A present invalid or unreadable file makes assessment unavailable. Policy deletion after activation is unavailable, not dormant. See [Policy selection and grammar](policy.md#choose-the-policy-file).
+Tenet automatically selects optional `~/.tenet/TENET.md` from the process owner's home alongside the project source. The project defaults to `TENET.md` in the session working directory. `TENET_POLICY` replaces only that project candidate. Absolute paths stay absolute; relative paths resolve against the session directory, including doctor's `--project`. Empty or whitespace-only overrides are invalid configuration.
 
-`TENET_POLICY` is no longer supported and has no effect, including when empty or whitespace-only. Before restarting an override-only project, follow [local policy migration](policy.md#migrate-from-tenet_policy).
+Only confirmed absence of both implicit candidates with no override makes both modes dormant. Explicit missing files, malformed or unreadable sources, broken links and filesystem uncertainty remain unavailable for the whole set. There is no global-path override, opt-out, parent search, bundled fallback or automatic policy creation. Source deletion or appearance after activation is stale, not dormant. See [policy selection and its eligibility table](policy.md#choose-the-policy-file).
 
 Doctor reads process environment. It does not load dotenv files, query a secret manager or inspect Pi settings.
 
@@ -141,7 +142,9 @@ Pending archive writes can finish after off. The same switch applies to an expli
 | Missing credential in an active eligible session | Assessment unavailable. Observe permits; enforce blocks. | `unavailable`, exit `1`, unless invalid setup takes precedence |
 | Invalid recording setting/path | Capture disabled with an issue. Guard permission is unchanged. | `invalid`, exit `1` |
 | Unreadable or unsafe control | No new assessment or recording. Observe permits; enforce blocks in an eligible session. | `invalid`, exit `1` |
-| No local policy and no override | Dormant in either mode, no Tenet UI or assessment | `dormant`, exit `0`, if other local prerequisites are coherent |
+| Both implicit candidates absent and no override | Dormant in either mode, no active Tenet status or assessment. Previously registered Pi command names can remain listed with silent handlers; see [the pinned host limit](policy.md#choose-the-policy-file). | `dormant`, exit `0`, if other local prerequisites are coherent |
+| Empty or whitespace-only `TENET_POLICY` | Configuration unavailable. Observe permits without a pass; enforce blocks. | `invalid`, exit `1` |
+| Missing explicit project policy | Eligible but unavailable. Observe permits without a pass; enforce blocks. | `invalid`, exit `1` |
 
 Off takes precedence over dormancy in doctor. Invalid setup takes precedence over unavailable delivery/compatibility and bypass states. Missing credentials remain visible but do not fail coherent off/dormant states. An incomplete installation or detected untested Pi version still fails when off or dormant. See [Doctor states and exits](doctor.md#states-and-exits).
 

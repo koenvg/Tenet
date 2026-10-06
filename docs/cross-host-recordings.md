@@ -1,6 +1,6 @@
 # Read Pi and Claude recordings together
 
-Use this checkout reference to identify the host, session and execution context of a retained call. The current inspector reads archive schemas 1 through 4 without migrating files. Launch it with [the inspector guide](inspector.md), then select a session and invocation.
+Use this checkout reference to identify the host, session and execution context of a retained call. The current inspector reads archive schemas 1 through 5 without migrating files. Launch it with [the inspector guide](inspector.md), then select a session and invocation.
 
 ## Check the recorded schema and identity
 
@@ -9,11 +9,14 @@ Use this checkout reference to identify the host, session and execution context 
 | 1 | Historical Pi data. Directory hash is `sha256(native session ID)`; invocation deep-link hash is `sha256(Tenet invocation ID)`. The reader attributes it to Pi's main context, but adapter capabilities were not recorded. This is not verified historical coverage. |
 | 2 | Host/context-qualified session and invocation hashes |
 | 3 | Same qualified hashes, plus independent assessment lifecycle: `pending`, `completed`, `unavailable`, `dropped`, `cancelled` |
-| 4 | Current Pi/Claude writes, adding versioned owner-only runtime evidence diagnostics. Earlier payloads, thresholds and identities stay unchanged. |
+| 4 | Historical singular policy and versioned owner-only runtime evidence diagnostics |
+| 5 | Current source-set policy, source-qualified rule origins and combined identity. Earlier payloads, thresholds and identities stay unchanged. |
 
-For schemas 2 through 4, a session directory hashes `[host, native session ID, execution context ID]`. An invocation link hashes those values plus the Tenet invocation ID. A native ID reused across hosts or child contexts therefore gets separate pages.
+For schemas 2 through 5, a session directory hashes `[host, native session ID, execution context ID]`. An invocation link hashes those values plus the Tenet invocation ID. A native ID reused across hosts or child contexts therefore gets separate pages.
 
 Schema 3 was the production format before schema 4. It remains readable alongside schemas 1 and 2. Missing historical diagnostics are **Not recorded**, not complete coverage. See [schema-4 provenance and validation](inspection-evidence.md#recorded-and-inspector-explanations).
+
+Schema 5 validates source metadata, aggregate limits, combined identity and agreement between recorded policy and submitted evidence/integrity. Schemas 1 through 4 use their recorded singular policy shape. Absent source roles remain unknown. Neither path consults current files or rewrites records.
 
 The inspector shows capabilities recorded at invocation time, not today's installed configuration. Stock Pi and Claude have unsupported authenticated action resolution. The Claude prototype has no verified pinned host or stock trusted live owner approval UI. Attribution does not establish either kind of coverage.
 
@@ -50,4 +53,4 @@ The inspector has no approval or control endpoint. Removing Claude hooks or stop
 
 Unknown versions, corrupt files and unsafe paths appear under Recording issues, not as guessed Pi records. The partial-coverage warning means only the supported subset is visible.
 
-For a checkout upgrade, rebuild inspector assets and restart the running inspector or the Pi process that launched it. Rebuilding alone does not update reader code in an old process. Archive owners replace the verified installation and restart without a local build. Keep an upgraded inspector for newer records: older readers cannot inspect schema 3 or 4 merely because the checkout now has a newer reader. Never rewrite archives for rollback.
+For a checkout upgrade, rebuild inspector assets and restart the running inspector or the Pi process that launched it. Rebuilding alone does not update reader code in an old process. Archive owners replace the verified installation and restart without a local build. Keep an upgraded inspector for newer records: older readers cannot inspect schema 5 merely because the checkout now has a newer reader. Never rewrite archives for rollback.

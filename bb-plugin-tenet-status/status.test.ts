@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createFakePluginHost } from '@get-bb/plugin-sdk/testing';
 import { experimental_createHostEntryHarness } from '@get-bb/plugin-sdk/testing/host';
-import { ArchiveWriter } from '../src/recording/archive.js';
+import { FixtureArchiveWriter as ArchiveWriter } from '../test/archive-fixture.js';
 import hostEntry from './host.js';
 import plugin from './server.js';
 import type { Status } from './contract.js';
@@ -17,8 +17,8 @@ test('synthetic archive through host and BB RPC keeps linked FAIL, pass, history
   const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-bb-host-')));
   const writer = new ArchiveWriter({ enabled: true, directory: root });
   const append = (id: string, link: string | undefined, outcome: 'PASS' | 'FAIL') => {
-    const sink = writer.bind({ sessionId: 'same-pi-session', invocationId: id, callId: id, toolName: 'edit', cwd: '/tmp',
-      mode: 'observe', host: 'pi', contextId: 'main', bbThreadId: link });
+    const sink = writer.bindHistorical({ sessionId: 'same-pi-session', invocationId: id, callId: id, toolName: 'edit', cwd: '/tmp',
+      mode: 'observe', host: 'pi', contextId: 'main', bbThreadId: link }, 4);
     sink('begin', { policy: { rules: [{ id: 'r1', text: '<img src=x onerror=alert(1)>', line: 8, enforcement: 'BLOCK' }] },
       action: 'secret-bearing-action' });
     sink('request', { payload: { model: 'fixture', state: { action: {}, policy: {}, context: {}, trajectory: {}, integrity: {} },
@@ -29,7 +29,7 @@ test('synthetic archive through host and BB RPC keeps linked FAIL, pass, history
     sink('permission', { outcome: 'released' });
   };
   append('flagged', threadId, 'FAIL'); append('passing', threadId, 'PASS'); append('historical', undefined, 'FAIL'); append('unrelated', otherId, 'FAIL');
-  await writer.close();
+  await writer.complete();
   const host = experimental_createHostEntryHarness(hostEntry);
   let calls = 0;
   const fake = createFakePluginHost({ pluginId: 'tenet-status', settings: { recordingDirectories: JSON.stringify({ [hostId]: root }) },

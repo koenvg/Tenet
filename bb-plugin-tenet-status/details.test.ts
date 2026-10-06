@@ -26,8 +26,8 @@ async function bounded<T>(work: Promise<T>, label: string, timeoutMs = 10_000): 
 }
 
 async function append(writer: ArchiveWriter, id: string, link: string | undefined, choice: 'FAIL' | 'PASS', valid = true) {
-  const sink = writer.bind({ sessionId: 'session', invocationId: id, callId: id, toolName: 'edit', cwd: '/tmp',
-    mode: 'observe', host: 'pi', contextId: 'main', bbThreadId: link });
+  const sink = writer.bindHistorical({ sessionId: 'session', invocationId: id, callId: id, toolName: 'edit', cwd: '/tmp',
+    mode: 'observe', host: 'pi', contextId: 'main', bbThreadId: link }, 4);
   const policy = { rules: [{ id: 'r1', text: '<img src=x onerror=alert(1)>', line: 8, enforcement: 'WARN' }] };
   sink('begin', { policy: { rules: [{ ...policy.rules[0], text: 'old policy' }] }, action: 'secret-bearing-action' });
   sink('request', { payload: { model: 'fixture', state: { action: {}, policy: {}, context: {}, trajectory: {}, integrity: {} },
@@ -81,7 +81,7 @@ for (const ioTurns of [0, 1, 4]) test(`owner details paginate only validated lin
     assert.equal(second.items.length, 2); assert.equal(second.next, null);
     assert.deepEqual([...first.items, ...second.items].map(item => item.callId).sort(), Array.from({ length: 7 }, (_, n) => `flagged-${n}`));
     const item = first.items[0];
-    assert.deepEqual(item.rules, [{ ruleId: 'r1', severity: 'WARN', policyText: '<img src=x onerror=alert(1)>', confidence: 0.72, uncertain: true, kind: 'policy' }]);
+    assert.deepEqual(item.rules, [{ ruleId: 'r1', severity: 'WARN', origin: { role: null, source: null, target: null, digest: null, line: 8 }, policyText: '<img src=x onerror=alert(1)>', confidence: 0.72, uncertain: true, kind: 'policy' }]);
     assert.match(item.snapshot, /^[a-f0-9]{64}$/);
     assert.equal(item.wouldDecision, 'ALLOW'); assert.equal(item.actualPermission, 'released'); assert.equal(item.observedExecution, 'executed');
     assert.ok(item.missingStages.includes('response'));

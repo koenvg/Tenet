@@ -162,7 +162,7 @@ test("docs link every reader journey and retain policy, privacy, mode and covera
   const prefix = "https://github.com/koenvg/Tenet/blob/main/";
   const links = [...html.matchAll(/<a\b[^>]*\bhref\s*=\s*(["'])(.*?)\1/gi)].map(match => match[2]);
   for (const destination of [
-    "docs/INSTALL-ARCHIVE.md", "docs/policy.md#write-a-first-rule", "docs/policy.md#rule-grammar-and-limits", "docs/policy.md#migrate-from-tenet_policy",
+    "docs/INSTALL-ARCHIVE.md", "docs/policy.md#write-a-first-rule", "docs/policy.md#rule-grammar-and-limits", "docs/policy.md#choose-the-policy-file",
     "docs/inspector.md", "docs/inspector.md#sensitive-local-storage",
     "docs/doctor.md#fix-invalid-or-unavailable-setup", "docs/sdk.md", "docs/shared-runtime.md",
     "docs/configuration.md", "docs/limits.md", "docs/claude-code.md", "CONTRIBUTING.md",
@@ -171,7 +171,11 @@ test("docs link every reader journey and retain policy, privacy, mode and covera
   ]) expect(links).toContain(prefix + destination);
   for (const text of [
     "Rule; Ask before overwriting owner-demo.txt.", "supported short form", "defaults to <code>BLOCK</code>",
-    "explicit <code>BLOCK</code> is optional", "one physical line", "case-sensitive", "Only the session directory's", "both modes are dormant, including enforce",
+    "explicit <code>BLOCK</code> is optional", "one physical line", "case-sensitive", "Optional <code>~/.tenet/TENET.md</code>",
+    "TENET_POLICY", "absolute or session-relative project file", "replaces only the project candidate",
+    "both implicit candidates", "no global-path override or opt-out", "Missing explicit files, empty overrides",
+    "unusable sources make the whole set unavailable", "16 declarations", "64 KiB", "4096",
+    "activate projects without local rules", "invalid global file", "TypeSafe and recordings",
     "outside the guarded agent's intercepted path", "No policy ships in the archive",
     "TypeSafe", "policy, paths, tool evidence and bounded recent observations", "use quota",
     "TYPESAFE_API_KEY", "through your secret manager", "secrets despite redaction",
@@ -214,4 +218,16 @@ node "$TENET_DIR/dist/cli/index.js" doctor --project "$PWD"`);
   expect(developer).toContain("developer-only, not the owner installation path");
   expect(html).not.toContain("git clone");
   expect(html).not.toContain("src/cli/index.ts");
+});
+
+test('global activation warnings precede the website authoring step', () => {
+  const policy = page('docs.html').split('<h2 id="policy-title">')[1].split('</section>')[0];
+  const authoring = policy.indexOf('then author optional');
+  expect(authoring).toBeGreaterThan(0);
+  for (const warning of ['activate projects without local rules', 'TypeSafe and recordings', 'invalid global file']) {
+    const position = policy.indexOf(warning);
+    expect(position).toBeGreaterThanOrEqual(0);
+    expect(position).toBeLessThan(authoring);
+  }
+  expect(policy.indexOf('class="language-tenet-policy"')).toBeGreaterThan(authoring);
 });

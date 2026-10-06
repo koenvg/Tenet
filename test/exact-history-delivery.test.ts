@@ -40,7 +40,7 @@ test('compiled SDK concurrent sibling completions preserve snapshot-local pools 
     for (let i = 0; i < 200 && releases.size < 2; i++) await new Promise(resolve => setTimeout(resolve, 5));
     assert.equal(releases.size, 2);
     const wires = requests.map(request => JSON.stringify(request.trajectory));
-    assert.deepEqual(requests.map(request => request.trajectory.values), [{ v0: 'first'.repeat(150) }, { v0: 'second'.repeat(150) }]);
+    assert.deepEqual(['one', 'two'].map(id => requests.find(request => request.action.callId === id).trajectory.values), [{ v0: 'first'.repeat(150) }, { v0: 'second'.repeat(150) }]);
     releases.get('two')!();
     two.afterTool({ callId: 'two', toolName: 'opaque', content: 'late sibling'.repeat(100) });
     one.setHistory([{ kind: 'tool-result', callId: 'replacement', toolName: 'opaque', data: 'new history'.repeat(100) }]);
@@ -94,14 +94,14 @@ test('Pi live reports and schema-4 archive/inspector expose exactly submitted po
     const archive = await readArchive(join(h.cwd, 'archive'));
     assert.deepEqual(archive.issues, []);
     const records = archive.records.filter(record => record.callId === 'current');
-    assert.ok(records.every(record => record.schemaVersion === 4 && validRecord(record)));
+    assert.ok(records.every(record => record.schemaVersion === 5 && validRecord(record)));
     const request = records.find(record => record.stage === 'request')!;
     assert.deepEqual(request.data.payload, payload);
     assert.equal(request.data.selectionVersion, 'bounded-history-v2');
     const view = invocationView(records);
     assert.deepEqual(view.evidence, payload.state);
     assert.deepEqual(view.evidenceContext, live.evidenceContext);
-    assert.equal(view.questionVersion, 'policy-rules-v7-ordinary-evidence');
+    assert.equal(view.questionVersion, 'policy-rules-v8-source-set');
     assert.equal(view.execution, 'unknown');
     assert.doesNotMatch(JSON.stringify([submitted, archive, h.records]), /canary/);
     const wire = JSON.stringify(records); invocationView(records); assert.equal(JSON.stringify(records), wire);

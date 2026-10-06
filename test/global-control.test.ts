@@ -117,12 +117,14 @@ test('off never binds an archive or feeds trajectory and preserves prior recordi
     await h.commands.get('tenet').handler('on', h.ctx);
     await h.emit('tool_result', { toolCallId: 'disabled-late', toolName: 'edit', content: [{ text: 'never-record-this' }] });
     assert.equal(await h.call('enabled'), undefined);
+    await h.assessed('enabled');
     assert.equal(requests.length, 1);
     assert.ok(!JSON.stringify(requests[0].trajectory).includes('off-transcript-secret'), 're-enable cannot replay off transcript');
     assert.ok(!requests[0].trajectory.observations.some((o: any) => o.callId === 'disabled-late'));
     assert.ok(!h.records.some((r: any) => r.callId === 'disabled-late'));
     await h.start();
     assert.equal(await h.call('enabled-after-restart'), undefined);
+    await h.assessed('enabled-after-restart');
     assert.ok(!JSON.stringify(requests.at(-1).trajectory).includes('off-transcript-secret'), 'startup cannot replay off transcript');
     await h.commands.get('tenet').handler('off', h.ctx);
     const count = h.records.length;

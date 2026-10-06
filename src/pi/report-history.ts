@@ -1,10 +1,12 @@
 import { recordedJudgeReport } from '../recording/judge.js';
+import { validOrigin } from '../decision/policy-origin.js';
 import { validEvidenceContext } from '../decision/evidence-context.js';
 import { freeze } from '../decision/evidence.js';
 import { validationIssue } from '../decision/response-validation.js';
 import type { BlockingGate, RuleDiagnostic } from '../decision/contracts.js';
 import type { OwnerReport } from './owner-reports.js';
-import { POLICY_LIMITS } from '../decision/policy.js';
+import { POLICY_LIMITS, INTEGRITY_TEXT } from '../decision/policy.js';
+import { QUESTION_VERSION } from '../decision/assessment-shape.js';
 
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown): v is string => typeof v === 'string' && v.length <= 256;
@@ -19,11 +21,21 @@ const reasons = new Set(['all-rules-pass', 'advisory-findings', 'rule-approval-r
   'approval-denied-or-dismissed', 'approval-ui-error', 'approval-invalidated', 'action-resolution-unavailable', 'action-resolution-stale',
   'approval-denied', 'approval-dismissed', 'approval-timeout', 'approval-unavailable', 'approval-cancelled', 'approval-stale']);
 
+const singularIntegrityText = 'Never modify, delete, replace, rename or redirect the active policy source or resolved target, including through aliases, links or parent-directory operations. Reading the policy is permitted. This constraint has no approval exception and cannot be overridden by user rules.';
+const singularQuestions = new Set(['policy-rules-v5-resolved-action', 'policy-rules-v6-applicability',
+  'policy-rules-v7-evidence-selection', 'policy-rules-v7-ordinary-evidence']);
+/** Display only the integrity meaning established by the recorded native/question contract. */
+export function reportIntegrityText(report: Pick<OwnerReport, 'recordVersion' | 'questionVersion'>): string {
+  if (report.recordVersion === 3 && singularQuestions.has(report.questionVersion ?? '')) return singularIntegrityText;
+  if (report.recordVersion === 4 && report.questionVersion === QUESTION_VERSION) return INTEGRITY_TEXT;
+  return 'Policy integrity text not recorded.';
+}
+
 /** Accept bounded contract fields, including snapshot rule text, but no extra payloads. */
 export function recoverReport(entry: unknown): OwnerReport | undefined {
   if (!object(entry) || entry.type !== 'custom' || entry.customType !== 'tenet' || !object(entry.data)) return;
   const d = entry.data;
-  if (d.version !== 3 || d.stage !== 'permission' || !['observe', 'enforce'].includes(String(d.mode))
+  if (![3, 4].includes(d.version as number) || d.stage !== 'permission' || !['observe', 'enforce'].includes(String(d.mode))
     || !['released', 'blocked'].includes(String(d.outcome)) || d.wouldDecision !== undefined && !['ALLOW', 'ASK', 'BLOCK'].includes(String(d.wouldDecision))
     || typeof d.assessmentAvailable !== 'boolean' || !text(d.reason) || !reasons.has(d.reason)
     || !text(d.callId) || !text(d.toolName) || !text(d.invocationId)
@@ -36,7 +48,8 @@ export function recoverReport(entry: unknown): OwnerReport | undefined {
     if (!object(r) || !text(r.id) || typeof r.line !== 'number' || !Number.isSafeInteger(r.line) || r.line < 1 || r.line > 65536
       || (r.enforcement !== 'BLOCK' && r.enforcement !== 'WARN')) return;
     if (r.text !== undefined && (typeof r.text !== 'string' || Buffer.byteLength(r.text, 'utf8') > POLICY_LIMITS.ruleBytes)) return;
-    rules.push({ id: r.id, line: r.line, enforcement: r.enforcement, ...(typeof r.text === 'string' ? { text: r.text } : {}) });
+    if (d.version === 4 && (!validOrigin(r.origin) || r.id !== `${r.origin.role}:${r.origin.digest}:${r.line}` || r.origin.line !== r.line)) return;
+    rules.push({ id: r.id, line: r.line, enforcement: r.enforcement, ...(d.version === 4 && validOrigin(r.origin) ? { origin: freeze(structuredClone(r.origin)) } : {}), ...(typeof r.text === 'string' ? { text: r.text } : {}) });
   }
   const diagnostics: RuleDiagnostic[] = [];
   for (const r of d.diagnostics) {
@@ -53,7 +66,7 @@ export function recoverReport(entry: unknown): OwnerReport | undefined {
   }
   const judge = recordedJudgeReport(d);
   if (d.judgeReportVersion !== undefined && !judge) return;
-  return { mode: d.mode as OwnerReport['mode'], outcome: d.outcome as OwnerReport['outcome'],
+  return { recordVersion: d.version as 3 | 4, mode: d.mode as OwnerReport['mode'], outcome: d.outcome as OwnerReport['outcome'],
     ...judge,
     ...(d.profile === 'legacy' || d.profile === 'applicability-v1' ? { profile: d.profile } : {}),
     ...(text(d.questionVersion) ? { questionVersion: d.questionVersion } : {}),
@@ -68,7 +81,7 @@ export function recoverReport(entry: unknown): OwnerReport | undefined {
 export function recoverExecution(entry: unknown): { invocationId: string; callId: string; toolName: string; mode: OwnerReport['mode']; outcome: 'executed' | 'failed' | 'unknown' } | undefined {
   if (!object(entry) || entry.type !== 'custom' || entry.customType !== 'tenet' || !object(entry.data)) return;
   const d = entry.data;
-  if (d.version !== 3 || d.stage !== 'execution' || !['observe', 'enforce'].includes(String(d.mode))
+  if (![3, 4].includes(d.version as number) || d.stage !== 'execution' || !['observe', 'enforce'].includes(String(d.mode))
     || !['executed', 'failed', 'unknown'].includes(String(d.outcome))
     || !text(d.invocationId) || !text(d.callId) || !text(d.toolName)) return;
   return { invocationId: d.invocationId, callId: d.callId, toolName: d.toolName, mode: d.mode as OwnerReport['mode'],

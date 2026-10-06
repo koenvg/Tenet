@@ -119,7 +119,7 @@ Use **More sessions** or **More invocations** to continue. Loading more calls pr
 
 The sidebar filters individual calls by suspected violations, uncertainty, approval conditions, evaluator failures or pending/incomplete observations. Counts are distinct calls; categories can overlap. BLOCK alone is not a violation.
 
-Open **Uncertainty groups** in the main workspace for calls with the same captured policy source/digest, rule ID, profile and gate. One-call groups remain separate. Missing policy identity never merges unrelated calls. Each group has up to 100 invocation links; use paginated calls beyond that.
+Open **Uncertainty groups** in the main workspace for calls with the same recorded versioned policy identity, rule ID, profile and gate. One-call groups remain separate. Missing policy identity never merges unrelated calls. Each group has up to 100 invocation links; use paginated calls beyond that.
 
 Groups are session-wide. A call filter, even one with no matches, does not remove them. The inspector requests bounded group references only when that view opens, not in normal call-list pages or category-filter polling. On small screens, switch between Calls, Summary and Patterns.
 
@@ -139,7 +139,11 @@ The metadata-only index has these per-refresh limits:
 
 Cold indexing reads each stage envelope once, then discards its evidence. Later sweeps recheck cached files without rereading unchanged evidence. Large archives can take several polls to show changes, deletions, corrupt files or unsafe files. An indexing notice means the sweep or parsing is incomplete. A capped detail read reports an explicit issue.
 
-New writes use schema 4. The reader also preserves schemas 1 through 3, their submitted payloads and recorded thresholds. Missing historical diagnostics say **Not recorded**. Pending or dropped assessments have no invented would-decision or final history counters. Unsupported newer records, corrupt files and incomplete indexing produce a prominent partial-coverage warning even while supported calls remain readable.
+New writes use schema 5 and `policy-sources-v1`. The reader preserves schemas 1 through 4, their submitted payloads, singular identities and recorded thresholds. A rule's source role, configured path, target and digest come from its record.
+
+A missing historical role says unknown, not recorded. Readers never consult current policy files. Missing historical diagnostics say **Not recorded**.
+
+Pending or dropped assessments have no invented would-decision or final history counters. Unsupported newer records, corrupt files and incomplete indexing produce a partial-coverage warning even while supported calls remain readable.
 
 Provider/model fields come only from recorded data. APUS's additive native recording contract leaves schema 4 unchanged. Missing historical fields stay not recorded; the reader never uses today's settings to rebuild native prompts or label old providers. See [the recorded native contract](assessment-contract.md#native-recording-contract).
 

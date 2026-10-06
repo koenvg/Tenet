@@ -31,6 +31,22 @@ Dependency and browser installation can download packages. The checks below do n
 
 Run these steps in order from the repository root. They cover the application, inspector, and BB plugin checks in [application CI](.github/workflows/ci.yml). CI runs on pushes to `main` and on pull requests.
 
+
+First start a disposable shell with a real temporary owner home. Unset provider credentials and overrides so checks cannot read personal policies or use live credentials:
+
+```sh
+TEST_HOME=$(mktemp -d)
+TEST_HOME=$(cd "$TEST_HOME" && pwd -P)
+mkdir "$TEST_HOME/bin"
+printf '#!/bin/sh\nexec "%s" --no-env-file "$@"\n' "$(command -v bun)" > "$TEST_HOME/bin/bun"
+chmod 700 "$TEST_HOME/bin/bun"
+env -i PATH="$TEST_HOME/bin:$PATH" HOME="$TEST_HOME" TMPDIR=/tmp bash --noprofile --norc
+```
+
+The temporary Bun wrapper prevents `.env` auto-loading in checks and child processes. The clean environment removes credentials and `TENET_POLICY`. Run the ordered checks inside that shell, then use `exit`. Remove only the disposable `$TEST_HOME` after all fixture processes close.
+
+If Chromium was installed in the original home's cache, set `PLAYWRIGHT_BROWSERS_PATH` inside the shell to that cache's absolute path before browser checks. Do not use a signed-in browser.
+
 1. Build the SDK and inspector before the Bun suite:
 
    ```sh
@@ -39,6 +55,10 @@ Run these steps in order from the repository root. They cover the application, i
    ```
 
    SDK tests import compiled output. Pi inspector-command tests serve files from `inspector/dist`.
+
+   Global discovery makes isolation required for validation. Start checks with a realpath disposable process `HOME`, unset provider credentials and `TENET_POLICY`, and keep all selected owner-home data in fixtures. Passing `env.HOME` to a guard alone does not change `node:os.homedir()`.
+
+   Use a separate child process for each global-policy fixture. Do not read or copy the owner's personal policy.
 
 2. Run the isolated, serial Bun suite, including Pi smoke tests, then the application type check:
 
@@ -97,7 +117,7 @@ Run this separate delivery lane after the checks above. It is not part of the or
    bun run package:archive
    ```
 
-   The result is `delivery/tenet.tar.gz`. Verification checks Node/Bun consumers, TypeScript declarations, built inspector HTTP, pinned Pi discovery/dispatch, and temporary registration/removal. It makes no provider calls and does not change the owner's installation.
+   The result is `delivery/tenet.tar.gz`. Verification checks Node/Bun consumers, TypeScript declarations, built inspector HTTP, pinned Pi discovery/dispatch, and temporary registration/removal. Global-only, combined and project-override fixtures use validated temporary process homes and session directories, not the installation. It makes no provider calls and does not change the owner's installation.
 
 2. Check raw archive metadata as the delivery CI lane does:
 
@@ -132,7 +152,9 @@ Real assessed tool actions send policy, paths and evidence to TypeSafe and use q
    The script adds `-e ./src/pi/extension.ts`. Explicit extensions still load with `--no-extensions`. Do not use this path if Tenet is already registered as a Pi package.
 4. Check native `/tenet status`. Startup identifies policy source, SHA-256, count and question version.
 
-Only `TENET.md` in the session working directory makes the session eligible. Without that file, it is dormant in both modes with no Tenet UI. Invalid active setup is unavailable, not a pass; observe permits and enforce blocks.
+By default, optional `~/.tenet/TENET.md` from the process owner's home applies alongside session `TENET.md`. `TENET_POLICY` can select another absolute or session-relative project file; it never replaces global. Only confirmed absence of both implicit candidates without an override is dormant, with no Tenet UI.
+
+Empty overrides, missing explicit files and unusable sources invalidate the whole set. Observe permits without a pass; enforce blocks. There is no global-path override, opt-out, parent search or fallback.
 
 An extension load error means Tenet did not load.
 
@@ -149,7 +171,7 @@ pi list
 
 This is user-level registration; do not add `-l`. Pi loads `src/pi/extension.ts` through `package.json` in place. Keep the checkout and dependencies.
 
-Launch plain `pi`, not a second `-e` copy or `bun run pi`. Each session directory needs its own reviewed `TENET.md`. For an older override-based setup, follow [local policy migration](docs/policy.md#migrate-from-tenet_policy) before restarting.
+Launch plain `pi`, not a second `-e` copy or `bun run pi`. Each eligible session uses the reviewed optional global policy alongside any local or explicitly selected project policy. See [project policy selection](docs/policy.md#choose-the-policy-file) before restarting.
 
 Code and environment changes need a full Pi process restart. Under Pi 0.85.1 and Bun 1.3.14, `/reload` and `/new` can retain old imports. Policy-only changes can use session-start reload; check the new digest and count.
 

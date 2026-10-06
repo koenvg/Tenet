@@ -10,7 +10,7 @@ import { recoverReport } from '../src/pi/report-history.js';
 import { createJevJudge } from '../src/decision/jev.js';
 import { answer, sdkAnswers } from './helpers.js';
 
-const metadata = { profile: 'applicability-v1', questionVersion: 'policy-rules-v7-ordinary-evidence' };
+const metadata = { profile: 'applicability-v1', questionVersion: 'policy-rules-v8-source-set' };
 for (const scenario of ['pending', 'dropped', 'unavailable', 'pre-assessment'] as const) test(`captured assessment metadata reaches ${scenario} owner callbacks`, async () => {
   const cwd = await realpath(await mkdtemp(join(tmpdir(), 'tenet-profile-')));
   await writeFile(join(cwd, 'TENET.md'), 'Rule; Never commit.');
@@ -56,7 +56,7 @@ test('Pi candidate startup announces its captured profile and question version',
   const h = await guardHarness({ env: { TENET_ASSESSMENT_PROFILE: 'applicability-v1' } });
   try {
     await h.start();
-    assert.ok(h.notifications.some(text => text.includes('Judge questions: policy-rules-v7-ordinary-evidence')));
+    assert.ok(h.notifications.some(text => text.includes('Judge questions: policy-rules-v8-source-set')));
     assert.ok(h.notifications.some(text => text.includes('applicability-v1')));
   } finally { await h.close(); }
 });
@@ -73,7 +73,7 @@ test('unavailable candidate owner details keep profile metadata live and after r
       await h.commands.get('tenet').handler('', h.ctx);
       const details = h.views[1].items.join('\n');
       assert.match(details, /Assessment profile: applicability-v1/);
-      assert.match(details, /Judge questions: policy-rules-v7-ordinary-evidence/);
+      assert.match(details, /Judge questions: policy-rules-v8-source-set/);
       assert.doesNotMatch(details, /legacy \(historical\)/);
     }
   } finally { await h.close(); }

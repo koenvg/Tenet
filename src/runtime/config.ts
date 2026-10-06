@@ -1,4 +1,4 @@
-import { resolve } from 'node:path';
+import { projectPolicyCandidate } from './policy-selection.js';
 import { DEFAULTS, validConfig } from '../decision/decide.js';
 import type { Config } from '../decision/contracts.js';
 import { EVIDENCE_DEFAULTS } from '../decision/trajectory.js';
@@ -33,5 +33,7 @@ export function readConfig(cwd: string, env: Record<string, string | undefined>,
   const sensitiveFields: unknown = env.TENET_SENSITIVE_FIELDS === undefined ? [] : JSON.parse(env.TENET_SENSITIVE_FIELDS);
   if (!validConfig(decision) || !Array.isArray(sensitiveFields)
       || !sensitiveFields.every(field => typeof field === 'string' && field.trim())) throw new Error('configuration');
-  return { policyPath: resolve(cwd, 'TENET.md'), decision, sensitiveFields, evidence, approvalTimeoutMs };
+  const selected = projectPolicyCandidate(cwd, env);
+  if (selected.failure) throw new Error('configuration');
+  return { policyPath: selected.source, decision, sensitiveFields, evidence, approvalTimeoutMs };
 }

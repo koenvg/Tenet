@@ -36,7 +36,7 @@ for (const host of ['pi', 'compiled-sdk'] as const) for (const tier of ['full', 
       assert.ok(Object.isFrozen(request.trajectory!.observations));
       return transport(request, signal, recording);
     };
-    const h = await guardHarness({ env: { TENET_MODE: 'enforce', TENET_RECORDING: 'on', TENET_EVIDENCE_MAX_BYTES: '4096', TENET_RECENT_EVENTS: '2' }, judge });
+    const h = await guardHarness({ env: { TENET_MODE: 'enforce', TENET_RECORDING: 'on', TENET_EVIDENCE_MAX_BYTES: '8192', TENET_RECENT_EVENTS: '2' }, judge });
     let guard: Guard | undefined;
     try {
       const input = { text: 'Current complete arguments. 界🙂', token: 'synthetic-canary' };
@@ -57,7 +57,7 @@ for (const host of ['pi', 'compiled-sdk'] as const) for (const tier of ['full', 
       } else {
         archive = join(h.cwd, 'sdk-archive');
         guard = createGuard({ host: 'synthetic', judge, controlPath: join(h.cwd, 'sdk-control.json'),
-          env: { TENET_MODE: 'enforce', TENET_RECORDING: 'on', TENET_RECORDING_DIR: archive, TENET_EVIDENCE_MAX_BYTES: '4096', TENET_RECENT_EVENTS: '2' } });
+          env: { TENET_MODE: 'enforce', TENET_RECORDING: 'on', TENET_RECORDING_DIR: archive, TENET_EVIDENCE_MAX_BYTES: '8192', TENET_RECENT_EVENTS: '2' } });
         const session = guard.openSession({ sessionId: 's', contextId: 'main' }, h.cwd);
         await session.ready;
         session.setHistory(Array.from({ length: 4 }, (_, index) => ({ kind: 'tool-result', callId: String(index), toolName: 'edit', timestamp: 0, data: 'a' })),
@@ -78,7 +78,7 @@ for (const host of ['pi', 'compiled-sdk'] as const) for (const tier of ['full', 
       assert.equal(prepared.action.limitations.includes('tool-metadata-omitted'), tier !== 'full');
       assert.equal(prepared.action.limitations.includes('description-unavailable'), tier === 'description unavailable');
       assert.equal(prepared.resolvedAction!.status, 'unsupported');
-      assert.ok(serializedBytes(outbound.state) <= 4096);
+      assert.ok(serializedBytes(outbound.state) <= 8192);
       assert.ok(prepared.trajectory!.observations.length <= 2);
       assert.ok(prepared.trajectory!.limitations.includes('history-omitted'));
       assert.equal(prepared.trajectory!.omitted, (host === 'compiled-sdk' ? 5 : 0) + 4 - prepared.trajectory!.observations.length);

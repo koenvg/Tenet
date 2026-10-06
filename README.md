@@ -6,7 +6,7 @@ Tenet is in alpha, with Pi 0.85.1 as the tested host. A judge can be wrong. Tene
 
 ## Before you start
 
-Real assessments send policy text, paths, tool evidence and bounded recent observations to TypeSafe and use quota. Field redaction cannot remove every secret in source, commands or rules. Configure `TYPESAFE_API_KEY` through your secret manager, not in policy, source, chat or command-line arguments.
+Real assessments send global and project policy text, paths, tool evidence and bounded recent observations to TypeSafe and use quota. Field redaction cannot remove every secret in source, commands or rules. Configure `TYPESAFE_API_KEY` through your secret manager, not in policy, source, chat or command-line arguments.
 
 Local capture is on by default in `~/.tenet/recordings`. Submitted strings can contain secrets despite redaction.
 
@@ -21,7 +21,9 @@ The inspector is read-only and unauthenticated on loopback. Do not expose or pro
 This is the recommended path for Pi owners. You need Node 22.19+ with npm, Bun 1.3.14+ and a separate Pi 0.85.1 installation.
 
 1. [Install the production archive](docs/INSTALL-ARCHIVE.md) in a stable directory. It is a private, passing-`main` GitHub Actions artifact with 14-day retention, not an npm package or public release. No build is needed.
-2. [Write your first policy](docs/policy.md#write-a-first-rule) yourself, outside the guarded agent's intercepted path. The archive ships no policy. Only `TENET.md` in the session working directory activates Tenet.
+2. [Write your first policy](docs/policy.md#write-a-first-rule) yourself, outside the guarded agent's intercepted path. The archive ships no policy; the project defaults to session `TENET.md`. `TENET_POLICY` can select another project file.
+
+   Optional `~/.tenet/TENET.md` activates projects without local rules and applies alongside the selected project file. Review it before authoring it outside the intercepted path. Its rules can reach TypeSafe and local recordings; an invalid global file makes the whole set unavailable. Tenet never creates it automatically. See [global and project selection](docs/policy.md#choose-the-policy-file).
 3. [Run doctor offline](docs/doctor.md#direct-invocation) in the environment the next Pi process will inherit. Replace both paths:
 
    ```sh

@@ -30,7 +30,7 @@ test('persisted provider failures and absent submissions remain distinct after r
   const writer = new ArchiveWriter({ enabled: true, directory: dir });
   for (const kind of ['credentials', 'provider', 'invalid']) {
     const sink = writer.bind({ ...identity, invocationId: kind, callId: kind });
-    sink('begin', {});
+    sink('begin', { policy });
     const result = await decide({ policy, cwd: '/project',
       action: captureAction({ sessionId: identity.sessionId, callId: kind, toolName: 'edit', arguments: {} }),
       judge: createJevJudge({ apiKey: kind === 'credentials' ? '' : 'private-api-key', fetch: async () => kind === 'provider'
@@ -59,7 +59,7 @@ test('persisted provider failures and absent submissions remain distinct after r
 
 test('temporary, corrupt and unsupported records are separate issues beside browsable incomplete calls', () => temporary(async dir => {
   const writer = new ArchiveWriter({ enabled: true, directory: dir });
-  writer.bind(identity)('begin', {});
+  writer.bind(identity)('begin', { policy });
   await writer.close();
   const original = (await readArchive(dir)).records[0]!;
   const folder = join(dir, qualifiedSessionKey(identity.host, identity.sessionId, identity.contextId));
@@ -104,7 +104,7 @@ test('response snapshots never invoke arbitrary serialization or retain error ob
 test('overflow and serialization losses persist writer-wide health after restart', () => temporary(async dir => {
   const writer = new ArchiveWriter({ enabled: true, directory: dir }, { events: 1, bytes: 10000 });
   const sink = writer.bind(identity);
-  sink('begin', {}); sink('decision', { decision: 'ALLOW' });
+  sink('begin', { policy }); sink('decision', { decision: 'ALLOW' });
   const cyclic: any = {}; cyclic.self = cyclic; sink('response', cyclic);
   await writer.close();
   const archive = await readArchive(dir);
@@ -122,7 +122,7 @@ test('injected disk failure recovers with durable health and no raw error', () =
     if (++calls <= 2) throw Object.assign(new Error('private-disk-details'), { code: 'ENOSPC' });
     return writeStageFile(...args);
   });
-  writer.bind(identity)('begin', {});
+  writer.bind(identity)('begin', { policy });
   await writer.drain();
   assert.equal(writer.health().failed, 2);
   writer.bind(identity)('permission', { outcome: 'released' });
@@ -142,7 +142,7 @@ test('bounded shutdown reports pending writes and persists timeout health if sto
     started(); await held; return writeStageFile(...args);
   });
   const sink = writer.bind(identity);
-  sink('begin', {}); await ready;
+  sink('begin', { policy }); await ready;
   assert.equal(await writer.close(5), false);
   assert.equal(writer.health().pending, 1); assert.equal(writer.health().drainTimeouts, 1);
   assert.ok(changes > 0);
@@ -165,7 +165,7 @@ test('process exit after submission preserves incomplete API state and exposes a
     import {join} from 'node:path';
     const writer = new ArchiveWriter({enabled:true,directory:process.argv[1]});
     const sink = writer.bind({host:'pi',contextId:'main',sessionId:'interrupted',invocationId:'call',callId:'call',toolName:'edit',cwd:'/project',mode:'observe'});
-    sink('begin',{});
+    sink('begin',{policy});
     await decide({policy,cwd:'/project',recording:sink,
       action:captureAction({sessionId:'interrupted',callId:'call',toolName:'edit',arguments:{}}),
       judge:createJevJudge({apiKey:'offline',fetch:async()=>{
@@ -194,9 +194,13 @@ test('capture degradation remains owner-only during live and recovered evaluator
     const h = await guardHarness({ env: { TENET_MODE: mode, TENET_RECORDING: 'on', TENET_RECORDING_DIR: join(bad, 'archive') },
       judge: async request => { histories.push(request.trajectory); return answer(request.policy); } });
     try {
-      await h.start(); await h.call('first'); await h.emit('session_shutdown');
+      await h.start(); await h.call('first');
+      if (mode === 'observe') await h.assessed('first');
+      await h.emit('session_shutdown');
       assert.ok(h.statuses.some(s => /[1-9]\d* lost/.test(s)));
-      await h.start(); await h.call('resumed'); await h.emit('session_shutdown');
+      await h.start(); await h.call('resumed');
+      if (mode === 'observe') await h.assessed('resumed');
+      await h.emit('session_shutdown');
       assert.equal(histories.length, 2);
       const context = JSON.stringify({ branch: h.branch, histories });
       for (const marker of ['TENET capture', 'TENET recording', 'drainTimeouts', bad]) assert.ok(!context.includes(marker), marker);
@@ -210,7 +214,7 @@ test('recorded deadline remains timeout when transport cancellation follows it',
   const sink = writer.bind(identity);
   let finish!: () => void;
   const validated = new Promise<void>(resolve => { finish = resolve; });
-  sink('begin', {});
+  sink('begin', { policy });
   const result = await decide({ policy, cwd: '/project', config: { deadlineMs: 20 },
     recording: (stage, data) => { sink(stage, data); if (stage === 'validation') finish(); },
     action: captureAction({ sessionId: identity.sessionId, callId: 'one', toolName: 'edit', arguments: {} }),

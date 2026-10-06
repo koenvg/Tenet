@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { applicabilityCorpus, applicabilityCorpusDigest, historicalApplicabilityCorpus, historicalApplicabilityCorpusDigest, fixtureIdentity } from '../eval/applicability-fixtures.js';
+import { applicabilityCorpus, applicabilityCorpusDigest, ordinaryEvidenceCorpusDigest, historicalApplicabilityCorpus, historicalApplicabilityCorpusDigest, fixtureIdentity } from '../eval/applicability-fixtures.js';
 import { compareApplicability, type ComparisonObservation } from '../eval/applicability-comparison.js';
 import { scriptedApplicabilityComparison, runApplicabilityComparison } from '../eval/applicability-replay.js';
 import { DEFAULTS } from '../src/decision/decide.js';
@@ -8,12 +8,13 @@ import { ASSESSMENT_METADATA } from '../src/decision/assessment-contract.js';
 import { answer } from './helpers.js';
 
 test('sanitized canonical and held-out expectations are frozen before evaluation', () => {
-  assert.equal(applicabilityCorpusDigest, 'da49418db06023f3f2636f78e1c12341d2237708946347ed37fb9c64d79e9f51');
+  assert.equal(applicabilityCorpusDigest, '93607728426a24d528df69795de765a53f01e3b03d118759ff3500cad62a5ca6');
   assert.ok(Object.isFrozen(applicabilityCorpus));
   assert.ok(applicabilityCorpus.fixtures.every(Object.isFrozen));
   assert.equal(new Set(applicabilityCorpus.fixtures.map(f => f.id)).size, applicabilityCorpus.fixtures.length);
   assert.doesNotMatch(JSON.stringify(applicabilityCorpus), /\/Users\/|@|api.key|token=/i);
   assert.equal(historicalApplicabilityCorpusDigest, '2b13a9749fb11ee7c1b3465cc088d33fe5941a45991a3212259d929536537872');
+  assert.equal(ordinaryEvidenceCorpusDigest, 'da49418db06023f3f2636f78e1c12341d2237708946347ed37fb9c64d79e9f51');
   assert.equal(applicabilityCorpus.fixtures.length, 29);
   assert.equal(fixtureIdentity(applicabilityCorpus.fixtures[0]!).fixtureDigest, 'e17964676702e815ce5981c9838f89e746a8cfe63c32c2caf9f6dd3c34ed3efc');
   for (const old of historicalApplicabilityCorpus.fixtures) assert.deepEqual(fixtureIdentity(old), fixtureIdentity(applicabilityCorpus.fixtures.find(f => f.id === old.id)!));
@@ -156,7 +157,8 @@ test('protected unsafe allows and opposing changes remain separate from benign r
     const fixture = applicabilityCorpus.fixtures.find(f => f.id === id)!;
     const recorded = supplied.rows.find(r => r.fixtureId === id && r.questionVersion === ASSESSMENT_METADATA.questionVersion)!;
     return { ...fixtureIdentity(fixture), ...contract, evidenceCoverage: recorded.evidenceCoverage, omissions: [], result: {
-      ...contract, config: DEFAULTS, decision, reason: 'all-rules-pass', assessment: recorded.assessment,
+      ...contract, config: DEFAULTS, decision, reason: 'all-rules-pass', assessment: contract.questionVersion === ASSESSMENT_METADATA.questionVersion ? recorded.assessment
+        : { ...recorded.assessment!, rules: recorded.assessment!.rules.map((r, i) => ({ ...r, ruleId: i === 0 ? `${fixtureIdentity(fixture).policyDigest}:1` : r.ruleId })) },
       diagnostics: recorded.diagnostics!, ruleIds: [], durationMs: 0, requestedModel: 'separately-supplied-script' } };
   };
   const observations = [make('unsupported-read', historical, 'BLOCK'), make('unsupported-read', ASSESSMENT_METADATA, 'ALLOW'),
@@ -201,7 +203,7 @@ test('offline replay captures revised current evidence and never requests a prov
     assert.match(readable, /Semantic accuracy is unverified/);
     assert.match(readable, /Protected unsafe ALLOW present/);
     assert.match(readable, /missing-result/);
-    assert.match(readable, /policy-rules-v7-ordinary-evidence/);
+    assert.match(readable, /policy-rules-v8-source-set/);
     await assert.rejects(() => runApplicabilityComparison(['--live']), /Offline only/);
     assert.equal(requests, 0);
   } finally { globalThis.fetch = priorFetch; }

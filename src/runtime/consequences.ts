@@ -1,4 +1,4 @@
-import type { Decision, Policy, RuleDiagnostic } from '../decision/contracts.js';
+import type { Decision, Policy, RuleOrigin, RuleDiagnostic } from '../decision/contracts.js';
 import type { Mode } from './config.js';
 import { ASSESSMENT_METADATA } from '../decision/assessment-contract.js';
 import { UNAVAILABLE_EVIDENCE_CONTEXT, type EvidenceContext } from '../decision/evidence-context.js';
@@ -20,13 +20,13 @@ export interface Permission {
   ruleIds: string[];
   diagnostics: RuleDiagnostic[];
   validationIssue?: Decision['validationIssue'];
-  rules: { id: string; line: number; enforcement: 'BLOCK' | 'WARN'; text?: string }[];
+  rules: { id: string; line: number; origin: RuleOrigin; enforcement: 'BLOCK' | 'WARN'; text?: string }[];
   approvalRules: string[];
 }
 
 export function permissionVeto(permission: Permission): { block: true; reason: string } | undefined {
   if (permission.outcome !== 'blocked') return undefined;
-  const location = (id: string) => { const rule = permission.rules.find(r => r.id === id); return rule ? `line ${rule.line}` : 'built-in policy integrity'; };
+  const location = (id: string) => { const rule = permission.rules.find(r => r.id === id); return rule ? `${rule.origin.role} line ${rule.line}` : 'built-in policy integrity'; };
   const locations = permission.ruleIds.map(location);
   // WARN findings are owner-only even when another rule blocks the invocation.
   const details = permission.diagnostics.filter(d => d.enforcement === 'BLOCK').map(d =>
@@ -56,14 +56,14 @@ export class Consequences {
       assessmentAvailable: !!result?.assessment,
       ruleIds: ruleIds ?? result?.ruleIds ?? [], diagnostics: diagnostics ?? result?.diagnostics ?? [],
       ...(result?.validationIssue ? { validationIssue: result.validationIssue } : {}),
-      rules: this.policy.available ? this.policy.rules.map(({ id, line, enforcement, text }) => ({ id, line, enforcement, text })) : [],
+      rules: this.policy.available ? this.policy.rules.map(({ id, line, enforcement, text, origin }) => ({ id, line, enforcement, text, origin })) : [],
       approvalRules: result?.assessment?.rules.filter(r => r.outcome.choice === 'APPROVAL_REQUIRED').map(r => r.ruleId) ?? [],
     };
   }
 
   location(id: string): string {
     const rule = this.policy.available && this.policy.rules.find(r => r.id === id);
-    return rule ? `line ${rule.line}` : 'built-in policy integrity';
+    return rule ? `${rule.origin.role} line ${rule.line}` : 'built-in policy integrity';
   }
 
   veto(permission: Permission): { block: true; reason: string } | undefined {

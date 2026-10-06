@@ -8,6 +8,8 @@ import { decide } from '../src/decision/decide.js';
 import { captureAction } from '../src/decision/evidence.js';
 import { answer, policy } from './helpers.js';
 import { readArchive } from '../src/recording/archive.js';
+import { SCHEMA_VERSION } from '../src/recording/contract.js';
+import { QUESTION_VERSION } from '../src/decision/assessment-shape.js';
 
 const status = (provider: 'typesafe' | 'injected', requestedModel: string | null, availability = 'ready') => ({
   provider, requestedModel, availability, connectivity: 'unverified',
@@ -121,7 +123,7 @@ test('identity validation is bounded and default TypeSafe ignores injected metad
   finally { await h.close(); }
 });
 
-test('schema-4 archives preserve unknown requested identity and only validated returned identity', async () => {
+test('current archives preserve unknown requested identity and only validated returned identity', async () => {
   const directory = await realpath(await mkdtemp('/tmp/tenet-identity-archive-'));
   try {
     for (const fail of [false, true]) {
@@ -136,10 +138,10 @@ test('schema-4 archives preserve unknown requested identity and only validated r
     const assessments = archive.records.filter(record => record.stage === 'assessment');
     assert.equal(assessments.length, 2);
     for (const record of assessments) {
-      assert.equal(record.schemaVersion, 4);
+      assert.equal(record.schemaVersion, SCHEMA_VERSION);
       assert.equal(record.data.requestedModel, null);
       assert.equal(record.data.requestedProvider, 'injected');
-      assert.equal(record.data.questionVersion, 'policy-rules-v7-ordinary-evidence');
+      assert.equal(record.data.questionVersion, QUESTION_VERSION);
     }
     assert.equal(assessments.filter(record => record.data.assessment === null).length, 1);
     assert.equal((assessments.find(record => record.data.assessment !== null)!.data.assessment as { model: string }).model, 'jev-offline');

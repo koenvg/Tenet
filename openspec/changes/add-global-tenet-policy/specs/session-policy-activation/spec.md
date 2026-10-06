@@ -39,11 +39,13 @@ At session start, TENET SHALL discover the optional global policy at `~/.tenet/T
 - **THEN** that attachment does not activate TENET
 
 ### Requirement: Dormant guard has no session effects
-In an ineligible session TENET SHALL bypass tool calls and results without assessment, veto, approval, new TENET records, trajectory capture, archive capture, TENET footer or startup notifications, or TENET commands in the session UI. The global on/off choice SHALL NOT make an ineligible session active. Earlier archived records SHALL remain intact.
+In an ineligible session TENET SHALL bypass tool calls and results without assessment, veto, approval, new TENET records, trajectory capture, archive capture, TENET footer or startup notifications. It SHALL clear stale source, digest, readiness and footer state on every session transition.
+
+A freshly loaded dormant extension SHALL register no TENET commands. Pinned Pi 0.85.1 MAY retain previously registered command names after an eligible-to-dormant session switch until a full native extension reload, but their handlers SHALL be silent while current eligibility is dormant or transitioning. The global on/off choice SHALL NOT make an ineligible session active. Earlier archived records SHALL remain intact.
 
 #### Scenario: Dormant observe and enforce calls
 - **WHEN** an ineligible session in either mode receives tool calls and results
-- **THEN** TENET permits calls without assessments, prompts, new records, or TENET UI
+- **THEN** TENET permits calls without assessments, prompts, new records, or active TENET status UI; previously registered command names may remain listed, but invoking them has no effects
 
 #### Scenario: Global choice changes while dormant
 - **WHEN** the shared on/off choice changes in another eligible session

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { createGuard, type ActionFacts, type ActionResolver, type OwnerEvent } from 'tenet';
 import { decide } from '../src/decision/decide.js';
 import { captureAction, argumentDigest } from '../src/decision/evidence.js';
-import { answer } from './helpers.js';
+import { answer, policy as basePolicy } from './helpers.js';
 import { expandedData } from './exact-history-fixture.js';
 import type { Observation } from '../src/decision/contracts.js';
 
@@ -21,8 +21,8 @@ const contextHistory: Observation[] = [
 ];
 for (const limit of [4, 2]) test(`authored context-dependent control exposes required earlier observation ${limit === 4 ? 'retained' : 'lost'}`, async () => {
   const action = captureAction({ sessionId: 'synthetic', callId: 'pending', toolName: 'opaque-3', arguments: { reference: 'r9' } });
-  const policy = { available: true as const, source: '/synthetic/policy', target: '/synthetic/policy', digest: 'authored-control',
-    rules: [{ id: 'authored-control:1', line: 1, text: 'Never transmit content outside the authored boundary.', enforcement: 'BLOCK' as const }] };
+  const policy = { ...basePolicy,
+    rules: [{ ...basePolicy.rules[0]!, id: 'authored-control:1', line: 1, text: 'Never transmit content outside the authored boundary.', enforcement: 'BLOCK' as const }] };
   let captured: any;
   const result = await decide({ policy, action, cwd: '/synthetic', evidenceLimits: { recentEvents: limit, maxBytes: 24576 },
     trajectory: { observations: contextHistory, omitted: 0, limitations: [] }, judge: async request => {

@@ -15,7 +15,8 @@ export class ApprovalQueue {
     const rules = ruleIds.map(id => policy.rules.find(rule => rule.id === id));
     if (!rules.length || rules.some(rule => !rule)) return 'unavailable';
     const body = ['Rules requiring approval:', ...rules.map(rule => `Line ${rule!.line} (${rule!.id}): ${display(rule!.text)}`),
-      `Policy source: ${display(policy.source)}`, `SHA-256: ${policy.digest}`,
+      ...policy.sources.map(s => `${s.role} source: ${display(s.source)}; target: ${display(s.target)}; SHA-256: ${s.digest}`),
+      `Combined policy SHA-256: ${policy.combinedDigest}`,
       `Session: ${display(action.sessionId)}`,
       `Tool: ${display(action.toolName)}; call: ${display(action.callId)}`,
       `Original arguments SHA-256: ${action.argumentDigest}`,

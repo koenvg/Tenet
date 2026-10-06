@@ -10,6 +10,10 @@ import type { PolicySet } from '../src/decision/contracts.js';
 import { guardHarness } from './guard-harness.js';
 
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+async function until(predicate: () => boolean) {
+  for (let i = 0; i < 400 && !predicate(); i++) await new Promise(resolve => setTimeout(resolve, 5));
+  assert.ok(predicate(), 'background checkpoint timed out');
+}
 const capabilities = { host: 'fixture', version: '1', profile: 'test', interception: true, resultCorrelation: true,
   lifecycleInvalidation: true, argumentStability: true, trustedApproval: false, limitations: [] };
 
@@ -26,7 +30,7 @@ test('Pi releases before judge; result-before-assessment remains independent and
     assert.equal(h.records.find(r => r.stage === 'assessment-status')?.status, 'pending');
     await h.emit('tool_result', { toolName: 'edit', toolCallId: 'c', isError: false });
     await h.emit('agent_end');
-    await tick();
+    await until(() => !!resolve);
     resolve(answer(selected, 'FAIL'));
     await h.assessed('c');
     assert.equal(h.records.find(r => r.stage === 'execution')?.outcome, 'unknown');
@@ -56,7 +60,7 @@ test('shared runtime bounds running/waiting work, drops excess and cancels on in
       const call = { ...id, cwd, callId, toolName: 'edit', input: { path: callId } };
       assert.equal(await runtime.call({ ...call, current: () => call }), undefined);
     }
-    await tick();
+    await until(() => starts.length > 0);
     assert.deepEqual(starts, ['one'], JSON.stringify(events.map(e => [e.stage, e.data.reason, e.data.status])));
     assert.equal(events.find(e => e.stage === 'assessment-status' && e.data.callId === 'three' && e.data.status === 'dropped')?.data.reason, 'queue-capacity');
     await new Promise(resolve => setTimeout(resolve, 40));
@@ -76,7 +80,7 @@ test('queued work uses the captured action and history despite later mutation an
     assert.equal(await h.call('one', input), undefined);
     input.text = 'after';
     await h.emit('tool_result', { toolCallId: 'one', toolName: 'edit', content: 'result-before-assessment' });
-    await tick();
+    await until(() => !!observed);
     assert.equal(observed.action.arguments.text, 'before');
     assert.equal(observed.trajectory.observations.some((item: any) => item.origin.includes('tool-result')), false);
     assert.ok(Object.isFrozen(observed.action));
@@ -91,7 +95,7 @@ test('off suppresses late findings and frees a stalled provider slot', async () 
   let resolve!: (value: unknown) => void;
   const h = await guardHarness({ judge: () => new Promise(done => { resolve = done; }) });
   try {
-    await h.start(); await h.call('one'); await tick();
+    await h.start(); await h.call('one'); await until(() => !!resolve);
     const before = h.records.length;
     await h.commands.get('tenet').handler('off', h.ctx);
     resolve(answer()); await tick();
@@ -148,6 +152,8 @@ test('a pending would-block finding survives a burst beyond the owner history li
     ? new Promise(done => { release = done; }) : Promise.resolve(answer(request.policy)) });
   try {
     await h.start(); await h.call('first');
+    for (let i = 0; !release && i < 400; i++) await new Promise(resolve => setTimeout(resolve, 5));
+    assert.ok(release, 'first assessment entered the judge');
     for (let i = 0; i < 110; i++) await h.call(`later-${i}`);
     await tick();
     const policy = h.records.find(r => r.stage === 'status')!.policy;
@@ -169,14 +175,24 @@ test('completed clean observations count as coverage, not concerns', async () =>
   } finally { await h.close(); }
 });
 
-test('enforcement still waits for the evaluator', async () => {
+for (const judgeStartDelay of [0, 25]) test(`enforcement still waits for the evaluator after ${judgeStartDelay}ms judge startup`, async () => {
   let resolve!: (value: unknown) => void;
   let selected!: PolicySet;
-  const h = await guardHarness({ env: { TENET_MODE: 'enforce' }, judge: request => { selected = request.policy; return new Promise(done => { resolve = done; }); } });
+  let entered!: () => void;
+  const judgeStarted = new Promise<void>(done => { entered = done; });
+  const h = await guardHarness({ env: { TENET_MODE: 'enforce' }, judge: async request => {
+    if (judgeStartDelay) await new Promise(done => setTimeout(done, judgeStartDelay));
+    selected = request.policy; return new Promise(done => { resolve = done; entered(); });
+  } });
   try {
     await h.start();
     const pending = h.call();
-    await tick();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([judgeStarted, new Promise<never>((_done, reject) => {
+        timer = setTimeout(() => reject(new Error('judge did not start within the fixture deadline')), 2000);
+      })]);
+    } finally { clearTimeout(timer); }
     assert.equal(h.records.some(r => r.stage === 'permission'), false);
     resolve(answer(selected));
     assert.equal(await pending, undefined);

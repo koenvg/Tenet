@@ -35,7 +35,7 @@ export async function recordFailureFixture(directory: string) {
   await writer.close();
   const overflow = new ArchiveWriter({ enabled: true, directory }, { events: 1, bytes: 10000 });
   const sink = overflow.bind({ ...identity, invocationId: 'capture-loss', callId: 'capture-loss' });
-  sink('begin', {}); sink('decision', { decision: 'ALLOW' });
+  sink('begin', { policy }); sink('decision', { decision: 'ALLOW' });
   await overflow.close();
   const folder = join(directory, qualifiedSessionKey(identity.host, identity.sessionId, identity.contextId));
   await writeFile(join(folder, 'interrupted.tmp'), '{', { mode: 0o600 });

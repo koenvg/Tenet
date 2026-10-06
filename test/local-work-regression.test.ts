@@ -33,7 +33,7 @@ for (const fixture of Object.values(FIXTURES).flat()) {
     const judge = createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => {
       requests++;
       const body = JSON.parse(init!.body as string);
-      assert.deepEqual(body.state.policy.rules, policy.rules.map(({ id, line, text }) => ({ id, line, text })));
+      assert.deepEqual(body.state.policy.rules, policy.rules.map(({ id, line, text, origin }) => ({ id, line, text, origin: { role: origin.role, digest: origin.digest, line: origin.line } })));
       assert.deepEqual(body.state.action, action);
       const answers = sdkAnswers({ model: 'scripted-not-live', rules: outcomes.map((outcome, i) => ruleAnswer(i < policy.rules.length ? policy.rules[i]!.id : 'builtin:policy-integrity', outcome)) });
       return Response.json({ model: 'scripted-not-live', answers });
@@ -47,7 +47,7 @@ for (const fixture of Object.values(FIXTURES).flat()) {
 }
 
 test('generic questions have a distinct version; old live reports remain historical and unchanged', () => {
-  assert.equal(QUESTION_VERSION, 'policy-rules-v7-ordinary-evidence');
+  assert.equal(QUESTION_VERSION, 'policy-rules-v8-source-set');
   assert.equal(DEFAULTS.effectThreshold, 0.90); assert.equal(DEFAULTS.evidenceThreshold, 0.90);
   for (const name of ['current-probe.json', 'candidate-probe.json', 'v3-probe.json', 'v3-holdout.json']) {
     const report = JSON.parse(readFileSync(new URL(`../eval/${name}`, import.meta.url), 'utf8'));

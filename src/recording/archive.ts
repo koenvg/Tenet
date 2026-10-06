@@ -24,7 +24,7 @@ export const recordSessionKey = (record: Address) => record.schemaVersion === 1 
   : qualifiedSessionKey(record.host!, record.sessionId, record.contextId!);
 export const recordInvocationKey = (record: Address) => record.schemaVersion === 1 ? sessionKey(record.invocationId)
   : sessionKey(JSON.stringify([record.host, record.sessionId, record.contextId, record.invocationId]));
-type BoundIdentity = RecordingIdentity & ({ schemaVersion: 1; host?: never; contextId?: never } | ({ schemaVersion: 2 | 3 | 4 } & HostIdentity));
+type BoundIdentity = RecordingIdentity & ({ schemaVersion: 1; host?: never; contextId?: never } | ({ schemaVersion: 2 | 3 | 4 | 5 } & HostIdentity));
 type Pending = { text: string; bytes: number; record: ArchiveRecord };
 export class ArchiveWriter {
   private readonly writerId = randomUUID();
@@ -50,7 +50,7 @@ export class ArchiveWriter {
     this[kind]++; this.lossVersion++; this.changed();
   }
   private record(identity: BoundIdentity, stage: ArchiveRecord['stage'], data: Record<string, unknown>): ArchiveRecord {
-    if (identity.schemaVersion === 4 && ['request', 'assessment', 'decision', 'permission', 'assessment-status'].includes(stage)) {
+    if (identity.schemaVersion >= 4 && ['request', 'assessment', 'decision', 'permission', 'assessment-status'].includes(stage)) {
       data = { evidenceContext: UNAVAILABLE_EVIDENCE_CONTEXT,
         ...(stage === 'request' ? { selectionVersion: UNAVAILABLE_EVIDENCE_CONTEXT.selectionVersion } : {}), ...data };
     }

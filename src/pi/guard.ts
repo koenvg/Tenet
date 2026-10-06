@@ -7,7 +7,7 @@ import { OwnerReports } from './owner-reports.js';
 import { nativeHistory } from './history.js';
 import { readConfig } from '../runtime/config.js';
 
-type Options = Pick<GuardOptions, 'judge' | 'createJudge' | 'judgeIdentity' | 'actionResolver' | 'env' | 'controlPath'> & { onEligible?: () => void };
+type Options = Pick<GuardOptions, 'judge' | 'createJudge' | 'judgeIdentity' | 'actionResolver' | 'env' | 'controlPath'> & { onEligible?: (eligible: (ctx: ExtensionContext) => boolean) => void };
 
 /** Pi owns native translation, trusted UI and dispatch. The documented SDK owns the guard. */
 export function registerGuard(pi: ExtensionAPI, options: Options = {}): void {
@@ -19,7 +19,7 @@ export function registerGuard(pi: ExtensionAPI, options: Options = {}): void {
     capabilities: ['interception', 'lifecycle-invalidation', 'trusted-approval'],
     limitations: ['host-dispatch-not-execution-proof', 'native-result-has-no-invocation-id', 'arguments-not-frozen-after-hook-release', 'host-version-unverified'],
     onOwnerRecord: (record: OwnerRecord) => {
-      const entry = { version: 3, stage: record.stage, time: Date.now(), ...structuredClone(record.data) };
+      const entry = { version: 4, stage: record.stage, time: Date.now(), ...structuredClone(record.data) };
       boundary.attempt(() => pi.appendEntry('tenet', entry));
       if (record.stage === 'status' && record.data.reason === 'policy-stale') {
         reports.setCoverage('policy-stale');
@@ -70,6 +70,8 @@ export function registerGuard(pi: ExtensionAPI, options: Options = {}): void {
     session.setHistory(recovered.history, recovered.capture);
   };
   const eligible = () => session && !['uninitialized', 'dormant', 'closed'].includes(session.status().state);
+  const ownerEligible = (ctx: ExtensionContext) => Boolean(eligible() && activeContext?.cwd === ctx.cwd
+    && session!.status().identity.sessionId === identity(ctx).sessionId);
   const reportRecording = (work: () => void) => { try { work(); } catch { /* Capture UI must not veto. */ } };
   const captureSummary = (drained?: boolean) => {
     const health = guard.status().capture;
@@ -84,18 +86,26 @@ export function registerGuard(pi: ExtensionAPI, options: Options = {}): void {
     // Pi has one active native session. Close the old handle before replacing it.
     const token = ++opening;
     const previous = session;
+    const previousContext = activeContext;
     session = undefined; activeContext = undefined; recordingStatus = () => {};
+    reports.reset('not-started');
+    if (previousContext?.hasUI) {
+      boundary.attempt(() => previousContext.ui.setStatus('tenet', undefined));
+      reportRecording(() => previousContext.ui.setStatus('tenet-recording', undefined));
+    }
     await previous?.close();
     if (token !== opening) return;
     if (guard.status().closed) guard = create();
     const opened = guard.openSession(identity(ctx), ctx.cwd);
     session = opened;
     const ready = await opened.ready;
-    if (session !== opened || !eligible()) return;
+    if (session !== opened) return;
+    reports.reset(ready.state === 'dormant' ? 'dormant' : ready.reason ?? `ready: ${ready.policy.ruleCount} rules [${ready.profile}; ${ready.questionVersion}]`);
+    if (!eligible()) return;
     activeContext = ctx;
     if (!commandsRegistered) {
-      boundary.attempt(() => reports.register(pi));
-      boundary.attempt(() => options.onEligible?.());
+      boundary.attempt(() => reports.register(pi, ownerEligible));
+      boundary.attempt(() => options.onEligible?.(ownerEligible));
       commandsRegistered = true;
     }
     recordingStatus = () => {
@@ -104,7 +114,12 @@ export function registerGuard(pi: ExtensionAPI, options: Options = {}): void {
       });
     };
     if (control.read() === 'on') recover(ctx);
-    reports.reset(ready.reason ?? `ready: ${ready.policy.ruleCount} rules [${ready.profile}; ${ready.questionVersion}]`);
+    reports.setPolicyDetails([
+      ...ready.policy.candidates.map(c => `${c.role} candidate: ${display(c.source).slice(0, 512)}; ${c.presence}`),
+      ...ready.policy.sources.map(s => `${s.role} source: ${display(s.source).slice(0, 512)}; target ${display(s.target).slice(0, 512)}; SHA-256 ${s.digest}; ${s.bytes} bytes; ${s.ruleCount} rules`),
+      `Policy set SHA-256: ${ready.policy.combinedDigest ?? 'unavailable'}; ${ready.policy.ruleCount} total rules`,
+      ...(ready.policy.failedRole ? [`Failure: ${ready.policy.failedRole}; ${ready.reason ?? ready.policy.reason}`] : []),
+    ].join('\n'));
     boundary.attempt(() => reports.restore(ctx.sessionManager.getBranch?.()));
     if (ctx.hasUI) {
       reports.status(ctx); recordingStatus();
@@ -112,7 +127,7 @@ export function registerGuard(pi: ExtensionAPI, options: Options = {}): void {
         const capture = guard.status().capture;
         reportRecording(() => ctx.ui.notify(capture.kind === 'external' ? 'TENET recording EXTERNAL: health unknown.'
           : `TENET recording ${capture.kind === 'local-archive' ? 'ON' : 'OFF'}: ${display(capture.directory)}. Submitted evidence may contain secrets. TENET_RECORDING=off disables capture.${capture.issue ? ` ${capture.issue}` : ''}`, 'info'));
-        ctx.ui.notify(`TENET ${mode.toUpperCase()} ${ready.modeWarning ?? ''} ${ready.reason ? `unavailable (${ready.reason}); ${mode === 'enforce' ? 'intercepted calls BLOCK' : 'observation unavailable'}.` : `ready: ${ready.policy.ruleCount} rules plus policy integrity.`} Assessment profile: ${ready.profile}. Judge questions: ${ready.questionVersion}. ${ready.policy.digest ? `Policy ${display(ready.policy.source)}, SHA-256 ${ready.policy.digest}.` : 'Load a UTF-8 policy with nonempty Rule; declarations, then reload or restart.'} Judge: ${ready.judge.provider === 'typesafe' ? 'TypeSafe' : ready.judge.provider === 'apus-llamacpp' ? 'APUS llama.cpp experimental' : ready.judge.provider === 'injected' ? 'injected judge' : 'unknown'}; requested model ${display(ready.judge.requestedModel ?? 'unknown')}; local availability ${ready.judge.availability}, connectivity unverified. Settings: ${ready.configuration.source}; ${ready.configuration.settings}; deadline ${ready.configuration.deadlineMs ?? 'unavailable'}ms; queue ${JSON.stringify(ready.configuration.observation)}. Rule text, selected tool evidence and bounded recent observations reach ${ready.judge.provider === 'typesafe' ? 'TypeSafe' : ready.judge.provider === 'apus-llamacpp' ? 'the owner-selected APUS loopback backend, including Pika through private forwarding' : ready.judge.provider === 'injected' ? 'the injected judge, whose destination the SDK caller controls' : 'no provider while settings are invalid'}. No filesystem sandbox or subprocess observation.`, ready.reason || ready.modeWarning ? 'error' : 'info');
+        ctx.ui.notify(`TENET ${mode.toUpperCase()} ${ready.modeWarning ?? ''} ${ready.reason ? `unavailable (${ready.reason}); ${mode === 'enforce' ? 'intercepted calls BLOCK' : 'observation unavailable'}.` : `ready: ${ready.policy.ruleCount} rules plus policy integrity.`} Assessment profile: ${ready.profile}. Judge questions: ${ready.questionVersion}. ${ready.policy.combinedDigest ? `Policy set SHA-256 ${ready.policy.combinedDigest}. ${ready.policy.sources.map(s => `${s.role} ${display(s.source).slice(0, 512)} -> ${display(s.target).slice(0, 512)}, SHA-256 ${s.digest}, ${s.bytes} bytes, ${s.ruleCount} rules`).join('; ')}.` : 'Load a UTF-8 policy with nonempty Rule; declarations, then reload or restart.'} Judge: ${ready.judge.provider === 'typesafe' ? 'TypeSafe' : ready.judge.provider === 'apus-llamacpp' ? 'APUS llama.cpp experimental' : ready.judge.provider === 'injected' ? 'injected judge' : 'unknown'}; requested model ${display(ready.judge.requestedModel ?? 'unknown')}; local availability ${ready.judge.availability}, connectivity unverified. Settings: ${ready.configuration.source}; ${ready.configuration.settings}; deadline ${ready.configuration.deadlineMs ?? 'unavailable'}ms; queue ${JSON.stringify(ready.configuration.observation)}. Rule text, selected tool evidence and bounded recent observations reach ${ready.judge.provider === 'typesafe' ? 'TypeSafe' : ready.judge.provider === 'apus-llamacpp' ? 'the owner-selected APUS loopback backend, including Pika through private forwarding' : ready.judge.provider === 'injected' ? 'the injected judge, whose destination the SDK caller controls' : 'no provider while settings are invalid'}. No filesystem sandbox or subprocess observation.`, ready.reason || ready.modeWarning ? 'error' : 'info');
       }
     }
   });
@@ -149,11 +164,13 @@ export function registerGuard(pi: ExtensionAPI, options: Options = {}): void {
     const token = ++opening;
     const wasEligible = eligible();
     activeContext = undefined; recordingStatus = () => {};
+    if (wasEligible && ctx.hasUI) boundary.attempt(() => ctx.ui.setStatus('tenet', undefined));
     const drained = await guard.close();
     if (token !== opening) return;
     session = undefined;
+    reports.reset('closed');
     if (wasEligible && ctx.hasUI) reportRecording(() => {
-      ctx.ui.setStatus('tenet-recording', captureSummary(drained));
+      ctx.ui.setStatus('tenet-recording', _event.reason && _event.reason !== 'quit' ? undefined : captureSummary(drained));
     });
   });
 }

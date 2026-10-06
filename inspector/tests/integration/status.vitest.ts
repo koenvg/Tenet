@@ -14,7 +14,7 @@ const identity = { sessionId: 'status', invocationId: 'ran', callId: 'ran',
 const address = (schemaVersion: Schema) => ({ ...identity, schemaVersion, host: 'pi', contextId: 'main' });
 const link = (schema: Schema) => `/?session=${recordSessionKey(address(schema))}&invocation=${recordInvocationKey(address(schema))}`;
 const bind = (writer: FixtureArchiveWriter, schema: Schema) => schema === 1 ? writer.bindHistorical(identity, 1)
-  : schema === 4 ? writer.bind(address(schema)) : schema === 2 ? writer.bindHistorical(address(schema), 2) : writer.bindHistorical(address(schema), 3);
+  : schema === 4 ? writer.bindHistorical(address(schema), 4) : schema === 2 ? writer.bindHistorical(address(schema), 2) : writer.bindHistorical(address(schema), 3);
 const question = { type: 'choice', instructions: 'Historical authored question, not current instructions.',
   criteria: { PASS: 'Satisfied.', FAIL: 'Violated.', UNKNOWN: 'Uncertain.', APPROVAL_REQUIRED: 'Requires confirmation.' } };
 const policy = { source: '/synthetic/TENET.md', digest: 'synthetic', target: '/synthetic/TENET.md',

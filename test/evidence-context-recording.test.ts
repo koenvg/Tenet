@@ -116,7 +116,7 @@ test('prepared request, assessment and final archive stages carry identical diag
   try {
     const { records, submitted } = await recordFixture(root);
     for (const request of records.filter(r => r.stage === 'request')) {
-      assert.equal(request.schemaVersion, 4);
+      assert.equal(request.schemaVersion, 5);
       const invocation = records.filter(r => r.invocationId === request.invocationId);
       for (const stage of invocation.filter(r => ['assessment', 'decision'].includes(r.stage)
         || r.stage === 'assessment-status' && r.data.status === 'completed')) assert.deepEqual(stage.data.evidenceContext, request.data.evidenceContext);

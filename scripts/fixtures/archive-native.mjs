@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 export const alias = 'apus-openjev-v1-4b-q8';
 export const baseUrl = 'http://127.0.0.1:8088';
 const ids = text => Array.from(text, c => /^[A-P]$/.test(c) ? c.charCodeAt(0) - 33 : 1000 + c.codePointAt(0));
-export function scriptedNative({ outcome = () => 'PASS', beforeCompletion = async () => {}, fail = () => false } = {}) {
+export function scriptedNative({ ruleCount = 1, outcome = () => 'PASS', beforeCompletion = async () => {}, fail = () => false } = {}) {
+  assert.ok(Number.isInteger(ruleCount) && ruleCount >= 1 && ruleCount <= 16);
   const calls = []; let scoring = 0;
   const fetch = async (url, init) => {
     const target = new URL(String(url));
@@ -23,13 +24,13 @@ export function scriptedNative({ outcome = () => 'PASS', beforeCompletion = asyn
       assert.equal(body.add_special, false); assert.equal(body.parse_special, true);
       value = { tokens: ids(body.content) };
     } else if (target.pathname === '/completion') {
-      const question = scoring++ % 4;
+      const question = scoring++ % ((ruleCount + 1) * 2);
       await beforeCompletion(question);
       assert.equal(body.n_predict, 1); assert.equal(body.n_probs, 1024);
       assert.equal(body.temperature, 0); assert.equal(body.post_sampling_probs, false);
       const prompt = body.prompt.map(id => id >= 32 && id <= 47 ? String.fromCharCode(id + 33) : String.fromCodePoint(id - 1000)).join('');
       const labels = /Return only the selected letter: ([A-P, ]+)\./.exec(prompt)[1].replaceAll(', ', '');
-      const winner = question === 0 ? { PASS: 'A', APPROVAL_REQUIRED: 'B', FAIL: 'C', UNKNOWN: 'D' }[outcome()] : 'A';
+      const winner = question < ruleCount * 2 && question % 2 === 0 ? { PASS: 'A', APPROVAL_REQUIRED: 'B', FAIL: 'C', UNKNOWN: 'D' }[outcome()] : 'A';
       assert.ok(winner && labels.includes(winner));
       const row = token => ({ id: ids(token)[0], token, bytes: [token.charCodeAt(0)], logprob: token === winner ? -0.01 : -9 });
       value = { model: alias, content: winner, tokens: [row(winner).id], tokens_predicted: 1, tokens_evaluated: body.prompt.length,

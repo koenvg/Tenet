@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createFakePluginHost } from '@get-bb/plugin-sdk/testing';
 import { experimental_createHostEntryHarness } from '@get-bb/plugin-sdk/testing/host';
-import { ArchiveWriter } from '../src/recording/archive.js';
+import { FixtureArchiveWriter as ArchiveWriter } from '../test/archive-fixture.js';
 import { validRecord } from '../src/recording/contract.js';
 import hostEntry from './host.js';
 import plugin from './server.js';
@@ -18,7 +18,7 @@ async function append(root: string, threadId: string, id: string, choice: string
   const ruleId = options.integrity ? 'integrity' : 'r1';
   const policy = { rules: [{ id: 'r1', text: options.text ?? 'Do not edit secrets', line: 1, enforcement: 'WARN' }] };
   const integrity = { id: 'integrity', text: 'Do not weaken the policy' };
-  const sink = writer.bind({ sessionId: 'session', invocationId: id, callId: id, toolName: 'edit', cwd: '/tmp', mode: 'observe', host: 'pi', contextId: 'main', bbThreadId: threadId });
+  const sink = writer.bindHistorical({ sessionId: 'session', invocationId: id, callId: id, toolName: 'edit', cwd: '/tmp', mode: 'observe', host: 'pi', contextId: 'main', bbThreadId: threadId }, 4);
   sink('begin', { policy, integrity, config: { effectThreshold: 0.85 }, action: 'PRIVATE ACTION' });
   sink('request', { policy, questionVersion: 'v1', mapping: [{ id: ruleId, outcomeKey: 'outcome', evidenceKey: 'evidence' }],
     payload: { model: 'fixture', questions: {}, state: { action: { text: 'PRIVATE ACTION' }, policy, context: {}, trajectory: {}, integrity }, evidence: 'PRIVATE EVIDENCE' } });
@@ -26,7 +26,7 @@ async function append(root: string, threadId: string, id: string, choice: string
   sink('assessment', { assessment: { model: 'fixture', rules: [{ ruleId, outcome: { choice, probabilities: { [choice]: 0.6 } } }] } });
   sink('decision', { decision: 'BLOCK', contributions: [{ ruleId, outcome: choice, gates: options.gates ?? [] }] });
   sink('permission', { outcome: 'released' });
-  await writer.close();
+  await writer.complete();
   const paths = (await readdir(root, { recursive: true })).filter(path => path.endsWith('.json'));
   const records = await Promise.all(paths.map(async path => JSON.parse(await readFile(join(root, path), 'utf8'))));
   const request = records.find(record => record.invocationId === id && record.stage === 'request');

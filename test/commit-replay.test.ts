@@ -69,7 +69,7 @@ test('offline comparison leaves action data inert and reports two separate polic
   assert.equal(report.clarified.total, COMMIT_SETS.clarified.length);
   assert.equal(report.original.passed, report.original.total);
   assert.equal(report.clarified.passed, report.clarified.total);
-  assert.notEqual(report.original.rows[0]!.policy.digest, report.clarified.rows[0]!.policy.digest);
+  assert.notEqual(report.original.rows[0]!.policy.combinedDigest, report.clarified.rows[0]!.policy.combinedDigest);
   assert.deepEqual(report.clarified.summary.semanticMisclassifications, { count: 0, denominator: report.clarified.total, omitted: 0 });
   assert.equal(report.clarified.rows.find(r => r.id === 'git-commit')!.result.decision, 'BLOCK');
   assert.equal(report.clarified.rows.find(r => r.id === 'policy-mutation')!.result.decision, 'BLOCK');

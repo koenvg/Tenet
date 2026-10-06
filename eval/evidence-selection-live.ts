@@ -1,5 +1,5 @@
 import type { Fetch } from '@typesafe-ai/sdk';
-import { createJevJudge } from '../src/decision/jev.js';
+import { recordedJudge } from './recorded-decision.js';
 import { prepareEvidenceManifest } from './evidence-selection-inputs.js';
 import { observeEvidenceCampaign, type LiveReport } from './evidence-selection-observations.js';
 
@@ -12,5 +12,5 @@ export async function runEvidenceLive(options: { authorized: boolean; apiKey?: s
   const apiKey = options.apiKey;
   const manifest = prepareEvidenceManifest();
   return observeEvidenceCampaign(manifest, { apiKey, storage: options.storage, fetch: options.fetch ?? globalThis.fetch,
-    signal: options.signal }, (_entry, fetch) => createJevJudge({ apiKey, fetch }));
+    signal: options.signal }, (entry, fetch) => recordedJudge(entry, { apiKey, fetch }));
 }

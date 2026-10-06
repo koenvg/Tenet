@@ -11,12 +11,13 @@ import { ruleContributions } from '../src/recording/rules.js';
 import { ActionResolution } from '../src/runtime/resolved-action.js';
 import { applicabilityCorpus, fixtureIdentity, type ApplicabilityFixture } from './applicability-fixtures.js';
 import { compareApplicability, renderApplicabilityReport, type ComparisonObservation, type ComparisonContract } from './applicability-comparison.js';
+import { fixturePolicy } from './generic-rule-fixtures.js';
 
 // Deliberately scripted judgments exercise mechanics, not model semantics.
 async function replay(fixture: ApplicabilityFixture): Promise<ComparisonObservation> {
   const identity = fixtureIdentity(fixture);
-  const policy = { available: true as const, source: '/fixture/TENET.md', target: '/fixture/TENET.md', digest: identity.policyDigest,
-    rules: [{ id: `${identity.policyDigest}:1`, line: 1, text: fixture.policy.replace(/^Rule; BLOCK; /, ''), enforcement: 'BLOCK' as const }] };
+  const policy = fixturePolicy({ id: fixture.id, sourceText: fixture.policy, rules: [fixture.policy.replace(/^Rule; BLOCK; /, '')], outcomes: [],
+    integrity: 'PASS', expectedDecision: 'ALLOW', input: { toolName: 'fixture-description', arguments: {} } });
   const ordinary = 'ordinaryInput' in fixture ? fixture.ordinaryInput : null;
   const action = { ...captureAction({ sessionId: 'offline', callId: fixture.id, toolName: 'fixture-description',
     description: ordinary?.description, parameters: ordinary ? { type: 'object',

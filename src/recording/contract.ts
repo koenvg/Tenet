@@ -1,9 +1,10 @@
 import { validEvidenceContext } from '../decision/evidence-context-contract.js';
 import { validNativeCapture } from './native.js';
+import { validPolicySnapshot, policyEvidence, policyIntegrity } from '../decision/policy-contract.js';
 // Recording is a one-way diagnostic channel, never a decision input.
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 // Readers preserve original payloads from historical schemas.
-export const READER_SCHEMAS = [1, 2, 3, 4] as const;
+export const READER_SCHEMAS = [1, 2, 3, 4, 5] as const;
 export const STAGES = ['begin', 'request', 'response', 'validation', 'assessment', 'assessment-status', 'decision', 'approval', 'permission', 'execution', 'health'] as const;
 export type Stage = typeof STAGES[number];
 export type RecordingSink = (stage: Stage, data: Record<string, unknown>) => void;
@@ -19,7 +20,7 @@ export type HostIdentity = { host: string; contextId: string };
 export type ArchiveRecord = RecordingIdentity & {
   writerId: string; sequence: number; eventId: string;
   timestamp: number; stage: Stage; data: Record<string, unknown>;
-} & ({ schemaVersion: 1; host?: never; contextId?: never } | { schemaVersion: 2 | 3 | 4; host: string; contextId: string });
+} & ({ schemaVersion: 1; host?: never; contextId?: never } | { schemaVersion: 2 | 3 | 4 | 5; host: string; contextId: string });
 export function capture(sink: RecordingSink | undefined, stage: Stage, data: () => Record<string, unknown>): void {
   try { sink?.(stage, data()); } catch { /* A diagnostic callback cannot affect the caller. */ }
 }
@@ -58,9 +59,17 @@ function object(value: unknown): value is Record<string, unknown> {
 function validStage(r: ArchiveRecord): boolean {
   const d = r.data;
   if (!validNativeCapture(r.stage, d)) return false;
-  if (r.schemaVersion === 4 && ['request', 'assessment', 'decision', 'permission', 'assessment-status'].includes(r.stage)
+  if (r.schemaVersion === 5 && r.stage === 'begin' && !validPolicySnapshot(d.policy)) return false;
+  if (r.schemaVersion === 5 && r.stage === 'request') {
+    const state = object(d.payload) ? d.payload.state : null;
+    if (!validPolicySnapshot(d.policy) || !d.policy.available || !object(state)
+      || JSON.stringify(state.policy) !== JSON.stringify(policyEvidence(d.policy))
+      || JSON.stringify(state.integrity) !== JSON.stringify(policyIntegrity(d.policy))
+      || d.questionVersion !== 'policy-rules-v8-source-set') return false;
+  }
+  if (r.schemaVersion >= 4 && ['request', 'assessment', 'decision', 'permission', 'assessment-status'].includes(r.stage)
     && !validEvidenceContext(d.evidenceContext)) return false;
-  if (r.schemaVersion === 4 && r.stage === 'request' && d.selectionVersion !== (d.evidenceContext as { selectionVersion: string }).selectionVersion) return false;
+  if (r.schemaVersion >= 4 && r.stage === 'request' && d.selectionVersion !== (d.evidenceContext as { selectionVersion: string }).selectionVersion) return false;
   switch (r.stage) {
     case 'request': {
       const p = d.payload;
@@ -88,7 +97,7 @@ export function validRecord(value: unknown): value is ArchiveRecord {
   if (!value || typeof value !== 'object') return false;
   const r = value as ArchiveRecord;
   return (r.schemaVersion === 1 && r.host === undefined && r.contextId === undefined && r.bbThreadId === undefined
-    || (r.schemaVersion === 2 || r.schemaVersion === 3 || r.schemaVersion === 4) && typeof r.host === 'string' && r.host.length > 0 && r.host.length <= 256
+    || (r.schemaVersion === 2 || r.schemaVersion === 3 || r.schemaVersion === 4 || r.schemaVersion === 5) && typeof r.host === 'string' && r.host.length > 0 && r.host.length <= 256
       && typeof r.contextId === 'string' && r.contextId.length > 0 && r.contextId.length <= 256
       && (r.schemaVersion === 2 ? r.bbThreadId === undefined
         : r.bbThreadId === undefined || typeof r.bbThreadId === 'string' && /^thr_[a-z0-9]{8,64}$/.test(r.bbThreadId))) && STAGES.includes(r.stage)

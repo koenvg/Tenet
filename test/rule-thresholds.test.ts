@@ -17,7 +17,7 @@ async function parse(text: string) {
 const action = captureAction({ sessionId: 'threshold', callId: 'test', toolName: 'read', arguments: {} });
 const selected = (value: unknown = 0.8): PolicySet => ({ ...policy, rules: [
   { ...policy.rules[0]!, evidenceThreshold: value } as Rule,
-  { id: 'second', line: 2, text: 'Never delete backups.', enforcement: 'BLOCK' },
+  { ...policy.rules[0]!, id: 'second', line: 2, text: 'Never delete backups.', enforcement: 'BLOCK' },
 ] });
 function scored(p: PolicySet, probability: number) {
   const assessment = answer(p);

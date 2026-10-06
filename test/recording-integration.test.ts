@@ -48,6 +48,7 @@ test('capture on/off/disk-failing leaves both modes, approvals, permission and e
 
 test('records real passing and concerning requests before a fresh reader opens; resumed and forked identities stay separate', { timeout: 30000 }, () => temp(async dir => {
   const fixture = await recordFixture(dir);
+  const policy = fixture.records.find(record => record.stage === 'begin')!.data.policy;
   assert.equal(fixture.records.filter(r => r.stage === 'decision').length, 2);
   const child = spawnSync('bun', ['-e', `
     import {startInspector} from './src/inspector/server.ts';
@@ -61,8 +62,8 @@ test('records real passing and concerning requests before a fresh reader opens; 
   assert.deepEqual(JSON.parse(child.stdout), [{ sessionId: 's', invocations: 2 }]);
   const writer = new ArchiveWriter({ enabled: true, directory: dir });
   const identity = { host: 'pi', contextId: 'main', sessionId: 's', invocationId: 'resumed', callId: 'new', toolName: 'edit', cwd: '/project', mode: 'observe' as const };
-  writer.bind(identity)('begin', {});
-  writer.bind({ ...identity, sessionId: 'fork' })('begin', {});
+  writer.bind(identity)('begin', { policy });
+  writer.bind({ ...identity, sessionId: 'fork' })('begin', { policy });
   await writer.close();
   const reopened = await readArchive(dir);
   assert.equal(reopened.records.length, fixture.records.length + 2);
@@ -163,6 +164,7 @@ test('reused host call IDs across a session switch cannot attribute a late resul
     await h.start(); await h.call('reused');
     await h.emit('tool_result', { toolCallId: 'reused', toolName: 'edit', content: [{ type: 'text', text: 'late-old-session-evidence' }], isError: false });
     await h.call('next');
+    await h.assessed('next');
     assert.ok(!trajectories.at(-1)!.includes('late-old-session-evidence'));
     await h.emit('session_shutdown');
     const { records } = await readArchive(dir);

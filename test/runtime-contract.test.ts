@@ -8,6 +8,7 @@ import { GuardRuntime } from '../src/runtime/guard.js';
 import { ActivationStore } from '../src/runtime/activation.js';
 import { guardHarness } from './guard-harness.js';
 import { answer } from './helpers.js';
+import { isolatedHome } from './isolated-home.js';
 
 for (const [mode, outcome, expected, blocked] of [
   ['observe', 'PASS', 'ALLOW', false], ['observe', 'APPROVAL_REQUIRED', 'ASK', false],
@@ -85,7 +86,7 @@ async function embedded(mode: 'observe' | 'enforce', judgeOutcome: 'PASS' | 'FAI
   const file = join(cwd, 'TENET.md');
   await writeFile(file, policy);
   const events: { stage: string; data: Record<string, unknown> }[] = [];
-  const runtime = new GuardRuntime({ env: { TENET_MODE: mode }, activation: new ActivationStore(join(cwd, 'control.json')),
+  const runtime = new GuardRuntime({ env: { ...await isolatedHome(cwd), TENET_MODE: mode }, activation: new ActivationStore(join(cwd, 'control.json')),
     judge: async request => answer(request.policy, judgeOutcome), emit: (stage, data) => events.push({ stage, data }),
   }, capabilities);
   const session = { host: 'fixture', sessionId: 's', contextId: 'parent' };
@@ -103,13 +104,11 @@ async function embedded(mode: 'observe' | 'enforce', judgeOutcome: 'PASS' | 'FAI
 }
 
 for (const mode of ['observe', 'enforce'] as const) {
-  test(`embedded ${mode}: one stale override cannot replace session-local policies`, async () => {
+  test(`embedded ${mode}: relative overrides resolve independently for each session`, async () => {
     const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-local-runtime-')));
     const { mkdir } = await import('node:fs/promises');
     const submitted: string[][] = [], events: string[] = [];
-    const external = join(root, 'external.md');
-    await writeFile(external, 'Rule; external rule');
-    const runtime = new GuardRuntime({ env: { TENET_MODE: mode, TENET_POLICY: external },
+    const runtime = new GuardRuntime({ env: { ...await isolatedHome(root), TENET_MODE: mode, TENET_POLICY: 'external.md' },
       activation: new ActivationStore(join(root, 'control.json')),
       judge: async request => { submitted.push(request.policy.rules.map(rule => rule.text)); return answer(request.policy); },
       emit: stage => { events.push(stage); } }, capabilities);
@@ -118,19 +117,20 @@ for (const mode of ['observe', 'enforce'] as const) {
         const cwd = join(root, name);
         await mkdir(cwd);
         if (name !== 'absent') await writeFile(join(cwd, 'TENET.md'), `Rule; ${name} local rule`);
+        if (name !== 'absent') await writeFile(join(cwd, 'external.md'), `Rule; ${name} selected rule`);
         const identity = { host: 'fixture', sessionId: name, contextId: 'main' };
         await runtime.start(identity, cwd);
-        assert.equal(runtime.readiness.eligible, name !== 'absent');
-        if (name !== 'absent') assert.equal(runtime.readiness.policy.source, join(cwd, 'TENET.md'));
+        assert.equal(runtime.readiness.eligible, true);
+        assert.equal(runtime.readiness.policy.candidates[1]!.source, join(cwd, 'external.md'));
         const invocation = { ...identity, cwd, callId: name, toolName: 'edit', input: {} };
         const before = events.length;
-        assert.equal(await runtime.call({ ...invocation, current: () => invocation }), undefined);
-        if (name === 'absent') assert.equal(events.length, before);
+        assert.equal((await runtime.call({ ...invocation, current: () => invocation }))?.block, name === 'absent' && mode === 'enforce' ? true : undefined);
+        if (name === 'absent') assert.ok(events.length > before);
         else if (mode === 'observe') {
           for (let i = 0; submitted.length < (name === 'first' ? 1 : 2) && i < 400; i++) await new Promise(resolve => setTimeout(resolve, 5));
         }
       }
-      assert.deepEqual(submitted, [['first local rule'], ['second local rule']]);
+      assert.deepEqual(submitted, [['first selected rule'], ['second selected rule']]);
     } finally { runtime.shutdown(); await rm(root, { recursive: true, force: true }); }
   });
 }
@@ -253,7 +253,7 @@ test('host/session policy stays isolated and starting a sibling does not revoke 
     const selected: string[] = [];
     const events: { stage: string; data: Record<string, unknown> }[] = [];
     const runtime = new GuardRuntime({ env: { TENET_MODE: 'enforce' }, activation: new ActivationStore(join(first, 'control.json')),
-      judge: async request => { selected.push(request.policy.source); if (request.action.callId === 'held') { started(); await held; } return answer(request.policy); },
+      judge: async request => { selected.push(request.policy.sources[0]!.source); if (request.action.callId === 'held') { started(); await held; } return answer(request.policy); },
       emit: (stage, data) => events.push({ stage, data }),
     }, capabilities);
     const a = { host: 'fixture', sessionId: 'same', contextId: 'parent' };

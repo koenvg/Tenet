@@ -205,7 +205,7 @@ test('mixed schema-1 Pi and host-qualified Pi/Claude links keep evidence and out
     legacy('begin', { policy: { rules: [{ id: 'old', text: 'Historical rule', line: 1, enforcement: 'BLOCK' }] }, config: { effectThreshold: 0.83 } });
     legacy('decision', { decision: 'BLOCK' });
     for (const [host, contextId] of [['pi', 'main'], ['claude-code', 'main'], ['claude-code', 'child']] as const) {
-      const sink = writer.bind({ ...identity, host, contextId });
+      const sink = writer.bindHistorical({ ...identity, host, contextId }, 4);
       sink('begin', { adapterCoverage: { version: null, limitations: ['actual-host-unverified', 'approval-unavailable'] } });
       sink('decision', { decision: 'ALLOW' }); sink('permission', { outcome: 'released' });
       if (contextId === 'child') sink('execution', { outcome: 'failed' });
@@ -219,7 +219,7 @@ test('real archive filters overlapping categories, expands grouped calls and war
   await withInspector('triage-browser', async ({ page, app, open }) => {
     await page.locator('.invocation').waitFor();
     const status = await (await fetch(`${app.origin}/api/status`)).json();
-    expect(status.reader.supportedSchemas).toEqual([1, 2, 3, 4]);
+    expect(status.reader.supportedSchemas).toEqual([1, 2, 3, 4, 5]);
     expect(status.reader.unsupported).toBe(1);
     expect(status.reader.newerUnsupported).toBe(1);
     expect(status.reader.build).toMatch(/^tenet-reader-/);
@@ -287,7 +287,7 @@ test('real archive filters overlapping categories, expands grouped calls and war
       sink('execution', { outcome: 'executed' });
     }
     await writer.complete();
-    await writeFile(join(directory, key, 'newer.json'), JSON.stringify({ schemaVersion: 5 }), { mode: 0o600 });
+    await writeFile(join(directory, key, 'newer.json'), JSON.stringify({ schemaVersion: 6 }), { mode: 0o600 });
   } });
 });
 

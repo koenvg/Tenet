@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FixtureArchiveWriter } from './archive-fixture.js';
 import { ArchiveIndex } from '../src/inspector/archive-index.js';
+import { policy } from './helpers.js';
 import { readPrivateFile, writeStageFile } from '../src/recording/files.js';
 
 test('static archive readiness follows persistence completion, not the shutdown deadline', async () => {
@@ -22,7 +23,7 @@ test('static archive readiness follows persistence completion, not the shutdown 
     persisted();
   });
   try {
-    writer.bind({ host: 'pi', contextId: 'main', sessionId: 's', invocationId: 'i', callId: 'c', toolName: 'read', cwd: '/tmp', mode: 'observe' })('begin', {});
+    writer.bind({ host: 'pi', contextId: 'main', sessionId: 's', invocationId: 'i', callId: 'c', toolName: 'read', cwd: '/tmp', mode: 'observe' })('begin', { policy });
     await writer.complete();
     let reads = 0;
     const index = new ArchiveIndex(root, async (directory, file) => { reads++; return readPrivateFile(directory, file); });

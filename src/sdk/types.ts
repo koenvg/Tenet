@@ -6,7 +6,7 @@ import type { Mode } from '../runtime/config.js';
 import type { RecordingSink } from '../recording/contract.js';
 
 export type { EvidenceContext } from '../decision/evidence-context-contract.js';
-export type { Judge, JudgeRequest, Assessment, RuleAssessment, Policy, Action, Outcome, Json } from '../decision/contracts.js';
+export type { Judge, JudgeRequest, Assessment, RuleAssessment, Policy, PolicySet, PolicyRole, PolicyCandidate, PolicySource, RuleOrigin, Action, Outcome, Json } from '../decision/contracts.js';
 export type { Approval, ApprovalRequest } from '../runtime/guard.js';
 export type { ActionResolver, ActionFacts, ActionBinding, ResolvedAction, OperationSemantics } from '../runtime/resolved-action.js';
 export type { RecordingSink } from '../recording/contract.js';
@@ -70,7 +70,8 @@ export interface SessionStatus {
   readonly capabilities: Capabilities;
   readonly profile: string;
   readonly questionVersion: string;
-  readonly policy: { readonly source: string; readonly digest: string | null; readonly ruleCount: number };
+  readonly policy: { readonly contractVersion: 'policy-sources-v1'; readonly candidates: readonly import('../decision/contracts.js').PolicyCandidate[];
+    readonly sources: readonly (Omit<import('../decision/contracts.js').PolicySource, 'rules'> & { readonly ruleCount: number })[]; readonly combinedDigest: string | null; readonly ruleCount: number; readonly reason?: string; readonly failedRole?: import('../decision/contracts.js').PolicyRole };
 }
 /** Immutable owner finding snapshot, shared by live permission and late assessment delivery. */
 export interface OwnerReport {
@@ -91,7 +92,7 @@ export interface OwnerReport {
   readonly diagnostics: readonly RuleDiagnostic[];
   readonly validationIssue?: Decision['validationIssue'];
   readonly evidenceContext?: import('../decision/evidence-context-contract.js').EvidenceContext;
-  readonly rules: readonly { readonly id: string; readonly line: number; readonly enforcement: 'BLOCK' | 'WARN'; readonly text?: string }[];
+  readonly rules: readonly { readonly id: string; readonly line: number; readonly origin: import('../decision/contracts.js').RuleOrigin; readonly enforcement: 'BLOCK' | 'WARN'; readonly text?: string }[];
   readonly approvalRules: readonly string[];
 }
 /** Owner-only native transcript records. No submitted request or raw provider response. */

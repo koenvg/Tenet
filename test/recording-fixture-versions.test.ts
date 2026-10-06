@@ -10,12 +10,19 @@ import { ArchiveIndex } from '../src/inspector/archive-index.js';
 import { invocationView } from '../src/inspector/view.js';
 import { FixtureArchiveWriter } from './archive-fixture.js';
 import { HistoricalArchiveWriter } from './legacy-recording-fixture.js';
+import { policy as currentPolicy } from './helpers.js';
+import { policyEvidence, policyIntegrity } from '../src/decision/policy-contract.js';
+import { buildQuestions, assessmentEntries } from '../src/decision/questions.js';
+import { QUESTION_VERSION } from '../src/decision/assessment-shape.js';
 
 const identity = { sessionId: 'recorded', invocationId: 'call', callId: 'call', toolName: 'edit', cwd: '/absent-policy', mode: 'observe' as const };
 const qualified = { ...identity, host: 'pi', contextId: 'main' };
 const request = { payload: { model: 'recorded-model', questions: { original: { instructions: 'recorded instructions' } },
   state: { action: { retained: 'literal' }, policy: { rules: [] }, context: {}, trajectory: {}, integrity: {} } },
   policy: { rules: [] }, mapping: [], questionVersion: 'recorded-question-version' };
+const currentRequest = { ...request, policy: currentPolicy, mapping: assessmentEntries(currentPolicy), questionVersion: QUESTION_VERSION,
+  payload: { ...request.payload, questions: buildQuestions(currentPolicy), state: { ...request.payload.state,
+    policy: policyEvidence(currentPolicy), integrity: policyIntegrity(currentPolicy) } } };
 
 async function temporary(run: (directory: string) => Promise<void>) {
   const directory = await realpath(await mkdtemp(join(tmpdir(), 'tenet-fixture-versions-')));
@@ -25,14 +32,13 @@ async function temporary(run: (directory: string) => Promise<void>) {
 for (const schema of [1, 2, 3, 4] as const) {
   test(`explicit schema ${schema} retains recorded bytes, identities, payload and thresholds`, () => temporary(async directory => {
     const historical = new HistoricalArchiveWriter({ enabled: true, directory });
-    const current = new ArchiveWriter({ enabled: true, directory });
     const sink = schema === 1 ? historical.bindHistorical(identity, 1)
       : schema === 2 ? historical.bindHistorical(qualified, 2)
       : schema === 3 ? historical.bindHistorical({ ...qualified, bbThreadId: 'thr_abcdefgh1234' }, 3)
-      : current.bind(qualified);
+      : historical.bindHistorical(qualified, 4);
     sink('begin', { config: { effectThreshold: .73, evidenceThreshold: .81 }, policy: request.policy });
     sink('request', request);
-    await Promise.all([historical.close(), current.close()]);
+    await historical.close();
     const session = schema === 1 ? sessionKey(identity.sessionId) : qualifiedSessionKey('pi', identity.sessionId, 'main');
     const folder = join(directory, session);
     const files = await readdir(folder);
@@ -66,9 +72,9 @@ test('fixture entry points reject implicit versions and incompatible host metada
   // @ts-expect-error Schema 2 cannot record a BB thread association.
   assert.throws(() => writer.bindHistorical({ ...qualified, bbThreadId: 'thr_abcdefgh1234' }, 2), /invalid-historical-recording-identity/);
   // @ts-expect-error Historical entry points do not select the current writer contract.
-  assert.throws(() => writer.bindHistorical(qualified, 4), /invalid-historical-recording-identity/);
-  writer.bind(qualified)('begin', {});
-  writer.bind({ ...qualified, invocationId: 'linked', bbThreadId: 'thr_abcdefgh1234' })('begin', {});
+  assert.throws(() => writer.bindHistorical(qualified, 5), /invalid-historical-recording-identity/);
+  writer.bind(qualified)('begin', { policy: currentPolicy });
+  writer.bind({ ...qualified, invocationId: 'linked', bbThreadId: 'thr_abcdefgh1234' })('begin', { policy: currentPolicy });
   await writer.complete();
   const archive = await readArchive(directory);
   assert.deepEqual(archive.issues, []);
@@ -78,12 +84,12 @@ test('fixture entry points reject implicit versions and incompatible host metada
 
 test('current request capture exposes invalid provenance instead of falling back to a historical schema', () => temporary(async directory => {
   const writer = new ArchiveWriter({ enabled: true, directory });
-  writer.bind(qualified)('request', request);
+  writer.bind(qualified)('request', currentRequest);
   for (const [index, data] of [
     { evidenceContext: null },
     { evidenceContext: { ...UNAVAILABLE_EVIDENCE_CONTEXT, selectionVersion: 'unknown' } },
     { selectionVersion: 'unknown' },
-  ].entries()) writer.bind({ ...qualified, invocationId: `invalid-${index}` })('request', { ...request, ...data });
+  ].entries()) writer.bind({ ...qualified, invocationId: `invalid-${index}` })('request', { ...currentRequest, ...data });
   await writer.close();
   const archive = await readArchive(directory);
   assert.equal(archive.records.length, 1);

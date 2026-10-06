@@ -17,7 +17,7 @@ async function consumer() {
   await writeFile(join(pkg, 'package.json'), JSON.stringify({ name: manifest.name, type: 'module', exports: manifest.exports }));
   await writeFile(join(root, 'package.json'), '{"type":"module"}');
   await mkdir(join(root, 'home'));
-  return { root, pkg, env: { ...process.env, HOME: join(root, 'home'), TYPESAFE_API_KEY: '', NODE_PATH: '', TENET_RECORDING: 'off' },
+  return { root, pkg, env: { ...process.env, HOME: join(root, 'home'), TENET_POLICY: undefined, TYPESAFE_API_KEY: '', NODE_PATH: '', TENET_RECORDING: 'off' },
     close: () => rm(root, { recursive: true, force: true }) };
 }
 
@@ -68,6 +68,38 @@ console.log('side-effect-free import');
       assert.match(execFileSync(runtime, ['handoff.mjs'], { cwd: h.root, env: h.env, encoding: 'utf8', timeout: 10000 }), /SDK handoff regressions passed/);
       assert.equal((await readFile(join(h.pkg, 'dist/sdk/index.js'), 'utf8')).includes('src/pi'), false);
       await assert.rejects(readFile(join(h.root, 'node_modules/@earendil-works/pi-coding-agent/package.json')));
+    } finally { await h.close(); }
+  });
+  test(`compiled project selection stays offline under isolated ${runtime}`, async () => {
+    const h = await consumer();
+    try {
+      await writeFile(join(h.root, 'selection.mjs'), `
+import assert from 'node:assert/strict';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
+import { createGuard } from 'tenet';
+await mkdir(join(homedir(), '.tenet'), { mode: 0o700 });
+await writeFile(join(homedir(), '.tenet/TENET.md'), 'Rule; synthetic home rule');
+const cwd = join(process.cwd(), 'project');
+await mkdir(cwd);
+await writeFile(join(cwd, 'selected.md'), 'Rule; selected rule');
+for (const mode of ['observe', 'enforce']) {
+  for (const value of [undefined, 'selected.md', join(cwd, 'selected.md'), 'missing.md', '', '  ']) {
+    const guard = createGuard({ host: 'offline', env: { TENET_MODE: mode, TENET_POLICY: value, TENET_RECORDING: 'off' },
+      controlPath: join(homedir(), '.tenet/control.json'), judge: async () => { throw new Error('no assessment expected'); } });
+    try {
+      const session = guard.openSession({ sessionId: 'test', contextId: 'main' }, cwd);
+      const status = await session.ready;
+      assert.equal(status.state, value === undefined || value.endsWith('selected.md') ? 'ready' : 'unavailable');
+      assert.deepEqual(status.policy.candidates.map(c => c.role), ['global', 'project']);
+      if (status.state === 'ready') assert.deepEqual(status.policy.sources.map(s => s.role), value === undefined ? ['global'] : ['global', 'project']);
+    } finally { await guard.close(); }
+  }
+}
+console.log('Offline project selection passed');
+`);
+      assert.match(execFileSync(runtime, ['selection.mjs'], { cwd: h.root, env: h.env, encoding: 'utf8', timeout: 10000 }), /Offline project selection passed/);
     } finally { await h.close(); }
   });
   test(`compiled capture status distinguishes local, external and disabled recording under isolated ${runtime}`, async () => {

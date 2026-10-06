@@ -9,7 +9,7 @@ import { answer, policy, sdkAnswers } from './helpers.js';
 import { Observations } from '../src/decision/trajectory.js';
 import { assembleAssessment } from '../src/decision/assessment-answers.js';
 
-const selected = { ...policy, rules: [...policy.rules, { id: 'second', line: 2, text: 'Never delete files outside the project directory.', enforcement: 'BLOCK' as const }] };
+const selected = { ...policy, rules: [...policy.rules, { ...policy.rules[0]!, id: 'second', line: 2, text: 'Never delete files outside the project directory.', enforcement: 'BLOCK' as const }] };
 const action = captureAction({ sessionId: 's', callId: 'c', toolName: 'new-tool', arguments: { objects: ['code'], authorization: 'hidden' } });
 const base = { policy: selected, action, cwd: '/project' };
 function response() {
@@ -70,9 +70,9 @@ test('one official SDK request assesses every rule with generic evidence and tru
   assert.equal(body.model, 'jev-latest'); assert.deepEqual(body.state.action, action);
   assert.deepEqual(body.state.trajectory, trajectory);
   assert.equal(body.state.resolvedAction.status, 'unsupported');
-  assert.deepEqual(body.state.policy.rules, selected.rules.map(({ id, line, text }) => ({ id, line, text })));
+  assert.deepEqual(body.state.policy.rules, selected.rules.map(({ id, line, text, origin }) => ({ id, line, text, origin: { role: origin.role, digest: origin.digest, line: origin.line } })));
   assert.ok(!JSON.stringify(body.state.policy).includes('enforcement'));
-  assert.equal(body.state.context.cwd, '/project'); assert.equal(body.state.policy.target, '/policy');
+  assert.equal(body.state.context.cwd, '/project'); assert.equal(body.state.policy.sources[0].target, '/synthetic/TENET.md');
   assert.equal(body.state.integrity.id, INTEGRITY_ID); assert.equal(body.state.integrity.text, INTEGRITY_TEXT);
   assert.ok(!JSON.stringify(body.state).includes('hidden'));
   assert.equal(calls, 1); assert.equal(result.decision, 'ALLOW'); assert.equal(result.assessment?.model, 'jev-returned');

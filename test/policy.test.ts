@@ -18,10 +18,10 @@ test('explicit rules retain text, order, source lines and immutable snapshot ide
     const policy = await loadPolicy(file);
     assert.ok(policy.available);
     assert.deepEqual(policy.rules.map(r => [r.line, r.text]), [[2, 'Never delete; ask the owner instead.'], [5, 'Same'], [7, 'Same']]);
-    assert.equal(policy.digest, createHash('sha256').update(text).digest('hex'));
-    assert.equal(policy.source, file);
+    assert.equal(policy.sources[0]!.digest, createHash('sha256').update(text).digest('hex'));
+    assert.equal(policy.sources[0]!.source, file);
     assert.equal(new Set(policy.rules.map(r => r.id)).size, 3);
-    assert.ok(policy.rules.every(r => r.id.includes(policy.digest)));
+    assert.ok(policy.rules.every(r => r.id.includes(policy.sources[0]!.digest)));
     assert.ok(Object.isFrozen(policy) && Object.isFrozen(policy.rules) && Object.isFrozen(policy.rules[0]));
     assert.equal(await policyIsCurrent(policy), true);
     await writeFile(file, 'Rule; New');
@@ -39,7 +39,7 @@ test('BLOCK and WARN declarations preserve semantic text and legacy semicolons',
       [4, 'BLOCK', 'Never delete; ask first.'], [5, 'BLOCK', 'warn; legacy text'],
     ]);
     assert.equal(new Set(policy.rules.map(r => r.id)).size, 4);
-    assert.ok(policy.rules.every(r => Object.isFrozen(r) && r.id === `${policy.digest}:${r.line}`));
+    assert.ok(policy.rules.every(r => Object.isFrozen(r) && r.id === `project:${policy.sources[0]!.digest}:${r.line}`));
     for (const prefix of ['BLOCK', 'WARN']) {
       await writeFile(file, `Rule; ${prefix}; `);
       assert.equal((await loadPolicy(file)).available, false);
@@ -85,7 +85,7 @@ test('freshness detects deletion and same-byte symlink retargeting', async () =>
     await writeFile(a, 'Rule; Example'); await writeFile(b, 'Rule; Example');
     await symlink(a, file);
     const policy = await loadPolicy(file); assert.ok(policy.available);
-    assert.equal(policy.target, await import('node:fs/promises').then(fs => fs.realpath(a)));
+    assert.equal(policy.sources[0]!.target, await import('node:fs/promises').then(fs => fs.realpath(a)));
     assert.equal(await policyIsCurrent(policy), true);
     await unlink(file); await symlink(b, file);
     assert.equal(await policyIsCurrent(policy), false);

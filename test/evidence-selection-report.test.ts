@@ -8,15 +8,13 @@ test('paired report is deterministic, retains all authored denominators and sepa
   const report = await generate();
   assert.deepEqual(report, await generate());
   const historical = JSON.parse(readFileSync(new URL('../eval/evidence-selection/report.json', import.meta.url), 'utf8'));
-  // Only question-derived identity, text, digests and request bytes change. Keep
-  // every authored state, assessment, gate, denominator and expectation intact.
+  // Current provenance changes request bytes and declaration IDs, not authored
+  // decisions, history losses, threshold gates or denominators. Recorded bytes stay pinned.
   const mechanics = (row: typeof report.pairs[number]['baseline']) => {
-    const { questionVersion, questionDigest, payloadDigest, requestBytes, payload, ...recorded } = row;
-    const questions = Object.fromEntries(Object.entries(payload.questions).map(([key, question]) => {
-      const { instructions, ...shape } = question as { instructions: string; type: string; criteria: Record<string, string> };
-      return [key, shape];
-    }));
-    return { ...recorded, payload: { ...payload, questions } };
+    const { questionVersion, questionDigest, payloadDigest, requestBytes, payload, diagnostics, stateBytes, assessment, ...recorded } = row;
+    return { ...recorded, diagnostics: diagnostics?.map(d => ({ ...d, ruleId: d.ruleId.replace(/^project:/, '') })),
+      assessment: assessment && { ...assessment, rules: assessment.rules.map(r => ({ ...r, ruleId: r.ruleId.replace(/^project:/, '') })) },
+      action: payload.state.action, context: payload.state.context, trajectory: payload.state.trajectory, resolvedAction: payload.state.resolvedAction };
   };
   const projection = (value: typeof report) => ({ ...value,
     pairs: value.pairs.map(pair => ({ ...pair, baseline: mechanics(pair.baseline), candidate: mechanics(pair.candidate) })) });
@@ -24,7 +22,7 @@ test('paired report is deterministic, retains all authored denominators and sepa
   assert.equal(renderEvidenceReport(historical), readFileSync(new URL('../eval/evidence-selection/report.md', import.meta.url), 'utf8'));
   for (const [i, pair] of report.pairs.entries()) for (const side of ['baseline', 'candidate'] as const) {
     assert.equal(historical.pairs[i][side].questionVersion, 'policy-rules-v7-evidence-selection');
-    assert.equal(pair[side].questionVersion, 'policy-rules-v7-ordinary-evidence');
+    assert.equal(pair[side].questionVersion, 'policy-rules-v8-source-set');
     assert.notEqual(pair[side].questionDigest, historical.pairs[i][side].questionDigest);
     assert.notDeepEqual(pair[side].payload.questions, historical.pairs[i][side].payload.questions);
   }

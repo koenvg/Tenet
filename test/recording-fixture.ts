@@ -3,6 +3,7 @@ import { createJevJudge } from '../src/decision/jev.js';
 import { guardHarness } from './guard-harness.js';
 import { answer, sdkAnswers } from './helpers.js';
 import { readArchive } from '../src/recording/archive.js';
+import { SCHEMA_VERSION } from '../src/recording/contract.js';
 
 export async function recordFixture(directory: string) {
   const submitted: any[] = [];
@@ -24,7 +25,7 @@ export async function recordFixture(directory: string) {
     await h.shutdownCaptured();
     const archived = await readArchive(directory);
     assert.deepEqual(archived.issues, [], 'Current capture must satisfy archive validation');
-    assert.ok(archived.records.every(record => record.schemaVersion === 4), 'Current capture must not use historical fixtures');
+    assert.ok(archived.records.every(record => record.schemaVersion === SCHEMA_VERSION), 'Current capture must not use historical fixtures');
     assert.equal(archived.records.filter(r => r.stage === 'request').length, 2);
     assert.deepEqual(archived.records.filter(r => r.stage === 'request').map(r => r.data.payload), submitted);
     assert.ok(!JSON.stringify(archived).includes('fixture-transport-secret'));

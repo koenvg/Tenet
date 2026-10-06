@@ -97,7 +97,7 @@ test('an explicit approval rule can release only after invocation-local confirma
 test('ordinary PASS releases with unsupported stock-host resolution and retains evidence thresholds', async () => {
   const { result, events, archive } = await run({ unsupported: true, selection: 'PASS' });
   assert.equal(result, undefined);
-  assert.ok(archive.every(e => e.data.profile === 'applicability-v1' && e.data.questionVersion === 'policy-rules-v7-ordinary-evidence'));
+  assert.ok(archive.every(e => e.data.profile === 'applicability-v1' && e.data.questionVersion === 'policy-rules-v8-source-set'));
   const assessment = events.find(e => e.stage === 'assessment')!.data.assessment;
   assert.equal(assessment.rules[0].outcome.choice, 'PASS');
   assert.equal(assessment.rules[0].evidence.choice, 'SUFFICIENT');

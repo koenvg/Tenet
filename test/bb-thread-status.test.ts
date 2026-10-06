@@ -21,9 +21,9 @@ test('BB association is optional, validated, and does not change archive keys', 
   for (const invalid of ['', 'thr_short', '../other', 'thr_<script>', 'thr_' + 'a'.repeat(65)]) assert.equal(parseBbThreadId(invalid), undefined);
   const writer = new ArchiveWriter({ enabled: true, directory: root });
   const identity = { sessionId: 'shared', invocationId: 'one', callId: 'c', toolName: 'edit', cwd: '/tmp', mode: 'observe' as const, host: 'pi', contextId: 'main' };
-  writer.bind({ ...identity, bbThreadId: thread })('begin', {});
-  writer.bind({ ...identity, invocationId: 'two' })('begin', {});
-  assert.throws(() => writer.bind({ ...identity, bbThreadId: 'thr_bad!' }));
+  writer.bindHistorical({ ...identity, bbThreadId: thread }, 4)('begin', {});
+  writer.bindHistorical({ ...identity, invocationId: 'two' }, 4)('begin', {});
+  assert.throws(() => writer.bindHistorical({ ...identity, bbThreadId: 'thr_bad!' }, 4));
   await writer.complete();
   const { records, issues } = await readArchive(root);
   assert.deepEqual(issues, []);
@@ -35,7 +35,7 @@ test('BB association is optional, validated, and does not change archive keys', 
 test('linked selected FAILs exclude unlinked history and invalid assessments', () => fixture(async root => {
   const writer = new ArchiveWriter({ enabled: true, directory: root });
   const record = (sessionId: string, invocationId: string, bbThreadId: string | undefined, choice: string, valid = true) => {
-    const sink = writer.bind({ sessionId, invocationId, callId: invocationId, toolName: 'edit', cwd: '/tmp', mode: 'observe', host: 'pi', contextId: 'main', bbThreadId });
+    const sink = writer.bindHistorical({ sessionId, invocationId, callId: invocationId, toolName: 'edit', cwd: '/tmp', mode: 'observe', host: 'pi', contextId: 'main', bbThreadId }, 4);
     sink('begin', { policy: { rules: [{ id: 'rule-one', text: '<script>inert</script> Never publish', line: 4, enforcement: 'WARN' }] }, integrity: { id: 'integrity', text: 'Keep policy intact' } });
     sink('validation', { valid });
     sink('assessment', { assessment: { model: 'fixture', rules: [{ ruleId: 'rule-one', outcome: { choice, probabilities: { FAIL: 0.4 } } }, { ruleId: 'integrity', outcome: { choice: 'PASS' } }] } });
@@ -49,7 +49,7 @@ test('linked selected FAILs exclude unlinked history and invalid assessments', (
   record('shared', 'fork', other, 'FAIL');
   record('different-session', 'later', thread, 'FAIL');
   record('shared', 'invalid-assessment', thread, 'FAIL', false);
-  const bogus = writer.bind({ sessionId: 'shared', invocationId: 'bogus', callId: 'bogus', toolName: 'edit', cwd: '/tmp', mode: 'observe', host: 'pi', contextId: 'main', bbThreadId: thread });
+  const bogus = writer.bindHistorical({ sessionId: 'shared', invocationId: 'bogus', callId: 'bogus', toolName: 'edit', cwd: '/tmp', mode: 'observe', host: 'pi', contextId: 'main', bbThreadId: thread }, 4);
   bogus('begin', { policy: { rules: [{ id: 'real-rule', text: 'Real rule', enforcement: 'BLOCK' }] } });
   bogus('validation', { valid: true });
   bogus('assessment', { assessment: { model: 'fixture', rules: [{ ruleId: 'not-a-policy-rule', outcome: { choice: 'FAIL' } }] } });
@@ -68,8 +68,8 @@ test('linked selected FAILs exclude unlinked history and invalid assessments', (
 
 test('thread coverage reports a missing response stage', () => fixture(async root => {
   const writer = new ArchiveWriter({ enabled: true, directory: root });
-  const sink = writer.bind({ sessionId: 's', invocationId: 'i', callId: 'c', toolName: 'edit', cwd: '/tmp',
-    mode: 'observe', host: 'pi', contextId: 'main', bbThreadId: thread });
+  const sink = writer.bindHistorical({ sessionId: 's', invocationId: 'i', callId: 'c', toolName: 'edit', cwd: '/tmp',
+    mode: 'observe', host: 'pi', contextId: 'main', bbThreadId: thread }, 4);
   sink('begin', { policy: { rules: [{ id: 'r', text: 'Never publish', enforcement: 'BLOCK' }] } });
   sink('request', { payload: { model: 'fixture', state: { action: {}, policy: {}, context: {}, trajectory: {}, integrity: {} }, questions: {} },
     policy: { rules: [{ id: 'r', text: 'Never publish', enforcement: 'BLOCK' }] }, questionVersion: 'v1', mapping: [] });
@@ -87,14 +87,14 @@ test('thread coverage reports a missing response stage', () => fixture(async roo
 test('a recent linked FAIL becomes visible as a bounded cold index catches up', () => fixture(async root => {
   const writer = new ArchiveWriter({ enabled: true, directory: root }, { events: 512, bytes: 16 * 1024 * 1024 });
   for (let n = 0; n < 280; n++) {
-    writer.bind({ sessionId: 'busy-session', invocationId: `historical-${n}`, callId: `old-${n}`,
-      toolName: 'edit', cwd: '/tmp', mode: 'observe', host: 'pi', contextId: 'main' })('begin', {});
+    writer.bindHistorical({ sessionId: 'busy-session', invocationId: `historical-${n}`, callId: `old-${n}`,
+      toolName: 'edit', cwd: '/tmp', mode: 'observe', host: 'pi', contextId: 'main' }, 4)('begin', {});
   }
   await writer.settle();
   assert.equal(await writer.drain(10_000), true);
   await new Promise(resolve => setTimeout(resolve, 20));
-  const recent = writer.bind({ sessionId: 'busy-session', invocationId: 'recent', callId: 'new-call',
-    toolName: 'edit', cwd: '/tmp', mode: 'observe', host: 'pi', contextId: 'main', bbThreadId: thread });
+  const recent = writer.bindHistorical({ sessionId: 'busy-session', invocationId: 'recent', callId: 'new-call',
+    toolName: 'edit', cwd: '/tmp', mode: 'observe', host: 'pi', contextId: 'main', bbThreadId: thread }, 4);
   recent('begin', { policy: { rules: [{ id: 'r', text: 'Recent rule', enforcement: 'BLOCK' }] } });
   recent('validation', { valid: true });
   recent('assessment', { assessment: { model: 'fixture', rules: [{ ruleId: 'r', outcome: { choice: 'FAIL' } }] } });
@@ -112,8 +112,8 @@ test('a recent linked FAIL becomes visible as a bounded cold index catches up', 
 
 test('a sparse linked session is indexed before dense newer sessions consume the read budget', () => fixture(async root => {
   const writer = new ArchiveWriter({ enabled: true, directory: root }, { events: 512, bytes: 16 * 1024 * 1024 });
-  const linked = writer.bind({ sessionId: 'linked-session', invocationId: 'flagged', callId: 'flagged',
-    toolName: 'read', cwd: '/tmp', mode: 'observe', host: 'pi', contextId: 'main', bbThreadId: thread });
+  const linked = writer.bindHistorical({ sessionId: 'linked-session', invocationId: 'flagged', callId: 'flagged',
+    toolName: 'read', cwd: '/tmp', mode: 'observe', host: 'pi', contextId: 'main', bbThreadId: thread }, 4);
   linked('begin', { policy: { rules: [{ id: 'r', text: 'Linked rule', enforcement: 'WARN' }] } });
   linked('validation', { valid: true });
   linked('assessment', { assessment: { model: 'fixture', rules: [{ ruleId: 'r', outcome: { choice: 'FAIL' } }] } });
@@ -122,8 +122,8 @@ test('a sparse linked session is indexed before dense newer sessions consume the
   await new Promise(resolve => setTimeout(resolve, 20));
   for (const sessionId of ['busy-a', 'busy-b', 'busy-c']) {
     for (let n = 0; n < 110; n++) {
-      writer.bind({ sessionId, invocationId: `${sessionId}-${n}`, callId: `${sessionId}-${n}`,
-        toolName: 'read', cwd: '/tmp', mode: 'observe', host: 'pi', contextId: 'main' })('begin', {});
+      writer.bindHistorical({ sessionId, invocationId: `${sessionId}-${n}`, callId: `${sessionId}-${n}`,
+        toolName: 'read', cwd: '/tmp', mode: 'observe', host: 'pi', contextId: 'main' }, 4)('begin', {});
     }
   }
   await writer.settle();
@@ -138,8 +138,8 @@ test('a sparse linked session is indexed before dense newer sessions consume the
 test('the summary counts only validated policy FAILs without rereading detailed evidence', () => fixture(async root => {
   const writer = new ArchiveWriter({ enabled: true, directory: root });
   const add = (id: string, enforcement: string, extra: { requestEnforcement?: string; decisionReason?: string; model?: unknown; ruleId?: string; duplicateResult?: boolean } = {}) => {
-    const sink = writer.bind({ sessionId: 'summary', invocationId: id, callId: id, toolName: 'edit', cwd: '/tmp',
-      mode: 'observe', host: 'pi', contextId: 'main', bbThreadId: thread });
+    const sink = writer.bindHistorical({ sessionId: 'summary', invocationId: id, callId: id, toolName: 'edit', cwd: '/tmp',
+      mode: 'observe', host: 'pi', contextId: 'main', bbThreadId: thread }, 4);
     sink('begin', { policy: { rules: [{ id: 'r', text: 'Policy text stays on the host', enforcement }] } });
     if (extra.requestEnforcement) sink('request', { payload: { model: 'fixture', state: { action: {}, policy: {}, context: {}, trajectory: {}, integrity: {} }, questions: {} },
       policy: { rules: [{ id: 'r', text: 'Replaced policy', enforcement: extra.requestEnforcement }] }, questionVersion: 'v1', mapping: [] });
@@ -172,8 +172,8 @@ test('the summary counts only validated policy FAILs without rereading detailed 
 
 test('a vanished assessment cannot remain a flagged finding after the next refresh', () => fixture(async root => {
   const writer = new ArchiveWriter({ enabled: true, directory: root });
-  const sink = writer.bind({ sessionId: 'missing', invocationId: 'flag', callId: 'flag', toolName: 'edit', cwd: '/tmp',
-    mode: 'observe', host: 'pi', contextId: 'main', bbThreadId: thread });
+  const sink = writer.bindHistorical({ sessionId: 'missing', invocationId: 'flag', callId: 'flag', toolName: 'edit', cwd: '/tmp',
+    mode: 'observe', host: 'pi', contextId: 'main', bbThreadId: thread }, 4);
   sink('begin', { policy: { rules: [{ id: 'r', text: 'Rule', enforcement: 'BLOCK' }] } });
   sink('validation', { valid: true });
   sink('assessment', { assessment: { model: 'fixture', rules: [{ ruleId: 'r', outcome: { choice: 'FAIL' } }] } });

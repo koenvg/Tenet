@@ -73,7 +73,7 @@ for (const mode of ['enforce', 'observe'] as const) for (const recording of ['on
         if (recording === 'off') assert.equal(archive.records.length, 0);
         else {
           assert.deepEqual(archive.issues, []);
-          assert.ok(archive.records.every(r => r.schemaVersion === 4));
+          assert.ok(archive.records.every(r => r.schemaVersion === 5));
           assert.deepEqual(invocationView(archive.records).evidenceContext, captured.evidenceContext);
           for (const row of archive.records.filter(r => ['assessment', 'decision'].includes(r.stage))) assert.deepEqual(row.data.evidenceContext, captured.evidenceContext);
         }

@@ -7,6 +7,7 @@ import { answer } from './helpers.js';
 import { startBridge, exchange, readLocalState, writeLocalState, type BridgeRequest } from '../src/claude/bridge.js';
 import { handleHook, parseHook, denial } from '../src/claude/hook.js';
 
+import { isolatedHome } from './isolated-home.js';
 const base = { session_id: 'native', cwd: '', hook_event_name: 'PreToolUse', tool_use_id: 'call-1', tool_name: 'mcp__demo__publish', tool_input: { target: 'local' } };
 const request: BridgeRequest = { version: 1, event: 'call', sessionId: 'native', contextId: 'main', cwd: '/tmp', callId: 'call-1', toolName: 'Bash', input: {} };
 async function fixture(outcome: 'PASS' | 'FAIL' | 'APPROVAL_REQUIRED', mode: 'enforce' | 'observe' = 'enforce', overrides: Record<string, string> = {}) {
@@ -15,7 +16,7 @@ async function fixture(outcome: 'PASS' | 'FAIL' | 'APPROVAL_REQUIRED', mode: 'en
   const { mkdir } = await import('node:fs/promises');
   await mkdir(cwd);
   await writeFile(join(cwd, 'TENET.md'), 'Rule; BLOCK; Never publish.');
-  const env = { TENET_MODE: mode, TENET_CONTROL_PATH: join(dir, 'control.json'), TENET_RECORDING_DIR: join(dir, 'recordings'), ...overrides };
+  const env = { ...await isolatedHome(dir), TENET_MODE: mode, TENET_CONTROL_PATH: join(dir, 'control.json'), TENET_RECORDING_DIR: join(dir, 'recordings'), ...overrides };
   const submitted: string[][] = [];
   const server = await startBridge({ directory: dir, env, judge: async r => {
     submitted.push(r.policy.rules.map(rule => rule.text));
@@ -29,33 +30,42 @@ async function fixture(outcome: 'PASS' | 'FAIL' | 'APPROVAL_REQUIRED', mode: 'en
 for (const mode of ['observe', 'enforce'] as const) {
   for (const value of ['external.md', 'missing.md', '', ' \t ']) {
     for (const local of ['valid', 'absent', 'invalid'] as const) {
-      test(`Claude ${mode}: ${local} local policy ignores former override ${JSON.stringify(value)}`, async () => {
+      test(`Claude ${mode}: override ${JSON.stringify(value)} replaces ${local} local policy`, async () => {
         const f = await fixture('PASS', mode, { TENET_POLICY: value });
         try {
           await writeFile(join(f.cwd, 'external.md'), 'Rule; external rule');
           if (local === 'absent') await unlink(join(f.cwd, 'TENET.md'));
           if (local === 'invalid') await writeFile(join(f.cwd, 'TENET.md'), 'not a policy');
           await f.hook({ session_id: 'native', hook_event_name: 'SessionStart', source: 'startup' });
-          const state = await readLocalState(f.dir, 'native');
-          assert.equal(state?.eligible, local !== 'absent');
+          assert.equal((await readLocalState(f.dir, 'native'))?.eligible, true);
           const result = JSON.parse(await f.hook(base));
-          assert.equal(result.hookSpecificOutput?.permissionDecision === 'deny', local === 'invalid' && mode === 'enforce');
-          if (local === 'valid') {
+          assert.equal(result.hookSpecificOutput?.permissionDecision === 'deny', value !== 'external.md' && mode === 'enforce');
+          if (value === 'external.md') {
             for (let i = 0; !f.submitted.length && i < 400; i++) await new Promise(resolve => setTimeout(resolve, 5));
-            assert.deepEqual(f.submitted, [['Never publish.']]);
-          } else {
-            assert.deepEqual(f.submitted, []);
-            await f.server.close();
-            const { readArchive } = await import('../src/recording/archive.js');
-            const records = (await readArchive(join(f.dir, 'recordings'))).records;
-            if (local === 'absent') assert.deepEqual(records, []);
-          }
+            assert.deepEqual(f.submitted, [['external rule']]);
+          } else assert.deepEqual(f.submitted, []);
         } finally { await f.close(); }
       });
     }
   }
 }
 
+for (const mode of ['observe', 'enforce'] as const) {
+  test(`Claude ${mode}: an absolute override activates without a local source`, async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'tc-policy-')));
+    const source = join(root, 'policy.md');
+    await writeFile(source, 'Rule; absolute rule');
+    const f = await fixture('PASS', mode, { TENET_POLICY: source });
+    try {
+      await unlink(join(f.cwd, 'TENET.md'));
+      await f.hook({ session_id: 'native', hook_event_name: 'SessionStart', source: 'startup' });
+      assert.equal((await readLocalState(f.dir, 'native'))?.eligible, true);
+      assert.equal(await f.hook(base), '{}\n');
+      for (let i = 0; !f.submitted.length && i < 400; i++) await new Promise(resolve => setTimeout(resolve, 5));
+      assert.deepEqual(f.submitted, [['absolute rule']]);
+    } finally { await f.close(); await rm(root, { recursive: true, force: true }); }
+  });
+}
 test('mapping accepts built-in and MCP inputs unchanged, never reads transcript or invents metadata', () => {
   const parsed = parseHook(JSON.stringify({ ...base, cwd: '/tmp', transcript_path: '/nonexistent' }), 'PreToolUse');
   assert.deepEqual(parsed, { version: 1, event: 'call', sessionId: 'native', contextId: 'main', cwd: '/tmp', callId: 'call-1', toolName: 'mcp__demo__publish', input: { target: 'local' } });

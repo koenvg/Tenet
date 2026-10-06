@@ -1,11 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { lstat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { selectPolicies } from './policy-selection.js';
 import type { Action, Decision, Judge, Policy } from '../decision/contracts.js';
 import { InvocationAuthorizations } from './invocation-authorization.js';
 import { decide } from '../decision/decide.js';
 import { captureAction } from '../decision/evidence.js';
-import { loadPolicy, policyIsCurrent, INTEGRITY_ID, INTEGRITY_TEXT } from '../decision/policy.js';
+import { loadPolicy, INTEGRITY_ID, INTEGRITY_TEXT } from '../decision/policy.js';
 import { Observations } from '../decision/trajectory.js';
 import { ruleContributions } from '../recording/rules.js';
 import { capture, STAGES, type RecordingSink, type Stage } from '../recording/contract.js';
@@ -59,7 +58,7 @@ export interface ApprovalRequest {
   valid: () => Promise<boolean>;
 }
 export interface InvocationIdentity extends Pick<Action, 'sessionId' | 'callId' | 'toolName' | 'argumentDigest'> {
-  invocationId: string; policyDigest: string | null;
+  invocationId: string; combinedPolicyDigest: string | null;
   profile: string; questionVersion: string;
 }
 export interface RuntimeOptions {
@@ -89,7 +88,7 @@ class SessionGuard {
   readonly modeWarning?: string;
   readonly capabilities: Capabilities;
   private eligible = true; // Unknown before start is never a bypass.
-  private policy: Policy = { available: false, source: '', reason: 'policy-unavailable' };
+  private policy: Policy = { available: false, contractVersion: 'policy-sources-v1', candidates: [], reason: 'policy-unavailable' };
   private config?: GuardConfig;
   private unavailable?: string = 'not-started';
   private session?: RuntimeIdentity;
@@ -209,11 +208,14 @@ class SessionGuard {
     this.invalidate('session-start');
     this.session = { ...identity };
     const starting = this.loadToken;
-    const selected = await this.localPolicyEligible(cwd);
+    const env = { ...this.options.env };
+    const selected = await selectPolicies(cwd, env);
     if (starting !== this.loadToken) return undefined;
-    this.eligible = selected;
-    if (!selected) {
+    this.eligible = selected.eligible;
+    this.policy = freeze({ available: false, contractVersion: 'policy-sources-v1', candidates: selected.candidates, failedRole: selected.candidates.find(c => c.failure)?.role, reason: 'policy-unavailable' });
+    if (!selected.eligible) {
       this.config = undefined;
+      this.unavailable = undefined;
       this.observations.clear();
       return this.readiness;
     }
@@ -223,9 +225,9 @@ class SessionGuard {
     try {
       if (this.options.configuration && !this.options.configuration.common) throw new Error('configuration');
       const config: GuardConfig = this.options.configuration?.common
-        ? { ...this.options.configuration.common, policyPath: join(cwd, 'TENET.md') }
-        : readConfig(cwd, this.options.env);
-      const policy = await loadPolicy(config.policyPath);
+        ? { ...this.options.configuration.common, policyPath: selected.candidates.find(c => c.role === 'project')!.source }
+        : readConfig(cwd, env);
+      const policy = await loadPolicy(selected.candidates);
       if (starting !== this.loadToken) return undefined;
       this.config = config;
       this.policy = policy;
@@ -235,11 +237,6 @@ class SessionGuard {
       this.unavailable = 'configuration';
     }
     return this.readiness;
-  }
-
-  private async localPolicyEligible(cwd: string): Promise<boolean> {
-    try { await lstat(join(cwd, 'TENET.md')); return true; }
-    catch (error) { return (error as NodeJS.ErrnoException).code !== 'ENOENT'; }
   }
 
   status(): void {
@@ -269,7 +266,7 @@ class SessionGuard {
     const context = scope(call);
     const { signal, observationSignal } = invocationContext;
     const identity: InvocationIdentity & RuntimeIdentity = { ...ASSESSMENT_METADATA, host: call.host, contextId: call.contextId, sessionId: call.sessionId,
-      callId: call.callId, toolName: call.toolName, argumentDigest: '', policyDigest: selectedPolicy.available ? selectedPolicy.digest : null, invocationId: randomUUID() };
+      callId: call.callId, toolName: call.toolName, argumentDigest: '', combinedPolicyDigest: selectedPolicy.available ? selectedPolicy.combinedDigest : null, invocationId: randomUUID() };
     let submitted = false;
     let sink: RecordingSink | undefined;
     try { sink = this.options.bindRecording?.({ ...identity, cwd: call.cwd, mode: this.mode }); }
@@ -294,7 +291,7 @@ class SessionGuard {
       unavailable: () => this.unavailable,
       policyStale: () => {
         this.unavailable = 'policy-stale'; this.invalidate('policy-stale');
-        this.record('status', { status: 'unavailable', reason: 'policy-stale', policyDigest: identity.policyDigest });
+        this.record('status', { status: 'unavailable', reason: 'policy-stale', combinedPolicyDigest: identity.combinedPolicyDigest });
       },
       approval: (outcome, ruleIds) => this.record('approval', { ...identity, outcome, ruleIds }),
       disabled: () => { this.disabled.add(callKey); },
@@ -309,7 +306,7 @@ class SessionGuard {
     const dropOversized = () => {
       const permission: Permission = { ...this.metadata, outcome: 'released', reason: 'snapshot-capacity', assessmentAvailable: false,
         evidenceContext: UNAVAILABLE_EVIDENCE_CONTEXT,
-        ruleIds: [], diagnostics: [], rules: selectedPolicy.available ? selectedPolicy.rules.map(({ id, line, enforcement, text }) => ({ id, line, enforcement, text })) : [], approvalRules: [] };
+        ruleIds: [], diagnostics: [], rules: selectedPolicy.available ? selectedPolicy.rules.map(({ id, line, enforcement, text, origin }) => ({ id, line, enforcement, text, origin })) : [], approvalRules: [] };
       authorization.commit(permission);
       this.queue.submit(Number.POSITIVE_INFINITY, observationSignal, async () => 'unavailable', (status, reason) => {
         if (this.options.activation.read() !== 'on') return;
@@ -357,12 +354,13 @@ class SessionGuard {
       // Preserve invocation order and exclude events that arrive while resolution awaits.
       const trajectory = observations.snapshot();
       observations.add(`${call.host}-tool-call`, identity.callId, identity.toolName, action);
-      const { policyDigest: _policyDigest, ...binding } = identity;
+      const { combinedPolicyDigest: _combinedPolicyDigest, ...binding } = identity;
       let resolved: ResolvedInvocation;
       try {
         resolved = await this.resolution.capture({ ...binding, cwd: call.cwd }, call.input, selectedConfig.sensitiveFields, signal);
       } catch { return block('action-resolution-unavailable'); }
       if (!current()) return block('guard-state-changed');
+      const fresh = () => authorization.policyCurrent();
       if (this.mode === 'observe') {
         if (call.signal?.aborted) return block('guard-state-changed');
         const snapshot = freeze({ policy: structuredClone(selectedPolicy), action, trajectory, resolvedAction: resolved.evidence,
@@ -372,7 +370,7 @@ class SessionGuard {
         try { bytes = Buffer.byteLength(JSON.stringify(snapshot)); } catch { bytes = Number.POSITIVE_INFINITY; }
         const permission: Permission = { ...this.metadata, outcome: 'released', reason: 'assessment-pending', assessmentAvailable: false,
           evidenceContext: UNAVAILABLE_EVIDENCE_CONTEXT,
-          ruleIds: [], diagnostics: [], rules: selectedPolicy.rules.map(({ id, line, enforcement, text }) => ({ id, line, enforcement, text })), approvalRules: [] };
+          ruleIds: [], diagnostics: [], rules: selectedPolicy.rules.map(({ id, line, enforcement, text, origin }) => ({ id, line, enforcement, text, origin })), approvalRules: [] };
         authorization.commit(permission);
         let resultPermission: Permission | undefined;
         let terminalReason: string | undefined;
@@ -390,18 +388,12 @@ class SessionGuard {
         };
         this.queue.submit(bytes, observationSignal, async () => {
           if (!current()) return 'unavailable';
+          if (!await fresh()) return 'unavailable';
           const result = await decide({ policy: snapshot.policy, action: snapshot.action, trajectory: snapshot.trajectory, resolvedAction: snapshot.resolvedAction,
             evidenceLimits: snapshot.evidence, cwd: snapshot.cwd, judge: this.options.judge, judgeIdentity: this.options.judgeStatus, config: snapshot.config, signal: observationSignal, recording });
           providerDuration = result.durationMs;
           if (!current()) return 'unavailable';
-          if (!await policyIsCurrent(selectedPolicy)) {
-            if (current()) {
-              this.unavailable = 'policy-stale'; this.invalidate('policy-stale');
-              this.record('status', { status: 'unavailable', reason: 'policy-stale', policyDigest: selectedPolicy.digest });
-              try { call.onPolicyStale?.(); } catch { /* Best effort. */ }
-            }
-            return 'unavailable';
-          }
+          if (!await fresh()) return 'unavailable';
           if (!current()) return 'unavailable';
           this.record('assessment', { ...identity, assessment: result.assessment, reason: result.reason,
             evidenceContext: result.evidenceContext,
@@ -424,6 +416,7 @@ class SessionGuard {
         }, status);
         return undefined;
       }
+      if (!await fresh()) return block('policy-stale');
       const result = await decide({ policy: selectedPolicy, action, trajectory, resolvedAction: resolved.evidence, evidenceLimits: selectedConfig.evidence,
         cwd: call.cwd, judge: this.options.judge, judgeIdentity: this.options.judgeStatus, config: selectedConfig.decision, signal, recording });
       authorization.assessed(result);
@@ -490,11 +483,11 @@ export class GuardRuntime {
   private session(identity: RuntimeIdentity): SessionGuard | undefined { return this.sessions.get(sessionKey(identity)); }
   get readiness(): Readiness {
     return this.latest && this.sessions.get(this.latest)?.readiness
-      || { ...this.assessmentMetadata, eligible: true, policy: { available: false, source: '', reason: 'policy-unavailable' }, unavailable: 'not-started', ruleCount: 0 };
+      || { ...this.assessmentMetadata, eligible: true, policy: { available: false, contractVersion: 'policy-sources-v1', candidates: [], reason: 'policy-unavailable' }, unavailable: 'not-started', ruleCount: 0 };
   }
   coverageStatus(identity?: RuntimeIdentity): { adapter: Capabilities; activation: Activation; mode: Mode; readiness: Readiness } {
     return { adapter: this.capabilities, activation: this.options.activation.read(), mode: this.mode,
-      readiness: identity ? this.session(identity)?.readiness ?? { ...this.assessmentMetadata, eligible: true, policy: { available: false, source: '', reason: 'policy-unavailable' }, unavailable: 'session-unavailable', ruleCount: 0 } : this.readiness };
+      readiness: identity ? this.session(identity)?.readiness ?? { ...this.assessmentMetadata, eligible: true, policy: { available: false, contractVersion: 'policy-sources-v1', candidates: [], reason: 'policy-unavailable' }, unavailable: 'session-unavailable', ruleCount: 0 } : this.readiness };
   }
   async start(identity: RuntimeIdentity, cwd: string, hasJudge = true): Promise<Readiness | undefined> {
     if (identity.host !== this.capabilities.host) throw new Error('host-mismatch');

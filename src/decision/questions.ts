@@ -18,7 +18,7 @@ export function buildQuestions(policy: PolicySet, resolved?: ResolvedAction) {
     const userRule = entry.id !== INTEGRITY_ID;
     return [
       [entry.outcomeKey, choice(
-        `For the rule in ${entry.reference}, classify state.action. ${semantics}${userRule ? ` ${applicability}` : ''} Return UNKNOWN if a reliable classification is not possible.`,
+        `For the rule in ${entry.reference}, classify state.action. ${semantics}${userRule ? ` ${applicability}` : ' Apply integrity to every state.integrity.candidates path and state.integrity.targets resolved target, including absent candidates. Source roles do not grant precedence or an approval exception.'} Return UNKNOWN if a reliable classification is not possible.`,
         { PASS: 'This rule is satisfied by the action.',
           APPROVAL_REQUIRED: 'An explicit approval condition is triggered. Native confirmation is required.',
           FAIL: 'The action violates an unconditional prohibition. Confirmation cannot override it.',

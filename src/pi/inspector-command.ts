@@ -33,11 +33,13 @@ function notify(ctx: ExtensionContext, message: string, level: 'info' | 'warning
 
 export function registerInspectorCommand(pi: ExtensionAPI, options: {
   env?: Record<string, string | undefined>;
+  eligible?: (ctx: ExtensionContext) => boolean;
   assets?: string;
   start?: Start;
   openArc?: (url: string) => Promise<void>;
 } = {}): void {
   const env = { ...(options.env ?? process.env) };
+  const eligible = (ctx: ExtensionContext) => options.eligible?.(ctx) ?? true;
   const assets = options.assets ?? fileURLToPath(new URL('../../inspector/dist', import.meta.url));
   let starting: Promise<Inspector> | undefined;
   let shuttingDown: Promise<void> | undefined;
@@ -46,6 +48,7 @@ export function registerInspectorCommand(pi: ExtensionAPI, options: {
   pi.registerCommand('tenet-inspector', {
     description: 'Open the local TENET inspector at this session in Arc',
     handler: async (_args, ctx) => {
+      if (!eligible(ctx)) return;
       if (closed) { notify(ctx, 'TENET inspector unavailable: Pi session is closing.', 'warning'); return; }
       try {
         if (!starting) {
@@ -53,21 +56,24 @@ export function registerInspectorCommand(pi: ExtensionAPI, options: {
             const config = recordingConfig(env);
             if (config.issue) throw new Error(config.issue);
             await checkAssets(assets);
+            if (!eligible(ctx)) throw new Error('Session eligibility changed during inspector startup');
             const start = options.start ?? (await import('../inspector/server.js')).startInspector;
+            if (!eligible(ctx)) throw new Error('Session eligibility changed during inspector startup');
             const app = await start({ directory: config.directory, assets });
-            if (closed) { await app.close(); throw new Error('Pi session closed during inspector startup'); }
+            if (closed || !eligible(ctx)) { await app.close(); throw new Error('Pi session closed during inspector startup'); }
             return app;
           })();
         }
         const app = await starting;
-        if (closed) return;
+        if (closed || !eligible(ctx)) return;
         const url = new URL(app.url);
         url.searchParams.set('session', qualifiedSessionKey('pi', ctx.sessionManager.getSessionId(), 'main'));
         notify(ctx, `TENET inspector: ${url}`, 'info');
         try { await (options.openArc ?? launchArc)(url.toString()); }
-        catch { notify(ctx, `Arc could not open. Use the TENET inspector URL above: ${url}`, 'warning'); }
+        catch { if (!closed && eligible(ctx)) notify(ctx, `Arc could not open. Use the TENET inspector URL above: ${url}`, 'warning'); }
       } catch (error) {
         starting = undefined;
+        if (!eligible(ctx)) return;
         const cause = error as NodeJS.ErrnoException;
         const hint = cause.code === 'ENOENT' || ['unsafe-asset', 'invalid-inspector-assets'].includes(cause.message) ? ' Run bun run inspector:build first.' : '';
         notify(ctx, `TENET inspector could not start: ${cause.message}.${hint}`, 'error');
@@ -83,5 +89,13 @@ export function registerInspectorCommand(pi: ExtensionAPI, options: {
       if (app) await app.close();
     })();
     await shuttingDown;
+  });
+
+  pi.on('session_start', async () => {
+    if (!closed) return;
+    await shuttingDown;
+    starting = undefined;
+    shuttingDown = undefined;
+    closed = false;
   });
 }

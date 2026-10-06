@@ -12,14 +12,20 @@ For an existing isolated setup, [read local status](#read-status) or [remove it]
 
 Use Bun 1.3.14+ and the repository-only [development setup](https://github.com/koenvg/Tenet/blob/main/CONTRIBUTING.md#set-up). Actual-host testing also needs a suitable Claude CLI, isolated settings and harmless local effects. That verification remains blocked; a protocol fixture cannot replace it.
 
-The bridge uses TypeSafe for live assessment. It sends policy text, paths, tool evidence and bounded recent observations, and uses API quota. Source and secrets can remain despite redaction.
+The bridge uses TypeSafe for live assessment. It sends global and project policy text, paths, tool evidence and bounded recent observations, and uses API quota. Source and secrets can remain despite redaction.
 
 Obtain separate authorization before live evaluation. The following setup instructions are not authorization to start live work.
 
-1. Choose a private directory with no symlinked ancestors. The default is `~/.tenet/claude`, with mode `0700`; its socket and session-state files use `0600`. To use another directory, set `TENET_CLAUDE_DIR` to an absolute private path in both bridge and hook environments.
-2. Set the same `TENET_MODE` on both sides. Start in `observe`, the default. Put an owner-reviewed `TENET.md` in the Claude session cwd, outside the guarded agent's intercepted path. Without that local file, a fresh session is dormant in both modes.
+Review optional global rules before authoring `~/.tenet/TENET.md` yourself outside intercepted actions. They activate projects without local rules, can reach TypeSafe and recordings, and can make the complete set unavailable if invalid. There is no automatic creation, global opt-out or separate budget; both sources share 64 KiB and 16 declarations, with 4096 UTF-8 bytes per rule.
 
-   For an older override-based setup, follow [local policy migration](policy.md#migrate-from-tenet_policy) before restarting the host and bridge.
+1. Choose a private directory with no symlinked ancestors. The default is `~/.tenet/claude`, with mode `0700`; its socket and session-state files use `0600`. To use another directory, set `TENET_CLAUDE_DIR` to an absolute private path in both bridge and hook environments.
+2. Set the same owner home, `TENET_MODE` and `TENET_POLICY` on both sides. Start in `observe`, the default. Put an owner-reviewed `TENET.md` in the Claude session cwd, outside the guarded agent's intercepted path, or select a project file with `TENET_POLICY`.
+
+   Absolute overrides stay absolute; relative overrides resolve against the session cwd, not the bridge directory. Optional `~/.tenet/TENET.md` is also selected from each process owner's home. The override never replaces global.
+
+   Only confirmed absence of both implicit candidates with no override makes a fresh session dormant. Missing explicit files, empty overrides and unusable sources remain unavailable.
+
+   Hook/bridge home or project-selection disagreement cannot establish ready permission. See [global and project selection](policy.md#choose-the-policy-file).
 
    The bridge process needs `TYPESAFE_API_KEY`; hooks never read that key from tool input.
 3. Choose capture before starting the bridge. It records submitted evidence by default in `~/.tenet/recordings`, including passes and observe-mode calls. Set `TENET_RECORDING=off` in the bridge process to opt out. Setting it only in hook clients does not disable bridge capture, and opt-out does not stop provider disclosure.
@@ -73,6 +79,8 @@ In enforce mode, BLOCK and unsupported ASK produce `PreToolUse` deny. Failure to
 - A session started without a bridge cannot later resume automatically. Repeated starts retain prior eligibility, even after policy deletion.
 - `SessionEnd` removes the marker and releases bridge capacity. A lost marker on resume is unavailable, not dormant.
 - Bridge restart invalidates live and deferred markers. Start a new Claude session to establish one; restart does not resume pending calls.
+
+Policy-only changes require bridge session reselection through the existing `SessionStart` path; a full bridge restart requires a new native session. Keep hook/bridge home and selection equal. Before live work, run [doctor for the session project](doctor.md#direct-invocation) with the bridge's environment to check both source digests and total count, then read prototype status. Prototype status reports eligibility and readiness, not source details; doctor does not verify active hooks. Pi commands do not reload this bridge. Off/on does not refresh a stale set. Older releases may ignore global discovery; keep the new release or first review a complete policy selected for each session using the older release's supported selection.
 
 Off comes from cooperative owner control, never tool arguments. Tool descriptions and parameter schemas are absent from hook inputs and are not invented. Hook-supplied transcript paths are never opened.
 

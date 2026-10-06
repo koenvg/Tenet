@@ -7,6 +7,7 @@ import type { Judge } from '../src/decision/contracts.js';
 import { registerGuard } from '../src/pi/guard.js';
 import { answer } from './helpers.js';
 import type { ActionResolver } from '../src/runtime/resolved-action.js';
+import { isolatedHome } from './isolated-home.js';
 
 export async function guardHarness(options: { env?: Record<string, string>; judge?: Judge | null; createJudge?: () => Judge; actionResolver?: ActionResolver; policy?: string; localPolicy?: boolean; hasUI?: boolean; controlPath?: string } = {}) {
   const cwd = await realpath(await mkdtemp(join(tmpdir(), 'tenet-observe-')));
@@ -30,16 +31,16 @@ export async function guardHarness(options: { env?: Record<string, string>; judg
   };
   const ctx = { cwd, hasUI: options.hasUI ?? true, signal: controller.signal,
     sessionManager: { getSessionId: () => 's', getBranch: () => branch },
-    ui: { setStatus: (key: string, value: string) => {
-      statuses.push(value);
-      if (key === 'tenet-recording') captureChanged(value);
+    ui: { setStatus: (key: string, value?: string) => {
+      statuses.push(value ?? '');
+      if (key === 'tenet-recording') captureChanged(value ?? '');
     },
       notify: (value: string) => notifications.push(value),
       confirm: async (title: string) => { prompts.push(title); return false; },
       select: async (title: string, items: string[]): Promise<string | undefined> => { views.push({ title, items }); return undefined; },
     },
   };
-  const env: Record<string, string> = { TENET_RECORDING: 'off', TENET_RECORDING_DIR: join(cwd, 'archive'), ...options.env };
+  const env: Record<string, string> = { ...await isolatedHome(cwd), TENET_RECORDING: 'off', TENET_RECORDING_DIR: join(cwd, 'archive'), ...options.env };
   registerGuard(pi as unknown as ExtensionAPI, { actionResolver: options.actionResolver, controlPath: options.controlPath ?? join(cwd, 'control.json'), env, createJudge: options.createJudge,
     ...(options.judge === null || options.createJudge ? {} : { judge: options.judge ?? (async request => answer(request.policy)) }) });
   const emit = (type: string, data: any = {}) => handlers.get(type)?.({ type, ...data }, ctx as unknown as ExtensionContext);

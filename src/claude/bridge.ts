@@ -10,6 +10,7 @@ import { ActivationStore } from '../runtime/activation.js';
 import { ArchiveWriter, recordingConfig } from '../recording/archive.js';
 import { deliverOwnerRecord } from '../runtime/owner-record.js';
 import type { OwnerRecord } from '../sdk/types.js';
+import { policySelectionIdentity } from '../runtime/policy-selection.js';
 export const MAX_FRAME = 128 * 1024;
 const MAX_SESSIONS = 128;
 const MAX_CONNECTIONS = 32;
@@ -22,7 +23,7 @@ const identity = (r: BridgeRequest): RuntimeIdentity => ({ host: 'claude-code', 
 const DENY: BridgeResponse = { version: 1, decision: 'deny' };
 export type BridgeRequest = { version: 1; event: 'start' | 'resume' | 'call' | 'result' | 'invalidate' | 'end' | 'status'; sessionId: string; contextId: string; cwd: string;
   callId?: string; toolName?: string; input?: unknown; content?: unknown; isError?: boolean };
-export type BridgeResponse = { version: 1; decision: 'pass' | 'deny'; mode?: 'observe' | 'enforce'; reason?: 'approval-unavailable'; generation?: string;
+export type BridgeResponse = { version: 1; decision: 'pass' | 'deny'; mode?: 'observe' | 'enforce'; reason?: 'approval-unavailable'; generation?: string; selectionIdentity?: string;
   status?: { sessions: number; coverage: 'unverified'; capture: { enabled: boolean; failed: number; dropped: number; pending: number };
     readiness?: { eligible: boolean; policy: 'ready' | 'unavailable'; reason?: string } } };
 export type LocalState = { cwd: string; eligible: boolean; deferred?: boolean; generation?: string };
@@ -152,7 +153,8 @@ function validResponse(value: unknown): value is BridgeResponse {
     && (r.reason === undefined || (r.decision === 'deny' && r.reason === 'approval-unavailable'))
     && (r.mode === undefined || r.mode === 'observe' || r.mode === 'enforce')
     && (r.generation === undefined || validGeneration(r.generation))
-    && Object.keys(r).every(k => ['version', 'decision', 'mode', 'reason', 'generation', 'status'].includes(k));
+    && (r.selectionIdentity === undefined || (typeof r.selectionIdentity === 'string' && /^[0-9a-f]{64}$/.test(r.selectionIdentity)))
+    && Object.keys(r).every(k => ['version', 'decision', 'mode', 'reason', 'generation', 'status', 'selectionIdentity'].includes(k));
 }
 /** Read exactly one bounded UTF-8 JSON line, or fail before the caller's deadline. */
 function frame(socket: Socket, limit: number, deadline: number): Promise<unknown> {
@@ -288,7 +290,10 @@ export async function startBridge(options: { directory: string; env: Record<stri
     socket.once('close', complete);
     const controller = new AbortController();
     socket.once('close', () => controller.abort());
-    void frame(socket, MAX_FRAME, SERVER_DEADLINE).then(request => processRequest(request, controller.signal)).catch(() => DENY).then(reply => {
+    void frame(socket, MAX_FRAME, SERVER_DEADLINE).then(async request => {
+      const reply = await processRequest(request, controller.signal);
+      return { ...reply, ...(validRequest(request) ? { selectionIdentity: policySelectionIdentity(request.cwd, options.env) } : {}) };
+    }).catch(() => DENY).then(reply => {
       if (!socket.destroyed) socket.end(JSON.stringify({ ...reply, mode: runtime.mode }) + '\n');
     });
   });

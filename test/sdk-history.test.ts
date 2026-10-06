@@ -12,7 +12,7 @@ for (const recentEvents of [0, 2]) {
     await writeFile(join(cwd, 'TENET.md'), 'Rule; BLOCK; Keep private content local.');
     const requests: JudgeRequest[] = [];
     const guard = createGuard({ host: 'history', judge: async r => { requests.push(r); return answer(r.policy); },
-      env: { TENET_MODE: 'enforce', TENET_RECORDING: 'off', TENET_RECENT_EVENTS: String(recentEvents), TENET_EVIDENCE_MAX_BYTES: '2048' },
+      env: { TENET_MODE: 'enforce', TENET_RECORDING: 'off', TENET_RECENT_EVENTS: String(recentEvents), TENET_EVIDENCE_MAX_BYTES: '4096' },
       controlPath: join(cwd, 'control', 'state.json') });
     try {
       const session = guard.openSession({ sessionId: 'one', contextId: 'main' }, cwd); await session.ready;
@@ -28,16 +28,23 @@ for (const recentEvents of [0, 2]) {
       const result = await session.beforeTool({ ...call, current: () => ({ sessionId: 'one', contextId: 'main', ...call }) });
       assert.equal(requests.length, 1);
       // Authored pre-change SDK admission baseline, including provenance and missing metadata.
-      assert.deepEqual((({ selection: _selection, ...history }) => history)(requests[0]!.trajectory!), {
+      const captured = requests[0]!.trajectory!;
+      assert.deepEqual((({ selection: _selection, ...history }) => history)({ ...captured, observations: captured.observations.filter(r => r.callId !== 'large'), omitted: recentEvents ? 2 : 3 }), {
         observations: recentEvents ? [{ sessionId: 'one', callId: 'small', toolName: 'opaque', origin: 'host-tool-result', timestamp: null,
           data: { content: { text: 'untrusted history' }, redactedFields: 1, limitations: ['fields-redacted'] } }] : [],
         omitted: recentEvents ? 2 : 3,
         limitations: ['untrusted-evidence-not-approval-authority', 'external-state-not-frozen', 'host-history-untrusted',
           'history-omitted', ...(recentEvents ? ['metadata-unavailable'] : [])],
       });
-      assert.deepEqual(requests[0]!.trajectory!.selection, { version: 'bounded-history-v2', maxHistoryBytes: 682, maxEventBytes: 170,
-        retainedEvents: recentEvents ? 1 : 0, shortenedEvents: 0, droppedEvents: recentEvents ? 1 : 3,
+      assert.deepEqual(requests[0]!.trajectory!.selection, { version: 'bounded-history-v2', maxHistoryBytes: 1365, maxEventBytes: 341,
+        retainedEvents: recentEvents ? 2 : 0, shortenedEvents: recentEvents ? 1 : 0, droppedEvents: recentEvents ? 0 : 3,
         priorOmittedEvents: recentEvents ? 1 : 0, exactCompactedBytes: 0 });
+      assert.equal(captured.omitted, recentEvents ? 1 : 3);
+      if (recentEvents) {
+        const large: any = captured.observations.find(r => r.callId === 'large')!.data;
+        assert.equal(large.selection.excerpts[0].originalBytes, 10000);
+        assert.ok(Buffer.byteLength(JSON.stringify(large)) <= 341);
+      }
       assert.deepEqual([result.permission, result.assessment.status, result.assessment.wouldDecision, result.reason],
         ['released', 'completed', 'ALLOW', 'all-rules-pass']);
       assert.ok(Object.isFrozen(requests[0]!.trajectory!.observations));

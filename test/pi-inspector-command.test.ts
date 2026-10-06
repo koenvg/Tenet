@@ -185,3 +185,43 @@ test('built frontend and referenced assets are served from the command listener'
     assert.equal((await fetch(new URL(js, url))).status, 200);
   } finally { await h.emit('session_shutdown'); await rm(directory, { recursive: true, force: true }); }
 });
+
+test('retained inspector stays silent when eligibility changes during a local reader startup', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'tenet-command-eligibility-'));
+  const h = harness(); let eligible = true, launches = 0;
+  let release!: () => void, started!: () => void;
+  const startReached = new Promise<void>(done => { started = done; });
+  const continueStart = new Promise<void>(done => { release = done; });
+  let app: Awaited<ReturnType<typeof startInspector>> | undefined;
+  registerInspectorCommand(h.pi, { eligible: () => eligible, env: { TENET_RECORDING_DIR: directory }, assets: resolve('inspector/dist'),
+    start: async options => { started(); await continueStart; app = await startInspector(options); return app; },
+    openArc: async () => { launches++; } });
+  try {
+    const pending = h.invoke(); let deadline: ReturnType<typeof setTimeout> | undefined;
+    try { await Promise.race([startReached, new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(Error('local reader did not reach startup')), 2000); })]); }
+    finally { clearTimeout(deadline); }
+    eligible = false; release(); await pending;
+    assert.equal(h.notices.length, 0); assert.equal(launches, 0); assert.ok(app);
+    await assert.rejects(fetch(app.url));
+    await h.invoke(); assert.equal(h.notices.length, 0); assert.equal(launches, 0);
+    eligible = true; await h.invoke(); assert.equal(launches, 1);
+  } finally { release(); await h.emit('session_shutdown'); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('inspector does not report a late launcher failure in a now dormant session', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'tenet-command-launch-race-'));
+  const h = harness(); let eligible = true;
+  let release!: () => void, entered!: () => void;
+  const launched = new Promise<void>(done => { entered = done; });
+  const pendingLaunch = new Promise<void>(done => { release = done; });
+  registerInspectorCommand(h.pi, { eligible: () => eligible, env: { TENET_RECORDING_DIR: directory }, assets: resolve('inspector/dist'),
+    openArc: async () => { entered(); await pendingLaunch; throw Error('scripted launcher failure'); } });
+  try {
+    const pending = h.invoke(); let deadline: ReturnType<typeof setTimeout> | undefined;
+    try { await Promise.race([launched, new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(Error('launcher did not start')), 2000); })]); }
+    finally { clearTimeout(deadline); }
+    assert.equal(h.notices.length, 1); const before = [...h.notices];
+    eligible = false; release(); await pending;
+    assert.deepEqual(h.notices, before, 'no warning or old reader URL may surface after dormancy');
+  } finally { release(); await h.emit('session_shutdown'); await rm(directory, { recursive: true, force: true }); }
+});

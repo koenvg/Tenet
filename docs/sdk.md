@@ -8,7 +8,7 @@ Import only `tenet`, not `src/`, runtime classes, queues or recording readers. C
 
 ## Start with an offline session
 
-This supported SDK example checks session setup and permission handling. It creates a temporary directory without a policy, so the session is dormant. It makes no TypeSafe requests and does not test policy assessment or host hooks.
+This supported SDK example checks session setup and permission handling. It uses a disposable process home and project without either policy, so the session is dormant. It makes no TypeSafe requests and does not test policy assessment or host hooks.
 
 1. Install the production archive and its dependencies, or build a developer checkout as described below. Keep the complete `dist/` tree and package manifest together.
 2. In the Tenet package root, save this as `sdk-start.mjs`. In your own application, install the built Tenet directory as a dependency and save it in that application's root instead.
@@ -44,7 +44,10 @@ This supported SDK example checks session setup and permission handling. It crea
 3. Run it from the same directory:
 
    ```sh
-   node sdk-start.mjs
+   DEMO_HOME=$(mktemp -d)
+   DEMO_HOME=$(cd "$DEMO_HOME" && pwd -P)
+   env -u TYPESAFE_API_KEY -u OPENAI_API_KEY -u ANTHROPIC_API_KEY -u TENET_POLICY HOME="$DEMO_HOME" node sdk-start.mjs
+   rm -rf "$DEMO_HOME"
    ```
 
 Expected output:
@@ -64,6 +67,8 @@ If `tenet` cannot be imported, check the package installation or run the checkou
 The repository-only [scripted host example](https://github.com/koenvg/Tenet/blob/main/examples/sdk.ts) exercises ready, dormant, uninitialized and unavailable sessions, pending observe permission, late counterfactual BLOCK, matched execution, trusted approval and off.
 
 It uses temporary paths and an injected judge, with no production credential. The command below also isolates owner settings in a canonical temporary process home. These assertions test mechanics, not evaluator accuracy.
+
+Run validation with a disposable process `HOME` and provider credentials unset, as in the starting example. A temporary project alone does not isolate automatic global discovery.
 
 1. For a developer checkout, use Bun 1.3.14+ and Node 22.19+. Complete the repository-only [development setup](https://github.com/koenvg/Tenet/blob/main/CONTRIBUTING.md#set-up).
 2. From the repository root, run:
@@ -134,7 +139,7 @@ A judge can be wrong. An assessment does not grant permission, and permission do
 
 ## Disclosure before use
 
-By default, opening an eligible session enables local capture. The default judge submits rule text, tool arguments, metadata and bounded recent host observations to TypeSafe.
+By default, opening an eligible session enables local capture. A global-only policy makes a session eligible. The default judge submits global and project rule text, tool arguments, metadata and bounded recent host observations to TypeSafe.
 
 Configured APUS submits the complete assessment to the owner-operated loopback backend, or Pika through owner forwarding. APUS probabilities are normalized but UNCALIBRATED; it is not general chat-model support.
 
@@ -157,7 +162,8 @@ Mode is fixed at construction, with observe as the default. Observe does not blo
 The runtime exports are `createGuard` and `SDK_VERSION`. The public type exports are:
 
 ```text
-EvidenceContext, Judge, JudgeIdentity, JudgeStatus, ConfigurationStatus, JudgeRequest, Assessment, RuleAssessment, Policy,
+EvidenceContext, Judge, JudgeIdentity, JudgeStatus, ConfigurationStatus, JudgeRequest, Assessment, RuleAssessment,
+Policy, PolicySet, PolicyRole, PolicyCandidate, PolicySource, RuleOrigin,
 Action, Outcome, Json, Approval, ApprovalRequest, ActionResolver, ActionFacts,
 ActionBinding, ResolvedAction, OperationSemantics, RecordingSink, Mode,
 HistoryCaptureMetadata, Activation, Capabilities, Capability, SessionIdentity,
@@ -248,9 +254,23 @@ Call IDs must be unique for the session's lifetime, including retries. `callId` 
 
 `current()` must reread live session/context/call identity, tool name and arguments before release. Forward native cancellation in `signal` and invalidate material context/session changes.
 
-Each session selects only `TENET.md` in its cwd. A confirmed absent local file is dormant in both modes. An unusable local policy, invalid configuration or missing judge credential is unavailable. Deletion after activation remains unavailable, not dormant. Status distinguishes `uninitialized`, `ready`, `dormant`, `unavailable` and `closed`, separately from activation and configured mode.
+Each session automatically selects optional `~/.tenet/TENET.md` from `node:os.homedir()`, then session `TENET.md` or the absolute/session-relative `env.TENET_POLICY` project candidate. The override never replaces global. Only confirmed absence of both implicit candidates with no override is dormant.
 
-For an older override-based setup, put an owner-reviewed policy at the session directory's `TENET.md` outside the guarded agent path before opening new sessions. Archive owners can follow migration through the [root installation guide](../README.md). Checkout developers can use the [repository policy migration steps](https://github.com/koenvg/Tenet/blob/main/docs/policy.md#migrate-from-tenet_policy).
+There is no global-path override, opt-out, parent search or fallback. An `env.HOME` field alone does not change `node:os.homedir()`; isolated tests need a child process with a real temporary `HOME`.
+
+The current `Policy` contract is `policy-sources-v1`. It has ordered `candidates`, validated `sources`, a `combinedDigest`, aggregate `bytes` and source-qualified `rules`. Each rule origin records role, configured source, resolved target, file digest and physical line.
+
+SDK status returns source roles, paths, digests, byte counts and per-source `ruleCount` without rule text. `combinedDigest` is null when no valid snapshot exists. `reason` and `failedRole` identify validation failure.
+
+All global declarations apply before all project declarations, each in physical line order. There is no precedence, cancellation or deduplication, even if both roles select the same target. Both roles share 64 KiB of file bytes and 16 user declarations, with 4096 UTF-8 bytes per rule; each boundary is allowed.
+
+Any invalid present source invalidates the complete snapshot. See the repository-only [source contract](https://github.com/koenvg/Tenet/blob/main/docs/policy.md#source-snapshot-contract) for identity and historical meaning.
+
+A missing explicit file, unusable source, broken link, uncertain filesystem state, empty override, invalid configuration or missing judge credential is unavailable. No local fallback occurs. Deletion after activation remains unavailable, not dormant. Status distinguishes `uninitialized`, `ready`, `dormant`, `unavailable` and `closed`, separately from activation and configured mode.
+
+Edits, deletion, read failures, same-byte link retargeting or a new selected candidate latch `policy-stale` for the complete set at assessment and permission-release boundaries. Approval and background observation cannot bypass these checks.
+
+Close and reopen a session to reselect; there is no SDK reload method. Off bypasses assessment/capture; on cannot revive stale snapshots. Dormant sessions remain dormant until a new session starts.
 
 Dormant and off releases have `bypassReason` and `assessment.status: 'not-requested'`, never an ALLOW assessment. Unavailable observe releases have no would-decision. Enforce waits for current assessment and required consent. WARN diagnostics remain advisory.
 
@@ -310,7 +330,7 @@ A provider failure can have completed preparation and an unavailable assessment.
 | --- | --- |
 | Diagnostic | `evidence-context-v1` |
 | History selection | `bounded-history-v2` |
-| Questions | `policy-rules-v7-ordinary-evidence` |
+| Questions | `policy-rules-v8-source-set` |
 | Assessment | `applicability-v1` |
 
 Completed v2 history includes effective history/event byte allowances, shortened events, selector-dropped events, prior capture omissions and exact-compacted bytes. Defaults cap complete history at 8 KiB and each event's data at 2 KiB. Shortening loses content; it is not lossless compaction.
@@ -319,7 +339,7 @@ Exact-compacted bytes measure net serialized savings for the same retained snaps
 
 Every event and its provenance stays distinct. Literal reference lookalikes are escaped untrusted data.
 
-Only final submitted snapshot counters reach owner reports. Historical v2 inline records keep zero as recorded. New archives use schema 4. Historical v1 diagnostics keep their recorded identities and lack v2 counters.
+Only final submitted snapshot counters reach owner reports. Historical v2 inline records keep zero as recorded. New archives use schema 5. Historical v1 diagnostics keep their recorded identities and lack v2 counters.
 
 Live owner delivery works with `TENET_RECORDING=off`. Read `event.assessment.evidenceContext` on terminal observe events; the earlier pending result stays immutable.
 
@@ -383,6 +403,8 @@ Excluded entries add only known slot counts, not guessed nested blocks or eligib
 `onOwnerEvent` receives immutable permission, assessment, execution, activation and capture-health events. Rule diagnostics retain recorded score gates without provider-invented rationale. Keep events in owner-only UI or storage, never agent messages, tool results or later evaluator evidence.
 
 Permission and assessment events carry an `OwnerReport` when a finding snapshot is available. It includes invocation identity, mode, snapshot rules, approval conditions, assessment status and validation issues. Pi uses it directly for live owner UI.
+
+Current rule entries carry immutable source origins. Pi writes native custom-record version 4 and validates those origins on recovery. Historical version-3 reports retain their scores and thresholds without an inferred source role. Both readers use recorded data, not current policy files.
 
 Live delivery does not depend on transcript persistence or historical parsing.
 

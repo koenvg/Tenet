@@ -64,6 +64,8 @@ Check every loaded source's digest and resolved target, and confirm that absent 
 
 A dormant session remains dormant until the next session start or extension reload. An active session does not hot-add rules or become dormant. Reload reselects and validates the entire set. Off continues to bypass assessment and capture; re-enabling does not make a stale policy valid.
 
+Pinned Pi 0.85.1 has no supported command unregister or hide operation. Clear old owner source, digest, readiness and footer state on every session transition, and bind retained handlers to current eligibility. A freshly loaded dormant extension registers no commands. After an eligible-to-dormant session switch, a registered command name can remain listed until full native extension reload, but its handler stays silent. This host limit does not permit dormant assessments, records, approvals or stale enforcement claims.
+
 Alternative: silently freeze the earlier source set when a new global file appears. Reject this because the owner would expect the new global policy to apply while the session ignores it. Continuous automatic reload would change approval and generation semantics beyond this task.
 
 ### 6. Record source provenance at the assessment boundary

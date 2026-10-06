@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createGuard, type Judge, type OwnerEvent } from '../src/sdk/index.js';
 import { answer } from './helpers.js';
+import { isolatedHome } from './isolated-home.js';
 
 const host = { host: 'scripted', hostVersion: '1', hostProfile: 'offline',
   capabilities: ['interception', 'result-correlation', 'lifecycle-invalidation', 'trusted-approval'] as const,
@@ -13,7 +14,7 @@ async function fixture(mode: 'observe' | 'enforce' = 'enforce', judge: Judge = a
   const cwd = await realpath(await mkdtemp(join(tmpdir(), 'tenet-sdk-')));
   await writeFile(join(cwd, 'TENET.md'), 'Rule; BLOCK; Never publish without approval.');
   const events: OwnerEvent[] = [];
-  const guard = createGuard({ ...host, judge, env: { TENET_MODE: mode, TENET_RECORDING: 'off', TENET_APPROVAL_TIMEOUT_MS: '150' },
+  const guard = createGuard({ ...host, judge, env: { ...await isolatedHome(cwd), TENET_MODE: mode, TENET_RECORDING: 'off', TENET_APPROVAL_TIMEOUT_MS: '150' },
     controlPath: join(cwd, 'private', 'control.json'), onOwnerEvent: e => events.push(e) });
   const session = guard.openSession({ sessionId: 'one', contextId: 'main' }, cwd);
   const call = (callId = 'call') => ({ callId, toolName: 'custom', input: { command: 'publish' } });
@@ -23,13 +24,11 @@ async function fixture(mode: 'observe' | 'enforce' = 'enforce', judge: Judge = a
 }
 
 for (const mode of ['observe', 'enforce'] as const) {
-  test(`SDK ${mode}: concurrent sessions ignore a shared external policy override`, async () => {
+  test(`SDK ${mode}: concurrent sessions resolve relative project overrides independently`, async () => {
     const cwd = await realpath(await mkdtemp(join(tmpdir(), 'tenet-local-sdk-')));
     const { mkdir } = await import('node:fs/promises');
-    const external = join(cwd, 'external.md');
-    await writeFile(external, 'Rule; external rule');
     const submitted: string[][] = [], events: OwnerEvent[] = [];
-    const guard = createGuard({ ...host, env: { TENET_MODE: mode, TENET_POLICY: external, TENET_RECORDING: 'on', TENET_RECORDING_DIR: join(cwd, 'archive') },
+    const guard = createGuard({ ...host, env: { ...await isolatedHome(cwd), TENET_MODE: mode, TENET_POLICY: 'external.md', TENET_RECORDING: 'on', TENET_RECORDING_DIR: join(cwd, 'archive') },
       judge: async request => { submitted.push(request.policy.rules.map(rule => rule.text)); return answer(request.policy); },
       controlPath: join(cwd, 'private', 'control.json'), onOwnerEvent: event => events.push(event) });
     try {
@@ -37,16 +36,16 @@ for (const mode of ['observe', 'enforce'] as const) {
         const project = join(cwd, name);
         await mkdir(project);
         if (name !== 'absent') await writeFile(join(project, 'TENET.md'), `Rule; ${name} local rule`);
+        if (name !== 'absent') await writeFile(join(project, 'external.md'), `Rule; ${name} selected rule`);
         const identity = { sessionId: name, contextId: 'main' };
         const session = guard.openSession(identity, project);
-        assert.equal((await session.ready).state, name === 'absent' ? 'dormant' : 'ready');
+        assert.equal((await session.ready).state, name === 'absent' ? 'unavailable' : 'ready');
         const call = { callId: name, toolName: 'edit', input: {} };
-        const before = events.length;
         const permission = await session.beforeTool({ ...call, current: () => ({ ...identity, ...call }) });
         if (name === 'absent') {
-          assert.equal(permission.bypassReason, 'dormant');
-          assert.equal(permission.assessment.status, 'not-requested');
-          assert.equal(events.length, before);
+          assert.equal(permission.permission, mode === 'enforce' ? 'blocked' : 'released');
+          assert.equal(permission.assessment.status, 'unavailable');
+          assert.equal(permission.bypassReason, undefined);
         } else {
           assert.equal(permission.permission, 'released');
           if (mode === 'observe') {
@@ -56,12 +55,12 @@ for (const mode of ['observe', 'enforce'] as const) {
           }
         }
       }
-      assert.deepEqual(submitted, [['first local rule'], ['second local rule']]);
+      assert.deepEqual(submitted, [['first selected rule'], ['second selected rule']]);
       await guard.close();
       const { readArchive } = await import('../src/recording/archive.js');
       const archive = await readArchive(join(cwd, 'archive'));
       assert.ok(archive.records.length > 0);
-      assert.ok(archive.records.every(record => record.sessionId !== 'absent'));
+      assert.ok(archive.records.some(record => record.sessionId === 'absent'));
     } finally { await guard.close(); await rm(cwd, { recursive: true, force: true }); }
   });
 }

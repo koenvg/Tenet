@@ -1,3 +1,4 @@
+import { recordedOrigin } from '../recording/policy-contract.js';
 import type { ArchiveRecord } from '../recording/contract.js';
 import { findingStage, foldFindingStages } from './finding-view.js';
 import { createHash } from 'node:crypto';
@@ -5,7 +6,7 @@ import { createHash } from 'node:crypto';
 export interface ThreadFinding {
   id: string; callId: string; toolName: string; timestamp: number; mode: 'observe' | 'enforce';
   snapshot: string;
-  rules: { ruleId: string; severity: 'BLOCK' | 'WARN'; policyText: string | null; confidence: number | null; uncertain: boolean; kind: 'policy' | 'integrity' }[];
+  rules: { ruleId: string; severity: 'BLOCK' | 'WARN'; origin: import('../recording/policy-contract.js').RecordedOrigin | null; policyText: string | null; confidence: number | null; uncertain: boolean; kind: 'policy' | 'integrity' }[];
   wouldDecision: 'ALLOW' | 'ASK' | 'BLOCK' | 'unknown';
   actualPermission: 'released' | 'blocked' | 'unknown';
   observedExecution: 'executed' | 'failed' | 'unknown';
@@ -18,7 +19,7 @@ const STAGES = ['begin', 'request', 'response', 'validation', 'assessment', 'dec
 /** Allowlisted owner projection: never send actions, evidence, provider responses or cwd to BB. */
 export function projectThreadFinding(records: ArchiveRecord[], id: string, threadId: string): { item: ThreadFinding | null; gaps: string[] } {
   const gaps: string[] = [];
-  if (!records.length || records.some(r => ![3, 4].includes(r.schemaVersion) || r.host !== 'pi' || r.bbThreadId !== threadId))
+  if (!records.length || records.some(r => ![3, 4, 5].includes(r.schemaVersion) || r.host !== 'pi' || r.bbThreadId !== threadId))
     return { item: null, gaps: ['detail-unavailable'] };
   const stage = (name: string) => object(records.findLast(r => r.stage === name)?.data);
   const facts = foldFindingStages(records.map(findingStage));
@@ -43,6 +44,7 @@ export function projectThreadFinding(records: ArchiveRecord[], id: string, threa
     if (text === null || text.length > 2048) gaps.push('policy-text-unavailable');
     const confidence = result.outcome.probabilities?.FAIL;
     selected.set(result.ruleId, { ruleId: result.ruleId, severity: rule.enforcement,
+      origin: result.ruleId === integrity.id ? null : recordedOrigin(records.findLast(r => r.stage === 'request' || r.stage === 'begin')?.schemaVersion, rule, policy),
       policyText: text !== null && text.length <= 2048 ? text : null,
       confidence: typeof confidence === 'number' && Number.isFinite(confidence) && confidence >= 0 && confidence <= 1 ? confidence : null,
       kind: result.ruleId === integrity.id ? 'integrity' : 'policy',
