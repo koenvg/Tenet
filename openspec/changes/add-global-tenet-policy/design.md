@@ -76,6 +76,64 @@ Audit evidence encoders, archive validators, replay, inspector parsing/display, 
 
 Alternative: keep a misleading singular source field or reinterpret older records as project policies. Reject these because they hide the global source or invent historical facts. Do not create parallel current-format models to preserve alpha API shapes.
 
+## Scenario changes
+
+Use this mapping to compare the three replaced main-spec requirements with the approved global/project contract. It covers the shared runtime selector and Pi owner guidance. This is a planning-text reconciliation, not new policy behavior or runtime acceptance.
+
+Main specs, archived changes and historical assessment records remain unchanged. Spec sync and archive need separate authorization.
+
+OpenSpec 1.14.0 requires a `MODIFIED` block to keep every current scenario name. Its delta operations remove whole requirements, not individual scenarios.
+
+The deltas therefore use `REMOVED Requirements` for the three old contracts and `ADDED Requirements` for the named replacements below. A rename followed by modification would still trigger the scenario-preservation check.
+
+"Retained" means the case still applies within the selected source set. "Replaced" means the approved selector changes its conditions or outcome. "Removed" means the old outcome is deliberately excluded, with its replacement identified.
+
+These labels describe old meanings, not historical record edits.
+
+### Owner setup guidance
+
+[The control delta](specs/global-tenet-control/spec.md) removes `Pi-wide setup guidance and limits` and adds `Global and project setup guidance and limits`.
+
+| Main-spec scenario | Treatment in the replacement |
+| --- | --- |
+| Pi in a project without TENET.md | Replaced conditions. Dormancy requires both implicit candidates to be absent and no override. A global policy or explicit project selection can activate a project without a local file. |
+| Local policy that cannot be loaded | Retained under the same name for a selected local file without an override. Unavailability differs from dormancy and follows observe/enforce behavior, even with a valid global source. |
+| Explicit path that cannot be loaded | Replaced outcome under the same name. A missing or unusable explicit project source makes the complete set unavailable, not dormant or global-only. |
+| Migration from an external policy | Removed the mandatory copy to local `TENET.md`. `Owner keeps an external project policy` covers the supported override with additive global selection. Owner review outside the guarded path, reload or restart, and status checks before authorized live work remain. |
+
+`Global policy activates multiple projects` and `Owner updates global policy` remain as added cases. The replacement keeps the existing disclosure, recording, missing-credential and cooperative-control limits.
+
+### Session eligibility
+
+[The activation delta](specs/session-policy-activation/spec.md) removes `Session policy eligibility` and adds `Global and project session eligibility`.
+
+| Main-spec scenario | Treatment in the replacement |
+| --- | --- |
+| No local policy or override | Replaced conditions under the same name. Both implicit candidates must be confirmed absent and the override unset for dormancy. |
+| Local policy | Retained under the same name as the project-only case when global is absent and no override is set. |
+| External policy cannot replace the local policy | Removed the ignored-override outcome. `Explicit external policy` requires the override to replace the local project candidate while preserving the global candidate. |
+| Explicit external policy | Replaced outcome under the same name. Absolute and relative paths select the project source and make the session eligible, including when that source is missing. |
+| Explicit empty override | Replaced outcome under the same name. Empty or whitespace-only values invalidate configuration instead of being ignored. |
+| Uncertain local file state | Retained under the same name and extended to either candidate. Uncertain absence means eligible but unavailable when validation fails. |
+| Prompt attachment alone | Retained under the same name when both implicit candidates are absent and no override is set. Attachments do not select policy. |
+| Parent and installation policies are not selected | Retained under the same name for files outside selected candidate paths. With both implicit candidates absent and no override, those other files do not activate the session. The designated owner-home global candidate and an explicit project path are selections, not parent search or bundled fallback. |
+
+`Global policy only` and `Global and local policies` remain as added cases. The selector still has no global-path override or project opt-out from global rules.
+
+### Unavailable active policies
+
+The activation delta also removes `Broken active policies stay conservative` and adds `Broken selected policy sets stay conservative`.
+
+| Main-spec scenario | Treatment in the replacement |
+| --- | --- |
+| Present malformed local policy | Retained under the same name for the selected project source. Enforce blocks even if global is valid. |
+| Present unreadable local policy in observe mode | Retained under the same name for the selected project source. Observe permits without claiming assessment. |
+| External policy does not repair an invalid local policy | Removed the ignored-override outcome. `Explicit external policy` excludes the replaced local candidate from selection. A valid explicit project source is not invalidated by that unselected local file; any invalid selected global source still invalidates the whole set. An override does not repair or hot-reload an already active snapshot. |
+| Policy disappears after activation | Retained under the same name and extended to either loaded source. Deletion or unreadability makes the set stale or unavailable, not dormant. The requirement also retains invalidation on policy edits. |
+| Explicit missing policy | Replaced outcome under the same name. A missing explicit project source invalidates the complete set even if a valid local or global file exists; there is no fallback. |
+
+`Invalid global policy` and `Additional source appears in an active session` remain as added cases. Mode-specific unavailable behavior and reselection only at session start or extension reload remain unchanged.
+
 ## Risks / Trade-offs
 
 - A global file activates more projects and can make all eligible sessions unavailable. Mitigate with source-specific doctor/status output and an owner warning before creating or changing the global file.

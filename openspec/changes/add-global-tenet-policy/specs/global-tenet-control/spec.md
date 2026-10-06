@@ -27,12 +27,24 @@ An ineligible session SHALL show no TENET status UI and retained TENET handlers 
 - **WHEN** a global policy exists and there is no project policy or override
 - **THEN** the loaded Pi extension offers the same activation commands and readiness UI as other eligible sessions
 
+## REMOVED Requirements
+
 ### Requirement: Pi-wide setup guidance and limits
+**Reason**: The local-only and ignored-override guidance conflicts with the approved additive global/project selection contract.
+**Migration**: Use Global and project setup guidance and limits below. See [the scenario mapping](../../design.md#scenario-changes) for retained and replaced meanings. This removal does not authorize spec sync or archive.
+
+## ADDED Requirements
+
+### Requirement: Global and project setup guidance and limits
 The owner documentation SHALL explain how to load TENET globally in Pi, author the optional `~/.tenet/TENET.md` outside the guarded action path, combine it with a local or explicitly selected project policy, verify source-aware status before live calls, turn assessment off and on, and remove global extension loading. It SHALL state that `TENET_POLICY` replaces only the project candidate, not the global policy. Only confirmed absence of both implicit candidates without an override SHALL imply dormancy. Present unusable sources, missing explicit sources, and missing credentials in eligible sessions SHALL retain existing mode-specific unavailable behavior. Guidance SHALL warn that global rules can activate projects without local policies and can be disclosed through evaluation and recording. It SHALL state that off preserves past recordings, that same-user processes and agents can change cooperative control state, and that cooperative controls and policy integrity are not an OS security boundary or proof of other-host coverage.
 
 #### Scenario: Pi in a project without TENET.md
 - **WHEN** TENET is loaded globally, the project has no local policy or override, and no global policy exists
 - **THEN** the instructions identify dormancy and distinguish extension registration from supplying a policy
+
+#### Scenario: Local policy that cannot be loaded
+- **WHEN** an owner globally loads TENET with a present but unusable selected local `TENET.md` and no project override
+- **THEN** the instructions distinguish complete policy unavailability from dormancy and explain observe and enforce outcomes, even with a valid global policy
 
 #### Scenario: Global policy activates multiple projects
 - **WHEN** the owner authors the global file and starts eligible Pi sessions in different projects
@@ -45,3 +57,8 @@ The owner documentation SHALL explain how to load TENET globally in Pi, author t
 #### Scenario: Owner updates global policy
 - **WHEN** the owner changes the global file outside the intercepted path
 - **THEN** guidance explains stale active sessions, the required reload or restart, and checking both source digests and total rule count before live calls
+
+#### Scenario: Owner keeps an external project policy
+- **WHEN** an owner uses `TENET_POLICY` without a local project policy
+- **THEN** guidance explains that the override selects the project source alongside any global policy, without requiring a copy to local `TENET.md`
+- **AND** the owner reviews selected sources outside the guarded action path, restarts or reloads the session, and verifies source-aware native status before authorized live work
