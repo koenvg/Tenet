@@ -60,6 +60,10 @@ def run_monitor(*, model, project, thread, probe_script, terminal, completion_me
         process = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "pika", "python3 -"],
                                  input=probe_script, text=True, capture_output=True, check=True, timeout=35)
         probe = json.loads(process.stdout)
+        if (not isinstance(probe, dict)
+                or not isinstance(probe.get("status"), str)
+                or not isinstance(probe.get("installer_alive"), bool)):
+            raise ValueError("Probe requires an object with status string and installer_alive Boolean")
     except (subprocess.SubprocessError, OSError, ValueError):
         state["probe_failures"] = state.get("probe_failures", 0) + 1
         if state["probe_failures"] >= 3 and not state.get("connection_alerted"):

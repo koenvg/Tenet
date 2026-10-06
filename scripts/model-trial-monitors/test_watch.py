@@ -228,7 +228,7 @@ class ConnectionHarness:
     def notices(self):
         return self.queue.execute("SELECT event_id, message FROM notices ORDER BY rowid").fetchall()
 
-    def tick(self, probe="failure", delivery="accept", crash=False):
+    def tick(self, probe="failure", delivery="accept", crash=False, stdout=None):
         replaced = Path.replace
 
         def replace(path, target):
@@ -239,6 +239,8 @@ class ConnectionHarness:
         def run(command, **kwargs):
             if command[0] == "ssh":
                 self.probes += 1
+                if stdout is not None:
+                    return subprocess.CompletedProcess(command, 0, stdout)
                 if probe == "failure":
                     raise subprocess.TimeoutExpired(command, 35)
                 return subprocess.CompletedProcess(command, 0, json.dumps({
@@ -285,6 +287,67 @@ class ConnectionAlertTests(unittest.TestCase):
                 root = Path(directory)
                 with sqlite3.connect(root / "queue.sqlite") as queue:
                     case(ConnectionHarness(self, model, root, queue))
+
+    def test_unusable_probes_count_as_failures_until_valid_recovery(self):
+        payloads = {
+            "null": None,
+            "array": [],
+            "string": "complete",
+            "number": 1,
+            "boolean": False,
+            "empty object": {},
+            "missing status": {"installer_alive": True},
+            "missing alive at completion": {"status": "complete"},
+            "missing alive at failure": {"status": "failed"},
+        }
+        for field in ("status", "installer_alive"):
+            for value in (None, [], {}, 0, 1, 0.5):
+                payload = {"status": "complete", "installer_alive": False}
+                payload[field] = value
+                payloads[f"{field}={value!r}"] = payload
+        payloads["Boolean status"] = {"status": True, "installer_alive": False}
+        for value in ("false", "true", ""):
+            payloads[f"string alive={value!r}"] = {"status": "failed", "installer_alive": value}
+
+        for name, payload in payloads.items():
+            with self.subTest(payload=name):
+                def case(h):
+                    for failures in range(1, 5):
+                        h.tick(stdout=json.dumps(payload))
+                        self.assertEqual(h.state()["probe_failures"], failures)
+                        self.assertEqual(len(h.notices()), int(failures >= 3))
+                        self.assertNotIn("terminal_event", h.state())
+                        self.assertFalse(h.state().get("terminal_notified"))
+                    self.assertEqual(h.notices()[0][1], h.monitor.CONNECTION_MESSAGE)
+                    h.tick(probe="running")
+                    self.assertEqual(h.state()["probe_failures"], 0)
+                    self.assertFalse(h.state()["connection_alerted"])
+                    self.assertNotIn("connection_event", h.state())
+                    for failures in range(1, 4):
+                        h.tick(stdout=json.dumps(payload))
+                        self.assertEqual(h.state()["probe_failures"], failures)
+                        self.assertEqual(len(h.notices()), 1 + int(failures >= 3))
+                    self.assertNotEqual(h.notices()[0][0], h.notices()[1][0])
+                self.exercise(case)
+
+    def test_pending_alert_is_retried_before_an_unusable_probe(self):
+        def case(h):
+            with self.assertRaises(subprocess.TimeoutExpired):
+                h.reach_threshold(delivery="timeout")
+            event = h.state()["connection_event"]
+            with self.assertRaises(subprocess.CalledProcessError):
+                h.tick(stdout="null", delivery="reject")
+            self.assertEqual(h.probes, 3)
+            self.assertEqual(h.state()["probe_failures"], 3)
+            self.assertEqual(h.state()["connection_event"], event)
+            h.tick(stdout="null")
+            self.assertEqual(h.probes, 4)
+            self.assertEqual(h.state()["probe_failures"], 4)
+            self.assertEqual(h.state()["connection_event"], event)
+            self.assertTrue(h.state()["connection_alerted"])
+            self.assertEqual(h.attempts, [h.notices()[0]] * 3)
+            self.assertNotIn("terminal_event", h.state())
+        self.exercise(case)
 
     def test_alert_only_after_three_consecutive_failures(self):
         def case(h):
