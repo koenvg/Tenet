@@ -24,7 +24,7 @@ const linked: Status = { coverage: 'partial', linkedCalls: 2, failures: 1, issue
 type Finding = Findings['items'][number];
 const savedFinding: Finding = {
   id: 'a'.repeat(64), snapshot: 'a'.repeat(64), callId: 'edit-1', toolName: 'edit', timestamp: 100, mode: 'observe',
-  rules: [{ ruleId: 'r1', severity: 'BLOCK', policyText: 'Recorded rule', confidence: 0.8, uncertain: false, kind: 'policy' }],
+  rules: [{ origin: null, ruleId: 'r1', severity: 'BLOCK', policyText: 'Recorded rule', confidence: 0.8, uncertain: false, kind: 'policy' }],
   wouldDecision: 'BLOCK', actualPermission: 'released', observedExecution: 'unknown', missingStages: [],
 };
 
@@ -196,7 +196,7 @@ describe('Pi thread rule action', () => {
     const app = await loadPluginApp(() => import('./app'));
     let reads = 0;
     const row: Finding = { ...savedFinding,
-      rules: [{ ruleId: 'r1', severity: 'BLOCK', policyText: '<img src=x onerror=alert(1)>', confidence: 0.72, uncertain: false, kind: 'policy' }],
+      rules: [{ origin: null, ruleId: 'r1', severity: 'BLOCK', policyText: '<img src=x onerror=alert(1)>', confidence: 0.72, uncertain: false, kind: 'policy' }],
       missingStages: ['execution'] };
     const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, {
       rpc: { findings: (input) => { const { cursor } = rpcContract.findings.input.parse(input); reads++; if (cursor) throw new Error('invalid-page');
@@ -228,7 +228,7 @@ describe('Pi thread rule action', () => {
   it('groups selected rule text under the matching tool call and falls back to rule ID', async () => {
     const app = await loadPluginApp(() => import('./app'));
     const finding = (id: string, callId: string, ruleId: string, policyText: string | null): Finding => ({
-      ...savedFinding, id, callId, rules: [{ ruleId, severity: 'BLOCK', policyText, confidence: 0.8, uncertain: false, kind: 'policy' }] });
+      ...savedFinding, id, callId, rules: [{ origin: null, ruleId, severity: 'BLOCK', policyText, confidence: 0.8, uncertain: false, kind: 'policy' }] });
     const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: () => ({ coverage: 'partial', linkedCalls: 2, issues: [],
       items: [finding('a'.repeat(64), 'edit-1', 'r1', 'Do not edit secrets'), finding('b'.repeat(64), 'edit-2', 'r2', null)], next: null }) } });
     try {
@@ -253,7 +253,7 @@ describe('Pi thread rule action', () => {
       const { cursor } = rpcContract.findings.input.parse(input);
       return cursor
       ? { coverage: 'partial', linkedCalls: 2, issues: [], items: [{ ...savedFinding, id: 'b'.repeat(64), callId: 'edit-2', timestamp: 200,
-        rules: [{ ruleId: 'r1', policyText: 'Rule', severity: 'WARN', confidence: 0.9, uncertain: false, kind: 'policy' }], wouldDecision: 'unknown', actualPermission: 'unknown' }], next: null }
+        rules: [{ origin: null, ruleId: 'r1', policyText: 'Rule', severity: 'WARN', confidence: 0.9, uncertain: false, kind: 'policy' }], wouldDecision: 'unknown', actualPermission: 'unknown' }], next: null }
       : { coverage: 'partial', linkedCalls: 2, issues: first++ === 0 ? ['detail-unavailable'] : [], items: [], next: 'next' }; } } });
     try {
       expect(await slot.findByText(/Some flagged calls could not be read/)).toBeTruthy();
@@ -292,7 +292,7 @@ describe('Pi thread rule action', () => {
   it('groups repeated calls by snapshot and keeps uncertain FAIL and integrity visible', async () => {
     const app = await loadPluginApp(() => import('./app'));
     const row = (id: string, callId: string, snapshot: string, kind: Finding['rules'][number]['kind'] = 'policy'): Finding => ({
-      ...savedFinding, id, snapshot, callId, rules: [{ ruleId: 'r1', policyText: 'Recorded rule', severity: 'WARN', confidence: 0.6, uncertain: true, kind }],
+      ...savedFinding, id, snapshot, callId, rules: [{ origin: null, ruleId: 'r1', policyText: 'Recorded rule', severity: 'WARN', confidence: 0.6, uncertain: true, kind }],
     });
     const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: () => ({
       coverage: 'partial', linkedCalls: 4, issues: [], next: null, notices: { approvals: 1, uncertain: 2, incomplete: 1 },
@@ -331,7 +331,7 @@ describe('Pi thread rule action', () => {
     vi.useFakeTimers();
     let unavailable = false;
     const row = (callId: string): Finding => ({ ...savedFinding, id: (callId === 'older' ? 'b' : 'a').repeat(64), callId,
-      rules: [{ ruleId: 'r1', policyText: 'Rule', severity: 'WARN', confidence: 0.9, uncertain: false, kind: 'policy' }] });
+      rules: [{ origin: null, ruleId: 'r1', policyText: 'Rule', severity: 'WARN', confidence: 0.9, uncertain: false, kind: 'policy' }] });
     const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: (input) => {
       const { cursor } = rpcContract.findings.input.parse(input);
       return unavailable ? { coverage: 'unavailable', linkedCalls: 0, issues: [], items: [], next: null }
@@ -370,7 +370,7 @@ describe('Pi thread rule action', () => {
     const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: () => ({
       coverage: 'partial', linkedCalls: 1, issues: ['writer-loss'], next: null, notices: { approvals: 1, uncertain: 1, incomplete: 0 },
       items: [{ ...savedFinding, callId: 'private-call-id', rules: [
-        { ruleId: 'r1', policyText: 'Do not edit secrets', severity: 'WARN', confidence: 0.6, uncertain: true, kind: 'policy' },
+        { origin: null, ruleId: 'r1', policyText: 'Do not edit secrets', severity: 'WARN', confidence: 0.6, uncertain: true, kind: 'policy' },
       ] }],
     }) } });
     try {

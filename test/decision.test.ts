@@ -59,7 +59,7 @@ test('WARN keeps all assessment gates visible without vetoing or requesting appr
 });
 
 test('complete-set aggregation is permutation invariant; fail/unknown dominate approval', async () => {
-  const selected = { ...policy, rules: [...policy.rules, { id: 'second', line: 2, text: 'Ask before installing packages.', enforcement: 'BLOCK' as const }] };
+  const selected = { ...policy, rules: [...policy.rules, { ...policy.rules[0]!, id: 'second', line: 2, text: 'Ask before installing packages.', enforcement: 'BLOCK' as const }] };
   const outcomes: Outcome[] = ['PASS', 'APPROVAL_REQUIRED', 'FAIL', 'UNKNOWN'];
   for (const a of outcomes) for (const b of outcomes) {
     const raw = { model: 'jev-test', rules: [ruleAnswer(selected.rules[0]!.id, a), ruleAnswer('second', b), ruleAnswer(INTEGRITY_ID)] };
@@ -72,8 +72,8 @@ test('complete-set aggregation is permutation invariant; fail/unknown dominate a
 
 test('a material gap for one rule does not change another independently determinable PASS', async () => {
   const selected = { ...policy, rules: [
-    { id: 'target-rule', line: 1, text: 'Never access the restricted dataset.', enforcement: 'BLOCK' as const },
-    { id: 'approval-rule', line: 2, text: 'Publish only after confirmation.', enforcement: 'BLOCK' as const },
+    { ...policy.rules[0]!, id: 'target-rule', line: 1, text: 'Never access the restricted dataset.', enforcement: 'BLOCK' as const },
+    { ...policy.rules[0]!, id: 'approval-rule', line: 2, text: 'Publish only after confirmation.', enforcement: 'BLOCK' as const },
   ] };
   const raw = answer(selected);
   raw.rules[0] = ruleAnswer('target-rule', 'UNKNOWN', 1);
@@ -134,7 +134,7 @@ test('both probability gates apply to every rule at exact configured boundaries'
     assert.equal((await decide({ ...base, config: { effectThreshold }, judge: async () => answer() })).reason, 'configuration');
   }
   let called = false;
-  assert.equal((await decide({ ...base, policy: { available: false, source: '/bad', reason: 'policy-unavailable' }, judge: async () => { called = true; return answer(); } })).decision, 'BLOCK');
+  assert.equal((await decide({ ...base, policy: { available: false, contractVersion: 'policy-sources-v1', candidates: [], reason: 'policy-unavailable' }, judge: async () => { called = true; return answer(); } })).decision, 'BLOCK');
   assert.equal(called, false);
 });
 

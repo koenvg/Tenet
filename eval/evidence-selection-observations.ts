@@ -1,3 +1,4 @@
+import { decideRecorded, type RecordedJudge } from './recorded-decision.js';
 import { performance } from 'node:perf_hooks';
 import type { Fetch } from '@typesafe-ai/sdk';
 import { decide, DEFAULTS } from '../src/decision/decide.js';
@@ -158,7 +159,7 @@ function withoutCredential<T>(value: T, apiKey: string): T {
  * the production entry owns authorization and current-question compatibility. */
 export async function observeEvidenceCampaign(manifest: Manifest,
   options: { apiKey: string; storage: string; fetch: Fetch; signal?: AbortSignal },
-  createJudge: (entry: Entry, transport: Fetch) => Judge): Promise<LiveReport> {
+  createJudge: (entry: Entry, transport: Fetch) => RecordedJudge): Promise<LiveReport> {
   if (!options.apiKey?.trim() || typeof options.fetch !== 'function' || typeof createJudge !== 'function') throw Error('campaign-adapter-required');
   const apiKey = options.apiKey;
   const campaign = new EvidenceCampaign(options.storage, manifest);
@@ -205,9 +206,7 @@ export async function observeEvidenceCampaign(manifest: Manifest,
         }
       });
       const request = entry.request;
-      const result = await decide({ policy: request.policy, action: request.action, cwd: request.cwd,
-        resolvedAction: request.resolvedAction, config: DEFAULTS, signal: options.signal,
-        judge: async (_prepared, signal) => {
+      const result = await decideRecorded(entry, manifest, async (_prepared, signal) => {
           try {
             return await judge(request, signal, (stage, data) => {
               if (stage === 'response' && data.value && typeof data.value === 'object') {
@@ -216,8 +215,7 @@ export async function observeEvidenceCampaign(manifest: Manifest,
               }
             });
           } finally { judgeCompleted = true; }
-        },
-      });
+      }, options.signal);
       if (sent) row.providerLatencyMs = Math.max(0, performance.now() - dispatchAt);
       row.gate = withoutCredential(result, apiKey);
       row.decision = result.decision;

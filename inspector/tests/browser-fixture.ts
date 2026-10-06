@@ -18,10 +18,10 @@ export async function browserFixture(directory: string) {
     payload: { model: 'offline', questions: { recorded_outcome: recordedQuestion, recorded_evidence: { type: 'choice', instructions: 'Is the evidence **sufficient**?', criteria: { SUFFICIENT: 'Enough evidence.', INSUFFICIENT: 'A material gap.' } } },
       state: { action: { arguments: { text: 'recorded action' } }, context: {}, trajectory: {}, integrity: {}, policy } } });
   sink('decision', { decision: 'ALLOW', reason: 'all-rules-pass' });
-  const missing = writer.bind({ host: 'pi', contextId: 'main', sessionId: 's', invocationId: 'missing', callId: 'missing', toolName: 'edit', mode: 'enforce', cwd: '/historical' });
+  const missing = writer.bindHistorical({ host: 'pi', contextId: 'main', sessionId: 's', invocationId: 'missing', callId: 'missing', toolName: 'edit', mode: 'enforce', cwd: '/historical' }, 4);
   missing('begin', { policy }); missing('decision', { decision: 'BLOCK', reason: 'timeout' });
   const summaryPolicy = { ...policy, rules: [{ id: 'email', text: 'Never send any email without confirmation.', line: 5, enforcement: 'BLOCK' }] };
-  const summary = writer.bind({ host: 'pi', contextId: 'main', sessionId: 's', invocationId: 'summary', callId: 'summary', toolName: 'bash', mode: 'observe', cwd: '/historical' });
+  const summary = writer.bindHistorical({ host: 'pi', contextId: 'main', sessionId: 's', invocationId: 'summary', callId: 'summary', toolName: 'bash', mode: 'observe', cwd: '/historical' }, 4);
   summary('begin', { profile: 'legacy', integrity: { id: 'integrity', text: 'Integrity constraint' }, policy: summaryPolicy, config: { effectThreshold: .9, evidenceThreshold: .9 } });
   summary('request', { policy: summaryPolicy, questionVersion: 'offline-summary-v1', mapping: [], payload: { model: 'offline', questions: {}, state: { policy: summaryPolicy, context: {}, trajectory: {}, integrity: { id: 'integrity', text: 'Integrity constraint' }, action: { arguments: { command: 'git status --short && git diff -- README.md && git diff --cached --stat' } } } } });
   summary('response', { value: {}, truncated: false, bytes: 2 }); summary('validation', { valid: true });
@@ -38,10 +38,24 @@ export async function browserFixture(directory: string) {
   summary('decision', { evidenceContext: partial, decision: 'BLOCK', reason: 'insufficient-evidence', contributions: [{ ruleId: 'email', contribution: 'blocking-gates', gates: ['evidence-confidence-below-threshold'], effectThreshold: .9, evidenceThreshold: .9 }] });
   summary('permission', { outcome: 'released' }); summary('execution', { outcome: 'executed' });
 
+  const { ArchiveWriter: CurrentArchiveWriter } = await import('../../src/recording/archive.js');
+  const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+  const { loadPolicy } = await import('../../src/decision/policy.js');
+  const { createJevJudge } = await import('../../src/decision/jev.js');
+  const { decide } = await import('../../src/decision/decide.js');
+  const { sdkAnswers } = await import('../../test/helpers.js');
+  const sourcesRoot = await mkdtemp('/tmp/tenet46-ui-');
+  const candidates = ['global', 'project'].map(role => ({ role: role as 'global' | 'project', source: join(sourcesRoot, role + '.md'), selection: 'local' as const, presence: 'present' as const }));
+  let currentPolicy;
+  try {
+    for (const candidate of candidates) await writeFile(candidate.source, 'Rule; Never send any email without confirmation.');
+    currentPolicy = await loadPolicy(candidates);
+  } finally { await rm(sourcesRoot, { recursive: true, force: true }); }
+  if (!currentPolicy.available) throw Error('invalid-current-browser-fixture');
   // Actual current selector output, not reconstructed from a historical record.
   const { Observations } = await import('../../src/decision/trajectory.js');
   const { captureAction } = await import('../../src/decision/evidence.js');
-  const { boundEvidence, judgeState } = await import('../../src/decision/judge-evidence.js');
   const { answer } = await import('../../test/helpers.js');
   const history = new Observations('s', { recentEvents: 3, maxBytes: 24576 });
   const repeated = 'complete sanitized content '.repeat(30);
@@ -51,15 +65,16 @@ export async function browserFixture(directory: string) {
     { kind: 'tool-result', callId: 'older', toolName: 'opaque', timestamp: 2, data: { isError: true, text: 'older failure' } },
     { kind: 'tool-result', callId: 'prior', toolName: 'different-name', timestamp: 1, data: { repeated, document: '界'.repeat(20000), isError: true } },
   ]);
-  const request = boundEvidence({ policy: summaryPolicy as any, action: captureAction({ sessionId: 's', callId: 'compacted', toolName: 'opaque', arguments: {} }),
-    cwd: '/historical', deadlineMs: 30000, trajectory: history.snapshot() })!;
-  const compacted = writer.bind({ host: 'pi', contextId: 'main', sessionId: 's', invocationId: 'compacted', callId: 'compacted', toolName: 'opaque', mode: 'observe', cwd: '/historical' });
-  compacted('begin', { profile: 'applicability-v1', integrity: { id: 'integrity', text: 'Integrity constraint' }, policy: summaryPolicy, config: { effectThreshold: .9, evidenceThreshold: .9 } });
-  compacted('request', { policy: summaryPolicy, profile: 'applicability-v1', questionVersion: 'policy-rules-v7-evidence-selection', evidenceContext: request.evidenceContext,
-    selectionVersion: 'bounded-history-v2', mapping: [], payload: { model: 'offline', questions: {}, state: judgeState(request) } });
-  compacted('validation', { valid: true });
-  compacted('assessment', { evidenceContext: request.evidenceContext, assessment: answer(summaryPolicy as any, 'UNKNOWN') });
-  compacted('decision', { evidenceContext: request.evidenceContext, decision: 'BLOCK', reason: 'insufficient-evidence', contributions: [] });
-  compacted('permission', { evidenceContext: request.evidenceContext, outcome: 'released' });
+  const currentWriter = new CurrentArchiveWriter({ enabled: true, directory });
+  const compacted = currentWriter.bind({ host: 'pi', contextId: 'main', sessionId: 's', invocationId: 'compacted', callId: 'compacted', toolName: 'opaque', mode: 'observe', cwd: '/historical' });
+  compacted('begin', { profile: 'applicability-v1', policy: currentPolicy, config: { effectThreshold: .9, evidenceThreshold: .9 } });
+  const result = await decide({ policy: currentPolicy, action: captureAction({ sessionId: 's', callId: 'compacted', toolName: 'opaque', arguments: {} }),
+    cwd: '/historical', trajectory: history.snapshot(), recording: compacted,
+    judge: createJevJudge({ apiKey: 'offline', fetch: async () => Response.json({ model: 'offline', answers: sdkAnswers(answer(currentPolicy, 'UNKNOWN')) }) }) });
+  const { ruleContributions } = await import('../../src/recording/rules.js');
+  compacted('assessment', { ...result });
+  compacted('decision', { ...result, contributions: ruleContributions(result, currentPolicy) });
+  compacted('permission', { evidenceContext: result.evidenceContext, outcome: 'released' });
+  await currentWriter.close();
   await writer.complete();
 }

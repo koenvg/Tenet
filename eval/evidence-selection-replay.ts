@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
-import { writeFileSync } from 'node:fs';
+import { lstatSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { basename, dirname, join, resolve, sep } from 'node:path';
 import type { AssessmentOutcome, JudgeRequest, Outcome, PolicySet, Trajectory } from '../src/decision/contracts.js';
 import { JudgeFailure } from '../src/decision/contracts.js';
 import { decide, DEFAULTS, MODEL, QUESTION_VERSION } from '../src/decision/decide.js';
@@ -33,11 +34,12 @@ function expand(value: any, pool: Readonly<Record<string, string>> = {}): any {
   }
   return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, expand(v, pool)]));
 }
+import { fixturePolicy } from './generic-rule-fixtures.js';
 
 async function protectedRequest(f: Fixture): Promise<JudgeRequest> {
   const policyDigest = createHash('sha256').update(f.policyText).digest('hex');
-  const policy: PolicySet = { available: true, source: '/synthetic/TENET.md', target: '/synthetic/TENET.md', digest: policyDigest,
-    rules: [{ id: `${policyDigest}:1`, line: 1, text: f.policyText.replace('Rule; BLOCK; ', ''), enforcement: 'BLOCK' }] };
+  const policy = fixturePolicy({ id: f.id, sourceText: f.policyText, rules: [f.policyText.replace('Rule; BLOCK; ', '')], outcomes: [], integrity: 'PASS',
+    expectedDecision: 'ALLOW', input: { toolName: 'fixture', arguments: {} } });
   // Fixture IDs remain report-only. Every invocation uses the same synthetic identity.
   const action = { ...captureAction({ ...f.input, sessionId: 'synthetic-evidence-session', callId: 'synthetic-pending' }), timestamp: 2000 };
   const resolution = new ActionResolution(f.resolutionCoverage === 'unsupported' ? undefined : {
@@ -143,7 +145,7 @@ export async function replayEvidence(options: { override?: 'blanket-block' | 'un
     const b = await row(baseline, f, 'baseline');
     const c = await row(candidate, f, 'candidate', options.override);
     const contextLost = !!f.script.presenceLiteral && b.selectedViolation && !c.selectedViolation;
-    pairs.push({ id: f.id, fixtureDigest: digest(f), policyDigest: protectedState.policy.digest, category: f.category, expected: f.expected,
+    pairs.push({ id: f.id, fixtureDigest: digest(f), policyDigest: protectedState.policy.sources[0]!.digest, category: f.category, expected: f.expected,
       baseline: b, candidate: c, byteReduction: b.requestBytes - c.requestBytes,
       uncertaintyChange: b.status !== 'assessed' || c.status !== 'assessed' ? 'unavailable' : b.uncertaintyOnlyBlock === c.uncertaintyOnlyBlock ? 'unchanged' : c.uncertaintyOnlyBlock ? 'increased' : 'decreased',
       contextLost, safetyPreservingImprovement: false });
@@ -188,11 +190,29 @@ export async function runEvidenceComparison(args: string[], _transport?: (...arg
   if (args.length) throw Error('Offline only. Live comparison requires separate explicit disclosure authorization and an authorized runner. No requests sent.');
   return replayEvidence();
 }
+
+function outputDirectory(args: string[]): string {
+  if (args.length !== 2 || args[0] !== '--out' || !args[1]!.trim() || args[1]!.startsWith('--'))
+    throw Error('Offline only. Require --out <unused-directory>; live and execution flags are not supported.');
+  const requested = resolve(args[1]!);
+  const output = join(realpathSync(dirname(requested)), basename(requested));
+  const frozen = realpathSync(new URL('./evidence-selection/', import.meta.url));
+  if (output === frozen || output.startsWith(frozen + sep)) throw Error('Output must be outside frozen evidence-selection inputs.');
+  try { lstatSync(output); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return output;
+    throw error;
+  }
+  throw Error('Output directory must be unused; existing files, directories and links are refused.');
+}
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  runEvidenceComparison(process.argv.slice(2)).then(report => {
-    const url = new URL('./evidence-selection/', import.meta.url);
-    writeFileSync(new URL('report.json', url), JSON.stringify(report, null, 2) + '\n');
-    writeFileSync(new URL('report.md', url), renderEvidenceReport(report));
-    console.log('Wrote eval/evidence-selection/report.json and report.md. Offline only.');
+  Promise.resolve().then(async () => {
+    const output = outputDirectory(process.argv.slice(2));
+    const report = await runEvidenceComparison([]);
+    // Exclusive creation also refuses destinations that appear during replay.
+    mkdirSync(output, { mode: 0o700 });
+    writeFileSync(join(output, 'report.json'), JSON.stringify(report, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
+    writeFileSync(join(output, 'report.md'), renderEvidenceReport(report), { flag: 'wx', mode: 0o600 });
+    console.log(`Wrote ${join(output, 'report.json')} and ${join(output, 'report.md')}. Offline only.`);
   }).catch(error => { console.error(error.message); process.exitCode = 1; });
 }

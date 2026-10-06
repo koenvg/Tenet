@@ -3,7 +3,9 @@
 ## MODIFIED Requirements
 
 ### Requirement: Owner-facing activation commands
-When the TENET Pi extension is loaded in an eligible session, including one with only a global policy, it SHALL offer `/tenet status`, `/tenet on`, and `/tenet off`; bare `/tenet` SHALL retain its findings view. An ineligible session SHALL offer no TENET commands or status UI. In an eligible session status SHALL identify the effective state as ON OBSERVE, ON ENFORCE, OFF, or CONTROL UNAVAILABLE, show the configured base mode and relevant readiness, and distinguish OFF from observation and recording-only opt-out. Commands SHALL not inject status or archived evidence into agent messages or tool results. Invalid arguments or failed state writes SHALL report an error and SHALL NOT claim that activation changed.
+When the TENET Pi extension is loaded in an eligible session, including one with only a global policy, it SHALL offer `/tenet status`, `/tenet on`, and `/tenet off`; bare `/tenet` SHALL retain its findings view.
+
+An ineligible session SHALL show no TENET status UI and retained TENET handlers SHALL be silent. A freshly loaded dormant extension SHALL register no TENET commands. With pinned Pi 0.85.1, previously registered command names MAY remain listed after a session switch until a full native extension reload; TENET SHALL NOT claim those names disappear. In an eligible session status SHALL identify the effective state as ON OBSERVE, ON ENFORCE, OFF, or CONTROL UNAVAILABLE, show the configured base mode and relevant readiness, and distinguish OFF from observation and recording-only opt-out. Commands SHALL not inject status or archived evidence into agent messages or tool results. Invalid arguments or failed state writes SHALL report an error and SHALL NOT claim that activation changed.
 
 #### Scenario: Existing findings command
 - **WHEN** the owner enters `/tenet` without an argument in an eligible session
@@ -19,7 +21,7 @@ When the TENET Pi extension is loaded in an eligible session, including one with
 
 #### Scenario: No policy eligibility
 - **WHEN** both implicit policy candidates are confirmed absent and no explicit project override is set
-- **THEN** TENET offers no commands, footer, or notifications even if shared control is on or unavailable
+- **THEN** TENET shows no footer or notifications and retained handlers have no effects, even if shared control is on or unavailable; a freshly loaded dormant extension registers no commands, while previously registered names may remain listed until full native extension reload
 
 #### Scenario: Global-only eligibility
 - **WHEN** a global policy exists and there is no project policy or override

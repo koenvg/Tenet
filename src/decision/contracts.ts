@@ -15,16 +15,36 @@ export interface RuleAssessment {
 }
 export interface Assessment { model: string; rules: RuleAssessment[]; profile?: import('./assessment-contract.js').AssessmentProfile }
 export type Enforcement = 'BLOCK' | 'WARN';
-export interface Rule { readonly id: string; readonly line: number; readonly text: string; readonly enforcement: Enforcement; readonly evidenceThreshold?: number }
+export type PolicyRole = 'global' | 'project';
+export interface PolicyCandidate {
+  readonly role: PolicyRole;
+  readonly source: string;
+  readonly selection: 'local' | 'explicit';
+  readonly presence: 'present' | 'absent' | 'unavailable';
+}
+export interface RuleOrigin {
+  readonly role: PolicyRole; readonly source: string; readonly target: string; readonly digest: string; readonly line: number;
+}
+export interface Rule { readonly id: string; readonly line: number; readonly origin: RuleOrigin; readonly text: string; readonly enforcement: Enforcement; readonly evidenceThreshold?: number }
 export type PolicyFailure = 'policy-unavailable' | 'policy-format' | 'policy-file-limit' | 'policy-rule-count-limit' | 'policy-rule-size-limit';
+export interface PolicySource {
+  readonly role: PolicyRole; readonly source: string; readonly target: string; readonly digest: string;
+  readonly bytes: number; readonly rules: readonly Rule[];
+}
 export interface PolicySet {
   readonly available: true;
-  readonly source: string;
-  readonly target: string;
-  readonly digest: string;
+  readonly contractVersion: 'policy-sources-v1';
+  readonly candidates: readonly PolicyCandidate[];
+  readonly sources: readonly PolicySource[];
+  readonly combinedDigest: string;
+  readonly bytes: number;
   readonly rules: readonly Rule[];
 }
-export type Policy = PolicySet | { available: false; source: string; reason: PolicyFailure };
+/** Inputs needed by the pure gates, also usable with version-decoded recorded rules. */
+export interface EvaluationPolicy { readonly rules: readonly Pick<Rule, 'id' | 'enforcement' | 'evidenceThreshold'>[] }
+export type ApplicabilityRequest = Pick<JudgeRequest, 'action' | 'cwd' | 'resolvedAction'>;
+export type Policy = PolicySet | { readonly available: false; readonly contractVersion: 'policy-sources-v1';
+  readonly candidates: readonly PolicyCandidate[]; readonly reason: PolicyFailure; readonly failedRole?: PolicyRole };
 export interface ActionInput {
   sessionId: string;
   callId: string;

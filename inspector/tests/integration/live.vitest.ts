@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { sessionKey, qualifiedSessionKey } from '../../../src/recording/archive.js';
 import { HistoricalArchiveWriter as ArchiveWriter } from '../../../test/legacy-recording-fixture.js';
+import { SCHEMA_VERSION } from '../../../src/recording/contract.js';
 import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
 import { openEvidence } from '../ui-navigation.js';
 
@@ -30,7 +31,7 @@ test('fresh visits select the latest call without displaying another session’s
 test('polling discovers another session and delayed execution without losing the selected rule or evidence scroll', async () => {
   await withInspector('live-updates', async ({ page, directory, recorded }) => {
     const concerning = recorded!.records.find(record => record.callId === 'concerning')!;
-    if (concerning.schemaVersion !== 4) throw new Error('Current capture requires schema 4');
+    if (concerning.schemaVersion !== SCHEMA_VERSION) throw new Error('Current capture requires the current recording schema');
     await page.locator('.call-row').filter({ has: page.locator('.call-id', { hasText: 'concerning' }) }).waitFor();
     const row = page.locator('.call-row').filter({ has: page.locator('.call-id', { hasText: 'concerning' }) });
     await row.click();
@@ -55,8 +56,8 @@ test('polling discovers another session and delayed execution without losing the
     expect(await evidence.evaluate(el => el.scrollTop)).toBe(scroll);
     expect(await page.locator('.call-row[aria-pressed="true"] .call-id').textContent()).toBe('concerning');
     const mixed = new ArchiveWriter({ enabled: true, directory });
-    const claude = mixed.bind({ host: 'claude-code', contextId: 'child', sessionId: 'live-session', invocationId: 'mixed-invocation',
-      callId: 'mixed-call', toolName: 'Bash', cwd: '/historical', mode: 'observe' });
+    const claude = mixed.bindHistorical({ host: 'claude-code', contextId: 'child', sessionId: 'live-session', invocationId: 'mixed-invocation',
+      callId: 'mixed-call', toolName: 'Bash', cwd: '/historical', mode: 'observe' }, 4);
     claude('begin', { adapterCoverage: { version: null, limitations: ['actual-host-unverified', 'approval-unavailable'] } });
     claude('decision', { decision: 'ALLOW', reason: 'all-rules-pass' });
     claude('permission', { outcome: 'released' });

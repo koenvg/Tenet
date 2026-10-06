@@ -8,10 +8,10 @@ export const runtimeModules = [
   'cli/index', 'doctor/doctor', 'doctor/installation',
   ...['apus', 'apus-native', 'apus-renderer', 'apus-transport', 'assessment-answers', 'typesafe-contract', 'assessment-contract', 'assessment-shape', 'contracts', 'decide', 'diagnostics', 'evidence', 'evidence-budget',
     'evidence-context', 'evidence-context-contract', 'finding-triage', 'history-capture', 'history-content',
-    'history-envelope', 'history-groups', 'history-selection', 'immutable', 'jev', 'judge-evidence', 'policy',
+    'history-envelope', 'history-groups', 'history-selection', 'immutable', 'jev', 'judge-evidence', 'policy', 'policy-contract', 'policy-origin',
     'questions', 'response-validation', 'thresholds', 'trajectory'].map(n => `decision/${n}`),
-  ...['activation', 'approval', 'config', 'configuration', 'judge', 'settings', 'consequences', 'guard', 'invocation-authorization', 'observation-queue', 'owner-record', 'resolved-action', 'resources'].map(n => `runtime/${n}`),
-  ...['archive', 'contract', 'files', 'judge', 'native', 'rules'].map(n => `recording/${n}`),
+  ...['activation', 'approval', 'config', 'configuration', 'judge', 'settings', 'consequences', 'guard', 'invocation-authorization', 'observation-queue', 'owner-record', 'policy-selection', 'resolved-action', 'resources'].map(n => `runtime/${n}`),
+  ...['archive', 'contract', 'files', 'judge', 'native', 'policy-contract', 'rules'].map(n => `recording/${n}`),
   ...['approval', 'boundary', 'config', 'extension', 'guard', 'history', 'inspector-command', 'owner-reports', 'report-history'].map(n => `pi/${n}`),
   ...['archive-index', 'assessment-completeness', 'bb-findings', 'finding-view', 'serve-cli', 'server', 'view'].map(n => `inspector/${n}`),
 ];
@@ -27,6 +27,28 @@ export function deliveryManifest(source: SourceManifest) {
     pi: { extensions: ['./dist/pi/extension.js'] },
     dependencies: source.dependencies, peerDependencies: source.peerDependencies,
     peerDependenciesMeta: { '@earendil-works/pi-coding-agent': { optional: true } } };
+}
+
+function markdownAnchors(content: string): Set<string> {
+  const anchors = new Set<string>(), counts = new Map<string, number>();
+  let fence: string | undefined;
+  for (const line of content.split(/\r?\n/)) {
+    const marker = line.match(/^\s*(`{3,}|~{3,})(.*)$/);
+    if (marker) {
+      if (!fence) fence = marker[1];
+      else if (marker[1]![0] === fence[0] && marker[1]!.length >= fence.length && !marker[2]!.trim()) fence = undefined;
+      continue;
+    }
+    if (fence) continue;
+    for (const [, alias] of line.matchAll(/<a\b[^>]*\b(?:id|name)="([^"]+)"/g)) anchors.add(alias!);
+    const heading = line.match(/^ {0,3}#{1,6}\s+(.+?)\s*#*$/);
+    if (!heading) continue;
+    const slug = heading[1]!.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/<[^>]+>/g, '')
+      .replace(/[`*~]/g, '').toLowerCase().replace(/[^\p{L}\p{N}_ -]/gu, '').replace(/ /g, '-');
+    const count = counts.get(slug) ?? 0; counts.set(slug, count + 1);
+    anchors.add(count ? `${slug}-${count}` : slug);
+  }
+  return anchors;
 }
 
 export async function assertDelivery(root: string): Promise<void> {
@@ -59,9 +81,14 @@ export async function assertDelivery(root: string): Promise<void> {
   for (const document of documentFiles.filter(file => file.endsWith('.md'))) {
     const content = await readFile(join(root, document), 'utf8');
     for (const [, target] of content.matchAll(/\]\(([^)]+)\)/g)) {
-      if (!target || target.startsWith('#') || /^[a-z]+:/i.test(target)) continue;
-      const path = posix.normalize(posix.join(dirname(document), target.split('#')[0]!));
+      if (!target || /^[a-z]+:/i.test(target)) continue;
+      const [file, fragment] = target.split('#');
+      const path = file ? posix.normalize(posix.join(dirname(document), file)) : document;
       assert.ok(found.has(path), `missing documentation target: ${document} -> ${target}`);
+      if (fragment) {
+        const linked = await readFile(join(root, path), 'utf8');
+        assert.ok(markdownAnchors(linked).has(decodeURIComponent(fragment)), `missing documentation anchor: ${document} -> ${target}`);
+      }
     }
   }
   assert.deepEqual(manifest, deliveryManifest(manifest), 'production manifest differs from delivery contract');

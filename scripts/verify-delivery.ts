@@ -6,14 +6,16 @@ import { join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { assertDelivery } from './delivery-contract.js';
+import { isolatedEnvironment, isolatedArgs } from './isolated-environment.js';
 
 export async function verifyArchive(archive: string): Promise<void> {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-relocated-')));
-  const home = join(root, 'home'); await mkdir(home);
-  // Deliberately do not inherit TENET_*, API keys, NODE_PATH, Pi settings or npm config.
-  const env = { PATH: process.env.PATH!, HOME: home, CI: '1', PI_CODING_AGENT_DIR: join(home, 'pi'),
-    npm_config_userconfig: join(home, '.npmrc'), npm_config_globalconfig: join(home, '.npm-globalrc') };
-  const run = (file: string, args: string[], cwd: string, overrides: Record<string, string> = {}) => execFileSync(file, args, { cwd, env: { ...env, ...overrides }, encoding: 'utf8', timeout: 180_000 });
+  const home = join(root, 'home');
+  const env = await isolatedEnvironment(root, home);
+  const run = (file: string, args: string[], cwd: string, overrides: Record<string, string> = {}) => {
+    assert.ok(!overrides.HOME, 'use a validated fixture environment for each owner home');
+    return execFileSync(file, isolatedArgs(file, args), { cwd, env: { ...env, ...overrides }, encoding: 'utf8', timeout: 180_000 });
+  };
   try {
     // Reject links and path traversal before extraction, including contaminated tar fixtures.
     for (const name of run('tar', ['-tzf', resolve(archive)], root).trim().split('\n'))
@@ -49,6 +51,23 @@ export async function verifyArchive(archive: string): Promise<void> {
         '@earendil-works/pi-ai': source.devDependencies['@earendil-works/pi-ai'], typebox: source.devDependencies.typebox,
         typescript: source.devDependencies.typescript, '@types/node': source.devDependencies['@types/node'] } }));
     run('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund'], host);
+    // A decoy in the installation must never become the session project policy.
+    await writeFile(join(installation, 'TENET.md'), 'Rule; Installation decoy must never be selected.\n');
+    for (const runtime of ['node', 'bun']) {
+      for (const scenario of ['none', 'project-only', 'global-only', 'combined', 'relative-override', 'absolute-override',
+        'empty-global', 'malformed-global', 'broken-global', 'missing-project', 'empty-override']) {
+        const caseRoot = join(consumer, `${runtime}-${scenario}`); await mkdir(caseRoot);
+        const caseHome = join(caseRoot, 'home');
+        const caseEnv = await isolatedEnvironment(root, caseHome);
+        caseEnv.PATH = `${join(host, 'node_modules/.bin')}:${env.PATH}`;
+        const project = join(caseRoot, 'session'); await mkdir(project);
+        await cp(new URL('./fixtures/archive-policy.mjs', import.meta.url), join(project, 'check.mjs'));
+        // Resolve the installed package from the isolated consumer, not the checkout.
+        console.log(execFileSync(runtime, isolatedArgs(runtime, ['check.mjs', installation, project, scenario, caseHome]),
+          { cwd: project, env: caseEnv, encoding: 'utf8', timeout: 180_000 }).trim());
+      }
+    }
+    await rm(join(installation, 'TENET.md'));
     await cp(new URL('./fixtures/archive-types.ts', import.meta.url), join(consumer, 'check.ts'));
     const trace = run('node', [join(host, 'node_modules/typescript/bin/tsc'), '--noEmit', '--strict', '--module', 'NodeNext',
       '--moduleResolution', 'NodeNext', '--target', 'ES2023', '--typeRoots', join(host, 'node_modules/@types'), '--traceResolution', 'check.ts'], consumer);
@@ -136,6 +155,23 @@ export async function verifyArchive(archive: string): Promise<void> {
       assert.ok(!JSON.stringify(invalid).includes('private-settings-canary'));
     }
     await rm(settingsFile);
+    await mkdir(join(home, '.tenet'), { recursive: true, mode: 0o700 });
+    const globalPolicy = join(home, '.tenet/TENET.md');
+    await writeFile(globalPolicy, 'Rule; BLOCK; Ask before overwriting owner-demo.txt.\n');
+    await rm(join(project, 'TENET.md'));
+    for (const roles of ['global', 'global,project']) {
+      if (roles.includes('project')) await writeFile(join(project, 'TENET.md'), 'Rule; BLOCK; Ask before overwriting owner-demo.txt.\n');
+      for (const provider of ['typesafe', 'apus-llamacpp']) {
+        if (provider === 'apus-llamacpp') await writeFile(settingsFile, JSON.stringify(apus), { mode: 0o600 });
+        else await rm(settingsFile, { force: true });
+        for (const runtime of ['node', 'bun']) for (const mode of ['observe', 'enforce'])
+          console.log(run(runtime, ['owner.mjs', installation, project, mode, provider, roles], host,
+            { ...(provider === 'typesafe' ? ownerEnv : { PATH: ownerEnv.PATH, TENET_RECORDING: 'off' }), TENET_MODE: mode }).trim());
+      }
+      await rm(settingsFile, { force: true });
+    }
+    // Return to project-only for the existing capture opt-out/removal recipe.
+    await rm(globalPolicy);
     // Removing the extension must leave the owner's policy and historical evidence intact.
     const recordings = join(home, '.tenet/recordings');
     const retained = await readdir(recordings);

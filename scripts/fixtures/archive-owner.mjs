@@ -8,20 +8,48 @@ import { alias, scriptedNative } from './archive-native.mjs';
 
 // A fresh process loads the registered production entry. Only model output and
 // judge transport are scripted; no alternate guard factory or release path.
-const [installation, project, expectedMode, provider = 'typesafe'] = process.argv.slice(2);
+const [installation, project, expectedMode, provider = 'typesafe', roleList = 'project'] = process.argv.slice(2);
 assert.equal(process.env.TENET_MODE ?? 'observe', expectedMode);
 const settingsManager = SettingsManager.create(project, process.env.PI_CODING_AGENT_DIR);
 const statuses = [], notifications = [], views = [], confirmations = [];
 let outcome = 'FAIL', approved = false, executed = 0, requests = 0, session;
+// Failure-only fixture telemetry. Never collect payloads, policy text or credentials.
+const diagnosticStart = performance.now(), timeline = [], MAX_TIMELINE = 128;
+let timelineDropped = 0, sdkSeen = 0, transportStarts = 0, transportAnswers = 0, transportErrors = 0;
+const safeCall = value => /^owner-\d{1,6}$/.test(String(value)) ? String(value) : 'omitted';
+const safeSession = value => /^[a-f0-9-]{36}$/i.test(String(value)) ? String(value) : 'omitted';
+const statusesAllowed = new Set(['ready', 'pending', 'completed', 'unavailable', 'cancelled', 'dropped', 'released', 'blocked', 'unknown']);
+const reasonsAllowed = new Set(['assessment-pending', 'rule-failed', 'provider-error', 'cancelled', 'timeout', 'invalid-response', 'policy-stale', 'session-closed', 'guard-closed', 'off', 'dormant', 'queue-capacity', 'snapshot-capacity', 'guard-state-changed', 'approval-required', 'approval-denied', 'pass', 'quit', 'reload', 'new', 'resume', 'fork']);
+const statusCode = value => statusesAllowed.has(value) ? value : 'omitted';
+const reasonCode = value => reasonsAllowed.has(value) ? value : 'omitted';
+const note = (event, fields = {}) => {
+  if (timeline.length === MAX_TIMELINE) { timelineDropped++; return; }
+  timeline.push({ ms: Math.round(performance.now() - diagnosticStart), event, ...fields });
+};
+const captureStages = () => {
+  try {
+    const entries = session?.sessionManager.getEntries().filter(e => e.type === 'custom' && e.customType === 'tenet') ?? [];
+    for (; sdkSeen < entries.length; sdkSeen++) {
+      const r = entries[sdkSeen].data;
+      if (['status', 'assessment-status', 'assessment', 'decision', 'permission', 'execution'].includes(r.stage))
+        note(`sdk-${r.stage}`, { callId: safeCall(r.callId), status: statusCode(r.status), reason: reasonCode(r.reason), outcome: statusCode(r.outcome) });
+    }
+  } catch { note('stage-read-unavailable'); }
+};
 let releaseAssessment;
 const assessmentHeld = new Promise(resolve => { releaseAssessment = resolve; });
 const originalFetch = globalThis.fetch;
 const typesafeFetch = async (url, init) => {
+  transportStarts++; note('transport-start');
+  try {
   assert.equal(String(url), 'https://api.typesafe.ai/v1/systemone', 'no non-scripted network destination');
   requests++;
   const body = JSON.parse(init.body);
   assert.equal(body.state.context.cwd, project);
   assert.equal(body.state.policy.rules[0].text, 'Ask before overwriting owner-demo.txt.');
+  assert.deepEqual(body.state.policy.sources.map(s => s.role), roleList.split(','));
+  assert.deepEqual(body.state.policy.rules.map(r => r.origin.role), roleList.split(','));
+  assert.ok(body.state.policy.rules.every(r => r.id.startsWith(`${r.origin.role}:`)));
   assert.deepEqual(body.state.action.arguments, { value: 'harmless' });
   if (expectedMode === 'observe') await assessmentHeld;
   const outcomeKeys = Object.keys(body.questions).filter(key => key.endsWith('_outcome'));
@@ -31,9 +59,12 @@ const typesafeFetch = async (url, init) => {
     return [key, { type: 'choice', choice, confidence: 1,
       probabilities: Object.fromEntries(Object.keys(question.criteria).map(label => [label, +(label === choice)])) }];
   }));
-  return Response.json({ model: 'offline-owner-script', answers });
+  const response = Response.json({ model: 'offline-owner-script', answers });
+  transportAnswers++; note('transport-answer');
+  return response;
+  } catch (error) { transportErrors++; note('transport-error'); throw error; }
 };
-const native = scriptedNative({ outcome: () => outcome, beforeCompletion: async question => {
+const native = scriptedNative({ ruleCount: roleList.split(',').length, outcome: () => outcome, beforeCompletion: async question => {
   if (question === 0) {
     requests++;
     if (expectedMode === 'observe') await assessmentHeld;
@@ -44,6 +75,11 @@ try {
   const loader = new DefaultResourceLoader({ cwd: project, agentDir: process.env.PI_CODING_AGENT_DIR, settingsManager,
     noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true,
     extensionFactories: [pi => {
+      pi.on('tool_call', (event, ctx) => {
+        note('native-tool-call', { callId: safeCall(event.toolCallId), sessionId: safeSession(ctx.sessionManager.getSessionId()), signalAborted: ctx.signal?.aborted ?? false });
+      });
+      pi.on('tool_result', event => { note('native-tool-result', { callId: safeCall(event.toolCallId) }); captureStages(); });
+      pi.on('agent_end', () => { note('native-agent-end'); captureStages(); });
       pi.registerTool({ name: 'owner_dummy', label: 'Owner demo', description: 'Write only the disposable local owner-demo.txt',
         parameters: Type.Object({ value: Type.String() }), async execute(_id, args) {
           assert.deepEqual(args, { value: 'harmless' });
@@ -118,10 +154,10 @@ try {
     assert.ok(records().some(r => r.stage === 'assessment' && r.requestedProvider === provider && r.requestedModel === alias));
     const findings = records().filter(r => ['assessment', 'permission', 'assessment-status'].includes(r.stage));
     assert.ok(findings.length > 0);
-    assert.ok(findings.every(r => r.version === 3 && r.judgeReportVersion === 'judge-report-v1'
+    assert.ok(findings.every(r => r.version === 4 && r.judgeReportVersion === 'judge-report-v1'
       && r.requestedProvider === provider && r.requestedModel === alias));
     assert.ok(findings.some(r => r.returnedModel === alias), 'validated owner findings retain returned identity');
-    assert.equal(native.calls.filter(c => c.path === '/completion').length, expectedMode === 'observe' ? 4 : 16);
+    assert.equal(native.calls.filter(c => c.path === '/completion').length, (expectedMode === 'observe' ? 2 : 8) * (roleList.split(',').length + 1));
     assert.ok(!records().some(r => r.stage === 'request' || r.stage === 'response'), 'capture-off must not store native payloads');
     assert.ok(!JSON.stringify(session.messages).includes('<|im_start|>'), 'native prompts remain out of agent history');
   }
@@ -130,6 +166,10 @@ try {
   await session.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' });
   session.dispose(); session = undefined;
   console.log(`${process.versions.bun ? 'Bun' : 'Node'} registered owner flow ${provider}/${expectedMode}: native status/findings, ${executed} local writes, ${confirmations.length} native confirmations; no live requests.`);
+} catch (error) {
+  captureStages();
+  console.error(`ARCHIVE_OWNER_FAILURE ${JSON.stringify({ version: 1, mode: expectedMode === 'enforce' ? 'enforce' : 'observe', transportStarts, transportAnswers, transportErrors, timelineDropped, timeline })}`);
+  throw error;
 } finally {
   releaseAssessment();
   if (session) {

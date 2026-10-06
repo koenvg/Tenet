@@ -110,7 +110,7 @@ try {
   assert.equal(await writer.drain(), true);
   const archived = await readArchive(writer.config.directory);
   assert.deepEqual(archived.issues, []);
-  assert.ok(archived.records.every(r => r.schemaVersion === 4));
+  assert.ok(archived.records.every(r => r.schemaVersion === 5));
   const history = nativeHistory(archived.records);
   assert.deepEqual(history.contract, contract);
   assert.equal(history.requests.length, 4); assert.equal(history.responses.length, 4);

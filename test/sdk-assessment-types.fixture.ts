@@ -1,5 +1,5 @@
 // Compiled in an isolated consumer against the built `tenet` package.
-import type { AssessmentStatus, BeforeToolResult, Guard, GuardSession, OwnerEvent, EvidenceContext, GuardOptions, JudgeIdentity, JudgeStatus } from 'tenet';
+import type { AssessmentStatus, BeforeToolResult, Guard, GuardSession, OwnerEvent, EvidenceContext, GuardOptions, JudgeIdentity, JudgeStatus, Policy, PolicySet, PolicyRole, PolicyCandidate, PolicySource, RuleOrigin } from 'tenet';
 const judgeIdentity: JudgeIdentity = { requestedModel: 'offline-script' };
 const options: GuardOptions = { host: 'offline', judgeIdentity, judge: async () => ({}) };
 const judgeStatus: JudgeStatus = { provider: 'injected', requestedModel: null, availability: 'ready', connectivity: 'unverified' };
@@ -106,7 +106,7 @@ export async function useStatus(guard: Guard, session: GuardSession, event: Owne
   // @ts-expect-error nested session identity is immutable
   status.identity.contextId = 'replacement';
   // @ts-expect-error nested policy metadata is immutable
-  status.policy.digest = null;
+  status.policy.combinedDigest = null;
   // @ts-expect-error coverage cannot be upgraded by mutation
   status.capabilities.trustedApproval = true;
   // @ts-expect-error capability limitations are immutable
@@ -206,3 +206,20 @@ const incompleteCurrentHistory: V2History = historicalHistory;
 // @ts-expect-error historical v1 history cannot claim current selection counters
 const mixedHistoricalHistory: V1History = currentHistory;
 void [incompleteCurrentHistory, mixedHistoricalHistory];
+
+export function readPolicySources(policy: Policy) {
+  const candidates: readonly PolicyCandidate[] = policy.candidates;
+  const role: PolicyRole | undefined = candidates[0]?.role;
+  if (!policy.available) return role;
+  const set: PolicySet = policy;
+  const source: PolicySource = set.sources[0]!;
+  const origin: RuleOrigin = set.rules[0]!.origin;
+  const identity: string = set.combinedDigest;
+  // @ts-expect-error current policy sets have no singular source path
+  void set.source;
+  // @ts-expect-error current declaration origins are readonly
+  origin.role = 'global';
+  // @ts-expect-error current candidate metadata is readonly
+  candidates[0]!.presence = 'absent';
+  return [source.digest, origin.role, identity];
+}

@@ -20,6 +20,8 @@ Recovery adapters choose branch eligibility and provenance, not content selectio
 
 `boundEvidence` calls `prepareRequest` with the byte measurement of the exact `judgeState` projection. Policy, integrity, host context, pending arguments and current resolved facts are protected. Optional current tool description/schema can be removed under total-state pressure.
 
+Current policy uses `policy-sources-v1`. `policy-evidence-v2` records source metadata once and declaration origins as role/digest/line references. `policy-integrity-v2` protects every selected source, target and absent candidate. These mandatory fields count toward the same state cap; they are never omitted to fit history. Small caps that fitted a singular snapshot can now fail conservatively. See [the source contract](policy.md#source-snapshot-contract).
+
 Protected facts are never truncated. If they or the minimal history envelope cannot fit, `decide` returns conservative `BLOCK / insufficient-evidence` without calling the judge. Observe still permits independently of that counterfactual decision.
 
 See [current-evidence priority](action-resolution.md#fit-current-evidence-before-history) for metadata tiers, final-only omission counts and overflow behavior.
@@ -139,7 +141,7 @@ Pooling adds no whole-trajectory structural admission/eviction cap. If escaped-i
 
 ### Read recorded representations unchanged
 
-Current identities are `bounded-history-v2`, `policy-rules-v7-ordinary-evidence`, `evidence-context-v1`, schema 4 and `applicability-v1`. Historical `policy-rules-v7-evidence-selection` requests retain their recorded questions and meaning. Optional references complete v2's representation; there is no extra legacy mode.
+Current identities are `bounded-history-v2`, `policy-rules-v8-source-set`, `evidence-context-v1`, schema 5 and `applicability-v1`. Historical `policy-rules-v7-evidence-selection` requests retain their recorded questions and meaning. Optional references complete v2's representation; there is no extra legacy mode.
 
 TENET-23 inline payloads, zero savings and inline questions remain recorded. Readers do not decode or compact historical evidence for display. The evidence dock shows exact recorded references, pool and excerpts. Coverage shows recorded exact savings separately from shortened, dropped and prior-omitted history.
 
@@ -168,7 +170,7 @@ Selection uses bounded recorded identities and ingestion order, not domain-speci
 | Diagnostic | Meaning and bounds |
 | --- | --- |
 | `version: evidence-context-v1` | Owner diagnostic identity |
-| Selection / questions / assessment | Current `bounded-history-v2` / `policy-rules-v7-ordinary-evidence` / `applicability-v1` |
+| Selection / questions / assessment | Current `bounded-history-v2` / `policy-rules-v8-source-set` / `applicability-v1` |
 | TENET-22 schema 4 | Recorded `bounded-history-v1` / `policy-rules-v6-applicability` and original counter shape; no inferred v2 counters/caps |
 | `preparation` | `completed` only after required current evidence fits, independently of evaluator availability |
 | `resolution.status` | `unsupported`, `authenticated-partial`, `authenticated-complete` copy captured resolver status. With no resolver, status defaults to `unsupported`. `unavailable` means capture/preparation did not establish status. History never upgrades effect coverage. |
@@ -202,9 +204,9 @@ Completed results carry the same deeply frozen context through consequences, SDK
 
 ## Recorded and inspector explanations
 
-New schema-4 writes put the diagnostic on request, assessment, decision, permission and assessment-status stages. Requests also record selection identity outside the submitted payload. Readers validate known identities, shape and bounds. A standalone writer without a prepared diagnostic records unavailable preparation, never reconstructed counters.
+New schema-5 writes put the diagnostic on request, assessment, decision, permission and assessment-status stages. Requests also record selection identity outside the submitted payload. Readers validate known identities, shape and bounds. A standalone writer without a prepared diagnostic records unavailable preparation, never reconstructed counters.
 
-Schemas 1 through 3 keep original payloads, thresholds, questions and assessment identities. Missing historical context says `Not recorded`, not complete coverage. Readers older than schema 4 must report unsupported schema. Rollback never rewrites archives.
+Schemas 1 through 4 keep original payloads, thresholds, questions and assessment identities. Missing historical context says `Not recorded`, not complete coverage. Readers older than schema 5 must report unsupported schema. Rollback never rewrites archives.
 
 APUS keeps the same canonical evidence capture and selection counters. Its separately recorded `apus-recording-v1` contract describes native rendering, transport mapping and deterministic selectors. Neither native token/cache counters nor NONE probability one authenticate coverage. See [the native recording contract](assessment-contract.md#native-recording-contract).
 
@@ -292,18 +294,26 @@ This section preserves TENET-26's historical comparison and integrated verificat
 
 TENET-26 starts at integrated TENET-25 commit `b5e3c935408f934ffdc805d6e4ad9b63c6e22d0c`. Its authored label/baseline checkpoint is `bdc5195`. The final integrated review uses original epic base `2320f3295c3682b5303f5e6d8c9c84685f85ea73`; TENET-21 is already in that base and retains its own earlier review.
 
-The reproducible [readable offline report](../eval/evidence-selection/report.md) and [machine-readable exact payloads](../eval/evidence-selection/report.json) compare frozen authored inline baselines, `authored-inline-v1` with selector identity null, against the current `bounded-history-v2` selector. This is not measured pre-change behavior or a current-selector reconstruction labeled historical. Large authored snapshots are not claims of historical runtime admission.
+The reproducible [readable offline report](../eval/evidence-selection/report.md) and [machine-readable exact payloads](../eval/evidence-selection/report.json) compare frozen authored inline baselines, `authored-inline-v1` with selector identity null, against the recorded `bounded-history-v2` selector. This is not measured pre-change behavior or a current-selector reconstruction labeled historical. Large authored snapshots are not claims of historical runtime admission.
 
 Policy, thresholds, pending arguments, integrity, authenticated current facts and v7 generic question semantics are fixed within every pair.
 
-Replay from the repository root after local frozen dependency setup. This supported offline path requires the builds below. It must exit zero and leave both report files unchanged, so the final diff command prints nothing. If it differs, inspect the report/test failure rather than updating historical evidence to hide it:
+Verify the frozen v7 campaign from the repository root in the [disposable offline environment](../CONTRIBUTING.md#check-a-change). These tests check historical evidence without replacing it. The diff command must print nothing:
 
 ```sh
-bun run sdk:build
-TMPDIR=/tmp bun test test/evidence-selection-report.test.ts
-bun eval/evidence-selection-replay.ts
-git diff --exit-code -- eval/evidence-selection/report.json eval/evidence-selection/report.md
+bun --no-env-file run sdk:build
+TMPDIR=/tmp bun --no-env-file test --isolate --max-concurrency=1 --timeout=30000 test/evidence-selection-report.test.ts test/evidence-replay-cli.test.ts
+git diff --exit-code -- eval/evidence-selection/fixtures.json eval/evidence-selection/report.json eval/evidence-selection/report.md
 ```
+
+To generate a current v8 source-set replay, choose an unused output directory outside the frozen inputs. Its parent must exist. The CLI creates the directory and writes new JSON and Markdown there; it does not update the historical campaign:
+
+```sh
+OUTPUT_PARENT="$(mktemp -d /tmp/tenet-evidence-replay.XXXXXX)"
+bun --no-env-file eval/evidence-selection-replay.ts --out "$OUTPUT_PARENT/current"
+```
+
+Expected output names are `report.json` and `report.md` under that new directory. Omitted output, an existing destination, a frozen destination, or a parent alias into frozen inputs fails before replay. Existing reports and symlinks are never replaced. The in-memory `replayEvidence()` API remains available without an output path.
 
 The offline runner accepts no live or execution flags and imports no provider transport/executor. Denied arguments are tested with an injected transport proving zero calls. Future live comparison needs separate explicit disclosure authorization and an authorized runner enforcing that authorization before any network call. This runner cannot perform live replay even with an authorization flag. No live run, fixture action, host restart or external executor change occurred.
 

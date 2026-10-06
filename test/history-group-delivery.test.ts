@@ -74,12 +74,12 @@ for (const mode of ['enforce', 'observe'] as const) for (const recording of ['on
       if (recording === 'off') assert.equal(archive.records.length, 0);
       else {
         const rows = archive.records.filter(r => r.callId === 'current');
-        assert.ok(rows.every(r => r.schemaVersion === 4 && validRecord(r)));
+        assert.ok(rows.every(r => r.schemaVersion === 5 && validRecord(r)));
         assert.deepEqual(rows.find(r => r.stage === 'request')!.data.payload, payload);
         const view = invocationView(rows);
         assert.deepEqual(view.evidenceContext, context); assert.deepEqual(view.evidence, payload.state);
         assert.equal(view.execution, 'unknown');
-        assert.equal(view.questionVersion, 'policy-rules-v7-ordinary-evidence');
+        assert.equal(view.questionVersion, 'policy-rules-v8-source-set');
       }
     } finally { release(); await guard.close(); await rm(cwd, { recursive: true, force: true }); }
   });

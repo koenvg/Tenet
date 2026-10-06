@@ -82,7 +82,7 @@ test('SDK suppresses late background findings after off and keeps sibling turn t
 
 test('SDK bounds and redacts host history; failed owner delivery and sinks cannot veto observe', async () => {
   const requests: JudgeRequest[] = [];
-  const h = await fixture({ env: { TENET_RECORDING: 'off', TENET_RECENT_EVENTS: '2', TENET_EVIDENCE_MAX_BYTES: '2048', TENET_SENSITIVE_FIELDS: '["token"]' },
+  const h = await fixture({ env: { TENET_RECORDING: 'off', TENET_RECENT_EVENTS: '2', TENET_EVIDENCE_MAX_BYTES: '4096', TENET_SENSITIVE_FIELDS: '["token"]' },
     judge: async r => { requests.push(r); return answer(r.policy); },
     bindRecording: () => () => { throw new Error('sink unavailable'); },
     onOwnerEvent: () => { throw new Error('owner unavailable'); } });
@@ -96,7 +96,10 @@ test('SDK bounds and redacts host history; failed owner delivery and sinks canno
     assert.equal((await h.call('observe')).permission, 'released');
     await until(() => requests.length > 0);
     assert.match(JSON.stringify(requests[0]!.trajectory), /untrusted approval/);
-    assert.doesNotMatch(JSON.stringify(requests[0]!.trajectory), /canary-secret|evicted|xxxxxxxx/);
+    assert.doesNotMatch(JSON.stringify(requests[0]!.trajectory), /canary-secret|evicted/);
+    const last: any = requests[0]!.trajectory!.observations.at(-1)!.data;
+    assert.equal(last.selection.excerpts[0].originalBytes, 10000);
+    assert.ok(Buffer.byteLength(JSON.stringify(last)) <= 341);
   } finally { await h.close(); }
 });
 

@@ -145,7 +145,7 @@ for (const recording of ['off', 'on']) test(`Pi actual recovery batches only ass
     else {
       const rows = archive.records.filter(row => row.callId === 'current' && ['assessment', 'decision', 'permission'].includes(row.stage));
       assert.equal(rows.length, 3);
-      for (const row of rows) { assert.equal(row.schemaVersion, 4); assert.deepEqual(row.data.evidenceContext, request!.evidenceContext); }
+      for (const row of rows) { assert.equal(row.schemaVersion, 5); assert.deepEqual(row.data.evidenceContext, request!.evidenceContext); }
       assert.deepEqual(invocationView(rows).evidenceContext, request!.evidenceContext);
     }
   } finally { await h.close(); }

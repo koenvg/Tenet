@@ -39,13 +39,14 @@ No compiler, frontend build or Pi dependency copy is needed. The only archive pa
 
 ## Per-project setup before any assessed action
 
-Complete these steps in each project. Use the later enforcement, SDK, update and rollback sections only when you need those tasks.
+Complete these steps for each session project, including a project that uses only global rules. Use the later enforcement, SDK, update and rollback sections only when needed.
 
 Before launching Pi, review these limits:
 
 - The selected judge receives full policy text, identity/paths, field-redacted tool arguments and metadata, and bounded observations. TypeSafe uses quota; APUS through private forwarding sends these to Pika and uses CPU. Source, commands, URLs and rule text can retain secrets despite redaction. Backend log access and retention are the owner's responsibility.
 - Local capture is on by default. It saves submitted strings in `~/.tenet/recordings`. This is best-effort, unencrypted same-user storage, not protection against an agent running as you.
 - Observe never vetoes or opens approval. Tenet is not an OS sandbox, and actions outside Pi's hooks are not covered. Pi installation does not verify the Claude Code prototype.
+- Optional owner-home `~/.tenet/TENET.md` activates projects without local rules. Global rules can reach TypeSafe and recordings in every eligible session. An invalid global file makes the complete policy set unavailable, even with a valid project file. Review these effects before authoring it.
 
 1. Before provider or owner settings changes, obtain separate authorization for full policy/selected-evidence disclosure to that service, with the quota/CPU, capture and backend-log risks above. TypeSafe is the absent-settings default and requires `TYPESAFE_API_KEY` through your secret manager in the launch shell. Never put it in policy, source, chat or command arguments.
 
@@ -60,7 +61,9 @@ Before launching Pi, review these limits:
 
    Before writing owner policy, obtain separate authorization. Future assessment discloses full policy and selected evidence to TypeSafe or Pika, with possible secrets despite redaction, quota/CPU cost, default capture and owner-controlled backend logs. Capture-off stops neither disclosure nor all logs.
 
-3. In your project, author `TENET.md` yourself in an editor or owner shell, outside the guarded agent's intercepted path. For example:
+3. Review the intended rules first. Author the optional `~/.tenet/TENET.md`, the project's `TENET.md`, or both yourself in an editor or owner shell, outside the guarded agent's intercepted path. Create the global file only if you want its rules across projects.
+
+   Tenet never creates it automatically. For example:
 
    ```tenet-policy
    Rule; Ask before overwriting owner-demo.txt.
@@ -72,9 +75,9 @@ Before launching Pi, review these limits:
 
 Explicit `BLOCK`, advisory `WARN` and per-rule metadata are optional choices in [the rule reference](ARCHIVE-OPERATION.md#write-one-line-rules). Plain prose is not enforced. A declaration inside a Markdown fence is still active.
 
-No policy ships in the archive. Only `TENET.md` in the session working directory selects a policy. There is no parent search or bundled fallback. Without a local policy, both modes are dormant, including enforce. For complete grammar, limits, thresholds and owner controls, see [policy selection and limits](ARCHIVE-OPERATION.md#eligibility-and-owner-control).
+No policy ships in the archive. Tenet selects optional `~/.tenet/TENET.md` from the process owner's home alongside `TENET.md` in the session working directory. `TENET_POLICY` selects an absolute or session-relative project file instead of the local candidate; it never replaces global. There is no global-path override, opt-out, parent search or installation-directory fallback.
 
-For an older override-based setup, follow [local policy migration](ARCHIVE-OPERATION.md#migrate-from-tenet_policy) before restarting. The removed environment setting cannot activate the project.
+Only confirmed absence of both implicit candidates without an override makes both modes dormant. Any present source must validate. Empty overrides, missing explicit files and unusable sources make the whole set unavailable, not a valid-subset pass. Observe permits without a pass; enforce blocks. The sources share 64 KiB of file bytes and 16 declarations, with 4096 UTF-8 bytes per rule. See [policy selection and limits](ARCHIVE-OPERATION.md#eligibility-and-owner-control).
 
 ### Check setup offline
 
@@ -86,9 +89,15 @@ node "$TENET_DIR/dist/cli/index.js" doctor --project "$PWD"
 node "$TENET_DIR/dist/cli/index.js" doctor --project "$PWD" --json
 ```
 
-Bun can run the same compiled CLI. Doctor checks the installation containing that CLI and the selected project. It sends no evidence and changes no files.
+Bun can run the same compiled CLI. Doctor checks the installation containing that CLI and both owner-home and session project candidates. It sends no evidence and changes no files.
 
 `ready` means local prerequisites are valid. Hooks, credential validity and provider connectivity remain unverified. Fix invalid or unavailable setup before launch. `off` and `dormant` are bypass states, not passing assessments. See [doctor states, exits and limits](doctor.md).
+
+Check global and project roles, configured paths, resolved targets, each file digest, combined digest and total rule count. Absent optional candidates remain listed.
+
+After any policy-only change, reload through Pi session start or restart and check these values again. Active source changes invalidate the whole snapshot; off/on does not refresh it. Code or environment changes require a full restart.
+
+SDK hosts close and reopen sessions; the Claude prototype uses bridge reselection and matching hook configuration, not Pi commands.
 
 ## Restart, observe and inspect findings
 
@@ -184,13 +193,16 @@ Off and uninstall leave `~/.tenet/recordings`, Pi's own session files and `~/.te
 
 For an upgrade or rollback:
 
-1. Close all Pi processes and the inspector. Review the target version's grammar, controls and mode defaults before relaunching.
-2. Replace the whole installation at the same stable path with the desired verified archive. Do not overlay archives.
-3. Reinstall that archive's dependencies with `npm ci --omit=dev --ignore-scripts` from the stable directory, then restart.
+Older releases can ignore automatic global discovery and cannot reproduce additive enforcement. Keep the new version, or first author and review a complete policy selected for every affected session outside the guarded path. Check the target release's override support and native status; do not assume `TENET_POLICY` restores ignored global rules. Rollback does not add compatibility or rewrite historical evidence.
 
 Policies remain owner-managed. Older versions may ignore observe mode or `WARN`/threshold metadata and block by default. Remove per-rule threshold metadata externally before reverting to a version that treats it as prose. See [policy migration](ARCHIVE-OPERATION.md#owner-only-policy-management).
 
 A pre-SDK archive removes the alpha SDK entry, so embedding consumers must not expect the import to survive. Historical evidence keeps its recorded contract versions. Rollback neither migrates nor erases it; older inspectors may support only a subset.
+
+1. Close all Pi processes and the inspector. Review the target version's grammar, controls and mode defaults before relaunching.
+2. Replace the whole installation at the same stable path with the desired verified archive. Do not overlay archives.
+3. Reinstall that archive's dependencies with `npm ci --omit=dev --ignore-scripts` from the stable directory.
+4. Before guarded work, verify the selected complete policy in each affected session with the target release's supported diagnostics. For this release, [run doctor offline](#check-setup-offline), restart Pi and check `/tenet status`. An older release may lack these diagnostics; do not assume readiness or additive enforcement from installation alone.
 
 ## What the delivery checks prove
 
@@ -198,7 +210,9 @@ The archive contains the compiled Pi extension, alpha SDK and declarations, offl
 
 Developers and CI run `bun run package:archive` from a repository checkout, not the archive. It builds `delivery/tenet.tar.gz`, checks a closed file list and production manifest/lock, and extracts outside the checkout. A verification failure prevents delivery.
 
-Verification installs production dependencies, checks isolated Node/Bun imports and declarations, serves built inspector assets and historical scripted findings, and tests pinned Pi discovery and dispatch. The isolated owner recipe registers a stable path, creates policy externally, runs the delivered doctor in text and JSON, and launches fresh observe and enforce processes.
+Verification installs production dependencies, checks isolated Node/Bun imports and declarations, serves built inspector assets and recorded scripted findings, and tests pinned Pi discovery and dispatch.
+
+Global-only, combined and project-override fixtures check source-aware SDK and doctor contracts with temporary process homes and session directories, never installation policies. Empty or malformed global sources, broken global links, missing explicit projects and blank overrides reject the whole set. The isolated owner recipe registers a stable path, authors disposable policies externally, runs doctor in text and JSON, and launches fresh project-only, global-only and combined observe/enforce processes.
 
 A scripted judge and assistant exercise only a disposable local `owner-demo.txt`. Observe releases the pending write and later shows a counterfactual `BLOCK` finding.
 

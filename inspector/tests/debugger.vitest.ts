@@ -440,3 +440,22 @@ test('exact compaction stays distinct from losses and the dock preserves the sub
   await coverage.scrollIntoViewIfNeeded();
   await p.screenshot({ path: join(artifacts, 'history-groups-mobile.png'), fullPage: true });
 });
+
+for (const width of [1280, 390]) test(`recorded source role and identity stay visible at ${width}px`, async () => {
+  const p = currentPage(); await pickCall('compacted');
+  await p.setViewportSize({ width, height: 844 });
+  const detail = p.getByRole('region', { name: 'Selected rule' });
+  expect(await detail.textContent()).toContain('Source role: global');
+  await detail.locator('.rule-technical > summary').click();
+  expect(await detail.textContent()).toContain('Recorded target:');
+  expect(await detail.textContent()).toContain('Source SHA-256:');
+  await p.locator('.other-rules > summary').click();
+  await p.locator('.rule-row').filter({ hasText: 'Never send any email' }).last().click();
+  expect(await detail.textContent()).toContain('Source role: project');
+  expect(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await detail.scrollIntoViewIfNeeded();
+  await detail.screenshot({ path: join(artifacts, `policy-source-${width}.png`) });
+  await p.setViewportSize({ width: 1280, height: 844 });
+  await pickCall('rich');
+  expect(await detail.textContent()).toContain('Source role: unknown, not recorded');
+});

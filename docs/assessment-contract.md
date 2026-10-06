@@ -8,7 +8,9 @@ Stock Pi and Claude report action resolution as unsupported. This is a coverage 
 
 ## Outcomes and gates
 
-Current questions use `policy-rules-v7-ordinary-evidence` within `applicability-v1`. They clarify ordinary classification and retain the bounded-history instructions, labels, distributions and fact-reference questions. Provider selection does not change the runtime profile, these questions or archive schema 4.
+Current questions use `policy-rules-v8-source-set` within `applicability-v1`. Every declaration has a source-qualified identity and independent assessment. The evidence projection is `policy-evidence-v2`, integrity is `policy-integrity-v2`, and new archives use schema 5.
+
+These questions clarify ordinary classification and retain bounded-history instructions, labels, distributions, thresholds and applicability fact-reference gates. Provider selection does not change the runtime profile, questions or archive schema.
 
 | User-rule outcome | Meaning |
 | --- | --- |
@@ -118,14 +120,15 @@ Every assessed rule's contributions retain outcome threshold, evidence-gate appl
 
 | Records | Preserve as recorded |
 | --- | --- |
-| New schema 4 | `evidence-context-v1`, `bounded-history-v2`, `policy-rules-v7-ordinary-evidence` |
+| New schema 5 | `policy-sources-v1`, `policy-rules-v8-source-set`, `policy-evidence-v2`, `policy-integrity-v2`; unchanged `evidence-context-v1` and `bounded-history-v2` |
+| Historical ordinary-evidence schema 4 | `policy-rules-v7-ordinary-evidence`, singular policy identity and original diagnostics |
 | Historical evidence-selection v7 | Exact `policy-rules-v7-evidence-selection` questions, pooled/inline payloads, scores, contributions and thresholds |
 | TENET-22 schema 4 | `bounded-history-v1`, `policy-rules-v6-applicability`, original counter shape |
 | Schemas 1 through 3 | Original payloads and thresholds; absent diagnostics say not recorded |
 
-The ordinary-evidence question change does not rerun old assessments, rebuild their evidence or change their meaning. New request, assessment, permission and owner records carry the current question identity through the existing metadata path.
+The source-set question change does not rerun old assessments, rebuild their evidence or infer source roles. New request, assessment, permission and owner records carry the current identity. Readiness uses shared global and project selection. See [source snapshots and historical origins](policy.md#source-snapshot-contract).
 
-Older readers must report unsupported schema 4. Do not rewrite archives for rollback or run historical payloads through today's selector to invent counters. There is no runtime legacy toggle.
+Older readers must report unsupported schema 5. Do not rewrite archives for rollback or run historical payloads through today's selector to invent counters. There is no runtime legacy toggle.
 
 ### Preserve v2's recorded meaning
 
@@ -181,15 +184,15 @@ env -u TYPESAFE_API_KEY TMPDIR=/tmp bun eval/applicability-replay.ts > /tmp/tene
 env -u TYPESAFE_API_KEY TMPDIR=/tmp bun eval/applicability-replay.ts --format=markdown > /tmp/tenet-applicability-comparison.md
 ```
 
-This supported offline replay uses current evidence selection and `policy-rules-v7-ordinary-evidence` with scripted responses. It contacts no provider and executes no fixture action. Success writes the comparison JSON or Markdown.
+This supported offline replay uses current evidence selection and `policy-rules-v8-source-set` with scripted responses. It contacts no provider and executes no fixture action. Success writes the comparison JSON or Markdown.
 
-Version 2 of the sanitized corpus retains every version-1 fixture and digest. It adds unsupported ordinary reads, inert edits, metadata/history pressure, schema fallback and unrelated rule domains. Ordinary unsupported cases expect PASS, separately from authenticated NOT_APPLICABLE controls.
+Version 3 of the sanitized corpus uses current source-set projections and preserves the frozen version-1 and version-2 corpora and digests. The version-2 scenarios remain unchanged, including unsupported ordinary reads, inert edits, metadata/history pressure, schema fallback and unrelated rule domains. Ordinary unsupported cases expect PASS separately from authenticated NOT_APPLICABLE controls.
 
 Expectations were committed before current replay. Synthetic resolver facts are test data, not deployed executor coverage.
 
 ### Compare recorded question versions
 
-Report identity is the pair of assessment profile and question version. `compareApplicability` accepts separately supplied v6, historical evidence-selection-v7 and current ordinary-evidence-v7 observations within `applicability-v1`. This is a report interface, not a runtime selector.
+Report identity is the pair of assessment profile and question version. `compareApplicability` accepts separately supplied v6, historical evidence-selection-v7, ordinary-evidence-v7 and current source-set-v8 observations within `applicability-v1`. This is a report interface, not a runtime selector.
 
 It rejects duplicate identity pairs, duplicate fixture observations within a pair, and mismatched fixture, policy, result profile, question version or declared question digest. Reports retain recorded policy/fixture/question/payload digests, models, thresholds, contributions, submitted evidence, evidence context, coverage and omissions. Absent values stay null.
 
@@ -223,7 +226,7 @@ These cover ordinary PASS with unsupported resolution, high-confidence unsupport
 
 The frozen TENET-29 campaign requires `policy-rules-v7-evidence-selection`. Its production entry refuses the current question identity before transport or output reservation. All 15 original campaign-mechanics regressions still run offline. An inert reader keeps the byte-pinned historical manifest without rebuilding questions or selecting history.
 
-The shared transport/journal/report implementation requires injected transport and an SDK adapter; it has no default transport. The test adapter supplies scripted replies through the current SDK response validator and unchanged decision gates. No historical evaluator runs and no frozen artifact is rewritten.
+The campaign transport/journal/report path requires injected transport and has no default transport. Its report-only recorded-contract adapter validates the exact recorded response shape and uses recorded declaration IDs and thresholds. It does not prepare current evidence or infer source roles. No frozen artifact is rewritten.
 
 Current scripted reports can differ in question text, identity, digests and request bytes. Unchanged evidence, validated assessments and gates retain the authored mechanical baselines.
 

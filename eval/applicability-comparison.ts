@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { Decision } from '../src/decision/contracts.js';
 import { INTEGRITY_ID } from '../src/decision/policy.js';
 import { ASSESSMENT_METADATA } from '../src/decision/assessment-contract.js';
@@ -49,7 +50,8 @@ export function compareApplicability(observations: readonly ComparisonObservatio
     const result = observation?.result;
     const rules = result?.assessment?.rules ?? [];
     const identity = fixtureIdentity(fixture);
-    const userRuleId = `${identity.policyDigest}:1`;
+    const userRuleId = contract.questionVersion === 'policy-rules-v8-source-set'
+      ? `project:${createHash('sha256').update(fixture.policy).digest('hex')}:1` : `${identity.policyDigest}:1`;
     const expectedRuleIds = [userRuleId, INTEGRITY_ID];
     const missingRuleIds = expectedRuleIds.filter(id => !rules.some(r => r.ruleId === id));
     // Count only the fixture's complete rule set, never another policy's result.

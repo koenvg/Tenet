@@ -103,6 +103,31 @@ test('rejects broken local links in the delivered owner references', async () =>
     await assert.rejects(assertDelivery(root), /missing documentation target/);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test('archive rollback prerequisites precede installation replacement', async () => {
+  const guide = await readFile(new URL('../docs/INSTALL-ARCHIVE.md', import.meta.url), 'utf8');
+  const rollback = guide.slice(guide.indexOf('For an upgrade or rollback:'));
+  const replacement = rollback.indexOf('Replace the whole installation');
+  assert.ok(replacement > 0);
+  for (const warning of ['Older releases can ignore automatic global discovery',
+    'author and review a complete policy', 'target release\'s override support']) {
+    const position = rollback.indexOf(warning);
+    assert.ok(position >= 0 && position < replacement, `rollback prerequisite must precede replacement: ${warning}`);
+  }
+});
+
+test('rejects missing heading anchors, including same-page links, in shipped guides', async () => {
+  const root = await fixture();
+  try {
+    await writeFile(join(root, 'docs/operation.md'), '# Owner operation\n\n## Select `TENET_POLICY`\n');
+    await writeFile(join(root, 'README.md'), '[Selection](docs/operation.md#select-tenet_policy)');
+    await assertDelivery(root);
+    await writeFile(join(root, 'README.md'), '[Selection](docs/operation.md#absent)');
+    await assert.rejects(assertDelivery(root), /missing documentation anchor/);
+    await writeFile(join(root, 'README.md'), '[Local](#absent)');
+    await assert.rejects(assertDelivery(root), /missing documentation anchor/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
 test('rejects checkout-specific absolute module imports', async () => {
   const root = await fixture();
   try {

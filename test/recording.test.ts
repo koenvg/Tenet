@@ -9,6 +9,7 @@ import { createJevJudge } from '../src/decision/jev.js';
 import { decide } from '../src/decision/decide.js';
 import { captureAction } from '../src/decision/evidence.js';
 import { answer, policy, sdkAnswers } from './helpers.js';
+import { SCHEMA_VERSION } from '../src/recording/contract.js';
 
 const identity = { host: 'pi', contextId: 'main', sessionId: '../session', invocationId: 'invocation', callId: 'call', toolName: 'edit', cwd: '/project', mode: 'observe' as const };
 async function temporary(run: (dir: string) => Promise<void>) {
@@ -22,11 +23,11 @@ test('production writer requires host/context; schema 1 is an explicit fixture o
   const missing: Parameters<ArchiveWriter['bind']>[0] = legacyIdentity;
   assert.throws(() => writer.bind(missing), /invalid-recording-identity/);
   assert.throws(() => writer.bind({ ...identity, host: 'pi', contextId: '' }), /invalid-recording-identity/);
-  writer.bind({ ...identity, host: 'pi', contextId: 'main' })('begin', {});
+  writer.bind({ ...identity, host: 'pi', contextId: 'main' })('begin', { policy });
   await writer.close();
   const archive = await readArchive(dir);
   assert.equal(archive.records.length, 1);
-  assert.equal(archive.records[0]?.schemaVersion, 4);
+  assert.equal(archive.records[0]?.schemaVersion, 5);
   assert.equal(archive.records[0]?.host, 'pi');
   assert.ok((await readdir(join(dir, qualifiedSessionKey('pi', identity.sessionId, 'main')))).length);
   assert.deepEqual(archive.issues, []);
@@ -52,10 +53,10 @@ test('config opt-out and invalid path disable only recording; unsafe storage and
   assert.equal(recordingConfig({ TENET_RECORDING: 'off' }).enabled, false);
   assert.equal(recordingConfig({ TENET_RECORDING_DIR: 'relative' }).enabled, false);
   const disabled = new ArchiveWriter({ enabled: false, directory: dir });
-  disabled.bind(identity)('begin', {}); await disabled.drain();
+  disabled.bind(identity)('begin', { policy }); await disabled.drain();
   assert.deepEqual((await readArchive(dir)).records, []);
   const writer = new ArchiveWriter({ enabled: true, directory: dir });
-  writer.bind(identity)('begin', {}); await writer.drain();
+  writer.bind(identity)('begin', { policy }); await writer.drain();
   const folder = join(dir, qualifiedSessionKey(identity.host, identity.sessionId, identity.contextId));
   await writeFile(join(folder, 'bad.json'), '{', { mode: 0o600 });
   await symlink('/etc/passwd', join(folder, 'escape.json'));
@@ -63,7 +64,7 @@ test('config opt-out and invalid path disable only recording; unsafe storage and
   assert.equal(read.records.length, 1); assert.equal(read.issues.length, 2);
   const failing = new ArchiveWriter({ enabled: true, directory: join(dir, 'escape.json', 'child') });
   await symlink('/tmp', join(dir, 'escape.json'));
-  failing.bind(identity)('begin', {}); await failing.drain();
+  failing.bind(identity)('begin', { policy }); await failing.drain();
   assert.ok(failing.health().failed > 0);
 }));
 
@@ -86,7 +87,7 @@ test('SDK submitted payload is captured exactly after redaction, with response a
   const { records } = await readArchive(dir);
   const captured = records.find(r => r.stage === 'request')!;
   assert.deepEqual((await readArchive(dir)).issues, []);
-  assert.ok(records.length > 0 && records.every(record => record.schemaVersion === 4), 'Current SDK capture must use the production contract');
+  assert.ok(records.length > 0 && records.every(record => record.schemaVersion === SCHEMA_VERSION), 'Current SDK capture must use the production contract');
   assert.deepEqual(captured.data.payload, outbound);
   assert.equal(outbound.state.trajectory.observations.length, 1);
   assert.equal(outbound.state.trajectory.omitted, 2);
@@ -113,7 +114,7 @@ test('throwing recording sinks cannot change passing or concerning decisions', a
 test('bounded queue and response snapshots report loss without throwing', () => temporary(async dir => {
   const writer = new ArchiveWriter({ enabled: true, directory: dir }, { events: 1, bytes: 10000 });
   const sink = writer.bind(identity);
-  sink('begin', {}); sink('decision', { decision: 'ALLOW' });
+  sink('begin', { policy }); sink('decision', { decision: 'ALLOW' });
   await writer.drain();
   assert.equal(writer.health().dropped, 1);
   assert.equal((await readArchive(dir)).records.filter(r => r.stage !== 'health').length, 1);
@@ -124,7 +125,7 @@ test('bounded queue and response snapshots report loss without throwing', () => 
 
 test('reader rejects oversized, malformed-stage and public files independently', () => temporary(async dir => {
   const writer = new ArchiveWriter({ enabled: true, directory: dir });
-  writer.bind(identity)('begin', {}); await writer.close();
+  writer.bind(identity)('begin', { policy }); await writer.close();
   const original = (await readArchive(dir)).records[0]!;
   const folder = join(dir, qualifiedSessionKey(identity.host, identity.sessionId, identity.contextId));
   await writeFile(join(folder, 'oversized.json'), 'x'.repeat(4 * 1024 * 1024 + 1), { mode: 0o600 });

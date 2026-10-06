@@ -8,8 +8,10 @@ export const statusSchema = z.object({ coverage: z.enum(['unknown', 'partial', '
   notices: z.object({ approvals: z.number().int().nonnegative(), uncertain: z.number().int().nonnegative(), incomplete: z.number().int().nonnegative() }).strict().optional() }).strict();
 export type Status = z.infer<typeof statusSchema>;
 export const unavailable = (): Status => ({ coverage: 'unavailable', linkedCalls: 0, failures: 0, issues: ['host-or-archive-unavailable'] });
+const origin = z.object({ role: z.enum(['global', 'project']).nullable(), source: z.string().max(8192).nullable(),
+  target: z.string().max(8192).nullable(), digest: z.string().max(256).nullable(), line: z.number().int().positive().nullable() }).strict();
 const findingRule = z.object({ ruleId: z.string().max(256), severity: z.enum(['BLOCK', 'WARN']),
-  policyText: z.string().max(2048).nullable(), confidence: z.number().min(0).max(1).nullable(),
+  origin: origin.nullable(), policyText: z.string().max(2048).nullable(), confidence: z.number().min(0).max(1).nullable(),
   uncertain: z.boolean(), kind: z.enum(['policy', 'integrity']) }).strict();
 const finding = z.object({ id: z.string().regex(/^[a-f0-9]{64}$/), callId: z.string().max(256), toolName: z.string().max(256),
   snapshot: z.string().regex(/^[a-f0-9]{64}$/),

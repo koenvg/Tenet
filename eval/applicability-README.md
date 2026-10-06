@@ -13,7 +13,7 @@ env -u TYPESAFE_API_KEY TMPDIR=/tmp bun eval/applicability-replay.ts --format=ma
 
 The default before identity is `applicability-v1 / policy-rules-v7-evidence-selection`. No historical observations are bundled or invented. All 29 before rows are missing. All 29 current rows run scripted mechanics. The invalid-distribution control remains unavailable. Every incomplete pair stays visible, with no false-block reduction credit.
 
-The current version is `applicability-v1 / policy-rules-v7-ordinary-evidence`. Version 2 of the fixture corpus retains version 1 unchanged. Ordinary unsupported reads and inert edits have separate identities and PASS expectations. They do not inherit the authenticated NOT_APPLICABLE expectations. Metadata-pressure and schema-fallback cases capture the actual finalized current evidence, not a second selector. Every fixture is sanitized and inert. Source references identify the approved task, not private recordings.
+The current version is `applicability-v1 / policy-rules-v8-source-set`. Version 3 of the fixture corpus uses the current source contract; frozen versions 1 and 2 and their digests stay unchanged. The version-2 scenarios still cover ordinary unsupported reads, inert edits, metadata pressure and schema fallback. Ordinary PASS expectations stay separate from authenticated NOT_APPLICABLE controls. Fixtures are sanitized and inert. Source references identify approved work, not private recordings.
 
 ## Supply before observations
 
@@ -23,7 +23,7 @@ Use a sanitized JSON bundle. It contains a `contract` and `observations`. Each o
 - `profile` and `questionVersion`, matching the declared contract and recorded result.
 - `evidenceCoverage` and `omissions`, with the recorded evidence limits and loss kept visible.
 - `result`, the separately supplied recorded decision with its original assessment, diagnostics, thresholds, question version, requested model and evidence context. Use null for a missing result.
-- Optional `evaluationStatus`, with `complete`, `incomplete` or `unavailable`. The exact fixture user-rule ID, its policy digest plus `:1`, and the integrity ID must both be present exactly once. Other rule IDs cannot replace them. Missing expected IDs remain in `missingRuleIds`, and the row remains incomplete regardless of this field.
+- Optional `evaluationStatus`, with `complete`, `incomplete` or `unavailable`. The exact fixture user-rule ID and integrity ID must both be present exactly once. Historical IDs retain the fixture's recorded digest plus `:1`; current IDs use `project:<SHA-256 of exact fixture policy text>:1`. Other rule IDs cannot replace them. Missing expected IDs remain in `missingRuleIds`, and the row remains incomplete regardless of this field.
 - Optional `questionDigest`, `payloadDigest`, `submittedState`, `origin` and `contributions`. No absent value is reconstructed. A declared common contract `questionDigest` must match every supplied observation. Policy-specific question digests can instead remain per observation.
 
 For an entirely missing historical side, this is a valid bundle:

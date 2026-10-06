@@ -10,7 +10,7 @@ You need an installed Tenet extension and a project directory you control. For a
 
 Edit the active policy yourself in an editor or owner shell, outside the guarded agent's intercepted path. Tenet's built-in integrity constraint protects it, but Tenet is not a filesystem sandbox. Keep policy creation, migration and weakening outside that agent path.
 
-1. Open or create `TENET.md` in your project directory. Tenet selects only this file in the session working directory. It does not search parent directories or use the installation's policy.
+1. Open or create `TENET.md` in your project directory. With `TENET_POLICY` unset, Tenet selects this file in the session working directory. It does not search parent directories or use the installation's policy.
 2. Add this declaration on one physical line:
 
    ```tenet-policy
@@ -28,7 +28,7 @@ Edit the active policy yourself in an editor or owner shell, outside the guarded
    ```
 
    A checkout needs compiled SDK/CLI and inspector output first. See [Run doctor](doctor.md#direct-invocation). There is no installed global `tenet` command.
-4. Check the selected source, SHA-256 digest and declared rule count. This example has `1` rule, excluding built-in integrity. If doctor rejects it, use [the policy fixes](#fix-a-rejected-or-unavailable-policy) below.
+4. Check the selected source, SHA-256 digest and declared rule count. This project example has `1` rule, plus any global declarations and excluding built-in integrity. If doctor rejects it, use [the policy fixes](#fix-a-rejected-or-unavailable-policy) below.
 
 A valid policy can still produce `unavailable` with `missing-credentials`. If its source, digest and count match, continue with credential setup below. Fix other issues before launch.
 
@@ -60,17 +60,59 @@ Observe reports what enforcement would do but never vetoes or opens approval, in
 
 ## Choose the policy file
 
+Tenet automatically selects optional `~/.tenet/TENET.md` from the process owner's home, then the project candidate. With `TENET_POLICY` unset, the project candidate is `TENET.md` in the session working directory. A nonblank override replaces only that project candidate. Absolute paths stay absolute; relative paths resolve against the session directory.
+
 ```text
-TENET.md in the session working directory only
-  |
-  +-- missing at startup -> dormant
-  +-- present            -> validate the whole file
+owner home/.tenet/TENET.md + session TENET.md or TENET_POLICY
+                          |
+              both implicit candidates absent -> dormant
+                          |
+              any selected source or override -> validate complete set
+                          |
+              valid -> assess all rules; invalid -> unavailable
 ```
 
-- A missing local `TENET.md` makes both modes dormant. There is no assessment, veto, approval, recording, footer, notification or Tenet command. An `@TENET.md` prompt attachment does not activate the guard.
-- A present invalid or unreadable file, missing credential or invalid guard configuration makes assessment unavailable. Observe permits without claiming a pass; enforce blocks. Deletion after activation is unavailable, not dormant.
-- A file that appears after dormant startup needs a new session or extension reload. `/tenet on` cannot activate a dormant session.
-- `TENET_POLICY` has no effect, even when empty or whitespace-only. For an older override-based setup, [migrate to a local policy](#migrate-from-tenet_policy) before restarting.
+| Selection at startup | Observe | Enforce |
+| --- | --- | --- |
+| Both implicit candidates confirmed absent, no override | Dormant, no Tenet UI or assessment | Dormant, no Tenet UI or assessment |
+| Every present selected source valid and active prerequisites ready | Assess without blocking | Assess before permission |
+| Either selected source malformed, unreadable, broken link or uncertain | Permit without claiming a pass | Block as unavailable |
+| Explicit file missing | Permit without claiming a pass | Block as unavailable |
+| Empty or whitespace-only override | Permit with configuration unavailable | Block with configuration unavailable |
+
+There is no global-path override, opt-out, parent search, bundled fallback or automatic policy creation. An `@TENET.md` prompt attachment does not activate the guard. An explicit project override never falls back to the local file or a global-only subset.
+
+To check an alternative file offline, first author and review it outside the guarded agent path. From the project directory, with the compiled CLI installed and `TENET_DIR` set to its absolute installation path:
+
+```sh
+TENET_POLICY=./reviewed-policy.md node "$TENET_DIR/dist/cli/index.js" doctor --project "$PWD"
+```
+
+Replace `./reviewed-policy.md` with your file. Check that doctor reports `explicit`, the intended absolute source, digest and count. This command sets the override only for doctor. Set the same value in the host's launch environment and restart to use it there. Doctor does not contact TypeSafe or prove active hooks.
+
+The global file can activate projects with no local policy. Review it yourself outside the guarded agent path before creating or changing it. Its rules and paths can reach TypeSafe and local recordings during real assessments.
+
+Do not put credentials in it. Global and project sources share the limits below.
+
+Dormant calls have no veto, approval, recording, active footer or notification. A file that appears later needs a new session or extension reload. `/tenet on` cannot activate a dormant session. Deletion after activation is unavailable, not dormant.
+
+A fresh dormant Pi extension registers no Tenet commands. In pinned Pi 0.85.1, a switch from eligible to dormant can leave previously registered command names listed until a full native extension reload. Their handlers stay silent while the current session is dormant or transitioning. Old source, digest, readiness and footer state are cleared. The supported Pi API has no command unregister or hide operation; listed names do not prove active enforcement.
+
+## Source snapshot contract
+
+Current snapshots use `policy-sources-v1`. They record selected candidates and validated sources in global-then-project order, with declarations in physical line order. Each source retains its role, configured path, resolved target, file SHA-256, byte count and declarations.
+
+Each declaration retains that full origin. Snapshots and nested collections are immutable.
+
+`combinedDigest` is SHA-256 of a versioned JSON tuple. It includes each candidate's role, path, selection and presence, plus the present source's target, digest and byte count. Changing a path, target, source bytes or selected candidate presence changes this identity. Source digests remain separate; the combined digest is not a file digest.
+
+The complete set has the limits below. Each present source must contain at least one valid declaration.
+
+A file selected in both roles counts twice toward the aggregate byte and declaration limits, even when both roles use the same target. Any source failure rejects the whole set; there is no valid-subset assessment.
+
+Every declaration is assessed independently, global first then project. No declaration is deduplicated. A project's permissions, severity or thresholds cannot cancel or weaken a global declaration. Built-in integrity is one separate check for the whole selected set, with no user-rule or approval exception.
+
+New archives use schema 5. Schemas 1 through 4 retain their recorded singular identities, thresholds and source meaning. If a historical record lacks a role, findings show unknown, not an inferred project or global role. Readers never use current files to reconstruct a recorded source.
 
 ## Rule grammar and limits
 
@@ -90,13 +132,13 @@ The parser reads physical lines, not Markdown structure:
 - A `Rule;` line inside a code fence is still active. Put only intended rules in an active policy.
 - Each rule occupies one physical line. Only exact uppercase `BLOCK;` or `WARN;` at the start of the trimmed declaration remainder sets explicit severity. Other text remains rule prose with default `BLOCK` severity.
 - After ordinary rule text starts, semicolons remain literal text. The short form has no metadata parsing. Optional threshold metadata goes immediately after explicit severity.
-- Duplicate declarations remain separate rules. Their IDs use the file's SHA-256 digest and source line number.
+- Duplicate declarations remain separate rules. Current IDs are `role:fileSHA256:physicalLine`, such as `project:<64-character SHA-256>:2`. Identical files or a shared target in global and project roles still have separate declarations.
 
 | Limit | Exact requirement |
 | --- | --- |
 | Encoding | Valid UTF-8 |
-| File size | At most 64 KiB, or 65536 bytes |
-| User rules | 1 through 16 declarations |
+| Combined file bytes | At most 64 KiB, or 65536 bytes |
+| Combined user rules | 1 through 16 declarations |
 | Rule text | At most 4096 UTF-8 bytes after severity/metadata removal and trimming |
 
 The count excludes built-in integrity. Empty declarations, no declarations, invalid encoding, exceeded limits or an unavailable file reject the whole policy. Tenet never silently truncates rules. The selected target must be a readable regular file.
@@ -160,20 +202,22 @@ A retry needs fresh assessment and any required approval. A released call does n
 
 ## Owner-only policy management and migration
 
-Agent actions that modify, remove, replace, rename or redirect the active selected policy face a built-in integrity constraint. It covers the selected path and resolved target, including evidenced aliases and parent-directory replacement. Reading the policy is permitted.
+Agent actions that modify, remove, replace, rename or redirect any selected policy face a built-in integrity constraint. It covers each configured source, resolved target and absent selected candidate, including evidenced aliases, links and parent-directory replacement. Reading policy is permitted.
 
 In enforce mode, integrity blocks without an approval exception. User rules cannot weaken it. In observe mode, it reports without vetoing. Edit or migrate the policy yourself outside the intercepted agent path.
 
 ### Migrate from TENET_POLICY
 
-`TENET_POLICY` no longer selects a policy. An override-only project becomes dormant in both modes, including enforce. Do not begin guarded work until its local policy is ready.
+Use this optional procedure to stop selecting an external policy and use the session directory's file instead. Keep the current selected policy in place until the replacement is ready.
 
 1. Review the intended policy yourself and place it at `TENET.md` in each session working directory, outside the guarded agent's intercepted path. Tenet does not copy or create it for you.
 2. Remove `TENET_POLICY` from the environment that launches the host.
-3. Run the offline doctor for that project and check the local source, digest and rule count. Resolve invalid setup before launch.
-4. Restart the host process and verify native status in the eligible session before separately authorized live work. For Pi, use `/tenet status`.
+3. Run the offline doctor for that project and check the selected local source, digest and rule count. Resolve invalid setup before launch.
+4. Restart the host process and verify native status before separately authorized live work. For Pi, use `/tenet status`.
 
-Restoring the environment variable on the new version does not restore override support. Rollback requires the prior Tenet version and a process restart; existing recordings remain unchanged.
+Setting `TENET_POLICY` again selects that project source on restart. Empty values are invalid, not a way to disable Tenet. Existing recordings remain unchanged.
+
+Older releases can ignore global discovery or overrides. They cannot reproduce additive enforcement. Before rollback, review a complete policy selected for each affected project, then verify doctor and native status.
 
 ### Convert unprefixed prose to a rule
 
@@ -195,15 +239,15 @@ The [TENET-3 historical handoff](TENET-3-handoff.md) records the original wordin
 
 ### Reload after an owner change
 
-Before enforce-mode release, Tenet checks that policy bytes and the resolved target match the loaded snapshot. Observe checks freshness before publishing a background finding.
+At assessment and enforce permission-release boundaries, Tenet checks every present source's bytes, readability and resolved target, and confirms that any absent selected candidate remains absent. Observe checks before judge submission and before publishing a background finding.
 
-A mismatch or read failure latches `policy-stale` and invalidates pending work. Enforce stays blocked until session-start reload or restart. Observe continues permitting calls with unavailable coverage and suppresses stale findings.
+An edit, deletion, read failure, same-byte link retargeting or newly present candidate latches `policy-stale` and invalidates pending work. Enforce stays blocked until session-start reload or restart. Observe continues permitting calls with unavailable coverage and suppresses stale findings.
 
 Changing the policy while confirmation is open does not authorize the pending action.
 
 1. Review and edit the policy externally.
 2. Use the session-start reload path for policy-file-only changes, or restart Pi.
-3. Check the new policy digest and rule count in native status. Use a fresh call for any action that was pending.
+3. Check both selected roles, their new source digests and rule counts in native status. Use a fresh call for any action that was pending.
 
 Code and environment changes need a full process restart. Under Pi 0.85.1 and Bun 1.3.14, `/reload` and `/new` can retain old module imports.
 
@@ -223,9 +267,9 @@ Before rolling back per-rule threshold support, remove threshold metadata from d
 
 | Symptom | Next action |
 | --- | --- |
-| No footer or Tenet commands | Run doctor for the actual session directory. With no local file, the session is dormant in both modes. Author a policy externally, then start a new session or restart. For an older override setup, use the migration steps above. Also check extension load errors. |
+| No footer or Tenet commands | Run doctor for the actual session directory. With both implicit global and project candidates absent and no override, the session is dormant in both modes. Author a policy externally, then start a new session or restart. Also check extension load errors. |
 | `policy-format` | Check case-sensitive prefixes, one-line declarations, UTF-8 and threshold grammar. Ordinary prose alone is not a policy. |
 | `policy-file-limit`, `policy-rule-count-limit` or `policy-rule-size-limit` | Reduce the file, rule count or final rule text to the limits above. Nothing is truncated automatically. |
-| `policy-unavailable` | Check the local path, regular-file target and read access outside the guarded agent. A broken local link is unavailable, not dormant. |
-| `policy-stale` | Review the changed bytes and target externally, reload or restart, and check the new digest. Do not reuse a pending approval. |
+| `policy-unavailable` | Check the selected path, regular-file target and read access outside the guarded agent. Broken links and missing explicit sources are unavailable, not dormant. |
+| `policy-stale` | Review both source paths, bytes, targets and candidate presence externally, reload or restart, and check the new digest. Do not reuse a pending approval. |
 | Valid policy but unavailable assessment | Check credentials and configuration with doctor. `ready` still does not verify the live provider or hooks. |

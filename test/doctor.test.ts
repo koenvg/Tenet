@@ -37,9 +37,9 @@ async function fixture(work: (f: { root: string; project: string; delivery: stri
 test('doctor reports policy identity, local readiness and honest verification limits without secret text', async () => fixture(async f => {
   const report = await diagnoseProject({ projectDir: f.project, deliveryDir: f.delivery, env: f.env });
   assert.equal(report.state, 'ready'); assert.equal(report.exitCode, 0);
-  assert.equal(report.policy.selection, 'local'); assert.equal(report.policy.validation, 'valid');
-  assert.equal(report.policy.source, join(f.project, 'TENET.md'));
-  assert.match(report.policy.digest!, /^[a-f0-9]{64}$/); assert.equal(report.policy.ruleCount, 1);
+  assert.equal(report.policy.candidates[1]!.selection, 'local'); assert.equal(report.policy.validation, 'valid');
+  assert.equal(report.policy.candidates[1]!.source, join(f.project, 'TENET.md'));
+  assert.match(report.policy.sources[0]!.digest!, /^[a-f0-9]{64}$/); assert.equal(report.policy.ruleCount, 1);
   assert.equal(report.mode, 'observe'); assert.equal(report.control, 'on');
   assert.deepEqual(report.credentials, { presence: 'present', validity: 'unverified' });
   assert.deepEqual(report.judge, { provider: 'typesafe', requestedModel: 'jev-latest', availability: 'ready', connectivity: 'unverified' });
@@ -85,35 +85,42 @@ test('doctor distinguishes off and dormant and keeps missing credentials as a li
   assert.equal(report.state, 'off'); assert.equal(report.policy.validation, 'valid');
 }));
 
-for (const formerOverride of ['unset', 'relative-existing', 'relative-missing', 'absolute-existing', 'absolute-missing', 'empty', 'blank'] as const) {
-  test(`doctor local selection ignores ${formerOverride} TENET_POLICY`, async () => fixture(async f => {
-    const local = join(f.project, 'TENET.md'), external = join(f.root, 'external.md');
-    const value = { unset: undefined, 'relative-existing': 'external.md', 'relative-missing': 'missing.md',
-      'absolute-existing': external, 'absolute-missing': join(f.root, 'missing.md'), empty: '', blank: ' \t ' }[formerOverride];
-    if (value !== undefined) f.env.TENET_POLICY = value;
-    await writeFile(external, 'Rule; external rule');
-    await writeFile(join(f.project, 'external.md'), 'Rule; external rule');
-    const before = await snapshot(f.root);
-    const report = await diagnoseProject({ projectDir: f.project, deliveryDir: f.delivery, env: f.env });
-    assert.equal(report.state, 'ready'); assert.equal(report.exitCode, 0);
-    assert.equal(report.policy.selection, 'local'); assert.equal(report.policy.source, local);
-    assert.equal(report.policy.digest, createHash('sha256').update(policyText).digest('hex'));
-    assert.equal(report.policy.ruleCount, 1); assert.equal(report.configuration, 'valid');
-    assert.deepEqual(await snapshot(f.root), before);
-    for (const output of [JSON.stringify(report), formatDoctor(report)]) {
-      assert.ok(!output.includes(canary)); assert.ok(!output.includes('Private policy content'));
-      assert.ok(!output.includes('external rule'));
-    }
-    await writeFile(local, 'Rule;\n');
-    const invalid = await diagnoseProject({ projectDir: f.project, deliveryDir: f.delivery, env: f.env });
-    assert.equal(invalid.state, 'invalid'); assert.equal(invalid.policy.reason, 'policy-format');
-    assert.equal(invalid.policy.selection, 'local'); assert.equal(invalid.policy.source, local);
-    await rm(local);
-    const absent = await diagnoseProject({ projectDir: f.project, deliveryDir: f.delivery, env: f.env });
-    assert.equal(absent.state, 'dormant'); assert.equal(absent.exitCode, 0);
-    assert.equal(absent.policy.selection, 'local'); assert.equal(absent.policy.source, local);
-    assert.equal(absent.policy.validation, 'absent'); assert.equal(absent.configuration, 'valid');
-  }));
+
+for (const mode of ['observe', 'enforce'] as const) {
+  for (const override of ['unset', 'relative-existing', 'relative-missing', 'absolute-existing', 'absolute-missing', 'empty', 'blank'] as const) {
+    test(`doctor ${mode}: ${override} selects one project source`, async () => fixture(async f => {
+      f.env.TENET_MODE = mode;
+      const local = join(f.project, 'TENET.md'), external = join(f.root, 'external.md');
+      const value = { unset: undefined, 'relative-existing': 'external.md', 'relative-missing': 'missing.md',
+        'absolute-existing': external, 'absolute-missing': join(f.root, 'missing.md'), empty: '', blank: ' \t ' }[override];
+      if (value !== undefined) f.env.TENET_POLICY = value;
+      await writeFile(external, 'Rule; external rule');
+      await writeFile(join(f.project, 'external.md'), 'Rule; relative rule');
+      const selected = value === undefined ? local : !value.trim() ? '' : resolve(f.project, value);
+      const ready = override === 'unset' || override.endsWith('-existing');
+      const before = await snapshot(f.root);
+      const report = await diagnoseProject({ projectDir: f.project, deliveryDir: f.delivery, env: f.env });
+      assert.equal(report.state, ready ? 'ready' : 'invalid');
+      assert.equal(report.exitCode, ready ? 0 : 1);
+      assert.equal(report.policy.candidates[1]!.selection, value === undefined ? 'local' : 'explicit');
+      assert.equal(report.policy.candidates[1]!.source, selected);
+      assert.equal(report.configuration, value !== undefined && !value.trim() ? 'invalid' : 'valid');
+      assert.deepEqual(await snapshot(f.root), before);
+      for (const output of [JSON.stringify(report), formatDoctor(report)]) {
+        assert.ok(!output.includes(canary)); assert.ok(!output.includes('Private policy content'));
+        assert.ok(!output.includes('external rule')); assert.ok(!output.includes('relative rule'));
+      }
+      if (ready) {
+        await writeFile(selected, 'Rule;\n');
+        const invalid = await diagnoseProject({ projectDir: f.project, deliveryDir: f.delivery, env: f.env });
+        assert.equal(invalid.state, 'invalid'); assert.equal(invalid.policy.reason, 'policy-format');
+        await rm(selected);
+        const absent = await diagnoseProject({ projectDir: f.project, deliveryDir: f.delivery, env: f.env });
+        assert.equal(absent.state, override === 'unset' ? 'dormant' : 'invalid');
+        assert.equal(absent.policy.validation, override === 'unset' ? 'absent' : 'invalid');
+      }
+    }));
+  }
 }
 
 for (const [key, value] of Object.entries({ TENET_MODE: canary, TENET_EFFECT_THRESHOLD: '2', TENET_RECENT_EVENTS: '-1',
@@ -171,7 +178,7 @@ test('doctor redacts semver-shaped credentials and credential substrings in comp
     for (const output of [JSON.stringify(report), formatDoctor(report)]) assert.ok(!output.includes(key));
   }
   const identity = await diagnoseProject({ projectDir: f.project, deliveryDir: f.delivery, env: f.env });
-  f.env.TYPESAFE_API_KEY = identity.policy.digest!;
+  f.env.TYPESAFE_API_KEY = identity.policy.sources[0]!.digest!;
   const redacted = await diagnoseProject({ projectDir: f.project, deliveryDir: f.delivery, env: f.env });
   for (const output of [JSON.stringify(redacted), formatDoctor(redacted)]) assert.ok(!output.includes(f.env.TYPESAFE_API_KEY));
 }));
@@ -245,7 +252,7 @@ const originalOpen = fsp.open; fsp.open = (p, flags, ...args) => { if (typeof fl
 const originalOpenSync = fs.openSync; fs.openSync = (p, flags, ...args) => { if (flags !== 'r' && flags !== 'rs' && (typeof flags !== 'number' || (flags & 3) !== 0)) fail(); return originalOpenSync(p, flags, ...args); };
 syncBuiltinESMExports();`);
   const runtimes = [spawnSync('node', ['-p', 'process.execPath'], { encoding: 'utf8' }).stdout.trim(), process.execPath];
-  const check = async (state: string, exitCode: number) => {
+  const check = async (state: string, exitCode: number, source = join(f.project, 'TENET.md'), selection = 'local', text = policyText) => {
     await chmod(f.project, 0o555);
     try {
       const before = await snapshot(f.root);
@@ -259,14 +266,14 @@ syncBuiltinESMExports();`);
           assert.ok(!child.stdout.includes('Never publish')); assert.equal(child.stderr, '');
           if (json) {
             const report = JSON.parse(child.stdout);
-            assert.equal(report.state, state); assert.equal(report.policy.selection, 'local');
+            assert.equal(report.state, state); assert.equal(report.policy.candidates[1]!.selection, selection);
+            assert.equal(report.policy.candidates[1]!.source, source);
             if (report.judge.provider === 'apus-llamacpp') {
               assert.equal(report.judge.availability, 'ready'); assert.equal(report.judge.experimental, true);
               assert.equal(report.settings.deadlineMs, 120000); assert.equal(report.settings.observation.running, 1);
               assert.ok(!report.limitations.some((i: { code: string }) => i.code === 'missing-credentials'));
             }
-            assert.equal(report.policy.source, join(f.project, 'TENET.md'));
-            if (state === 'ready') assert.equal(report.policy.digest, createHash('sha256').update(policyText).digest('hex'));
+            if (state === 'ready') assert.equal(report.policy.sources[0]!.digest, createHash('sha256').update(text).digest('hex'));
           }
           else assert.ok(child.stdout.startsWith(`TENET doctor: ${state}`));
         }
@@ -278,7 +285,10 @@ syncBuiltinESMExports();`);
   await writeFile(join(f.project, 'external.md'), 'Rule; different project external rule');
   for (const value of ['external.md', 'missing.md', join(f.root, 'external.md'), join(f.root, 'missing.md'), '', ' \t ']) {
     f.env.TENET_POLICY = value;
-    await check('ready', 0);
+    const source = value.trim() ? resolve(f.project, value) : '';
+    const exists = value.endsWith('external.md');
+    await check(exists ? 'ready' : 'invalid', exists ? 0 : 1, source, 'explicit',
+      value === 'external.md' ? 'Rule; different project external rule' : 'Rule; external rule');
   }
   delete f.env.TENET_POLICY;
   const hostVersion = `0.86.0-${canary}`;
@@ -311,7 +321,8 @@ syncBuiltinESMExports();`);
   await rm(join(f.project, 'TENET.md')); await rm(f.env.TENET_CONTROL_PATH!);
   await check('dormant', 0);
   f.env.TENET_POLICY = 'missing.md';
-  await check('dormant', 0);
+  await check('invalid', 1, join(f.project, 'missing.md'), 'explicit');
+  delete f.env.TENET_POLICY;
   await writeFile(join(f.project, 'TENET.md'), `Rule;\n${canary}`);
   await check('invalid', 1);
   await rm(join(f.project, 'TENET.md'));

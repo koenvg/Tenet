@@ -5,14 +5,13 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertDelivery, deliveryManifest } from './delivery-contract.js';
 import { verifyArchive } from './verify-delivery.js';
+import { isolatedEnvironment, isolatedArgs } from './isolated-environment.js';
 
 const repository = fileURLToPath(new URL('..', import.meta.url));
 const output = resolve(process.argv[2] ?? join(repository, 'delivery/tenet.tar.gz'));
 const temporary = await realpath(await mkdtemp(join(tmpdir(), 'tenet-package-')));
-const home = join(temporary, 'home');
-await mkdir(home, { mode: 0o700 });
-const env = { PATH: process.env.PATH!, HOME: home, CI: '1', COPYFILE_DISABLE: '1', npm_config_userconfig: join(home, '.npmrc'), npm_config_globalconfig: join(home, '.npm-globalrc') };
-const run = (file: string, args: string[], cwd: string) => execFileSync(file, args, { cwd, env, stdio: 'inherit', timeout: 180_000 });
+const env = await isolatedEnvironment(temporary, join(temporary, 'home'));
+const run = (file: string, args: string[], cwd: string) => execFileSync(file, isolatedArgs(file, args), { cwd, env, stdio: 'inherit', timeout: 180_000 });
 try {
   const stage = join(temporary, 'tenet'); await mkdir(stage);
   run('bun', ['--bun', 'tsc', '-p', 'tsconfig.delivery.json', '--outDir', join(stage, 'dist')], repository);

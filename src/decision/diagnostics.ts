@@ -1,8 +1,8 @@
-import type { Assessment, BlockingGate, Config, PolicySet, RuleDiagnostic } from './contracts.js';
+import type { Assessment, BlockingGate, Config, EvaluationPolicy, RuleDiagnostic } from './contracts.js';
 import { evidenceThreshold } from './thresholds.js';
 
 // Call only with validated assessments; severity affects consequences, never gates.
-export function blockingDiagnostics(assessment: Assessment, config: Config, policy: PolicySet): RuleDiagnostic[] {
+export function blockingDiagnostics(assessment: Assessment, config: Config, policy: EvaluationPolicy): RuleDiagnostic[] {
   return assessment.rules.flatMap(rule => {
     const outcomeProbability = rule.outcome.probabilities[rule.outcome.choice]!;
     const notApplicable = rule.outcome.choice === 'NOT_APPLICABLE';

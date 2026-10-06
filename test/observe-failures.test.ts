@@ -116,7 +116,7 @@ test('unavailable observation still disambiguates duplicate IDs and tool results
 
 test('observation checks policy freshness even when the assessment would block', async () => {
   const h = await guardHarness({ judge: async request => {
-    await writeFile(request.policy.source, 'Rule; Changed externally');
+    await writeFile(request.policy.sources[0]!.source, 'Rule; Changed externally');
     return answer(request.policy, 'FAIL');
   } });
   try {

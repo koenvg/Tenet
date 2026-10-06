@@ -1,8 +1,8 @@
-import { lstat } from 'node:fs/promises';
-import { isAbsolute, join } from 'node:path';
+import { isAbsolute } from 'node:path';
+import { selectPolicies, policySelectionIdentity } from '../runtime/policy-selection.js';
 import { ActivationStore } from '../runtime/activation.js';
 import { readMode } from '../runtime/config.js';
-import { defaultDirectory, deleteLocalState, exchange, MAX_FRAME, readLocalState, writeLocalState, type BridgeRequest } from './bridge.js';
+import { defaultDirectory, deleteLocalState, exchange as exchangeUnbound, MAX_FRAME, readLocalState, writeLocalState, type BridgeRequest } from './bridge.js';
 
 const PASS = '{}\n';
 export function denial(reason: 'unavailable' | 'approval-unavailable' | 'policy'): string {
@@ -32,16 +32,15 @@ export function parseHook(data: string, event: string): BridgeRequest {
   }
   return { ...common, event: 'invalidate' };
 }
-/** Only SessionStart can establish a new dormant session. Missing state never implies dormancy. */
-async function eligible(cwd: string): Promise<boolean> {
-  try { await lstat(join(cwd, 'TENET.md')); return true; }
-  catch (error) { return (error as NodeJS.ErrnoException).code !== 'ENOENT'; }
-}
 export async function handleHook(data: string, options: { event?: string; directory?: string; env?: Record<string, string | undefined>; deadlineMs?: number } = {}): Promise<string> {
   const env = options.env ?? process.env;
   const mode = readMode(env).mode;
   const directory = options.directory ?? defaultDirectory();
   const fail = () => mode === 'enforce' && options.event !== 'SessionStart' ? denial('unavailable') : PASS;
+  const exchange = async (directory: string, request: BridgeRequest, deadlineMs: number) => {
+    const response = await exchangeUnbound(directory, request, deadlineMs);
+    return response.selectionIdentity === policySelectionIdentity(request.cwd, env) ? response : { version: 1 as const, decision: 'deny' as const };
+  };
   try {
     if (Buffer.byteLength(data) > MAX_FRAME) throw new Error('oversize');
     const request = parseHook(data, options.event ?? (JSON.parse(data) as { hook_event_name: string }).hook_event_name);
@@ -59,12 +58,13 @@ export async function handleHook(data: string, options: { event?: string; direct
         throw error;
       });
       if (previous && previous.cwd !== request.cwd) return PASS; // Conflicting session identity cannot replace its marker.
-      const current = await eligible(request.cwd);
+      const current = (await selectPolicies(request.cwd, env)).eligible;
       const source = (JSON.parse(data) as { source?: unknown }).source;
       if (!previous && !current && source !== 'startup') return PASS; // Lost state or resume is not a new dormant session.
-      const isEligible = previous?.eligible || current;
-      const probe = !previous && isEligible ? await exchange(directory, { ...request, event: 'status' }, options.deadlineMs ?? 3300) : undefined;
-      const generation = previous?.generation ?? (probe?.decision === 'pass' && probe.mode === mode ? probe.generation : undefined);
+      const probe = !previous ? await exchangeUnbound(directory, { ...request, event: 'status' }, options.deadlineMs ?? 3300) : undefined;
+      const mismatch = probe?.decision === 'pass' && probe.selectionIdentity !== policySelectionIdentity(request.cwd, env);
+      const isEligible = previous?.eligible || current || mismatch;
+      const generation = previous?.generation ?? (!mismatch && probe?.decision === 'pass' && probe.mode === mode ? probe.generation : undefined);
       const state = { cwd: request.cwd, eligible: isEligible, deferred: control === 'off', generation };
       await writeLocalState(directory, request.sessionId, state);
       if (!state.eligible || control === 'off' || !state.generation) return PASS;

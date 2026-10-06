@@ -1,9 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { freeze } from '../src/decision/evidence.js';
-import { boundEvidence, judgeState } from '../src/decision/judge-evidence.js';
-import { buildQuestions } from '../src/decision/questions.js';
-import { DEFAULTS, MODEL, QUESTION_VERSION } from '../src/decision/decide.js';
+import { MODEL, QUESTION_VERSION } from '../src/decision/decide.js';
 import type { JudgeRequest, Trajectory, Action } from '../src/decision/contracts.js';
 import type { ResolvedAction } from '../src/runtime/resolved-action.js';
 import fixtures from './evidence-selection/fixtures.json' with { type: 'json' };
@@ -22,11 +20,13 @@ const pins = {
 const eligible = ['exact-inspection', 'anchored-inspection', 'oversized-identical', 'renamed-inspection',
   'read-prohibited', 'transmit-prohibited', 'mutation-prohibited', 'benign-read', 'approval', 'context-retained',
   'context-lost', 'compound', 'opaque', 'policy-mutation', 'forged-facts', 'stale-facts', 'historical-forgery'];
+export type RecordedRequest = Omit<JudgeRequest, 'policy'> & { policy: { available: true; source: string; target: string; digest: string;
+  rules: { id: string; line: number; text: string; enforcement: 'BLOCK'; evidenceThreshold?: number }[] } };
 export type Side = 'baseline' | 'candidate';
 export type FrozenRow = typeof report.pairs[number][Side];
 export type Entry = {
   index: number; id: string; side: Side; expected: typeof fixtures.fixtures[number]['expected'];
-  payload: FrozenRow['payload']; payloadDigest: string; requestBytes: number; request: JudgeRequest;
+  payload: FrozenRow['payload']; payloadDigest: string; requestBytes: number; request: RecordedRequest;
   policyDigest: string; questionDigest: string;
   representationVersion: string; selectorVersion: string | null; history: FrozenRow['history'];
 };
@@ -34,7 +34,7 @@ function equal(a: unknown, b: unknown): void {
   if (digest(a) !== digest(b)) throw Error('frozen-input-drift');
 }
 
-function recordedRequest(row: FrozenRow): JudgeRequest {
+function recordedRequest(row: FrozenRow): RecordedRequest {
   const state = row.payload.state;
   return { profile: 'applicability-v1',
     policy: { ...state.policy, available: true, rules: state.policy.rules.map(rule => ({ ...rule, enforcement: 'BLOCK' as const })) },
@@ -89,16 +89,8 @@ export type Manifest = ReturnType<typeof readFrozenEvidenceManifest>;
 export function prepareEvidenceManifest(read: (url: URL) => Buffer = readFileSync): Manifest {
   const manifest = readFrozenEvidenceManifest(read);
   if (MODEL !== manifest.requestedModel || QUESTION_VERSION !== manifest.questionVersion) throw Error('contract-drift');
-  for (const [i, fixture] of fixtures.fixtures.entries()) for (const side of ['baseline', 'candidate'] as const) {
-    const row = report.pairs[i]![side], request = recordedRequest(row);
-    equal(row.thresholds, DEFAULTS);
-    equal(row.payload, { model: MODEL, state: judgeState(request), questions: buildQuestions(request.policy, request.resolvedAction) });
-    if (side === 'candidate') {
-      const current = boundEvidence({ ...request, trajectory: { observations: fixture.history, omitted: 0,
-        limitations: ['authored-capture-eligible-event-count-unknown'] } as Trajectory }, fixture.limits);
-      if (!current) throw Error('candidate-capacity');
-      equal(judgeState(current), row.payload.state);
-    }
-  }
+  // A single-source recording is not a current source-set request. Never rebuild
+  // its evidence or invent source roles to make it eligible for live evaluation.
+  if (manifest.entries.some(e => !('contractVersion' in e.payload.state.policy))) throw Error('contract-drift');
   return manifest;
 }

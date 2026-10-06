@@ -1,13 +1,12 @@
 import { choiceIssue, probability, validationIssue } from './response-validation.js';
 import { performance } from 'node:perf_hooks';
-import { JudgeFailure, type Assessment, type Action, type Clock, type Config, type Decision, type Judge, type Policy, type PolicySet, type Reason, type RuleAssessment } from './contracts.js';
+import { JudgeFailure, type Assessment, type Action, type Clock, type Config, type Decision, type Judge, type Policy, type EvaluationPolicy, type Reason, type RuleAssessment } from './contracts.js';
 import { INTEGRITY_ID } from './policy.js';
 import { blockingDiagnostics } from './diagnostics.js';
 import { boundEvidence } from './judge-evidence.js';
 import type { Trajectory, EvidenceLimits } from './contracts.js';
 import type { RecordingSink } from '../recording/contract.js';
 import { ASSESSMENT_METADATA, ASSESSMENT_PROFILE, supportsExemption } from './assessment-contract.js';
-import type { JudgeRequest } from './contracts.js';
 import { evidenceContext, UNAVAILABLE_EVIDENCE_CONTEXT } from './evidence-context.js';
 import { assessmentShapeIssue } from './assessment-shape.js';
 import type { RequestedJudgeIdentity } from './contracts.js';
@@ -29,7 +28,7 @@ export function requireChoice(value: unknown, labels: string[]): void {
   const issue = choiceIssue(value, labels);
   if (issue) throw new JudgeFailure('invalid-response', issue);
 }
-export function validateAssessment(value: unknown, policy: PolicySet, request?: JudgeRequest): Assessment {
+export function validateAssessment(value: unknown, policy: EvaluationPolicy, request?: import('./contracts.js').ApplicabilityRequest): Assessment {
   const expected = [...policy.rules.map(r => r.id), INTEGRITY_ID];
   const issue = assessmentShapeIssue(value, policy.rules.map(r => r.id), INTEGRITY_ID);
   if (issue) throw new JudgeFailure('invalid-response', issue === 'response-shape' ? undefined : issue);
@@ -43,6 +42,21 @@ export function validateAssessment(value: unknown, policy: PolicySet, request?: 
       ...(refs ? { factReferences: refs, applicabilitySupported: supportsExemption(refs, request) } : {}) });
   }
   return { model: assessment.model, rules: expected.map(id => byId.get(id)!), profile: ASSESSMENT_PROFILE };
+}
+/** Pure independent gates. Does not prepare evidence, load files or grant permission. */
+export function assessmentDecision(assessment: Assessment, config: Config, policy: EvaluationPolicy) {
+  const diagnostics = blockingDiagnostics(assessment, config, policy);
+  const blocked = diagnostics.filter(r => r.enforcement === 'BLOCK');
+  if (blocked.length) {
+    const reason: Reason = blocked.some(r => r.ruleId === INTEGRITY_ID && r.outcome === 'FAIL') ? 'policy-integrity'
+      : blocked.some(r => r.outcome === 'FAIL') ? 'rule-failed' : 'insufficient-evidence';
+    return { decision: 'BLOCK' as const, reason, ruleIds: blocked.map(r => r.ruleId), diagnostics };
+  }
+  const approvals = assessment.rules.filter(r => r.outcome.choice === 'APPROVAL_REQUIRED'
+    && policy.rules.find(rule => rule.id === r.ruleId)?.enforcement !== 'WARN').map(r => r.ruleId);
+  return { decision: approvals.length ? 'ASK' as const : 'ALLOW' as const,
+    reason: (approvals.length ? 'rule-approval-required' : diagnostics.length || assessment.rules.some(r => r.outcome.choice === 'APPROVAL_REQUIRED') ? 'advisory-findings' : 'all-rules-pass') as Reason,
+    ruleIds: approvals, diagnostics };
 }
 
 export async function decide(options: {
@@ -86,17 +100,8 @@ export async function decide(options: {
     if (signal?.aborted) return result('BLOCK', 'cancelled');
     if (clock.now() - start >= config.deadlineMs) { controller.abort(); return result('BLOCK', 'timeout'); }
     const assessment = validateAssessment(raw, policy, request);
-    const diagnostics = blockingDiagnostics(assessment, config, policy);
-    const blocked = diagnostics.filter(r => r.enforcement === 'BLOCK');
-    if (blocked.length) {
-      const reason = blocked.some(r => r.ruleId === INTEGRITY_ID && r.outcome === 'FAIL') ? 'policy-integrity'
-        : blocked.some(r => r.outcome === 'FAIL') ? 'rule-failed' : 'insufficient-evidence';
-      return result('BLOCK', reason, assessment, blocked.map(r => r.ruleId), diagnostics);
-    }
-    const approvals = assessment.rules.filter(r => r.outcome.choice === 'APPROVAL_REQUIRED'
-      && policy.rules.find(rule => rule.id === r.ruleId)?.enforcement !== 'WARN').map(r => r.ruleId);
-    return approvals.length ? result('ASK', 'rule-approval-required', assessment, approvals, diagnostics)
-      : result('ALLOW', diagnostics.length || assessment.rules.some(r => r.outcome.choice === 'APPROVAL_REQUIRED') ? 'advisory-findings' : 'all-rules-pass', assessment, [], diagnostics);
+    const scored = assessmentDecision(assessment, config, policy);
+    return result(scored.decision, scored.reason, assessment, scored.ruleIds, scored.diagnostics);
   } catch (error) {
     const failure = result('BLOCK', signal?.aborted ? 'cancelled' : error instanceof JudgeFailure ? error.reason : 'provider-error');
     if (failure.reason === 'invalid-response') failure.validationIssue = validationIssue(error instanceof JudgeFailure ? error.validationIssue : undefined) ?? 'response-shape';

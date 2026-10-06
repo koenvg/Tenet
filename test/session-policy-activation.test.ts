@@ -38,55 +38,65 @@ for (const mode of ['observe', 'enforce'] as const) {
       await h.start();
       assert.ok(h.commands.has('tenet'));
       assert.equal(await h.call('local'), undefined);
+      if (mode === 'observe') await h.assessed('local');
       assert.equal(assessments, 1);
       assert.ok(h.records.some(r => r.stage === 'status' && r.status === 'ready'));
     } finally { await h.close(); }
   });
 
-  for (const [name, prepare, reason] of [
-    ['malformed local', async (h: Awaited<ReturnType<typeof guardHarness>>) => writeFile(h.file, 'not a policy'), 'policy-format'],
-    ['unreadable local', async (h: Awaited<ReturnType<typeof guardHarness>>) => chmod(h.file, 0), 'policy-unavailable'],
-    ['broken local link', async (h: Awaited<ReturnType<typeof guardHarness>>) => { await unlink(h.file); await symlink('missing-target', h.file); }, 'policy-unavailable'],
-  ] as const) {
-    test(`${mode}: ${name} stays unavailable rather than dormant`, async () => {
-      const h = await guardHarness({ env: { TENET_MODE: mode } });
-      try {
-        await prepare(h);
-        await h.start();
-        assert.ok(h.commands.has('tenet'));
-        assert.equal(h.records.find(r => r.stage === 'status')?.reason, reason);
-        assert.equal((await h.call(name))?.block, mode === 'enforce' ? true : undefined);
-        assert.equal(h.records.find(r => r.stage === 'permission')?.assessmentAvailable, false);
-      } finally { await chmod(h.file, 0o600).catch(() => {}); await h.close(); }
-    });
+  for (const selection of ['local', 'explicit'] as const) {
+    for (const [name, prepare, reason] of [
+      ['malformed', async (file: string) => writeFile(file, 'not a policy'), 'policy-format'],
+      ['unreadable', async (file: string) => chmod(file, 0), 'policy-unavailable'],
+      ['broken link', async (file: string) => { await unlink(file); await symlink('missing-target', file); }, 'policy-unavailable'],
+    ] as const) {
+      test(`${mode}: ${name} ${selection} source stays unavailable rather than dormant`, async () => {
+        const h = await guardHarness({ env: { TENET_MODE: mode, ...(selection === 'explicit' ? { TENET_POLICY: 'selected.md' } : {}) } });
+        const file = selection === 'explicit' ? join(h.cwd, 'selected.md') : h.file;
+        try {
+          if (selection === 'explicit') await writeFile(file, 'Rule; selected rule');
+          await prepare(file);
+          await h.start();
+          assert.ok(h.commands.has('tenet'));
+          assert.equal(h.records.find(r => r.stage === 'status')?.reason, reason);
+          assert.equal((await h.call(name))?.block, mode === 'enforce' ? true : undefined);
+          assert.equal(h.records.find(r => r.stage === 'permission')?.assessmentAvailable, false);
+        } finally { await chmod(file, 0o600).catch(() => {}); await h.close(); }
+      });
+    }
   }
-  for (const formerOverride of ['unset', 'relative-existing', 'relative-missing', 'absolute-existing', 'absolute-missing', 'empty', 'blank'] as const) {
+
+  for (const override of ['unset', 'relative-existing', 'relative-missing', 'absolute-existing', 'absolute-missing', 'empty', 'blank'] as const) {
     for (const local of ['valid', 'absent', 'invalid'] as const) {
-      test(`${mode}: ${local} local policy ignores ${formerOverride} TENET_POLICY`, async () => {
-        const root = await mkdtemp(join(tmpdir(), 'tenet-former-policy-'));
+      test(`${mode}: ${override} selects the project policy with ${local} local policy`, async () => {
+        const root = await mkdtemp(join(tmpdir(), 'tenet-selected-policy-'));
         const external = join(root, 'external.md');
         const value = { unset: undefined, 'relative-existing': 'external.md', 'relative-missing': 'missing.md',
-          'absolute-existing': external, 'absolute-missing': join(root, 'missing.md'), empty: '', blank: ' \t ' }[formerOverride];
-        const localText = 'Rule; local rule';
+          'absolute-existing': external, 'absolute-missing': join(root, 'missing.md'), empty: '', blank: ' \t ' }[override];
         const submitted: string[][] = [];
-        const h = await guardHarness({ localPolicy: local !== 'absent', policy: local === 'invalid' ? 'not a policy' : localText,
+        const h = await guardHarness({ localPolicy: local !== 'absent', policy: local === 'invalid' ? 'not a policy' : 'Rule; local rule',
           env: { TENET_MODE: mode, TENET_RECORDING: 'on', ...(value === undefined ? {} : { TENET_POLICY: value }) },
           judge: async request => { submitted.push(request.policy.rules.map(rule => rule.text)); return answer(request.policy); } });
         try {
           await writeFile(external, 'Rule; external rule');
-          await writeFile(join(h.cwd, 'external.md'), 'Rule; external rule');
+          await writeFile(join(h.cwd, 'external.md'), 'Rule; relative rule');
           await h.start();
           const status = h.records.find(r => r.stage === 'status');
-          if (local === 'valid') {
+          const dormant = override === 'unset' && local === 'absent';
+          const ready = override.endsWith('-existing') || override === 'unset' && local === 'valid';
+          if (ready) {
+            const text = override === 'unset' ? 'local rule' : override === 'relative-existing' ? 'relative rule' : 'external rule';
             assert.equal(status?.status, 'ready');
-            assert.equal(status.policy.source, h.file);
-            assert.equal(status.policy.digest, createHash('sha256').update(localText).digest('hex'));
-            assert.equal(await h.call('selected-local'), undefined);
-            if (mode === 'observe') await h.assessed('selected-local');
-            assert.deepEqual(submitted, [['local rule']]);
-          } else if (local === 'invalid') {
-            assert.equal(status?.reason, 'policy-format');
-            assert.equal((await h.call('invalid-local'))?.block, mode === 'enforce' ? true : undefined);
+            assert.equal(status.policy.candidates[1]!.source, override === 'unset' ? h.file : override === 'relative-existing' ? join(h.cwd, 'external.md') : external);
+            assert.equal(status.policy.sources[0]!.digest, createHash('sha256').update(`Rule; ${text}`).digest('hex'));
+            assert.equal(await h.call('selected'), undefined);
+            if (mode === 'observe') await h.assessed('selected');
+            assert.deepEqual(submitted, [[text]]);
+          } else if (!dormant) {
+            const reason = override === 'empty' || override === 'blank' ? 'configuration'
+              : override === 'unset' ? 'policy-format' : 'policy-unavailable';
+            assert.equal(status?.reason, reason);
+            assert.equal((await h.call('unavailable'))?.block, mode === 'enforce' ? true : undefined);
             assert.equal(h.records.find(r => r.stage === 'permission')?.assessmentAvailable, false);
             assert.deepEqual(submitted, []);
           } else {

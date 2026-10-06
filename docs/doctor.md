@@ -54,7 +54,7 @@ Presence is not proof of validity. After running doctor, use [states and exits](
 | --- | --- | --- |
 | `ready` | Policy and active local prerequisites are valid | `0` |
 | `off` | Owner-selected cooperative control is off | `0` |
-| `dormant` | Confirmed absence of the project's local `TENET.md` | `0` |
+| `dormant` | Confirmed absence of both implicit global and project candidates, with no override | `0` |
 | `invalid` | Project, selected policy, configuration or control is invalid/unreadable | `1` |
 | `unavailable` | Delivery is incomplete, detected Pi version is untested, or the active selected judge is unavailable | `1` |
 
@@ -67,7 +67,9 @@ Expected text output starts with `TENET doctor: ready (local setup only)` for co
 - Missing credentials remain a visible limitation but do not fail coherent off/dormant states.
 - Off takes precedence over dormancy when both apply.
 
-JSON uses `schemaVersion: 1`. It includes `state`, `exitCode`, policy identity and validation, configuration, safe effective `settings`, mode, control, local `judge` readiness, credentials, capture, delivery, compatibility, issues and limitations. `hooks` and `provider` stay `unverified`.
+JSON uses `schemaVersion: 2`. Policy output uses `policy-sources-v1` with candidates, source summaries, combined digest, rule count, validation and any reason/failed role.
+
+The report also includes `state`, `exitCode`, configuration, safe effective `settings`, mode, control, local `judge` readiness, credentials, capture, delivery, compatibility, issues and limitations. `hooks` and `provider` stay `unverified`.
 
 `judge` uses the same local preparation contract as the SDK and Pi owner disclosure. The default reports `provider: 'typesafe'`, `requestedModel: 'jev-latest'` and `connectivity: 'unverified'`.
 
@@ -88,9 +90,9 @@ Externally derived paths, digests and detected versions are bounded, strip termi
 | Symptom | Next action |
 | --- | --- |
 | `project-unavailable` | Select an existing readable project directory with `--project`. |
-| Policy absent, state `dormant` | Author that project's `TENET.md` yourself outside the guarded action path. Registration supplies no policy. For an older override-based setup, follow local policy migration below. |
-| Policy invalid | Check UTF-8, case-sensitive `Rule;` lines, threshold syntax, file size and rule count. Repair externally; doctor neither prints nor repairs policy text. |
-| `configuration` | Check private owner settings and their bounded category, exact mode values, threshold/limit ranges, approval timeout and the JSON sensitive-field array. Restart fully after correction. |
+| Policy absent, state `dormant` | Author that project's `TENET.md` yourself outside the guarded action path, or select an owner-reviewed project file with `TENET_POLICY`. Review optional `~/.tenet/TENET.md` before authoring it externally: it activates projects without local rules, can reach the selected judge and recordings, and makes the whole set unavailable if invalid. Tenet never creates it automatically; registration supplies no policy. |
+| Policy invalid | Check the reported source role. Both sources share 64 KiB and 16 declarations, with 4096 UTF-8 bytes per rule. Check UTF-8, case-sensitive `Rule;` lines and threshold syntax; repair externally, as doctor neither prints nor repairs policy text. |
+| `configuration` | Check private owner settings and their bounded category, nonblank `TENET_POLICY`, exact mode values, threshold/limit ranges, approval timeout and the JSON sensitive-field array. Restart fully after correction. |
 | `control-unavailable` | Check the absolute control path and private same-user file/directory. Fix unsafe links or permissions outside Pi. Doctor does not repair control. |
 | `invalid-recording-setting` or `invalid-recording-directory` | Use exact `on`/`off` and an absolute recording directory, even when capture is off. |
 | `delivery-incomplete` | For a checkout, build SDK/CLI and inspector and install locked dependencies. For an archive, replace the incomplete installation and install its locked production dependencies. |
@@ -103,11 +105,11 @@ For exact policy and setting details, see the [repository archive operation guid
 
 ## Policy, mode and control
 
-Doctor checks only `TENET.md` in the directory selected by `--project`, regardless of the command's working directory. It does not search ancestors or use a bundled policy. Confirmed local absence is dormant when other prerequisites are valid and control is on; an unusable local policy is invalid.
+Doctor uses the runtime's two-candidate selector. It first checks optional `~/.tenet/TENET.md` from the process owner's home. With `TENET_POLICY` unset, it also checks `TENET.md` in the directory selected by `--project`. A nonblank override replaces only the project candidate, resolving relative to that project, not the command's working directory.
 
-`TENET_POLICY` has no effect, including when empty or whitespace-only. An older override-only project needs an owner-reviewed local policy before restarting. Archive owners can follow migration through the [root installation guide](../README.md). Checkout developers can use the [repository local policy migration steps](https://github.com/koenvg/Tenet/blob/main/docs/ARCHIVE-OPERATION.md#migrate-from-tenet_policy).
+Confirmed absence of both implicit candidates with no override is dormant when other prerequisites are valid and control is on. Any present invalid source, missing explicit file, broken link or filesystem uncertainty invalidates the complete set. Empty overrides are invalid configuration. Doctor has no parent search, bundled fallback, global-path override or opt-out.
 
-Validation uses the runtime's UTF-8, line-based `Rule;` grammar and size/count limits. Output gives the selected source, SHA-256 digest and declared rule count, never rule text. The count excludes built-in integrity. Invalid policies have no validated digest/count.
+Validation uses the runtime's UTF-8, line-based `Rule;` grammar and complete-set size/count limits. Output gives roles, candidate selection/presence, configured sources, resolved targets, per-file SHA-256 values, byte counts, per-source rule counts, combined identity and total declared rule count. It never prints rule text. The count excludes integrity. Invalid sets have no validated combined identity or count; `reason` and `failedRole` identify failure.
 
 `TENET_MODE` defaults to observe. Only exact `observe` and `enforce` are valid for diagnosis. The runtime selects observe and warns on an invalid mode; doctor flags it for correction without changing runtime behavior.
 

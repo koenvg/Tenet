@@ -107,6 +107,10 @@ class InvocationAuthorization {
     return this.finish(reason, ruleIds, diagnostics, preserveAsk);
   };
 
+  async policyCurrent(): Promise<boolean> {
+    return this.options.policy.available && await this.fresh(this.options.policy);
+  }
+
   private async fresh(policy: Extract<Policy, { available: true }>): Promise<boolean> {
     const upToDate = await policyIsCurrent(policy);
     if (!this.current()) return false;

@@ -166,7 +166,7 @@ test('unknown execution requires fresh assessment and approval; records join by 
     await retry;
     assert.equal(h.executed.length, 1);
     const approved = h.records.find(r => r.stage === 'approval' && r.outcome === 'approved');
-    for (const field of ['invocationId', 'sessionId', 'callId', 'toolName', 'policyDigest', 'argumentDigest']) {
+    for (const field of ['invocationId', 'sessionId', 'callId', 'toolName', 'combinedPolicyDigest', 'argumentDigest']) {
       assert.equal(typeof approved[field], 'string');
       assert.ok(approved[field]);
       assert.equal(unknown[field], approved[field]);

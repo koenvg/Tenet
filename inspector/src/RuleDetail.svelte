@@ -9,6 +9,7 @@
 <!-- svelte-ignore a11y_no_noninteractive_tabindex (Scrollable assessment region needs keyboard access.) -->
 <section aria-label="Selected rule" class="rule-detail" tabindex="0">
   <div class="rule-detail-title"><h3>{rule.builtin ? 'Built-in integrity' : `Rule at line ${rule.line}`}</h3><span class="setting">{rule.enforcement}</span></div>
+  {#if !rule.builtin}<p class="setting">Source role: {rule.origin?.role ?? 'unknown, not recorded'}{#if rule.origin?.source} | {rule.origin.source}{/if}</p>{/if}
   <p class="snapshot-text">{rule.text}</p>
   {#if rule.result?.outcome}<p class="rule-outcome">Rule outcome <StatusChip value={rule.result.outcome.choice ?? 'Unavailable'} /></p>{/if}
   {#if rule.evidenceGate === 'not-applicable'}<p class="muted">Evidence-confidence gate does not apply. No evidence score was recorded.</p>{/if}
@@ -24,6 +25,7 @@
   <details class="rule-technical disclosure"><summary>Probabilities and rule details</summary>
   <p class="contribution">{contributionExplanation(rule, mode)}</p>
   <p class="setting">Enforcement: {rule.enforcement}</p>
+  {#if rule.origin}<p class="setting">Recorded target: {rule.origin.target ?? 'not recorded'}<br />Source SHA-256: {rule.origin.digest ?? 'not recorded'}</p>{/if}
   {#if rule.gateIds?.length}<details class="gate-details"><summary>Gate identifiers</summary><ul>{#each rule.gateIds as gate}<li><code>{gate}</code></li>{/each}</ul></details>{/if}
   <div class="distributions">
     {#each ['outcome', 'evidence'] as kind}

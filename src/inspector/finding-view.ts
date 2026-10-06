@@ -1,6 +1,7 @@
 import { classifyFinding, uncertaintyKeys } from '../decision/finding-triage.js';
 import type { ArchiveRecord, Stage } from '../recording/contract.js';
 
+import { recordedPolicyIdentity } from '../recording/policy-contract.js';
 export type RuleFacts = { ruleId: string; outcome?: string; gates: string[] };
 export type FindingStage = { stage: Stage; timestamp: number; reason?: string; valid?: boolean; status?: string;
   model?: string; rules?: RuleFacts[]; policyIdentity?: string; profile?: string };
@@ -13,15 +14,12 @@ const ruleFacts = (v: unknown): RuleFacts[] => Array.isArray(v) ? v.slice(0, 17)
     gates: Array.isArray(r.gates) ? r.gates.filter((g: unknown): g is string => typeof g === 'string' && g.length <= 128).slice(0, 8) : [] })) : [];
 
 /** Only bounded, non-evidence fields survive in the summary index. Detail uses the same projection. */
-export function findingStage(record: Pick<ArchiveRecord, 'stage' | 'data' | 'timestamp'>): FindingStage {
+export function findingStage(record: Pick<ArchiveRecord, 'stage' | 'data' | 'timestamp'> & { schemaVersion?: number }): FindingStage {
   const { stage, timestamp, data } = record;
   const profile = typeof data.profile === 'string' && data.profile.length <= 128 ? data.profile : undefined;
   if (stage === 'begin') {
     const policy = object(data.policy), config = object(data.config);
-    const source = typeof policy.source === 'string' && policy.source.length <= 8192 ? policy.source : null;
-    const target = typeof policy.target === 'string' && policy.target.length <= 8192 ? policy.target : null;
-    return { stage, timestamp, policyIdentity: typeof policy.digest === 'string' && policy.digest.length <= 256
-      && source !== null ? JSON.stringify([source, policy.digest, target]) : undefined,
+    return { stage, timestamp, policyIdentity: recordedPolicyIdentity(record.schemaVersion, policy),
       profile: typeof data.profile === 'string' && data.profile.length <= 128 ? data.profile
         : typeof config.assessmentProfile === 'string' && config.assessmentProfile.length <= 128 ? config.assessmentProfile : 'legacy (historical)' };
   }

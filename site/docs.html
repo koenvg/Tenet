@@ -39,13 +39,19 @@ node "$TENET_DIR/dist/cli/index.js" doctor --project "$PWD"</code></pre>
 
       <section aria-labelledby="policy-title">
         <h2 id="policy-title">Write a rule</h2>
-        <p>Write your project's <code>TENET.md</code> yourself, outside the guarded agent's intercepted path. No policy ships in the archive. This illustrative local rule is not a complete security policy:</p>
+        <p>Global rules activate projects without local rules. They can reach TypeSafe and recordings. An invalid global file makes the complete set unavailable even with valid project rules. Review these effects before creating or changing it.</p>
+        <p>Review your intended rules, then author optional <code>~/.tenet/TENET.md</code>, your project's <code>TENET.md</code>, or both yourself, outside the guarded agent's intercepted path. Tenet never creates a global file automatically. No policy ships in the archive. This illustrative local rule is not a complete security policy:</p>
         <pre><code class="language-tenet-policy">Rule; Ask before overwriting owner-demo.txt.</code></pre>
         <p><code>Rule; text</code> is the supported short form. It defaults to <code>BLOCK</code>; explicit <code>BLOCK</code> is optional. Each rule uses one physical line and case-sensitive <code>Rule;</code> syntax.</p>
-        <p>Only the session directory's <code>TENET.md</code> activates Tenet. There is no parent search or bundled fallback. Without that local file, both modes are dormant, including enforce.</p>
-        <p>For an older override-based setup, follow <a href="https://github.com/koenvg/Tenet/blob/main/docs/policy.md#migrate-from-tenet_policy">local policy migration</a> before restarting.</p>
-        <p>Follow <a href="https://github.com/koenvg/Tenet/blob/main/docs/policy.md#write-a-first-rule">first-policy steps</a>. For advisory <code>WARN</code> rules or per-rule metadata, look up <a href="https://github.com/koenvg/Tenet/blob/main/docs/policy.md#rule-grammar-and-limits">exact rule grammar and limits</a>.</p>
-        <p>Rules are assessed individually. The judge can be wrong or unavailable. Review findings before relying on enforcement.</p>
+        <p>Optional <code>~/.tenet/TENET.md</code> from the process owner's home applies alongside the session directory's <code>TENET.md</code>. <code>TENET_POLICY</code> selects an absolute or session-relative project file and replaces only the project candidate.</p>
+        <p>There is no global-path override or opt-out, parent search or bundled fallback.</p>
+        <p>Only confirmed absence of both implicit candidates without an override makes both modes dormant. Missing explicit files, empty overrides and unusable sources make the whole set unavailable. Observe permits without a pass; enforce blocks. See <a href="https://github.com/koenvg/Tenet/blob/main/docs/policy.md#choose-the-policy-file">global and project selection</a>.</p>
+        <p>The sources share 16 declarations and 64 KiB of file bytes, with 4096 UTF-8 bytes per rule. Global declarations are assessed first. Project permissions, severity or thresholds cannot weaken them.</p>
+        <p>Follow <a href="https://github.com/koenvg/Tenet/blob/main/docs/policy.md#write-a-first-rule">first-policy steps</a>. For advisory <code>WARN</code> or per-rule metadata, see <a href="https://github.com/koenvg/Tenet/blob/main/docs/policy.md#rule-grammar-and-limits">exact grammar and limits</a>.</p>
+        <p>Policy changes invalidate active snapshots. Pi policy-only changes need session-start reload or restart and checked source digests and total count. Code or environment changes need a full restart. SDK hosts close and reopen sessions; the Claude prototype uses bridge reselection.</p>
+        <p>In pinned Pi 0.85.1, a switch from eligible to dormant can leave old Tenet command names listed until full native extension reload. Their handlers stay silent while dormant or transitioning, and old status and footer state are cleared. A listed name does not prove active enforcement. See <a href="https://github.com/koenvg/Tenet/blob/main/docs/policy.md#choose-the-policy-file">the pinned host limit</a>.</p>
+        <p>Older releases can ignore global discovery and cannot reproduce additive enforcement. See <a href="https://github.com/koenvg/Tenet/blob/main/docs/INSTALL-ARCHIVE.md#removal-and-rollback">owner-reviewed rollback steps</a> before reverting.</p>
+        <p>The judge can be wrong or unavailable. Review findings before relying on enforcement.</p>
       </section>
 
       <section aria-labelledby="modes-title">
@@ -58,6 +64,7 @@ Enforce: capture -&gt; assess -&gt; allow, ask or block
 ASK: native consent for this call -&gt; release or block</code></pre>
         <p>The flow shows Tenet permission, not proof that a tool ran. <a href="https://github.com/koenvg/Tenet/blob/main/docs/inspector.md">Open the inspector and read findings</a> to compare assessment, permission and observed execution. Pending, lost or missing evidence is not a pass.</p>
         <p><a href="https://github.com/koenvg/Tenet/blob/main/docs/INSTALL-ARCHIVE.md#opt-into-enforcement-later">Enforcement needs a new Pi process</a> with <code>TENET_MODE=enforce</code>. BLOCK rules can stop a call or require native approval for one unchanged pending invocation. WARN stays advisory. An unavailable assessment is not an all-clear.</p>
+        <p><code>/tenet off</code> stops new assessment and capture; <code>/tenet on</code> restores this process's mode, not a stale policy. Off does not erase recordings or recall released work. Same-user processes can change this cooperative control; it is not an OS security boundary.</p>
       </section>
 
       <section id="limits" aria-labelledby="limits-title">

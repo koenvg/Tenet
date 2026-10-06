@@ -66,7 +66,7 @@ test('schema 1 links remain stable beside host/context qualified schema 2 and un
   assert.equal(await readFile(join(root, sessionKey('same'), (await readdir(join(root, sessionKey('same'))))[0]!), 'utf8'), legacy);
   const folder = join(root, sessions.find(s => s.host === 'claude-code')!.id);
   const file = (await readdir(folder))[0]!;
-  await writeFile(join(folder, 'unsupported.json'), JSON.stringify({ schemaVersion: 5 }), { mode: 0o600 });
+  await writeFile(join(folder, 'unsupported.json'), JSON.stringify({ schemaVersion: 6 }), { mode: 0o600 });
   await index.refresh();
   assert.ok(index.issues().some(i => i.reason === 'unsupported-schema'));
 }));
@@ -95,7 +95,7 @@ test('Claude bridge records correlated success/failure, keeps missing results un
   const rows = (await readArchive(archive)).records;
   assert.deepEqual(['executed', 'failed', 'unknown'].sort(), ['success', 'failure', 'missing'].map(callId =>
     invocationView(rows.filter(r => r.callId === callId)).execution).sort());
-  assert.ok(rows.every(r => r.schemaVersion === 4 && r.host === 'claude-code'));
+  assert.ok(rows.every(r => r.schemaVersion === 5 && r.host === 'claude-code'));
   assert.ok(!JSON.stringify(rows).includes('sensitive-123-xyz'));
   await run({ ...env, TENET_RECORDING: 'off' }, 'two');
   assert.ok((await readArchive(archive)).records.every(r => r.sessionId === 'one'));

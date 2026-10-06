@@ -76,8 +76,8 @@ test('SDK permission supersession updates one native finding after owner deliver
     await h.start(); h.ctx.ui.confirm = async () => true;
     const input = { text: 'original' }; let changed = false;
     h.ctx.ui.setStatus = (_key, value) => {
-      h.statuses.push(value);
-      if (!changed && value.includes('1 distinct calls')) { changed = true; input.text = 'changed-after-owner-delivery'; }
+      h.statuses.push(value ?? '');
+      if (!changed && value?.includes('1 distinct calls')) { changed = true; input.text = 'changed-after-owner-delivery'; }
       return h.statuses.length;
     };
     const permission = await h.call('superseded', input);

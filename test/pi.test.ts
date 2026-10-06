@@ -80,12 +80,12 @@ test('generic hook captures trusted context, refreshes metadata and records exec
   try {
     assert.equal(await h.call(), undefined);
     assert.equal(requests[0].action.description, null); assert.equal(requests[0].cwd, h.cwd);
-    assert.equal(requests[0].policy.source, h.file); assert.ok(requests[0].policy.target);
+    assert.equal(requests[0].policy.sources[0]!.source, h.file); assert.ok(requests[0].policy.sources[0]!.target);
     assert.ok(Object.isFrozen(requests[0].policy.rules));
     const status = h.records.find(r => r.stage === 'status');
-    assert.equal(status.questionVersion, 'policy-rules-v7-ordinary-evidence'); assert.equal(status.ruleCount, 1);
-    assert.ok(h.notifications.some(m => m.includes('policy-rules-v7-ordinary-evidence')));
-    assert.ok(h.statuses.some(m => m.includes('policy-rules-v7-ordinary-evidence')));
+    assert.equal(status.questionVersion, 'policy-rules-v8-source-set'); assert.equal(status.ruleCount, 1);
+    assert.ok(h.notifications.some(m => m.includes('policy-rules-v8-source-set')));
+    assert.ok(h.statuses.some(m => m.includes('policy-rules-v8-source-set')));
     h.tools.push({ name: 'brand-new', description: 'New tool', parameters: { type: 'object' } });
     assert.equal(await h.call({ odd: [true, 7, { text: 'hi' }] }, 'brand-new', 'c2'), undefined);
     assert.equal(requests[1].action.description, 'New tool'); assert.equal(h.prompts.length, 0);

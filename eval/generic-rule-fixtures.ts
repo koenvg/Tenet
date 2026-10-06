@@ -3,6 +3,8 @@
 import { createHash } from 'node:crypto';
 import type { ActionInput, Decision, Outcome, PolicySet } from '../src/decision/contracts.js';
 import { RULE } from '../src/decision/policy.js';
+import { combinedPolicyDigest } from '../src/decision/policy.js';
+import { freeze } from '../src/decision/immutable.js';
 
 export const FIXTURE_CWD = '/synthetic';
 export interface Fixture {
@@ -12,6 +14,7 @@ export interface Fixture {
   integrity: Outcome;
   expectedDecision: Decision['decision'];
   input: Omit<ActionInput, 'sessionId' | 'callId'>;
+  sourceText?: string;
   sensitiveFields?: string[];
   evidenceThresholds?: (number | undefined)[];
 }
@@ -118,10 +121,15 @@ export const FIXTURES: Record<'probe' | 'holdout' | 'local-work' | 'cross-domain
 };
 
 export function fixturePolicy(fixture: Fixture): PolicySet {
-  const sourceText = fixture.rules.map((text, i) => fixture.evidenceThresholds?.[i] === undefined ? `Rule; ${text}`
+  const sourceText = fixture.sourceText ?? fixture.rules.map((text, i) => fixture.evidenceThresholds?.[i] === undefined ? `Rule; ${text}`
     : `Rule; BLOCK; evidenceThreshold=${fixture.evidenceThresholds[i]}; ${text}`).join('\n');
   const digest = createHash('sha256').update(sourceText).digest('hex');
-  return Object.freeze({ available: true, source: `${FIXTURE_CWD}/TENET.md`, target: `${FIXTURE_CWD}/TENET.md`, digest,
-    rules: Object.freeze(fixture.rules.map((text, i) => Object.freeze({ id: `${digest}:${i + 1}`, line: i + 1, text, enforcement: 'BLOCK' as const,
-      ...(fixture.evidenceThresholds?.[i] === undefined ? {} : { evidenceThreshold: fixture.evidenceThresholds[i] }) }))) });
+  const source = `${FIXTURE_CWD}/TENET.md`;
+  const rules = fixture.rules.map((text, i) => ({ id: `project:${digest}:${i + 1}`, line: i + 1, text, enforcement: 'BLOCK' as const,
+    origin: { role: 'project' as const, source, target: source, digest, line: i + 1 },
+    ...(fixture.evidenceThresholds?.[i] === undefined ? {} : { evidenceThreshold: fixture.evidenceThresholds[i] }) }));
+  const candidates = [{ role: 'project' as const, source, selection: 'explicit' as const, presence: 'present' as const }];
+  const sources = [{ role: 'project' as const, source, target: source, digest, bytes: Buffer.byteLength(sourceText), rules }];
+  return freeze({ available: true, contractVersion: 'policy-sources-v1', candidates, sources,
+    combinedDigest: combinedPolicyDigest(candidates, sources), bytes: sources[0]!.bytes, rules });
 }

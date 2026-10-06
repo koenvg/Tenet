@@ -1,8 +1,9 @@
-import { lstat, stat } from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { loadPolicy } from '../decision/policy.js';
 import type { PolicyFailure } from '../decision/contracts.js';
 import { readMode, type Mode } from '../runtime/config.js';
+import { selectPolicies } from '../runtime/policy-selection.js';
 import { ActivationStore, type Activation } from '../runtime/activation.js';
 import { recordingConfig } from '../recording/archive.js';
 import { inspectCompatibility, inspectDelivery, type Compatibility } from './installation.js';
@@ -12,15 +13,14 @@ import type { ConfigurationStatus } from '../runtime/configuration.js';
 
 interface Diagnostic { code: string; guidance: string }
 export interface DoctorReport {
-  schemaVersion: 1;
+  schemaVersion: 2;
   state: 'ready' | 'off' | 'dormant' | 'invalid' | 'unavailable';
   exitCode: 0 | 1;
   project: string;
   mode: Mode;
   configuration: 'valid' | 'invalid';
   settings: ConfigurationStatus;
-  policy: { selection: 'local'; source: string; validation: 'valid' | 'invalid' | 'absent';
-    digest: string | null; ruleCount: number; reason?: PolicyFailure };
+  policy: import('../sdk/types.js').SessionStatus['policy'] & { validation: 'valid' | 'invalid' | 'absent' };
   control: Activation;
   judge: JudgeStatus;
   credentials: { presence: 'present' | 'missing'; validity: 'unverified' };
@@ -53,28 +53,28 @@ export async function diagnoseProject(options: {
   const selectedMode = readMode(env);
   const { status: judge, configuration: prepared } = prepareJudge({ env });
   let configuration: DoctorReport['configuration'] = prepared.status.availability === 'ready' ? 'valid' : 'invalid';
-  const policyPath = resolve(project, 'TENET.md');
+  const selected = await selectPolicies(project, env);
   if (selectedMode.warning) configuration = 'invalid';
   if (configuration === 'invalid') {
     invalid = true;
-    issue('configuration', 'Check private owner config.json, supported settings fields, TENET_MODE, decision/evidence limits, approval timeout and TENET_SENSITIVE_FIELDS. Mode must be observe or enforce. Doctor does not print or repair settings.');
+    issue('configuration', 'Check private owner config.json, supported settings fields, TENET_POLICY, TENET_MODE, decision/evidence limits, approval timeout and TENET_SENSITIVE_FIELDS. Mode must be observe or enforce. Doctor does not print or repair settings.');
   }
-  let eligible: boolean;
-  try { await lstat(policyPath); eligible = true; }
-  catch (error) { eligible = (error as NodeJS.ErrnoException).code !== 'ENOENT'; }
+  const eligible = selected.eligible;
+  const loaded = eligible ? await loadPolicy(selected.candidates) : undefined;
   const policy: DoctorReport['policy'] = {
-    selection: 'local', source: safeDiagnostic(policyPath),
-    validation: 'absent', digest: null, ruleCount: 0,
+    contractVersion: 'policy-sources-v1', candidates: selected.candidates.map(c => ({ role: c.role, selection: c.selection,
+      source: safeDiagnostic(c.source), presence: c.presence })),
+    sources: loaded?.available ? loaded.sources.map(({ rules, ...s }) => ({ ...s, ruleCount: rules.length,
+      source: safeDiagnostic(s.source), target: safeDiagnostic(s.target), digest: safeDiagnostic(s.digest) })) : [],
+    validation: !eligible ? 'absent' : loaded?.available ? 'valid' : 'invalid',
+    combinedDigest: loaded?.available ? safeDiagnostic(loaded.combinedDigest) : null,
+    ruleCount: loaded?.available ? loaded.rules.length : 0,
+    ...(loaded && !loaded.available ? { reason: loaded.reason, failedRole: loaded.failedRole } : {}),
   };
-  if (eligible) {
-    const loaded = await loadPolicy(policyPath);
-    if (loaded.available) {
-      policy.validation = 'valid'; policy.digest = safeDiagnostic(loaded.digest); policy.ruleCount = loaded.rules.length;
-    } else {
-      policy.validation = 'invalid'; policy.reason = loaded.reason; invalid = true;
-      issue(loaded.reason, 'Check the selected policy file and its UTF-8 Rule; declarations, size and rule limits. Doctor does not print or repair policy text.');
-    }
-  } else limit('policy-absent', 'No local TENET.md selects this project. Author it outside the guarded action path to enable it.');
+  if (loaded && !loaded.available) {
+    invalid = true;
+    issue(loaded.reason, `Check the ${loaded.failedRole ?? 'selected'} policy file and its UTF-8 Rule; declarations, size and rule limits. Doctor does not print or repair policy text.`);
+  } else if (!eligible) limit('policy-absent', 'Both implicit global and project candidates are absent; no project override is set. Author it outside the guarded action path to enable it.');
   let control: Activation = 'unavailable';
   try { control = new ActivationStore(env.TENET_CONTROL_PATH).read(); } catch { /* Invalid paths are bounded diagnostics. */ }
   if (control === 'unavailable') {
@@ -102,7 +102,7 @@ export async function diagnoseProject(options: {
   const unavailable = delivery.status === 'incomplete' || compatibility.status === 'unavailable' || (!bypass && judge.availability === 'unavailable');
   const state = invalid ? 'invalid' : unavailable ? 'unavailable' : bypass ?? 'ready';
   return {
-    schemaVersion: 1, state, exitCode: state === 'invalid' || state === 'unavailable' ? 1 : 0,
+    schemaVersion: 2, state, exitCode: state === 'invalid' || state === 'unavailable' ? 1 : 0,
     project: safeDiagnostic(project), mode: selectedMode.mode, configuration, settings: prepared.status, policy, control, judge,
     credentials: { presence, validity: 'unverified' },
     capture: { state: capture.enabled ? 'local-archive' : 'disabled', directory: safeDiagnostic(capture.directory),
@@ -116,8 +116,10 @@ export function formatDoctor(report: DoctorReport): string {
     `TENET doctor: ${report.state} (local setup only)`,
     `Project: ${report.project}`,
     `Mode: ${report.mode}; configuration: ${report.configuration}; cooperative control: ${report.control}`,
-    `Policy: ${report.policy.selection} ${report.policy.source}; ${report.policy.validation}${report.policy.reason ? ` (${report.policy.reason})` : ''}`,
-    `Policy digest: ${report.policy.digest ?? 'unavailable'}; declared rules: ${report.policy.ruleCount}`,
+    `Policy set: ${report.policy.contractVersion}; ${report.policy.validation}${report.policy.reason ? ` (${report.policy.reason})` : ''}`,
+    ...report.policy.candidates.map(c => `Policy candidate: ${c.role} ${c.selection} ${c.source}; ${c.presence}`),
+    ...report.policy.sources.map(s => `Policy source: ${s.role} ${s.source}; target ${s.target}; SHA-256 ${s.digest}; ${s.bytes} bytes; ${s.ruleCount} rules`),
+    `Combined policy digest: ${report.policy.combinedDigest ?? 'unavailable'}; declared rules: ${report.policy.ruleCount}`,
     `Judge: ${report.judge.provider}${report.judge.experimental ? ' experimental' : ''}; requested model: ${report.judge.requestedModel ?? 'unknown'}; local availability: ${report.judge.availability}`,
     `Settings: ${report.settings.source}; ${report.settings.settings}${report.settings.reason ? ` (${report.settings.reason})` : ''}; deadline ms: ${report.settings.deadlineMs ?? 'unavailable'}; observation: ${report.settings.observation ? JSON.stringify(report.settings.observation) : 'unavailable'}`,
     `Credentials: ${report.credentials.presence}; validity: unverified; provider connectivity: unverified`,

@@ -96,7 +96,10 @@ export function createGuard(options: GuardOptions): Guard {
           profile: ready.profile, questionVersion: ready.questionVersion,
           judge: resources.judgeStatus,
           configuration: resources.configurationStatus,
-          policy: { source: ready.policy.source, digest: ready.policy.available ? ready.policy.digest : null, ruleCount: ready.ruleCount } });
+          policy: { contractVersion: ready.policy.contractVersion, candidates: ready.policy.candidates,
+            sources: ready.policy.available ? ready.policy.sources.map(({ rules, ...source }) => ({ ...source, ruleCount: rules.length })) : [],
+            combinedDigest: ready.policy.available ? ready.policy.combinedDigest : null, ruleCount: ready.ruleCount,
+            ...(!ready.policy.available ? { reason: ready.policy.reason, failedRole: ready.policy.failedRole } : {}) } });
       };
       const unavailable = (reason: string): BeforeToolResult => immutable({
         permission: runtime.mode === 'enforce' ? 'blocked' : 'released', reason, ...(runtime.mode === 'enforce' ? { blockReason: `TENET blocked: ${reason}.` } : {}), assessment: unavailableAssessment(reason), execution: 'unknown' });

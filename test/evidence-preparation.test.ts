@@ -7,17 +7,17 @@ import { nativeHistory } from '../src/pi/history.js';
 import { UNSUPPORTED_ACTION } from '../src/runtime/resolved-action.js';
 import { boundEvidence, judgeState } from '../src/decision/judge-evidence.js';
 import { serializedBytes } from '../src/decision/history-selection.js';
-import { answer } from './helpers.js';
+import { answer, policy as basePolicy } from './helpers.js';
 
 // Authored synthetic pre-change baselines. Do not regenerate them from preparation output.
-const policy: PolicySet = { available: true, source: 'policy.md', target: 'policy.md', digest: 'synthetic-policy',
-  rules: [{ id: 'rule', line: 1, text: 'Keep private content local.', enforcement: 'BLOCK' }] };
+const policy: PolicySet = { ...basePolicy,
+  rules: [{ ...basePolicy.rules[0]!, id: 'rule', line: 1, text: 'Keep private content local.', enforcement: 'BLOCK' }] };
 const action: Action = { timestamp: 0, sessionId: 'synthetic', callId: 'pending', toolName: 'opaque',
   description: null, parameters: null, arguments: { operation: 'inspect', target: 7 },
   argumentDigest: 'synthetic-digest', redactedFields: 0, limitations: ['description-unavailable'] };
 const baseRequest: JudgeRequest = { profile: 'applicability-v1', policy: {
-  available: true, source: 'policy.md', target: 'policy.md', digest: 'synthetic-policy',
-  rules: [{ id: 'rule', line: 1, text: 'Keep private content local.', enforcement: 'BLOCK' }] },
+  ...basePolicy,
+  rules: [{ ...basePolicy.rules[0]!, id: 'rule', line: 1, text: 'Keep private content local.', enforcement: 'BLOCK' }] },
   action: { timestamp: 0, sessionId: 'synthetic', callId: 'pending', toolName: 'opaque',
     description: null, parameters: null, arguments: { operation: 'inspect', target: 7 },
     argumentDigest: 'synthetic-digest', redactedFields: 0, limitations: ['description-unavailable'] },
@@ -48,6 +48,11 @@ for (const scenario of [
     const result = await decide({ policy, action, cwd: '/synthetic', trajectory: observations.snapshot(),
       resolvedAction: UNSUPPORTED_ACTION, evidenceLimits: scenario.limits,
       judge: async request => { requests.push(request); return answer(request.policy); } });
+    if (scenario.limits.maxBytes === 1400) {
+      assert.deepEqual(requests, []);
+      assert.deepEqual([result.decision, result.reason], ['BLOCK', 'insufficient-evidence']);
+      return; // Required source provenance cannot be truncated to fit a legacy-sized cap.
+    }
     assert.deepEqual(requests.map(({ evidenceContext: _context, ...submitted }) => ({ ...submitted, trajectory: (({ selection: _selection, ...history }) => history)(submitted.trajectory!) })), [{ ...baseRequest, trajectory: { observations: scenario.kept, omitted: scenario.omitted,
       limitations: [...limitations, ...scenario.historyLimitations] } }]);
     assert.deepEqual([result.decision, result.reason], ['ALLOW', 'all-rules-pass']);
