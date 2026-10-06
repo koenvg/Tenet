@@ -27,4 +27,4 @@ None. The durable Pi inspector-launch, policy-activation and enforcement require
 
 The affected code is `bb-plugin-tenet-status/`, the summary projection and exact-link readers in `src/inspector/`, and the inspector summary views, navigation and build tooling in `inspector/`. The BB owner/host RPC contracts gain bounded summary operations; the plugin build gains a shared Svelte summary entry mounted through its React registration.
 
-Coordinate the existing error-status follow-up [TENET-43](bbtask://TENET-43) with the shared summary work instead of introducing a second classification implementation. Fixing the live TypeSafe provider error, changing policy or enforcement, exposing raw evidence in BB, and adding support for non-Pi BB threads are outside this change.
+Coordinate the existing recorded evaluator-state result contract with the shared summary work instead of introducing a second classification implementation. Fixing the live TypeSafe provider error, changing policy or enforcement, exposing raw evidence in BB, and adding support for non-Pi BB threads are outside this change.
