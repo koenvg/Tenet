@@ -11,7 +11,7 @@
   },
   "bb": {
     "name": "Tenet Status",
-    "description": "Read-only TENET rule failures for BB Pi threads.",
+    "description": "Read-only TENET recorded call summaries and findings for BB Pi threads.",
     "branding": {
       "icon": "ShieldAlert"
     },

@@ -86,13 +86,13 @@ for (const [name, options, text] of [
   ['selected FAIL', { choice: 'FAIL', gate: 'rule-fail' }, 'A policy rule was reported as violated.'],
   ['uncertain PASS', {}, 'Evidence confidence was below the required threshold.'],
   ['approval', { choice: 'APPROVAL_REQUIRED', decision: 'ASK', gate: null }, 'An approval condition was recorded.'],
-  ['provider failure', { failure: 'provider-error' }, 'Assessment failed. No completed assessment is available.'],
+  ['provider failure', { failure: 'provider-error' }, 'Assessment unavailable. No completed assessment is available.'],
 ] as const) test(`shared summary preserves ${name} meaning`, async () => {
   await page.viewport(1280, 900);
   const summary = standaloneSummary(makeView(options));
   const screen = await render(SummaryWorkspace, { model: { calls: [], selected: summary, category: '', coverage: 'Synthetic', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } });
   await expect.element(screen.getByText(text)).toBeVisible();
-  if (name === 'provider failure') await expect.element(screen.getByText('Recorded assessment: failed · provider-error.')).toBeVisible();
+  if (name === 'provider failure') await expect.element(screen.getByText('Recorded assessment: unavailable · provider-error.')).toBeVisible();
 });
 
 test('historical thresholds and built-in identity are recorded inputs, not current policy', async () => {

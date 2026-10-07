@@ -64,9 +64,10 @@ test('UNKNOWN, approval and failed assessment never appear as a pass', async () 
   expect(failureMap.container.querySelector('.map-check')?.textContent).not.toContain('Rule outcome / PASS');
 });
 
-for (const status of ['pending', 'dropped', 'cancelled', 'unavailable', 'incomplete']) test(`${status} assessment does not invent a decision, passing check or confidence`, async () => {
+for (const status of ['pending', 'dropped', 'cancelled', 'unavailable', 'incomplete'] as const) test(`${status} assessment does not invent a decision, passing check or confidence`, async () => {
   const view = makeView({ execution: 'executed' });
   view.assessmentStatus = status; view.decision = 'unavailable';
+  view.evaluatorState = { status, reason: status === 'unavailable' ? 'assessment-unavailable' : null };
   view.categories = status === 'unavailable' ? ['unavailable'] : ['pending'];
   view.rules = view.rules.map(rule => ({ ...rule, result: null, gateIds: null, contribution: 'unavailable' }));
   const screen = await render(createElement(DecisionSummary, { view }));

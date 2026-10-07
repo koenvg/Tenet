@@ -34,6 +34,7 @@
         <div class="recorded-context">
           <p class="call-label">Call {view.identity?.callId ?? 'Identity unavailable'}</p>
           <p class="assessment-state">Recorded assessment: {view.evaluatorState?.status ?? view.assessmentStatus}{(view.evaluatorState?.reason ?? view.failure) ? ` · ${view.evaluatorState?.reason ?? view.failure}` : ''}.</p>
+          {#if view.metadata}<p class="assessment-state">Contract {view.metadata.schemas.join(', ')} · Questions {view.metadata.questionVersion} · Profile {view.metadata.profile}{view.metadata.policyDigest ? ` · Policy SHA-256 ${view.metadata.policyDigest}` : ''}</p>{/if}
         </div>
         <DecisionSummary {view} />
       </header>
@@ -61,6 +62,7 @@
           </details>
         </section>
       </details>
+      {#if view.omittedRules}<p role="status">{view.omittedRules} additional recorded rules omitted from this basic summary. Full rule browsing is not available here yet.</p>{/if}
       <p class="summary-privacy-note">Raw evidence, action previews, exact questions and provider responses are separate from this summary. They remain in the standalone inspector on the selected machine.</p>
     </section>
   </div>

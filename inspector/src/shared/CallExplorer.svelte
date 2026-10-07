@@ -8,6 +8,7 @@
   export let selectedId = '';
   export let category: FindingCategory | '' = '';
   export let loading = false;
+  export let unavailable = false;
   export let more = false;
   export let selectCall: (id: string) => void;
   export let filterCategory: (category: FindingCategory | '') => void;
@@ -41,7 +42,7 @@
         </span>
       </button>
     {/each}
-    {#if loading}<p role="status">Loading calls…</p>{:else if !calls.length}<p class="empty-inline">{category ? 'No calls match this finding category.' : 'No recorded invocations in this session.'}</p>{/if}
+    {#if loading}<p role="status">Loading calls…</p>{:else if !calls.length}<p class="empty-inline">{unavailable ? 'Calls unavailable. Missing records are not a pass.' : category ? 'No calls match this finding category.' : 'No recorded invocations in this session.'}</p>{/if}
     {#if more && loadMore}<button class="text-button" disabled={loading} on:click={loadMore}>More invocations</button>{/if}
   </nav>
   <div class="explorer-footer"><span>Read-only recorded calls</span></div>

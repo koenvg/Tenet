@@ -29,6 +29,8 @@ export function standaloneRule(rule: InvocationView['rules'][number]): SummaryRu
 export function standaloneSummary(view: InvocationView & { evaluatorState?: SummaryEvaluatorState }): SummaryDecision {
   return {
     identity: view.identity ? { callId: view.identity.callId, toolName: view.identity.toolName, mode: view.identity.mode } : null,
+    metadata: { schemas: view.identity?.schemas ?? [], questionVersion: String(view.questionVersion ?? 'unknown'),
+      profile: view.assessmentProfile, policyDigest: typeof view.policy.digest === 'string' && /^[a-f0-9]{64}$/.test(view.policy.digest) ? view.policy.digest : null },
     decision: view.decision, reason: view.reason, permission: view.permission, execution: view.execution, approval: view.approval,
     categories: [...view.categories], missing: [...view.missing], assessmentStatus: view.assessmentStatus,
     failure: view.failure, noRulesClassifiedViolated: view.noRulesClassifiedViolated, rules: view.rules.map(standaloneRule),

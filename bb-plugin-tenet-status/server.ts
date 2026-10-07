@@ -1,5 +1,7 @@
 import type { BbPluginApi } from '@get-bb/plugin-sdk';
 import { hostContract, rpcContract, unavailable, unavailableFindings } from './contract.js';
+import { emptyOverview } from '../src/inspector/bb-summary.js';
+import { overviewSchema } from './overview-contract.js';
 
 /** Owner-facing RPC only. No agent tool, message, hook or assessment is registered. */
 export default function plugin(bb: BbPluginApi) {
@@ -34,6 +36,14 @@ export default function plugin(bb: BbPluginApi) {
       if (!selected) return unavailableFindings();
       // A rejected page request reaches the UI so it can offer a page-one restart.
       return host.call('readFindings', { threadId, ...(cursor ? { cursor } : {}), ...selected.input }, { hostId: selected.hostId });
+    },
+    async overview({ threadId, ...selection }) {
+      try {
+        const thread = await bb.sdk.threads.get({ threadId });
+        if (thread && thread.providerId !== 'pi') return overviewSchema.parse(emptyOverview('unsupported'));
+        const selected = await target(threadId);
+        return selected ? await host.call('readOverview', { threadId, ...selection, ...selected.input }, { hostId: selected.hostId }) : overviewSchema.parse(emptyOverview());
+      } catch { return overviewSchema.parse(emptyOverview()); }
     },
   });
 }

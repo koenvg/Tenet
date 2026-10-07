@@ -136,7 +136,7 @@ test('corrupt and interrupted captures remain unavailable, and archive errors re
         expect(detail).toContain('Assessment incomplete');
         expect(detail).toContain('unknown');
         expect(await page.locator('.rule-row .status-chip').allTextContents()).not.toContain('PASS');
-      } else expect(detail).toContain('Assessment failed');
+      } else expect(detail).toContain('Assessment unavailable');
       if (kind === 'missing-credentials') expect(inspection).toContain('not submitted');
       if (kind === 'missing-payload') expect(inspection).toContain('submitted; payload unavailable');
       if (kind === 'truncated-response') expect(inspection).toContain('Response truncated');

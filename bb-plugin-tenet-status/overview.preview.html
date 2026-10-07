@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>TENET-52 offline panel</title>
+<style>
+:root { font-family: system-ui, sans-serif; color: #171918; background: #f0f1ef; --foreground:#171918; --background:#fff; --border:#d4d7d4; --muted:#eff0ed; --muted-foreground:#5b605e; }
+body { margin:0; } header { padding:16px 24px; } h1 { font-size:22px; } header p { font-size:13px; } button { cursor:pointer; padding:7px 10px; margin:3px; } button:focus-visible, select:focus-visible { outline:2px solid #436dce; outline-offset:2px; }
+.shell { display:flex; gap:16px; align-items:flex-start; padding:16px; } .conversation { flex:1; min-width:0; padding:20px; } .panel { max-width:100%; flex-shrink:0; min-width:0; background:var(--background); border:1px solid var(--border); height:720px; overflow-y:auto; } .panel>h2 { font-size:14px; padding:12px; border-bottom:1px solid var(--border); margin:0; }
+@media (max-width:700px) { .shell { display:block; padding:0; } .conversation { padding:12px; } .panel { box-sizing:border-box; } }
+</style></head><body><div id="preview"></div><script type="module" src="./overview.preview.tsx"></script></body></html>

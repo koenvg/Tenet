@@ -52,6 +52,7 @@ export function invocationView(records: ArchiveRecord[]) {
     assessmentProfile: findings.profile,
     judge: recordedJudge(records), native: nativeHistory(records),
     failure: findings.failure, assessmentStatus: findings.assessmentStatus,
+    evaluatorState: findings.evaluatorState,
     evidenceContext: recordedContext ? freeze(structuredClone(recordedContext)) : null,
     noRulesClassifiedViolated: ['ALLOW', 'ASK', 'BLOCK'].includes(decision.decision)
       && !invalidRecordedAssessment && !findings.failure && ['completed', 'validated'].includes(findings.assessmentStatus)

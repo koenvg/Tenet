@@ -54,8 +54,8 @@ for (const width of [1000, 390]) test(`both adapters have the same safe content,
   await rightUI.getByRole('combobox', { name: 'Finding category' }).selectOptions('unavailable');
   await expect.poll(() => left.querySelector('select')?.value).toBe('unavailable');
   await rightUI.getByRole('button', { name: /synthetic-failure/ }).click();
-  await expect.element(leftUI.getByText('Recorded assessment: failed · provider-error.', { exact: true })).toBeVisible();
-  await expect.element(rightUI.getByText('Recorded assessment: failed · provider-error.', { exact: true })).toBeVisible();
+  await expect.element(leftUI.getByText('Recorded assessment: unavailable · provider-error.', { exact: true })).toBeVisible();
+  await expect.element(rightUI.getByText('Recorded assessment: unavailable · provider-error.', { exact: true })).toBeVisible();
   await expect.poll(() => snapshot(right)).toEqual(snapshot(left));
   expect(left.querySelector('.common-summary')?.textContent).not.toContain('RAW_ACTION_SENTINEL');
 });

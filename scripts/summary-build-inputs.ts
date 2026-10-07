@@ -9,7 +9,7 @@ export async function summaryBuildFingerprint(): Promise<string> {
       : /\.(svelte|ts|css)$/.test(entry.name) ? [path + entry.name] : []));
     return children.flat();
   }
-  const paths = [...await files('inspector/src/'), 'src/decision/finding-triage.ts',
+  const paths = [...await files('inspector/src/'), 'src/decision/finding-triage.ts', 'src/inspector/summary-model.ts',
     'inspector/vite.summary.config.ts', 'inspector/tsconfig.summary.json',
     'scripts/build-summary-types.ts', 'scripts/summary-build-inputs.ts', 'package.json', 'bun.lock'].sort();
   const hash = createHash('sha256');

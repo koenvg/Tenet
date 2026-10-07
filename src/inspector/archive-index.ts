@@ -8,12 +8,14 @@ import { READER_SCHEMAS, type ArchiveRecord, validRecord } from '../recording/co
 import { directory, MAX_RECORD_BYTES, readPrivateFile } from '../recording/files.js';
 import { captureHealth, invocationView, type CaptureHealth } from './view.js';
 import { projectThreadFinding, type ThreadFinding } from './bb-findings.js';
+import { projectSummaryCall, projectSummaryDecision, type LinkedSessionSummary, type ThreadOverview, type OverviewSelection } from './bb-summary.js';
 
 export interface PageOptions { limit?: number; cursor?: string; offset?: number }
 export interface InvocationSummary {
   id: string; invocationId: string; callId: string; toolName: string; host: string; contextId: string;
   timestamp: number; updated: number; decision: string; missing: string[]; categories: FindingCategory[];
   failure: string | null; assessmentStatus: string;
+  evaluatorState: EvaluatorState;
   mode: string; permission: string; execution: string;
 }
 export interface SessionSummary {
@@ -410,7 +412,7 @@ export class ArchiveIndex {
     return { id, invocationId: first.invocationId, callId: first.callId, toolName: first.toolName,
       host: first.host ?? 'pi', contextId: first.contextId ?? 'main', timestamp: first.timestamp,
       updated: Math.max(...records.map(r => r.timestamp)), decision: records.find(r => r.decision)?.decision ?? 'unavailable',
-      failure: findings.failure, assessmentStatus: findings.assessmentStatus, categories: findings.categories, mode: first.mode,
+      evaluatorState: findings.evaluatorState, failure: findings.failure, assessmentStatus: findings.assessmentStatus, categories: findings.categories, mode: first.mode,
       permission: records.findLast(r => r.stage === 'permission')?.outcome ?? 'unknown',
       execution: records.findLast(r => r.stage === 'execution')?.outcome ?? 'unknown',
       missing: ['begin', 'request', 'response', 'validation', 'assessment', 'decision', 'permission', 'execution'].filter(s => !records.some(r => r.stage === s)) };
@@ -516,6 +518,58 @@ export class ArchiveIndex {
     return { status, candidates };
   }
   threadStatus(bbThreadId: string): ThreadStatus { return this.threadSnapshot(bbThreadId).status; }
+  /** One refreshed metadata snapshot, no per-row detail reads. Exact links precede aggregation. */
+  async threadOverview(threadId: string, selection: OverviewSelection = {}): Promise<ThreadOverview> {
+    for (const cursor of [selection.sessionCursor, selection.callCursor]) if (cursor && cursor.length > 512) throw new Error('invalid-page');
+    const { groups, writerLoss } = this.linkedGroups(threadId);
+    const sessions = new Map<string, { row: LinkedSessionSummary; groups: Map<string, Metadata[]> }>();
+    let failures = 0;
+    for (const [id, records] of groups) {
+      const native = recordSessionKey(records[0]!);
+      const sessionId = sessionKey(JSON.stringify([threadId, native]));
+      let session = sessions.get(sessionId);
+      if (!session) {
+        session = { row: { id: sessionId, timestamp: 0, started: Infinity, calls: 0,
+          categoryCounts: { violation: 0, uncertainty: 0, approval: 0, unavailable: 0, pending: 0 } }, groups: new Map() };
+        sessions.set(sessionId, session);
+      }
+      const row = this.summarize(id, records);
+      const selectedFail = this.selectedFailure(records);
+      if (selectedFail) failures++;
+      row.categories = row.categories.filter(c => c !== 'violation' || selectedFail);
+      session.row.timestamp = Math.max(session.row.timestamp, row.updated);
+      session.row.started = Math.min(session.row.started, row.timestamp);
+      session.row.calls++;
+      for (const c of row.categories) session.row.categoryCounts[c]++;
+      session.groups.set(id, records);
+    }
+    const sessionPage = page([...sessions.values()].map(s => s.row), { limit: 50, cursor: selection.sessionCursor }, `bb-sessions:${threadId}`);
+    const sessionId = selection.sessionId ?? sessionPage.items[0]?.id ?? null;
+    const selectedSession = sessionId ? sessions.get(sessionId) : null;
+    if ((selection.sessionId && !selectedSession) || (selection.callId && !selectedSession) || (selection.callCursor && !selectedSession)) throw new Error('invalid-selection');
+    const rows = [...(selectedSession?.groups ?? [])].map(([id, records]) => {
+      const row = this.summarize(id, records);
+      row.categories = row.categories.filter(c => c !== 'violation' || this.selectedFailure(records));
+      return projectSummaryCall(row);
+    }).filter(row => !selection.category || row.categories.includes(selection.category));
+    const callPage = page(rows, { limit: 50, cursor: selection.callCursor }, `bb-calls:${threadId}:${sessionId}:${selection.category ?? ''}`);
+    const selectedId = selection.callId ?? callPage.items[0]?.id ?? null;
+    const metadata = selectedId ? selectedSession?.groups.get(selectedId) : null;
+    if (selection.callId && !metadata) throw new Error('invalid-selection');
+    let selected = null;
+    const issues = new Set(this.issues().map(i => i.reason));
+    if (writerLoss) issues.add('writer-loss');
+    if (metadata) {
+      const first = metadata[0]!;
+      const detail = await this.detail(recordSessionKey(first), recordInvocationKey(first), threadId);
+      const observed = new Set(detail.records.map(r => r.eventId));
+      if (detail.readIssues.length || metadata.some(r => !observed.has(r.eventId)) || detail.records.some(r => r.host !== 'pi' || ![3, 4].includes(r.schemaVersion))) issues.add('detail-unavailable');
+      else selected = projectSummaryDecision(detail.records);
+    }
+    return { state: 'available', coverage: groups.size ? 'partial' : 'unknown', linkedCalls: groups.size, failures,
+      issues: [...issues].slice(0, 20), sessions: sessionPage.items, nextSession: sessionPage.next, sessionId,
+      calls: callPage.items, nextCall: callPage.next, selectedId, selected };
+  }
   /** At most five candidate calls per page, each re-read by detail's 64-stage / 16-MiB cap. */
   async threadFindings(bbThreadId: string, cursor?: string): Promise<{ coverage: ThreadStatus['coverage']; linkedCalls: number;
     notices: ThreadStatus['notices']; assessments: ThreadStatus['assessments']; issues: string[]; items: ThreadFinding[]; next: string | null }> {

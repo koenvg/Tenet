@@ -14,6 +14,9 @@
 .tenet-summary-workspace.embedded :is(.archive-messages, .mobile-nav) { grid-column: 1 / -1; padding: 12px 24px; }
 .tenet-summary-workspace.embedded .archive-messages { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; color: var(--tenet-muted); font-size: 12px; }
 .tenet-summary-workspace.embedded .archive-messages p { flex: 1; min-width: 160px; }
+.tenet-summary-workspace.embedded .archive-messages label { min-width: 0; max-width: 100%; }
+.tenet-summary-workspace.embedded .archive-messages select { width: 100%; min-width: 0; max-width: 100%; }
+.tenet-summary-workspace.embedded .archive-messages .session-counts { flex-basis: 100%; }
 .tenet-summary-workspace.embedded .explorer { display: flex; flex-direction: column; min-width: 0; padding: 12px 0 20px; }
 .tenet-summary-workspace.embedded .call-list { max-height: 600px; }
 .tenet-summary-workspace.embedded .inspection { min-width: 0; overflow-wrap: anywhere; background: var(--tenet-chrome); border-radius: 16px; margin: 0 24px 20px 0; }

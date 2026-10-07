@@ -16,7 +16,7 @@ test('common summary includes recorded identity and failure, with raw inspection
   const screen = await render(createElement(Detail, { view }));
   const common = screen.getByRole('region', { name: 'Common call summary' });
   await expect.element(common.getByText('Call offline-call', { exact: true })).toBeVisible();
-  await expect.element(common.getByText('Recorded assessment: failed · provider-error.', { exact: true })).toBeVisible();
+  await expect.element(common.getByText('Recorded assessment: unavailable · provider-error.', { exact: true })).toBeVisible();
   await expect.element(common.getByRole('region', { name: 'Actual execution' }).getByText('Ran', { exact: true })).toBeVisible();
   expect(common.element().textContent).not.toContain('RAW_ACTION_SENTINEL');
   const raw = screen.getByRole('region', { name: 'Standalone-only inspection' });
