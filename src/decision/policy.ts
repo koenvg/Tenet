@@ -122,9 +122,30 @@ async function confirmedAbsent(source: string): Promise<boolean> {
   let parent = dirname(source);
   for (;;) {
     try { return (await stat(parent)).isDirectory(); } catch (error) {
-      // A broken link is not optional absence.
-      try { await lstat(parent); return false; } catch {}
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return false;
+      try {
+        const ancestor = await lstat(parent);
+        if (!ancestor.isDirectory()) return false;
+        // Capture can create this directory after stat saw ENOENT.
+        // Candidate ENOENT can hide a broken link, so check the lower path too.
+        for (let child = dirname(source); child !== parent; child = dirname(child)) {
+          let info;
+          try { info = await lstat(child); } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return false;
+          }
+          if (info) {
+            try {
+              const target = info.isSymbolicLink() ? await stat(child) : info;
+              if (!target.isDirectory()) return false;
+            } catch { return false; }
+          }
+        }
+        try { await lstat(source); return false; } catch (error) {
+          return (error as NodeJS.ErrnoException).code === 'ENOENT';
+        }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return false;
+      }
     }
     const next = dirname(parent);
     if (next === parent) return false;
