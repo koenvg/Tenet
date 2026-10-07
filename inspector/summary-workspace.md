@@ -1,6 +1,6 @@
 # Build and use the shared summary workspace
 
-Use this developer-checkout reference to build the Svelte summary library and mount it from React. The mount is prepared for BB, but this slice registers no overview page, panel or RPC. The existing standalone inspector and flagged-rule plugin remain the user entry points.
+Use this developer-checkout reference to build the Svelte summary library and mount it from React. The standalone inspector and both BB overview entry points use this workspace. See [the BB overview guide](../bb-plugin-tenet-status/README.md) for main-page selection, the thread panel and safe host reads.
 
 ## Build the library and plugin
 
@@ -50,7 +50,7 @@ Select **Show standalone-only inspection**, or add `?raw=1`, to show the separat
 
 ## Summary input
 
-The source contract is [shared/model.ts](src/shared/model.ts). It is a presentation contract, not the authenticated BB transport schema. Future BB host adapters must construct an allowlisted, validated summary before serialization. TypeScript types alone do not enforce a privacy boundary.
+The source contract is [shared/model.ts](src/shared/model.ts). It is a presentation contract, not the authenticated BB transport schema. BB host adapters construct an allowlisted, validated summary before serialization. TypeScript types alone do not enforce a privacy boundary.
 
 `SummaryWorkspaceInput` has two fields:
 
@@ -63,11 +63,11 @@ The source contract is [shared/model.ts](src/shared/model.ts). It is a presentat
 
 `SummaryRule` has recorded ID, inert text, line, `enforcement` severity, built-in identity, selected outcome/evidence scores and probabilities, gates, contribution, effective thresholds, evidence-gate status and assessment profile. Nullable scores, thresholds and gates remain unknown. The view never compares current policy or recomputes classifications.
 
-For BB transport, the approved limits are 50 sessions/calls per page, 16 rules per page, 512-character cursors, 256-character labels, 2,048-character rule text and 20 issue codes. Host adapters must preserve explicit text/page omission markers and existing parse/detail budgets. This presentation slice does not implement those host reads or authenticate record association.
+BB transport limits are 50 sessions/calls per page, 16 rules per page, 512-character cursors, 256-character labels, 2,048-character rule text and 20 issue codes. Host reads preserve explicit text/page omission markers, the shared 256-stage/16-MiB refresh budget and selected-detail 64-stage/16-MiB cap. They validate exact thread association before grouping or counting.
 
-Reason, failure and gate fields must contain safe recorded codes, never provider bodies or exception messages. Categories and assessment state come from existing recorded helpers. TENET-43 owns evaluator-failure classification; integrate its recorded result into these fields rather than adding a classifier here. No non-Pi association or coverage is added.
+Reason, failure and gate fields contain safe recorded codes, never provider bodies or exception messages. Categories and assessment state come from the shared recorded classification and stage folding. The workspace adds no classifier, non-Pi association or coverage.
 
-The optional `evaluatorState` on calls and selected summaries accepts the TENET-43 shared-fold shape, with recorded status and safe reason. When absent, the workspace displays the current `assessmentStatus` and `failure` fields. The standalone projection copies this field when its reader provides it. Reader propagation and the BB status commit must be integrated separately; this slice does not merge TENET-43.
+The optional `evaluatorState` on calls and selected summaries contains recorded status and a safe reason from the shared stage fold. When absent, the workspace displays the `assessmentStatus` and `failure` fields. Both adapters preserve terminal evaluator failure separately from unfinished assessment, findings, permission and execution.
 
 ## Two adapters, one presentation
 
@@ -75,7 +75,7 @@ The optional `evaluatorState` on calls and selected summaries accepts the TENET-
 standalone HTTP -> explicit summary projection -> shared Svelte workspace
                   standalone-only snippets   -> raw detail views
 
-planned BB host RPC     -> validated safe summary     -> React mount -> same workspace
+BB host RPC             -> validated safe summary     -> React mount -> same workspace
 ```
 
 The standalone app uses [standalone-adapter.ts](src/shared/standalone-adapter.ts) to copy summary fields. Both hosts render [SummaryDetail.svelte](src/shared/SummaryDetail.svelte) for call identity, recorded assessment status and reason, and the decision summary.

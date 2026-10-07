@@ -63,6 +63,9 @@ jobs:
       - run: bun install --frozen-lockfile
       # Browser fixtures load Pi's adapter through the compiled SDK entry.
       - run: bun run sdk:build
+      # BB browser fixtures need plugin dependencies and the generated shared mount.
+      - run: npm ci --prefix bb-plugin-tenet-status
+      - run: bun run summary:build
       - run: bun run inspector:check
       - run: bunx playwright install --with-deps chromium
       - run: CI=1 bun run inspector:test

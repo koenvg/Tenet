@@ -3,6 +3,18 @@ import type { InvocationSummary } from './archive-index.js';
 import { findingStage, foldFindingStages } from './finding-view.js';
 import { noRulesClassifiedViolated } from './assessment-completeness.js';
 import type { SummaryCall, SummaryDecision, SummaryRule, SummaryScore } from './summary-model.js';
+import type { Reason } from '../decision/contracts.js';
+import { evaluatorFailureCodes } from './finding-view.js';
+import { recordedDecisionFacts } from './recorded-decision.js';
+
+// Keep the BB reason allowlist complete when the decision contract changes.
+const decisionReasons = {
+  'policy-unavailable': true, 'policy-format': true, 'policy-file-limit': true, 'policy-rule-count-limit': true, 'policy-rule-size-limit': true,
+  'all-rules-pass': true, 'advisory-findings': true, 'rule-approval-required': true, 'rule-failed': true, 'policy-integrity': true,
+  'insufficient-evidence': true, configuration: true, 'missing-credentials': true, 'invalid-response': true, 'provider-error': true, timeout: true, cancelled: true,
+} satisfies Record<Reason, true>;
+const safeReasons = [...Object.keys(decisionReasons), ...evaluatorFailureCodes,
+  'rule-fail', 'rules-pass', 'approval-required', 'outcome-unknown', 'no-policy', 'no-rules', 'confidence-gate'];
 
 const object = (v: unknown): Record<string, any> => v && typeof v === 'object' && !Array.isArray(v) ? v : {};
 const list = (v: unknown): Record<string, any>[] => Array.isArray(v) ? v.map(object) : [];
@@ -60,16 +72,14 @@ export function projectSummaryDecision(records: ArchiveRecord[], ruleOffset = 0)
       evidenceGate: known(contribution?.evidenceGate, ['applicable', 'not-applicable', 'unavailable']),
       profile: summaryLabel(contribution?.profile ?? findings.profile) };
   });
-  const recordedDecision = known(decision.decision, ['ALLOW', 'ASK', 'BLOCK']);
-  const permission = stage('permission');
+  const facts = recordedDecisionFacts(records);
   return { identity: records[0] ? { callId: summaryLabel(records[0].callId), toolName: summaryLabel(records[0].toolName), mode: records[0].mode } : null,
     metadata: { schemas: [...new Set(records.map(r => r.schemaVersion))], questionVersion: summaryLabel(request.questionVersion ?? begin.questionVersion),
       profile: summaryLabel(findings.profile), policyDigest: typeof policy.digest === 'string' && /^[a-f0-9]{64}$/.test(policy.digest) ? policy.digest : null },
-    decision: recordedDecision, reason: findings.evaluatorState.reason ?? known(decision.reason,
-      ['rule-fail', 'rules-pass', 'all-rules-pass', 'approval-required', 'outcome-unknown', 'no-policy', 'no-rules', 'confidence-gate'], 'recorded-decision'),
-    permission: known(permission.outcome, ['released', 'blocked']), execution: known(stage('execution').outcome, ['executed', 'failed']),
-    approval: known(stage('approval').outcome, ['approved', 'denied', 'cancelled', 'unavailable'], recordedDecision === 'ASK'
-      ? records[0]?.mode === 'observe' ? 'not requested (observe mode)' : 'unknown' : recordedDecision === 'unknown' ? 'unknown' : 'not required'),
+    decision: known(facts.decision, ['ALLOW', 'ASK', 'BLOCK']),
+    reason: known(facts.reason, safeReasons, findings.evaluatorState.reason ?? 'recorded-decision'),
+    permission: known(facts.permission, ['released', 'blocked']), execution: known(facts.execution, ['executed', 'failed']),
+    approval: known(facts.approval, ['approved', 'denied', 'cancelled', 'unavailable', 'not requested (observe mode)', 'unavailable (host cannot approve)', 'not required']),
     categories: valid ? findings.categories : findings.categories.filter(c => c !== 'violation'),
     missing: ['begin', 'request', 'response', 'validation', 'assessment', 'decision', 'permission', 'execution'].filter(s => !records.some(r => r.stage === s)),
     assessmentStatus: findings.evaluatorState.status, failure: findings.evaluatorState.reason, evaluatorState: { ...findings.evaluatorState },

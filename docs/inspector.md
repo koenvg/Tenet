@@ -80,7 +80,7 @@ For local frontend development only, `bun inspector` starts Vite with live reloa
 
 ## Shared summaries and standalone evidence
 
-The developer checkout now shares call, status and rule-summary presentation with a Svelte workspace prepared for BB. The BB overview is not registered by this preparation step. Its summary input excludes raw arguments, action previews, submitted evidence, exact questions and provider response bodies.
+The standalone inspector and both BB overview entry points use one Svelte workspace for call, status and rule-summary presentation. The BB plugin is built and installed separately; see [the BB overview guide](../bb-plugin-tenet-status/README.md). Its summary input excludes raw arguments, action previews, submitted evidence, exact questions and provider response bodies.
 
 The standalone inspector retains those detail views and its existing links. Sharing presentation neither exposes nor proxies its loopback listener. Rule text renders as inert text, but recorded policy text can still contain secrets. Same-user access limits remain unchanged.
 
