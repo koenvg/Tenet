@@ -7,7 +7,7 @@ export const runtimeModules = [
   'sdk/index', 'sdk/types', 'sdk/capabilities',
   'cli/index', 'doctor/doctor', 'doctor/installation',
   ...['apus', 'apus-native', 'apus-renderer', 'apus-transport', 'assessment-answers', 'typesafe-contract', 'assessment-contract', 'assessment-shape', 'contracts', 'decide', 'diagnostics', 'evidence', 'evidence-budget',
-    'evidence-context', 'evidence-context-contract', 'finding-triage', 'history-capture', 'history-content',
+    'evidence-context', 'evidence-context-contract', 'filesystem-presence', 'finding-triage', 'history-capture', 'history-content',
     'history-envelope', 'history-groups', 'history-selection', 'immutable', 'jev', 'judge-evidence', 'policy', 'policy-contract', 'policy-origin',
     'questions', 'response-validation', 'thresholds', 'trajectory'].map(n => `decision/${n}`),
   ...['activation', 'approval', 'config', 'configuration', 'judge', 'settings', 'consequences', 'guard', 'invocation-authorization', 'observation-queue', 'owner-record', 'policy-selection', 'resolved-action', 'resources'].map(n => `runtime/${n}`),
