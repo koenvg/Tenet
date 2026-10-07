@@ -32,7 +32,8 @@ export function projectSummaryCall(row: InvocationSummary): SummaryCall {
     failure: row.evaluatorState.reason, evaluatorState: { ...row.evaluatorState } };
 }
 
-export function projectSummaryDecision(records: ArchiveRecord[]): SummaryDecision {
+export function projectSummaryDecision(records: ArchiveRecord[], ruleOffset = 0): SummaryDecision {
+  if (!Number.isSafeInteger(ruleOffset) || ruleOffset < 0 || ruleOffset % 16 !== 0) throw new Error('invalid-page');
   const stage = (s: string) => object(records.findLast(r => r.stage === s)?.data);
   const begin = stage('begin'), request = stage('request'), decision = stage('decision');
   const findings = foldFindingStages(records.map(findingStage));
@@ -40,14 +41,16 @@ export function projectSummaryDecision(records: ArchiveRecord[]): SummaryDecisio
   const config = object(stage('assessment').config ?? begin.config);
   const assessment = object(stage('assessment').assessment ?? stage('validation').assessment);
   const rules = [...list(policy.rules), ...(typeof integrity.id === 'string' ? [{ ...integrity, enforcement: 'BLOCK', line: null }] : [])];
-  const diagnostics = list(decision.contributions ?? decision.diagnostics);
+  const diagnostics = [...list(decision.contributions), ...list(decision.diagnostics)];
   const valid = findings.evaluatorState.status === 'completed' && stage('validation').valid === true;
-  const summaryRules: SummaryRule[] = rules.slice(0, 16).map(rule => {
+  const summaryRules: SummaryRule[] = rules.slice(ruleOffset, ruleOffset + 16).map(rule => {
     const result = valid ? list(assessment.rules).find(r => r.ruleId === rule.id) : undefined;
     const contribution = diagnostics.find(r => r.ruleId === rule.id);
     const text = typeof rule.text === 'string' ? rule.text : 'Rule text unavailable';
     return { id: summaryLabel(rule.id), text: text.length <= 2048 ? text : `${text.slice(0, 2038)} [omitted]`,
       line: Number.isSafeInteger(rule.line) && rule.line > 0 ? rule.line : null,
+      textStatus: typeof rule.text !== 'string' ? 'missing' : text.length > 2048 ? 'truncated' : 'recorded',
+      omittedTextChars: typeof rule.text === 'string' && text.length > 2048 ? text.length - 2038 : 0,
       enforcement: known(rule.enforcement, ['BLOCK', 'WARN']), builtin: rule.id === integrity.id,
       result: result ? { outcome: score(result.outcome), evidence: score(result.evidence) } : null,
       gateIds: valid && Array.isArray(contribution?.gates) ? contribution.gates.filter((g: any) => summaryGates.includes(g)).slice(0, 8) : null,
@@ -71,7 +74,8 @@ export function projectSummaryDecision(records: ArchiveRecord[]): SummaryDecisio
     missing: ['begin', 'request', 'response', 'validation', 'assessment', 'decision', 'permission', 'execution'].filter(s => !records.some(r => r.stage === s)),
     assessmentStatus: findings.evaluatorState.status, failure: findings.evaluatorState.reason, evaluatorState: { ...findings.evaluatorState },
     noRulesClassifiedViolated: valid && noRulesClassifiedViolated(policy, integrity, assessment, stage('validation'), findings.profile),
-    rules: summaryRules, omittedRules: Math.max(0, rules.length - summaryRules.length) };
+    rules: summaryRules, omittedRules: Math.max(0, rules.length - summaryRules.length),
+    missingRuleSnapshots: valid ? list(assessment.rules).filter(result => !rules.some(rule => rule.id === result.ruleId)).length : 0 };
 }
 
 export interface LinkedSessionSummary {
@@ -90,4 +94,4 @@ export const emptyOverview = (state: 'unavailable' | 'unsupported' = 'unavailabl
   sessions: [], nextSession: null, sessionId: null, calls: [], nextCall: null, selectedId: null, selected: null,
 });
 export interface OverviewSelection { sessionId?: string; callId?: string; category?: import('../decision/finding-triage.js').FindingCategory;
-  sessionCursor?: string; callCursor?: string }
+  sessionCursor?: string; callCursor?: string; ruleCursor?: string }

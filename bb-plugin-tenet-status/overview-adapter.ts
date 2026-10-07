@@ -61,7 +61,12 @@ export class OverviewAdapter {
     this.state.data = emptyOverview();
     void this.refresh(true);
   };
-  selectCall = (callId: string) => { this.selection.callId = callId; this.state.data = { ...this.state.data, selected: null }; void this.refresh(false); };
+  selectCall = (callId: string) => { delete this.selection.ruleCursor; this.selection.callId = callId; this.state.data = { ...this.state.data, selected: null }; void this.refresh(false); };
+  loadMoreRules = () => {
+    const next = this.state.data.selected?.rulePage?.next;
+    if (!this.active && next) { this.selection.ruleCursor = next; void this.refresh(false); }
+  };
+  restartRules = () => { if (!this.active) { delete this.selection.ruleCursor; void this.refresh(false); } };
   filterCategory = (category: FindingCategory | '') => {
     this.selection = { sessionId: this.selection.sessionId, category: category || undefined };
     this.state = { ...this.state, category, data: emptyOverview() };
@@ -76,8 +81,8 @@ export class OverviewAdapter {
         : data.state === 'unavailable' ? 'Host or archive unavailable. No current result.'
         : data.coverage === 'unknown' ? 'No recordings linked to this thread. Assessment unknown, not pass.'
         : `${data.linkedCalls} exact-linked calls. Best-effort capture, not complete coverage.`,
-      loading, error, unavailable: data.state !== 'available', moreCalls: !!data.nextCall, sessions: data.sessions, sessionId: data.sessionId ?? undefined,
-      moreSessions: !!data.nextSession, archiveWarnings: data.issues }, actions: { selectCall: this.selectCall, filterCategory: this.filterCategory,
+      loading, error, unavailable: data.state !== 'available', moreRules: !!data.selected?.rulePage?.next, moreCalls: !!data.nextCall, sessions: data.sessions, sessionId: data.sessionId ?? undefined,
+      moreSessions: !!data.nextSession, archiveWarnings: data.issues }, actions: { loadMoreRules: this.loadMoreRules, restartRules: this.restartRules, selectCall: this.selectCall, filterCategory: this.filterCategory,
         refresh: this.restart, selectSession: this.selectSession, loadMoreSessions: this.loadMoreSessions, loadMoreCalls: () => { if (!this.active && data.nextCall) void this.refresh(false, 'calls'); } } };
   }
   dispose() { this.disposed = true; this.generation++; clearInterval(this.timer); this.active?.abort(); this.active = undefined; }

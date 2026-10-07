@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { OverviewAdapter } from './overview-adapter';
 import { SummaryWorkspaceMount } from './summary-workspace';
-import { syntheticRead } from './overview.preview-fixture';
+import { syntheticRead as basicSyntheticRead } from './overview.preview-fixture';
+import { rulesSyntheticRead } from './rules.preview-fixture';
+const syntheticRead = new URLSearchParams(window.location.search).has('rules') ? rulesSyntheticRead : basicSyntheticRead;
 import { emptyOverview } from '../src/inspector/bb-summary';
 
 function Preview() {
@@ -11,7 +13,7 @@ function Preview() {
     <button onClick={() => setOpen(true)}>Open or focus overview</button><button onClick={() => setOpen(false)}>Close overview</button>
     <button onClick={() => setNarrow(v => !v)}>Toggle 390px panel</button><button onClick={() => setFailure(v => !v)}>Toggle host disconnect</button>
     <p>Native repeated-tab focus and persistence are not reproduced by this preview.</p></header>
-    <div className="shell"><article className="conversation"><h2>Pi conversation</h2><p>Synthetic conversation stays visible beside the summary.</p><p>The two evaluator failures have successful execution, zero selected FAIL, and no unfinished assessment.</p></article>
+    <div className="shell"><article className="conversation"><h2>Pi conversation</h2><p>Synthetic conversation stays visible beside the summary.</p><p>Rule fixtures cover pass, FAIL, WARN, integrity, approval, uncertainty and provider failure. Released permission does not prove execution.</p></article>
       {open && <aside className="panel" style={{ width: narrow ? 390 : 920 }}><h2>TENET overview</h2><Panel failure={failure} /></aside>}</div></>;
 }
 function Panel({ failure }: { failure: boolean }) {

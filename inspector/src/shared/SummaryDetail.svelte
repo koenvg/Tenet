@@ -15,6 +15,7 @@
   export let moreRules = false;
   export let loading = false;
   export let loadMoreRules: (() => void) | undefined = undefined;
+  export let restartRules: (() => void) | undefined = undefined;
   export let detailsId = `tenet-check-${++nextId}`;
   let ruleOpen = false, inspectedCheck = 'Selected rule';
   let rulePanel: HTMLElement;
@@ -45,7 +46,7 @@
           <details class="rule-inspection disclosure" bind:open={ruleOpen}>
             <summary>Selected check details</summary>
             <div id={detailsId} bind:this={rulePanel} tabindex="-1">
-              <div class="reason-heading"><h2>{inspectedCheck}</h2><span class="muted">{findingCount} {findingCount === 1 ? 'finding' : 'findings'}{rules.some(r => !r.result || r.gateIds === null) ? ' · Some checks unavailable' : ''}</span></div>
+              <div class="reason-heading"><h2>{inspectedCheck}</h2><span class="muted">{findingCount} {findingCount === 1 ? 'finding' : 'findings'} on this rule page{rules.some(r => !r.result || r.gateIds === null) ? ' · Some checks unavailable' : ''}</span></div>
               {#if rule}
                 {#key rule.id}<RuleDetail {rule} mode={view.identity?.mode} />{/key}
               {:else}<p class="empty-inline">No rule snapshot recorded. Missing data is not a pass.</p>{/if}
@@ -53,16 +54,19 @@
           </details>
           <details class="other-rules disclosure">
             <summary>Browse all rules <span class="disclosure-count">{rules.length}</span></summary>
+            {#if view.rulePage}<p role="status">Recorded rules {view.rulePage.total ? view.rulePage.offset + 1 : 0}–{view.rulePage.offset + rules.length} of {view.rulePage.total}. At most 16 rules per page.</p>{/if}
             <nav class="rule-list" aria-label="Rules">
               {#each rules as item}
                 <RuleRow rule={item} selected={item.id === rule?.id} select={() => { selected = item.id; ruleOpen = true; inspectedCheck = 'Selected rule'; }} />
               {/each}
             </nav>
             {#if moreRules && loadMoreRules}<button class="text-button" disabled={loading} on:click={loadMoreRules}>More rules</button>{/if}
+            {#if view.rulePage?.offset && restartRules}<button class="text-button" disabled={loading} on:click={restartRules}>First rule page</button>{/if}
           </details>
         </section>
       </details>
-      {#if view.omittedRules}<p role="status">{view.omittedRules} additional recorded rules omitted from this basic summary. Full rule browsing is not available here yet.</p>{/if}
+      {#if view.omittedRules}<p role="status">{view.omittedRules} recorded rules are not shown on this page.{moreRules ? ' Use More rules to continue.' : view.rulePage?.offset ? ' Use First rule page to return.' : ''}</p>{/if}
+      {#if view.missingRuleSnapshots}<p class="missing-data">{view.missingRuleSnapshots} assessed rules have no recorded snapshot. Their text and identity cannot be inspected here.</p>{/if}
       <p class="summary-privacy-note">Raw evidence, action previews, exact questions and provider responses are separate from this summary. They remain in the standalone inspector on the selected machine.</p>
     </section>
   </div>

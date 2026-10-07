@@ -12,7 +12,7 @@ export interface SummaryWorkspaceModel {
 }
 export interface SummaryWorkspaceActions {
   selectCall(id: string): void; filterCategory(category: FindingCategory | ''): void;
-  refresh(): void; loadMoreCalls?(): void; loadMoreRules?(): void;
+  refresh(): void; loadMoreCalls?(): void; loadMoreRules?(): void; restartRules?(): void;
   selectSession?(id: string): void; loadMoreSessions?(): void;
 }
 export interface SummaryWorkspaceInput { model: SummaryWorkspaceModel; actions: SummaryWorkspaceActions }

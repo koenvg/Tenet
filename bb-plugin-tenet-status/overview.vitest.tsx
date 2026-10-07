@@ -2,6 +2,7 @@ import { afterEach, expect, test, vi } from 'vitest';
 import { fireEvent, waitFor } from '@testing-library/react';
 import { loadPluginApp, renderSlot } from '@get-bb/plugin-sdk/testing/app';
 import { OverviewAdapter } from './overview-adapter';
+import { rulesSyntheticRead } from './rules.preview-fixture';
 import { syntheticOverview, syntheticRead } from './overview.preview-fixture';
 import { emptyOverview } from '../src/inspector/bb-summary';
 import { projectSummaryDecision } from '../src/inspector/bb-summary';
@@ -107,4 +108,30 @@ test('panel unmount stops its single ten-second reader and disposes the Svelte m
   slot.lifecycle.unmount(); await tick();
   await vi.advanceTimersByTimeAsync(30_000); expect(read).toHaveBeenCalledTimes(2);
   expect(document.querySelector('.tenet-summary-workspace')).toBeNull(); expect(vi.getTimerCount()).toBe(0);
+});
+
+test('panel adapter reads scoped rule pages through overview only and resets pages on call change', async () => {
+  const app = await loadPluginApp(() => import('./app'));
+  const read = vi.fn((selection: any) => rulesSyntheticRead(selection));
+  const slot = renderSlot(app.threadPanelActions[0]!, { threadId, params: null }, {
+    sdk: { threads: { get: async () => ({ providerId: 'pi' }) as any } }, rpc: { overview: read },
+  });
+  try {
+    await slot.findByText('Call synthetic-pass');
+    fireEvent.click(slot.getByRole('button', { name: 'Summary', hidden: true }));
+    fireEvent.click(slot.getByText('Why this assessment')); fireEvent.click(slot.getByText(/Browse all rules/));
+    fireEvent.click(slot.getByRole('button', { name: 'More rules' }));
+    await slot.findByText('Recorded rules 17–19 of 19. At most 16 rules per page.');
+    expect(slot.container.querySelectorAll('.rule-row')).toHaveLength(3);
+    expect(read.mock.calls.at(-1)![0]).toMatchObject({ sessionId: syntheticOverview.sessionId, callId: '14'.padStart(64, '0'), ruleCursor: expect.any(String) });
+    fireEvent.click(slot.getByRole('button', { name: 'First rule page' }));
+    await slot.findByText('Recorded rules 1–16 of 19. At most 16 rules per page.');
+    expect(read.mock.calls.at(-1)![0].ruleCursor).toBeUndefined();
+    fireEvent.click(slot.getByRole('button', { name: 'Calls', hidden: true }));
+    fireEvent.click(slot.getByText('synthetic-WARN'));
+    await slot.findByText('Call synthetic-WARN');
+    expect(read.mock.calls.at(-1)![0].ruleCursor).toBeUndefined();
+    expect(slot.inspection.rpcCalls.every(c => c.method === 'overview')).toBe(true);
+    expect(slot.container.querySelector('script')).toBeNull();
+  } finally { slot.lifecycle.unmount(); }
 });

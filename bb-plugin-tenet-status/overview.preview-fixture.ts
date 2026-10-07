@@ -1,5 +1,5 @@
-import type { ThreadOverview } from '../src/inspector/bb-summary';
-import { previewSummaries } from '../inspector/src/shared/preview-fixture';
+import type { ThreadOverview } from '../src/inspector/bb-summary.js';
+import { previewSummaries } from '../inspector/src/shared/preview-fixture.js';
 const id = (n: number) => n.toString(16).padStart(64, '0');
 const pass = { ...previewSummaries['synthetic-pass']!, metadata: { schemas: [4], questionVersion: 'synthetic-v1',
   profile: 'synthetic-recorded-profile', policyDigest: id(10) }, omittedRules: 0, evaluatorState: { status: 'completed' as const, reason: null } };

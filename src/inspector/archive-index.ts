@@ -520,7 +520,8 @@ export class ArchiveIndex {
   threadStatus(bbThreadId: string): ThreadStatus { return this.threadSnapshot(bbThreadId).status; }
   /** One refreshed metadata snapshot, no per-row detail reads. Exact links precede aggregation. */
   async threadOverview(threadId: string, selection: OverviewSelection = {}): Promise<ThreadOverview> {
-    for (const cursor of [selection.sessionCursor, selection.callCursor]) if (cursor && cursor.length > 512) throw new Error('invalid-page');
+    for (const cursor of [selection.sessionCursor, selection.callCursor, selection.ruleCursor]) if (cursor && cursor.length > 512) throw new Error('invalid-page');
+    if (selection.ruleCursor && (!selection.sessionId || !selection.callId)) throw new Error('invalid-selection');
     const { groups, writerLoss } = this.linkedGroups(threadId);
     const sessions = new Map<string, { row: LinkedSessionSummary; groups: Map<string, Metadata[]> }>();
     let failures = 0;
@@ -564,7 +565,25 @@ export class ArchiveIndex {
       const detail = await this.detail(recordSessionKey(first), recordInvocationKey(first), threadId);
       const observed = new Set(detail.records.map(r => r.eventId));
       if (detail.readIssues.length || metadata.some(r => !observed.has(r.eventId)) || detail.records.some(r => r.host !== 'pi' || ![3, 4].includes(r.schemaVersion))) issues.add('detail-unavailable');
-      else selected = projectSummaryDecision(detail.records);
+      else {
+        // Hash the selected recorded snapshot on this host. No source data enters the cursor.
+        const snapshot = sessionKey(JSON.stringify(detail.records));
+        const scope = sessionKey(JSON.stringify(['bb-rules', threadId, sessionId, selectedId, snapshot]));
+        let offset = 0;
+        if (selection.ruleCursor) {
+          let key: any;
+          try { key = JSON.parse(Buffer.from(selection.ruleCursor, 'base64url').toString()); } catch { throw new Error('invalid-page'); }
+          if (!key || Object.keys(key).sort().join(',') !== 'offset,scope' || key.scope !== scope
+            || !Number.isSafeInteger(key.offset) || key.offset < 16 || key.offset % 16 !== 0) throw new Error('invalid-page');
+          offset = key.offset;
+        }
+        selected = projectSummaryDecision(detail.records, offset);
+        const total = selected.rules.length + (selected.omittedRules ?? 0);
+        if (offset && offset >= total) throw new Error('invalid-page');
+        const nextOffset = offset + selected.rules.length;
+        selected.rulePage = { snapshot, offset, total, next: nextOffset < total
+          ? Buffer.from(JSON.stringify({ scope, offset: nextOffset })).toString('base64url') : null };
+      }
     }
     return { state: 'available', coverage: groups.size ? 'partial' : 'unknown', linkedCalls: groups.size, failures,
       issues: [...issues].slice(0, 20), sessions: sessionPage.items, nextSession: sessionPage.next, sessionId,

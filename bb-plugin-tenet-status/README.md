@@ -32,7 +32,9 @@ After the separate installation steps above:
 
 Evaluator failures use safe reason codes such as `provider-error`. They do not count as selected FAIL or unfinished assessments, even if the tool ran. Archive warnings appear in a separate disclosure and can concern other threads. No record means unknown, not pass.
 
-This initial panel shows at most 16 recorded rules. It marks omitted rules and truncates text with `[omitted]`; detailed rule paging is not available yet. **View flagged rules** retains the focused findings page. The main navigation still opens that page, not a project/thread picker. Restored non-Pi panel tabs state unsupported and request no archive.
+Recorded rules use 16-rule pages. Open **Why this assessment**, then **Browse all rules**, and use **More rules** to continue. Text over 2,048 characters has an explicit omission marker.
+
+**View flagged rules** retains the focused findings page. The main navigation still opens that page, not a project/thread picker. Restored non-Pi panel tabs state unsupported and request no archive.
 
 ### Inspect raw evidence on the selected machine
 
@@ -88,7 +90,19 @@ Coverage is always incomplete. Files can be absent, disabled, dropped or not yet
 
 The host caches validated metadata. Each refresh shares a 256-stage/16-MiB parse budget across sessions. The overview performs no full detail read per timeline row. It rereads only the selected call, capped at 64 stages / 16 MiB. The separate focused findings RPC retains its five-candidate page and the same per-candidate detail cap.
 
-The host constructs strict allowlisted summaries before serialization. The owner request accepts only a thread ID, opaque linked session/call IDs, a category and scoped cursors. It rejects extra fields, client machine IDs, archive paths and native-session selectors. Cursors are limited to 512 characters, labels to 256, recorded rule text to 2,048, issue lists to 20 codes, and session/call pages to 50 summaries. Summary rules retain recorded thresholds, policy digest and contract versions; they do not read current policy files.
+The host constructs strict allowlisted summaries before serialization. The owner request accepts only a thread ID, opaque linked session/call IDs, a category and scoped cursors. It rejects extra fields, client machine IDs, archive paths and native-session selectors.
+
+Cursors are limited to 512 characters, labels to 256, recorded rule text to 2,048, issue lists to 20 codes, and session/call pages to 50 summaries. Rule pages contain at most 16 rules, including built-in integrity. Summary rules retain recorded thresholds, policy digest and contract versions; they do not read current policy files.
+
+Select a call, open **Why this assessment**, then **Browse all rules**. Use **More rules** for the next page or **First rule page** to return. Page counts identify rules not shown on the current page.
+
+Text over 2,048 characters ends with `[omitted]`; selected rule details show the number of source characters omitted. Missing text and assessed rules without a recorded snapshot are explicit, not passing results.
+
+Rule cursors bind the operation, thread, linked session, call and recorded snapshot. A cursor from a different selection or changed snapshot is rejected. Use **Refresh archive** to restart after rejection.
+
+Schema-3 and schema-4 records keep their recorded contract, selected probabilities, effective thresholds and known gates. WARN, built-in integrity, uncertainty and approval remain distinct. Released permission does not prove execution.
+
+To inspect raw data, open the standalone inspector on the selected thread's machine with the same private archive. Follow the [checkout standalone inspector guide](../docs/inspector.md). A browser-local inspector or another machine's archive is not a substitute. Opening the BB summary starts no listener and adds no Evidence or Response endpoint.
 
 Exact thread association is checked before grouping or counting. A shared native session or resumed Pi session cannot supply another thread's calls. Missing unlinked history remains standalone-only. Policy text renders inertly, but can itself contain secrets. Summary-only access is not a confidentiality boundary against same-user code or an owner client. Raw arguments, command/file previews, submitted evidence, exact questions, provider bodies and error text stay host-local.
 
@@ -109,7 +123,11 @@ bun run summary:build
 bunx vite bb-plugin-tenet-status --host 127.0.0.1 --port 4174
 ```
 
-Open `http://127.0.0.1:4174/overview.preview.html`. The synthetic shell keeps a conversation beside the real shared mount and adapter. Try its 390px panel, keyboard navigation, close/reopen and host-disconnect controls. Expect two terminal evaluator failures, zero selected FAIL and no unfinished assessments. This preview reads no archive and makes no evaluator request. It installs or reloads nothing.
+Open `http://127.0.0.1:4174/overview.preview.html?rules` for the rule-focused preview. The synthetic shell keeps a conversation beside the real shared mount and adapter. Try its 390px panel, keyboard navigation, close/reopen and host-disconnect controls.
+
+Browse the pass, selected FAIL, WARN, integrity, approval, uncertainty and provider-failure calls. Open the rule list, continue past 16 rules, and inspect recorded historical thresholds and text omission notices.
+
+This preview reads no archive and makes no evaluator request. It installs or reloads nothing. Without `?rules`, the preview retains the two-call provider-failure scenario.
 
 If the mount is missing or stale, rebuild the summary library before restarting Vite. The preview does not reproduce native BB tab focus or persistence. SDK tests can verify identical open requests, not installed-host focus. Native tab behavior and deployed remote-host reads need separate authorized checks. Full live-history recovery is a later delivery.
 

@@ -51,7 +51,7 @@
     {#if inspection}{@render inspection()}
     {:else if model.selected}
       {#key model.selectedId ?? model.selected.identity?.callId}
-        <SummaryDetail view={model.selected} moreRules={model.moreRules ?? false} loading={model.loading} loadMoreRules={actions.loadMoreRules} />
+        <SummaryDetail view={model.selected} moreRules={model.moreRules ?? false} loading={model.loading} loadMoreRules={actions.loadMoreRules} restartRules={actions.restartRules} />
       {/key}
     {:else}<section class="empty-state" aria-live="polite"><h2>{model.loading ? 'Reading invocation…' : model.unavailable ? 'Summary unavailable' : 'Choose a call to investigate'}</h2></section>{/if}
   </div>

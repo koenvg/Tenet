@@ -6,6 +6,7 @@ export interface SummaryRule {
   gateIds: string[] | null; contribution: string;
   thresholds: { effectThreshold: number | null; evidenceThreshold: number | null };
   evidenceGate: string; profile: string;
+  textStatus?: 'recorded' | 'truncated' | 'missing'; omittedTextChars?: number;
 }
 // Supplied by the shared recorded fold. This workspace does not classify outcomes.
 export interface SummaryEvaluatorState {
@@ -27,4 +28,6 @@ export interface SummaryDecision {
   noRulesClassifiedViolated: boolean; rules: SummaryRule[];
   metadata?: { schemas: number[]; questionVersion: string; profile: string; policyDigest: string | null };
   omittedRules?: number;
+  missingRuleSnapshots?: number;
+  rulePage?: { snapshot: string; offset: number; total: number; next: string | null };
 }
