@@ -76,7 +76,7 @@ Rejected alternative: copying archives to BB server storage increases disclosure
 
 Use the shared recorded classification to distinguish pending, completed, unavailable, dropped and cancelled assessment states. Expose only safe allowlisted reason codes, such as `provider-error`, not provider bodies or exception messages. Keep category overlap and distinct-call counts. Keep archive-wide warnings separate from selected-thread assessment failures.
 
-Coordinate [TENET-43](bbtask://TENET-43) with this contract work and reuse its implementation if it lands first. Do not dispatch that task from this planning change or add a second failure mapping. A new overview must state that the two live-probe assessments failed, even though the tools completed and no validated FAIL finding exists.
+Coordinate the recorded evaluator-state result contract with this contract work and reuse its implementation if it lands first. This planning artifact does not authorize implementation; keep one failure mapping. A new overview must state that the two live-probe assessments failed, even though the tools completed and no validated FAIL finding exists.
 
 Rejected alternative: retaining only `incomplete` is safe against a false pass but does not tell the owner why no valid policy result exists.
 
@@ -99,7 +99,7 @@ Rejected alternative: letting both the React wrapper and Svelte workspace poll i
 
 ## Migration Plan
 
-1. Add the safe projection and exact-linked reader operations with offline tests. Reuse the TENET-43 result contract instead of duplicating it.
+1. Add the safe projection and exact-linked reader operations with offline tests. Reuse the recorded evaluator-state result contract instead of duplicating it.
 2. Extract the shared summary workspace and keep the standalone adapter and evidence views working before adding BB registration.
 3. Add the shared library build, BB adapter, main overview and thread panel. Preserve the existing findings route and settings.
 4. Run affected-system verification from `CONTRIBUTING.md`, build the plugin, and compare desktop and compact previews before a live install. Check the package's shipped raw-evidence limits and update its owner instructions.

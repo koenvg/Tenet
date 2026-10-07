@@ -1,5 +1,11 @@
 # Tasks
 
+Acceptance conditions remain binding in [the specification](specs/decision-inspector/spec.md) and [the design](design.md). Each delivery includes its required tests and documentation; section 6 checks the assembled workflow. Code changes require clean-context independent review and applicable project validation before acceptance. Test order is not prescribed for remaining work.
+
+Keep the existing delivery boundaries and implementation order. Complete the bounded display metadata in 1.1-1.3 before the navigation and repeated-uncertainty work in 3.1-3.5. Complete Recorded data in 4.1-4.4 before the rule explanation and question links in 5.1-5.4. Complete the explicit facts in 2.1-2.4, navigation in 3.1-3.5 and rule explanation in 5.1-5.4 before the assembled-flow checks in 6.1-6.4.
+
+Sections 1, 2 and 4 are retained verbatim to preserve earlier work and evidence. The change owner updates source checkboxes manually after checking completion evidence. Publication alone does not establish source completion or whole-change acceptance.
+
 ## 1. Bounded recorded display metadata
 
 - [ ] 1.1 Add failing reader tests for command/path previews, 512-byte UTF-8 bounds, whitespace display normalization, unavailable/malformed inputs, shortened markers, hostile strings and supported historical schemas. Verify the new expectations fail before the reader projection is implemented in `test/inspector-index.test.ts` and `test/inspector.test.ts`.
@@ -13,12 +19,12 @@
 - [ ] 2.3 Implement shared visible-call context only for proven common facts and retain exception labels. Verify mixed/unknown modes, filtering, newly loaded pages and delayed result/permission stages invalidate shared wording and preserve visible per-call exceptions.
 - [ ] 2.4 Update the summary/status sections of `docs/inspector.md`, `DESIGN.md` and the test guide for named facts and shared context. Verify the examples match the implemented first view, preserve all safety limits and pass every applicable writing-guide checklist item.
 
-## 3. Workspace navigation, controls and repeated uncertainty
+## 3. Browse calls and repeated uncertainty through one workspace
 
-- [ ] 3.1 Add failing component/browser cases for one Repeated uncertainty entry, lazy loading, no matching/selected call, active filter visibility, archive controls and visible recording/reader exceptions. Verify failures through public controls in `inspector/tests/components/app.vitest.ts` and the existing integration suites.
+- [ ] 3.1 Cover one Repeated uncertainty entry, lazy loading, no matching/selected call, active filter visibility, archive controls and visible recording/reader exceptions with component/browser regressions. Verify the cases pass through public controls in `inspector/tests/components/app.vitest.ts` and the existing integration suites.
 - [ ] 3.2 Remove the desktop Summary/group switch and render bounded groups in the session sidebar, outside the filtered list's empty-state branch. Add recorded rule/action labels, full identity disclosures and visible disambiguators for identical headings. Verify task 3.1 passes, grouping keys/limits remain unchanged, group loading stays lazy and category filters do not alter session groups.
 - [ ] 3.3 Move inactive filters, manual refresh and healthy reader metadata into their named controls. Keep active filter/clear action and coverage, indexing, unsafe/corrupt capture, writer-loss and reconnecting notices visible. Verify project/session selection, both pagination controls, refresh and writer-wide counter semantics through component and real-browser cases.
-- [ ] 3.4 Keep Calls/Selected call navigation on narrow screens and focus restoration from grouped links. Verify all calls, group overflow notices and archive controls are reachable at 390px and by keyboard; verify long targets/IDs do not cause page-wide overflow and desktop sidebar resizing still works.
+- [ ] 3.4 Keep Calls/Selected call navigation on narrow screens and focus restoration from grouped links. Verify all calls, group overflow notices and archive controls are reachable at 390px and by keyboard; verify long targets/IDs do not cause page-wide overflow and desktop sidebar resizing still works. Inspect fictional-data desktop/narrow navigation previews of this delivery.
 - [ ] 3.5 Update navigation/group/control sections in `docs/inspector.md`, `DESIGN.md` and `inspector/tests/README.md`. Verify every removed destination has its replacement documented, desktop/mobile names match, rebuild/restart guidance remains accurate and changed pages pass the writing checklist.
 
 ## 4. Readable and exact Recorded data
@@ -28,14 +34,14 @@
 - [ ] 4.3 Preserve mounted disclosure, rule-question identity, evidence DOM/scroll and keyboard focus through unchanged polls and delayed request/assessment/result stages. Verify the migrated regressions in `inspector/tests/integration/live.vitest.ts`, `status.vitest.ts` and `archive.vitest.ts`, including deep links beyond page one and browser back/forward. Do not skip old semantic cases because their labels changed.
 - [ ] 4.4 Update evidence/technical-data sections in `docs/inspector.md`, `DESIGN.md` and `inspector/tests/README.md`. Verify every moved field, interpretation limit and loss warning has a documented reachable destination, recorded-data examples remain offline and all 18 writing-guide items are checked for each changed page.
 
-## 5. Direct rule explanation without a map
+## 5. Explain assessments with recorded rules
 
-- [ ] 5.1 Add failing component cases for all retained rules, finding-first order, exact confidence readings, PASS below threshold, mixed/advisory gates, integrity, approval and missing/non-applicable readings. Verify these fail for the absent replacement list in `inspector/tests/components/detail.vitest.ts` and `presentation.vitest.ts`.
-- [ ] 5.2 Replace the map/selected-check panels with direct recorded rule sections, exact readings and expandable distributions/identifiers. Provide stable links to each rule's recorded questions. Verify task 5.1 passes without new policy evaluation, score comparisons against current settings or invented historical values.
+- [ ] 5.1 Cover all retained rules, finding-first order, exact confidence readings, PASS below threshold, mixed/advisory gates, integrity, approval and missing/non-applicable readings with component regressions. Verify the cases pass in `inspector/tests/components/detail.vitest.ts` and `presentation.vitest.ts`.
+- [ ] 5.2 Replace the map/selected-check panels with direct recorded rule sections, exact readings and expandable distributions/identifiers. Provide stable links to each rule's recorded questions. Verify task 5.1 passes without new policy evaluation, score comparisons against current settings or invented historical values. Inspect fictional-data desktop/mobile previews of this delivery.
 - [ ] 5.3 Remove map-only components, helpers, connection styles, animation and selected-check state after their facts have moved. Verify source has no live map imports or controls, Inspector static/component checks pass and shared icons/presentation helpers still used elsewhere remain intact.
 - [ ] 5.4 Update the explanation sections of `DESIGN.md`, `docs/inspector.md` and the test guide. Verify the documented rule path works by keyboard, exact scores remain available and no current guide tells owners to inspect removed map nodes. Complete the writing checklist for each changed page.
 
-## 6. Complete-system verification and handoff
+## 6. Verify the complete simplified Inspector workflow
 
 - [ ] 6.1 Inspect representative fictional-data desktop/narrow previews after the full replacement is integrated. Verify the real first view, rule explanation, recorded data and repeated uncertainty match the reviewed direction, with visible blocks, pending/unavailable assessments and partial-coverage notices. Save local screenshots and note any remaining usability limits; reachability checks alone are insufficient.
 - [ ] 6.2 Run the complete offline contributor sequence from the repository root with provider credentials unset: SDK/Inspector builds, isolated serial Bun suite, application typecheck, Inspector static/component/built-app suites and BB plugin type/tests. Verify every required command in `CONTRIBUTING.md` exits zero, including preview/privacy/status regressions; report any checks that cannot run without claiming live accuracy or active host coverage.
