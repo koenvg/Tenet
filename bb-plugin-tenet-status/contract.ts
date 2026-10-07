@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { evaluatorFailureCodes } from '../src/inspector/finding-view.js';
 import { overviewSchema, overviewSelection } from './overview-contract.js';
 
+import { pickerMethods } from './picker-contract.js';
 export const threadIdSchema = z.string().regex(/^thr_[a-z0-9]{8,64}$/);
 const request = z.object({ threadId: threadIdSchema }).strict();
 const count = z.number().int().nonnegative();
@@ -34,6 +35,6 @@ export const hostContract = defineRpcContract({ readStatus: { input: z.object({ 
   recordingDirectory: z.string().max(4096).optional() }).strict(), output: statusSchema },
   readFindings: { input: z.object({ ...findingsRequest.shape, recordingDirectory: z.string().max(4096).optional() }).strict(), output: findingsSchema },
   readOverview: { input: z.object({ ...request.shape, ...overviewSelection, recordingDirectory: z.string().max(4096).optional() }).strict(), output: overviewSchema } });
-export const rpcContract = defineRpcContract({ status: { input: request, output: statusSchema },
+export const rpcContract = defineRpcContract({ ...pickerMethods, status: { input: request, output: statusSchema },
   findings: { input: findingsRequest, output: findingsSchema },
   overview: { input: z.object({ ...request.shape, ...overviewSelection }).strict(), output: overviewSchema } });

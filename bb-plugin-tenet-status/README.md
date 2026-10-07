@@ -1,6 +1,8 @@
 # Read Tenet status in BB
 
-Use this experimental plugin to browse recorded Pi calls beside a BB conversation. Existing history needs a readable exact-linked archive on the thread's machine, not a running Pi process. New capture needs the installed Tenet Pi extension, an owner policy and recording enabled. The plugin does not activate Tenet, launch Pi, change enforcement, approve actions or supply TypeSafe credentials.
+Use this experimental plugin to browse recorded Pi calls from the main Tenet page or beside a BB conversation. Existing history needs a readable exact-linked archive on the thread's machine, not a running Pi process.
+
+New capture needs the installed Tenet Pi extension, an owner policy and recording enabled. The plugin does not activate Tenet, launch Pi, change enforcement, approve actions or supply TypeSafe credentials.
 
 ## Install
 
@@ -21,6 +23,25 @@ Local recordings can contain secrets despite redaction. This read-only view is n
 
 Only new Pi records with a valid BB-provided `BB_THREAD_ID` link to the thread. This routing hint changes neither Pi session keys nor policy decisions. Historical unlinked records stay in [the standalone inspector](../docs/inspector.md). The plugin never guesses a thread from cwd, time or native session ID.
 
+## Browse from the main Tenet page
+
+After installing the plugin, use this experimental BB navigation path for retained Pi history. A stopped Pi process needs no restart or evaluator credentials for these reads. Its BB thread metadata, machine connection and private archive must still be reachable.
+
+1. Open **TENET** in BB navigation. Choose a project, then a Pi thread. **Next projects** and **Next threads** continue the bounded metadata pages. A thread page can contain no Pi threads; continue if another page is available. Archived threads appear after the ordinary pages.
+2. Choose a **Linked session**, a **Finding category** and a call. The main page uses the same summary workspace as the thread tab and standalone inspector. Missing or unlinked history shows unknown, not pass.
+3. Use browser **Back** and **Forward** to return to a project, thread, session, category or call selection. BB owns this history. Links contain only bounded scope identifiers and opaque record identifiers, not archive paths, machine selectors or raw payloads.
+4. Use **Choose Pi thread** or **Choose project** to change scope. **View flagged rules** opens the existing focused findings route. Old thread findings links still work.
+
+The picker reads BB metadata only; it does not scan project machines or archives. The overview reads only the selected thread's archive through BB's existing environment-to-machine routing. Non-Pi, deleted, unreadable and changed-project selections clear old results and request no unsupported archive.
+
+Picker output contains at most 50 project names or Pi threads per page. Thread reads inspect one 50-row BB metadata window at a time. The current SDK has no project-page API, so the owner RPC pages its project list without requesting included threads.
+
+**Refresh archive** restarts page reads while keeping the main route's session, call and category. Reads use one ten-second polling owner and an eight-second timeout. An unavailable read clears the summary and offers manual refresh.
+
+Reconnect the selected machine or check its owner archive setting before retrying.
+
+Complete live-history retention and recovery remain a later delivery; loaded older pages are not retained across route changes.
+
 ## Browse calls beside a conversation
 
 After the separate installation steps above:
@@ -34,7 +55,7 @@ Evaluator failures use safe reason codes such as `provider-error`. They do not c
 
 Recorded rules use 16-rule pages. Open **Why this assessment**, then **Browse all rules**, and use **More rules** to continue. Text over 2,048 characters has an explicit omission marker.
 
-**View flagged rules** retains the focused findings page. The main navigation still opens that page, not a project/thread picker. Restored non-Pi panel tabs state unsupported and request no archive.
+**View flagged rules** retains the focused findings page. Restored non-Pi panel tabs state unsupported and request no archive.
 
 ### Inspect raw evidence on the selected machine
 
@@ -108,7 +129,7 @@ Exact thread association is checked before grouping or counting. A shared native
 
 ## Shared summary build
 
-The checkout includes one Svelte summary composition for the standalone inspector and this Pi thread panel, mounted through a typed React wrapper. Shared-field placement is the same in both hosts. Standalone action previews and raw inspection remain separate extensions.
+The checkout includes one Svelte summary composition for the standalone inspector and both BB entry points, mounted through a typed React wrapper. Shared-field placement is the same in both hosts. Standalone action previews and raw inspection remain separate extensions.
 
 Before importing the mount or running its tests, build the ignored `.summary-workspace/` output with `bun run summary:build` from the repository root. `bun run plugin:build` rebuilds that output, then builds the plugin. Building files installs or reloads nothing. A missing or stale shared artifact stops `npm run build` with the required command.
 
@@ -130,6 +151,14 @@ Browse the pass, selected FAIL, WARN, integrity, approval, uncertainty and provi
 This preview reads no archive and makes no evaluator request. It installs or reloads nothing. Without `?rules`, the preview retains the two-call provider-failure scenario.
 
 If the mount is missing or stale, rebuild the summary library before restarting Vite. The preview does not reproduce native BB tab focus or persistence. SDK tests can verify identical open requests, not installed-host focus. Native tab behavior and deployed remote-host reads need separate authorized checks. Full live-history recovery is a later delivery.
+
+### Try the main page offline
+
+With the same checkout-only Vite preview running, open `http://127.0.0.1:4174/main.preview.html`. Choose a project and stopped Pi thread, then a linked session, category and call. Try Back/Forward, the remote-project page, the empty-history thread, rejected-link controls and the 390px container.
+
+Expect separate evaluator failures, selected FAIL findings and archive warnings. The preview uses authored fixtures for two simulated machines and makes no real archive or evaluator request.
+
+Stop the preview with Ctrl+C. To restart it, run the commands in [Try the panel offline](#try-the-panel-offline) again. The synthetic shell models navigation; it does not prove installed BB history, native panels or deployed machine routing.
 
 ## Validation
 

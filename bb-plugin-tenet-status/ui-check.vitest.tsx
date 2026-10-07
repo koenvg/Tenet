@@ -243,7 +243,7 @@ describe('Pi thread rule action', () => {
   it('does not request details from malformed deep links', async () => {
     const app = await loadPluginApp(() => import('./app'));
     const slot = renderSlot(app.navPanels[0]!, { subPath: 'not-a-thread' }, { rpc: { findings: () => { throw new Error('must not call'); } } });
-    try { expect(slot.getByText('Invalid thread link.')).toBeTruthy(); expect(slot.inspection.rpcCalls.length).toBe(0); }
+    try { expect(slot.getByText('Invalid Tenet selection. Choose a project to start again. No archive requested.')).toBeTruthy(); expect(slot.inspection.rpcCalls.length).toBe(0); }
     finally { slot.lifecycle.unmount(); }
   });
   it('keeps earlier detail gaps visible across successful pages and clears them on Refresh', async () => {
@@ -265,10 +265,11 @@ describe('Pi thread rule action', () => {
       expect(slot.queryByText(/Some flagged calls could not be read/)).toBeNull();
     } finally { slot.lifecycle.unmount(); }
   });
-  it('explains how to reach details from the sidebar root without an RPC', async () => {
+  it('opens the sidebar root with metadata only and no findings or archive RPC', async () => {
     const app = await loadPluginApp(() => import('./app'));
-    const slot = renderSlot(app.navPanels[0]!, { subPath: '' }, { rpc: { findings: () => { throw new Error('must not call'); } } });
-    try { expect(slot.getByText(/Open a Pi thread/)).toBeTruthy(); expect(slot.inspection.rpcCalls.length).toBe(0); }
+    const slot = renderSlot(app.navPanels[0]!, { subPath: '' }, { rpc: { pickerProjects: () => ({ items: [], next: null }),
+      findings: () => { throw new Error('must not call'); } } });
+    try { expect(await slot.findByText('No projects on this page.')).toBeTruthy(); expect(slot.inspection.rpcCalls.map(call => call.method)).toEqual(['pickerProjects']); }
     finally { slot.lifecycle.unmount(); }
   });
   it('polls while closed and removes the finding indicator after a failed read', async () => {

@@ -1,7 +1,7 @@
 import { Button } from './components/ui/button';
 import { useEffect, useState } from 'react';
 import { definePluginApp, useBbNavigate, useRpc, useSdk } from '@get-bb/plugin-sdk/app';
-import { DetailsPage } from './details-page';
+import { MainPage } from './main-page';
 import type { Status, rpcContract } from './contract';
 import { liveRead } from './live-read';
 import { CoverageDetails } from './coverage-details';
@@ -85,5 +85,5 @@ export default definePluginApp(app => {
   // The action is absent on non-Pi threads, rather than opening an empty panel there.
   app.slots.experimental_threadHeaderAction({ id: 'tenet-rules', title: 'TENET rules', component: ThreadRules });
   app.slots.threadPanelAction({ id: 'tenet-overview', title: 'TENET overview', icon: 'ShieldAlert', layout: 'flush', component: OverviewPanel });
-  app.slots.navPanel({ id: 'tenet-findings', title: 'TENET findings', icon: 'ShieldAlert', path: 'findings', component: DetailsPage });
+  app.slots.navPanel({ id: 'tenet-findings', title: 'TENET', icon: 'ShieldAlert', path: 'findings', component: MainPage });
 });

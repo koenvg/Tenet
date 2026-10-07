@@ -3,6 +3,7 @@ import { hostContract, rpcContract, unavailable, unavailableFindings } from './c
 import { emptyOverview } from '../src/inspector/bb-summary.js';
 import { overviewSchema } from './overview-contract.js';
 
+import { pickerHandlers } from './picker.js';
 /** Owner-facing RPC only. No agent tool, message, hook or assessment is registered. */
 export default function plugin(bb: BbPluginApi) {
   const settings = bb.settings.define({
@@ -24,6 +25,7 @@ export default function plugin(bb: BbPluginApi) {
     return { hostId, input: directory === undefined ? {} : { recordingDirectory: directory } };
   };
   bb.rpc.register(rpcContract, {
+    ...pickerHandlers(bb.sdk),
     async status({ threadId }) {
       try {
         const selected = await target(threadId);
