@@ -1,17 +1,17 @@
 # Deploy the public website
 
-Use this guide to check the public website from a developer checkout, then configure a dedicated Railway service. The website is separate from the Bun application and local decision inspector.
+Use this guide to check the public website from a developer checkout, then configure a dedicated Railway service. The React website uses the shared shadcn/ui component source in `web/`. Its public server stays separate from the Bun application and local decision inspector.
 
-Local checks need Docker, curl, and Node 22+. They need no application dependencies, API keys, database, or persistent volume. The local procedure is CI-tested. Remote deployment remains pending, as recorded in [the launch record](#launch-record).
+Local checks need Docker, curl, and Node 22+. The container builds React assets with Bun and locked dependencies. Host checks need no API keys, database, or persistent volume. The local procedure is CI-tested. Remote deployment remains pending, as recorded in [the launch record](#launch-record).
 
 ## Build and verify locally
 
-This check uses a disposable local container. It makes no evaluator requests and does not deploy or restart a running website service. Docker may download the pinned Caddy image.
+This check uses a disposable local container. It makes no evaluator requests and does not deploy or restart a running website service. Docker may download Bun and Caddy images and build dependencies.
 
 1. From the repository root, build and start the check container:
 
    ```sh
-   docker build -t tenet-site:check site
+   docker build -t tenet-site:check -f site/Dockerfile .
    docker run --rm -d --name tenet-site-check -e PORT=9090 -p 127.0.0.1:18765:9090 tenet-site:check
    ```
 
@@ -30,9 +30,24 @@ This check uses a disposable local container. It makes no evaluator requests and
    docker rm -f tenet-site-check
    ```
 
+### Check React pages in a browser
+
+This optional checkout check needs Bun 1.3.14+, Node 22+, local dependencies and disposable Chromium. It tests static pages with JavaScript disabled, hydration, keyboard controls, motion preferences and desktop/mobile layout. It makes no evaluator requests.
+
+From the repository root, run:
+
+```sh
+bun install --frozen-lockfile
+bunx playwright install chromium
+bun run site:check
+bun run site:test
+```
+
+Success means both checks exit zero. If Chromium cannot start, install its system libraries with `bunx playwright install --with-deps chromium` on Linux. These checks do not deploy the website.
+
 ### Keep the public file list closed
 
-Caddy serves only `index.html`, `docs.html`, `style.css`, `hero.js`, `fonts/Geist-latin.woff2`, and `fonts/OFL-Geist.txt` from `/srv/site`. The Docker build context and asset copies both use allowlists. Add public assets deliberately and extend the smoke check. Never copy the repository or the whole `site/` directory into the web root.
+Caddy serves only the generated `site/dist/` output: prerendered `index.html` and `docs.html`, built JavaScript and CSS in `assets/`, the two public font files, and `THIRD_PARTY_NOTICES.txt`. React hydrates the pages in the browser; text, navigation and native disclosures still work without JavaScript. The Dockerfile-specific build context allowlist excludes policies and recordings. Never copy the repository or the whole `site/` directory into the web root.
 
 Deployment configuration, design notes, test scripts, application source, and assessment records are not public assets. Missing paths and asset directory requests return 404. There is no SPA fallback or directory browsing. Caddy's admin API and automatic HTTPS are disabled. Railway terminates public TLS.
 
@@ -47,17 +62,17 @@ Obtain separate operator authorization before creating or changing a Railway ser
    | --- | --- |
    | Repository | `koenvg/Tenet` |
    | Branch | `main` |
-   | Root directory | `/site` |
+   | Root directory | `/`, the repository root |
    | Railway config file | `/site/railway.toml` |
    | Builder | Dockerfile |
-   | Dockerfile path | `Dockerfile`, within the service root |
-   | Watch paths | `/site/**`, relative to the repository root |
+   | Dockerfile path | `site/Dockerfile` |
+   | Watch paths | `/site/**`, `/web/**`, `/third-party/web/**`, `/package.json`, `/bun.lock` |
    | Health check | `/`, 30-second deployment timeout |
    | Restart policy | On failure, at most 3 retries |
    | Replicas | 1 |
    | Domain | Railway-generated domain |
 
-   The config-file path stays repository-relative even with root `/site`. Railway control-plane setup must select the root, GitHub source, branch, domain, and CI-wait setting. `railway.toml` does not create or connect a service.
+   The config-file path stays repository-relative with the service at the repository root. Railway control-plane setup must select the root, GitHub source, branch, domain, and CI-wait setting. `railway.toml` does not create or connect a service.
 
 3. Enable autodeploy and Wait for CI in the service settings. Railway may need updated GitHub installation permissions to read check results. Workflows run on pushes to `main`. Check the actual CI-wait setting and build logs before claiming CI gates deployment.
 4. Generate a public domain under Railway networking. Match its target port to the injected service `PORT`. Do not enable TLS inside Caddy. Its catch-all host accepts the `healthcheck.railway.app` probe.
@@ -77,7 +92,7 @@ Obtain separate authorization before live verification. The smoke check and brow
    Expect `PASS:`. The check covers homepage and docs content, navigation, CSS and font responses, MIME types, font signature, and 404 responses for non-public paths.
 
 2. In a browser, open the homepage, follow Docs and Home, and check that CSS and fonts load without network errors. The `/` readiness probe does not replace this check. Railway's deployment health check is not continuous uptime monitoring.
-3. Record the URL, Railway project/service, deployed Git revision, source/root/config/watch settings, CI-wait setting, and results on TENET-12. Check that application-only changes outside `site/` do not match the watch paths.
+3. Record the URL, Railway project/service, deployed Git revision, source/root/config/watch settings, CI-wait setting, and results on TENET-12. Application-only source changes under `src/` do not match the watch paths. Shared UI or dependency changes do trigger a website build.
 
 ## A website check fails
 

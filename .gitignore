@@ -6,6 +6,7 @@ coverage/
 !.env.example
 .tenet/
 inspector/dist/
+site/dist/
 delivery/
 dist/
 examples/dist/

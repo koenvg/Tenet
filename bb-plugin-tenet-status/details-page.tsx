@@ -1,3 +1,4 @@
+import { Button } from './components/ui/button';
 import { useEffect, useRef, useState } from 'react';
 import { useRpc } from '@get-bb/plugin-sdk/app';
 import type { Findings, rpcContract } from './contract';
@@ -59,7 +60,7 @@ function LinkedFindings({ threadId }: { threadId: string }) {
   return <main className="mx-auto flex w-full min-w-0 max-w-3xl flex-col gap-4 p-4 text-foreground sm:p-8">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <h1 className="text-xl font-semibold">Flagged rules</h1>
-      <button type="button" className="flex items-center gap-2 rounded-md px-2 py-2 text-xs hover:bg-accent focus-visible:outline focus-visible:outline-2" onClick={() => { if (!busy) load(); }} aria-label="Refresh findings" aria-disabled={busy}><StatusIcon name="refresh" />Refresh</button>
+      <Button variant="outline" size="sm" type="button" className="flex items-center gap-2 rounded-md px-2 py-2 text-xs hover:bg-accent focus-visible:outline focus-visible:outline-2" onClick={() => { if (!busy) load(); }} aria-label="Refresh findings" aria-disabled={busy}><StatusIcon name="refresh" />Refresh</Button>
     </div>
     {busy && !page && <p role="status" className="text-sm">Checking recordings...</p>}
     {error && <p role="alert" className="rounded-md border border-destructive p-3 text-sm">{error}</p>}
@@ -69,7 +70,7 @@ function LinkedFindings({ threadId }: { threadId: string }) {
     {browsingOlder && <p className="text-xs">Browsing older findings. Refresh to show updated calls.</p>}
     {page?.coverage === 'partial' && !items.length && <p className="text-sm">No flagged calls to show.</p>}
     {items.length > 0 && <RuleGroups items={items} />}
-    {next && !error && <button type="button" className={`${button} self-start`} aria-disabled={busy} onClick={() => { if (!busy) load(next); }}>Load more findings</button>}
+    {next && !error && <Button variant="outline" size="sm" type="button" className={`${button} self-start`} aria-disabled={busy} onClick={() => { if (!busy) load(next); }}>Load more findings</Button>}
   </main>;
 }
 

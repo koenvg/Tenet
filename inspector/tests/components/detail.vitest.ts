@@ -1,14 +1,17 @@
+import { createElement } from 'react';
+import '../../src/components.css';
+import '../../../web/theme.css';
 import { expect, test } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
-import { render } from 'vitest-browser-svelte';
-import Detail from '../../src/Detail.svelte';
-import PaneResizer from '../../src/PaneResizer.svelte';
+import { render } from 'vitest-browser-react';
+import Detail from "../../src/Detail.js";
+import PaneResizer from "../../src/PaneResizer.js";
 import { makeView, recordedQuestion } from './fixtures.js';
 import '../../src/style.css';
 import '../../src/summary.css';
 
 test('the first view tells the call story and keeps diagnostics behind three disclosures', async () => {
-  const screen = await render(Detail, { view: makeView({ execution: 'executed' }) });
+  const screen = await render(createElement(Detail, { view: makeView({ execution: 'executed' }) }));
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
   await expect.element(screen.getByText('git status --short', { exact: true }).first()).toBeVisible();
   expect(screen.container.querySelector('.primary-badges')?.textContent).toContain('Ran');
@@ -33,7 +36,7 @@ test('expanded Details groups exact facts and bounds long identifiers at desktop
     const view = makeView({ execution: 'unknown', permission: 'blocked' });
     const id = 'recorded-identifier-'.repeat(160);
     view.identity!.invocationId = id;
-    const screen = await render(Detail, { view });
+    const screen = await render(createElement(Detail, { view }));
     await screen.getByText('Details', { exact: true }).click();
     expect([...screen.container.querySelectorAll('.capture-details .record-group > h3')].map(el => el.textContent)).toEqual(['Recorded outcomes', 'Recording', 'Coverage and limits']);
     const facts = screen.container.querySelector('.capture-details .lifecycle')!;
@@ -58,7 +61,7 @@ test('precision rejection is readable at desktop and mobile widths without imply
     await page.viewport(width, 844);
     const view = makeView({ failure: 'invalid-response', gate: null });
     view.validationIssue = 'unit-sum';
-    const screen = await render(Detail, { view });
+    const screen = await render(createElement(Detail, { view }));
     await screen.getByText('Details', { exact: true }).click();
     const notice = screen.getByText(/unit-sum: Evaluator probabilities/);
     await expect.element(notice).toBeVisible();
@@ -73,7 +76,7 @@ test('precision rejection is readable at desktop and mobile widths without imply
 });
 
 test('questions toggle between safe Rich text and exact recorded JSON', async () => {
-  const screen = await render(Detail, { view: makeView() });
+  const screen = await render(createElement(Detail, { view: makeView() }));
   await screen.getByText('Evidence', { exact: true }).first().click();
   await screen.getByRole('tab', { name: 'Questions' }).click();
   await expect.element(screen.getByRole('heading', { name: 'Recorded instructions' }).first()).toBeVisible();
@@ -86,7 +89,7 @@ test('questions toggle between safe Rich text and exact recorded JSON', async ()
 });
 
 test('rule selection and keyboard tabs preserve shared evidence scroll and focus', async () => {
-  const screen = await render(Detail, { view: makeView() });
+  const screen = await render(createElement(Detail, { view: makeView() }));
   await screen.getByText('Evidence', { exact: true }).first().click();
   await expect.element(screen.getByRole('heading', { name: 'Evidence dock' })).toBeVisible();
   expect(document.activeElement?.id).toBe('dock-heading');
@@ -110,7 +113,7 @@ test('rule selection and keyboard tabs preserve shared evidence scroll and focus
 test('resizer clamps pointer and keyboard updates at desktop and mobile widths', async () => {
   for (const width of [1280, 390]) {
     await page.viewport(width, 844);
-    const screen = await render(PaneResizer, { value: 300, min: 220, max: 460, label: 'Resize call explorer', controls: 'call-explorer' });
+    const screen = await render(createElement(PaneResizer, { value: 300, min: 220, max: 460, label: 'Resize call explorer', controls: 'call-explorer' }));
     const separator = screen.container.querySelector<HTMLElement>('[role="separator"]')!;
     separator.style.width = '10px'; separator.style.height = '100px';
     separator.focus();
@@ -144,7 +147,7 @@ test('applicability displays absent evidence without inventing a confidence scor
   rule.contribution = 'pass';
   rule.thresholds.evidenceThreshold = null;
   view.rules = [rule];
-  const screen = await render(Detail, { view });
+  const screen = await render(createElement(Detail, { view }));
   await screen.getByText('Why this assessment', { exact: true }).click();
   await screen.getByText('Selected check details', { exact: true }).click();
   await expect.element(screen.getByText('Evidence-confidence gate does not apply. No evidence score was recorded.')).toBeVisible();

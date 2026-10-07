@@ -3,11 +3,11 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-const siteRoot = new URL("../site/", import.meta.url);
+const siteRoot = new URL("../site/dist/", import.meta.url);
 const pages = ["index.html", "docs.html"];
 
 function page(name) {
-  return readFileSync(new URL(name, siteRoot), "utf8");
+  return readFileSync(new URL(name, siteRoot), "utf8").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("<!-- -->", "");
 }
 
 const repositoryRoot = new URL("../", import.meta.url);
@@ -139,8 +139,8 @@ test("the keypress hero applies an owner-written rule before deletion", () => {
 });
 
 test("the homepage uses only neutral black, white and grey colors", () => {
-  for (const name of ["index.html", "style.css"]) {
-    const colors = [...page(name).matchAll(/#([\da-f]{6}|[\da-f]{3})\b/gi)];
+  for (const source of [page("index.html"), readFileSync(new URL("../site/style.css", import.meta.url), "utf8")]) {
+    const colors = [...source.matchAll(/#([\da-f]{6}|[\da-f]{3})\b/gi)];
     expect(colors.length).toBeGreaterThan(0);
     for (const [, hex] of colors) {
       const rgb = hex.length === 3 ? [...hex].map((channel) => channel.repeat(2)) : hex.match(/../g);
@@ -149,12 +149,13 @@ test("the homepage uses only neutral black, white and grey colors", () => {
   }
 });
 
-test("the animation script is shipped with the static site", () => {
+test("the React client is shipped with the prerendered site", () => {
   const html = page("index.html");
-  expect(html).toContain('<script src="./hero.js" defer></script>');
-  expect(page("hero.js").length).toBeGreaterThan(0);
-  expect(page("Dockerfile")).toContain("style.css hero.js /srv/site/");
-  expect(page(".dockerignore")).toContain("!hero.js");
+  const scripts = [...html.matchAll(/<script\b[^>]*src="([^"]+)"/g)].map(match => match[1]);
+  expect(scripts.length).toBeGreaterThan(0);
+  for (const script of scripts) expect(page(script.replace(/^\//, "")).length).toBeGreaterThan(0);
+  expect(readFileSync(new URL("../site/Dockerfile", import.meta.url), "utf8")).toContain("COPY --from=build /app/site/dist/ /srv/site/");
+  expect(readFileSync(new URL("../site/Dockerfile.dockerignore", import.meta.url), "utf8")).toContain("!site/src/**");
 });
 
 test("docs link every reader journey and retain policy, privacy, mode and coverage limits", () => {

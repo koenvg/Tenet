@@ -1,6 +1,6 @@
 @font-face {
   font-family: Geist;
-  src: url("./fonts/Geist-latin.woff2") format("woff2");
+  src: url("/fonts/Geist-latin.woff2") format("woff2");
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
@@ -39,6 +39,7 @@ a:focus-visible { outline: 2px solid #171717; outline-offset: 5px; }
 .keypress { margin: 0 auto; max-width: 810px; }
 .keypress-art { display: block; width: 100%; height: 260px; overflow: visible; }
 .key-button { display: block; width: 100%; max-width: 370px; margin: 0 auto; padding: 0; border: 0; border-radius: 18px; background: none; appearance: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.key-button { height: auto; white-space: normal; }
 .key-button:focus-visible { outline: 2px solid #171717; outline-offset: 4px; }
 .key-button:hover [data-key] rect:first-child { fill: #ffffff; }
 .press-announcement { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

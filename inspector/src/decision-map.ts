@@ -47,6 +47,6 @@ export function checkIcon(check: MapCheck): 'cross' | 'unknown' | 'ask' | 'check
   return ['PASS', 'SUFFICIENT', 'NOT_APPLICABLE'].includes(check.value) ? 'check' : 'unknown';
 }
 
-export const checkPosition = (index: number, count: number) => count === 2 ? [16.5, 59][index] : count === 1 ? 36 : 10 + index * 62 / (count - 1);
+export const checkPosition = (index: number, count: number) => count === 2 ? index === 0 ? 16.5 : 59 : count === 1 ? 36 : 10 + index * 62 / (count - 1);
 export const incomingPath = (y: number) => `M 114 410 C 290 410 325 ${y * 10} 471 ${y * 10}`;
 export const outgoingPath = (y: number) => `M 529 ${y * 10} C 695 ${y * 10} 715 375 857 375`;

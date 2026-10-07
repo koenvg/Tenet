@@ -47,14 +47,15 @@ The temporary Bun wrapper prevents `.env` auto-loading in checks and child proce
 
 If Chromium was installed in the original home's cache, set `PLAYWRIGHT_BROWSERS_PATH` inside the shell to that cache's absolute path before browser checks. Do not use a signed-in browser.
 
-1. Build the SDK and inspector before the Bun suite:
+1. Build the SDK, inspector and website before the Bun suite:
 
    ```sh
    bun run sdk:build
    bun run inspector:build
+   bun run site:build
    ```
 
-   SDK tests import compiled output. Pi inspector-command tests serve files from `inspector/dist`.
+   SDK tests import compiled output. Pi inspector-command tests serve files from `inspector/dist`. Website content tests read the prerendered pages in `site/dist`.
 
    Global discovery makes isolation required for validation. Start checks with a realpath disposable process `HOME`, unset provider credentials and `TENET_POLICY`, and keep all selected owner-home data in fixtures. Passing `env.HOME` to a guard alone does not change `node:os.homedir()`.
 
@@ -179,7 +180,7 @@ Unloading removes observation and enforcement. There is no live-mode mock fallba
 
 ## A check fails
 
-- Missing SDK output or inspector assets: run both build commands before the Bun suite.
+- Missing SDK output, inspector assets or website pages: run the three build commands before the Bun suite.
 - Chromium cannot start: install Chromium and, on Linux, its system libraries.
 - Startup tests time out with plain `bun test`: use the isolated serial command above. On Bun 1.3.14, the all-file default can register `node:test` files inside another running test.
 - Archive metadata fails: inspect the named entry and rebuild without host metadata. Do not skip the separate metadata gate.

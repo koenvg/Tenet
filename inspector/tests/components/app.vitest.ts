@@ -1,7 +1,10 @@
+import { createElement } from 'react';
+import '../../src/components.css';
+import '../../../web/theme.css';
 import { afterEach, expect, test, vi } from 'vitest';
-import { render } from 'vitest-browser-svelte';
+import { render } from 'vitest-browser-react';
 import { page } from 'vitest/browser';
-import App from '../../src/App.svelte';
+import App from "../../src/App.js";
 import { makeView } from './fixtures.js';
 import '../../src/style.css';
 import '../../src/summary.css';
@@ -46,7 +49,7 @@ afterEach(() => {
 test('fresh visits select the latest call, then navigate without an archive server', async () => {
   await page.viewport(1280, 900);
   const requests = stubArchive();
-  const screen = await render(App);
+  const screen = await render(createElement(App));
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
   expect(screen.container.querySelector('.call-row[aria-pressed="true"] .call-id')?.textContent).toBe('latest');
   expect(screen.container.querySelector('.decision-title h2 span')?.textContent).toBe('latest');
@@ -62,7 +65,7 @@ test('fresh visits select the latest call, then navigate without an archive serv
 test('a deep link selects the requested call instead of the newest', async () => {
   history.replaceState(null, '', `?session=${sessionId}&invocation=${olderId}`);
   const requests = stubArchive();
-  const screen = await render(App);
+  const screen = await render(createElement(App));
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
   expect(screen.container.querySelector('.call-row[aria-pressed="true"] .call-id')?.textContent).toBe('older');
   expect(screen.container.querySelector('.decision-title h2 span')?.textContent).toBe('older');
@@ -79,7 +82,7 @@ test('loading state and manual failure recover without implying a pass', async (
   let release!: () => void, failing = false;
   const hold = new Promise<void>(resolve => { release = resolve; });
   stubArchive({ hold, fail: () => failing });
-  const screen = await render(App);
+  const screen = await render(createElement(App));
   expect(screen.container.querySelector('[role="status"]')?.textContent).toContain('Reading archive');
   release();
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
@@ -96,7 +99,7 @@ test('loading state and manual failure recover without implying a pass', async (
 test('category filter, grouped references and partial reader coverage keep individual links usable', async () => {
   await page.viewport(1280, 900);
   const requests = stubArchive({ partial: true });
-  const screen = await render(App);
+  const screen = await render(createElement(App));
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
   await expect.element(screen.getByText(/Partial archive coverage: 1 unsupported schema records \(1 newer\)/)).toBeVisible();
   await expect.element(screen.getByText(/restart the inspector process/)).toBeVisible();
@@ -119,7 +122,7 @@ test('category filter, grouped references and partial reader coverage keep indiv
 test('small screens keep calls, summary and session patterns as distinct views', async () => {
   await page.viewport(390, 844);
   stubArchive();
-  const screen = await render(App);
+  const screen = await render(createElement(App));
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
   await screen.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Calls' }).click();
   expect(getComputedStyle(screen.container.querySelector('.inspection')!).display).toBe('none');
@@ -137,7 +140,7 @@ test('small screens keep calls, summary and session patterns as distinct views',
 test('session patterns stay reachable without a matching call and focus returns after navigation', async () => {
   await page.viewport(1280, 900);
   const requests = stubArchive();
-  const screen = await render(App);
+  const screen = await render(createElement(App));
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
   await screen.getByRole('combobox', { name: 'Finding category' }).selectOptions('violation');
   await vi.waitFor(() => expect(screen.container.querySelectorAll('.call-row')).toHaveLength(0));
@@ -159,7 +162,7 @@ test('session patterns stay reachable without a matching call and focus returns 
 test('sidebar uses one status chip, quiet mode and one concern while detail keeps overlapping findings', async () => {
   await page.viewport(1280, 900);
   stubArchive();
-  const screen = await render(App);
+  const screen = await render(createElement(App));
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
   const row = screen.container.querySelector('.call-row[aria-pressed="true"]')!;
   expect(row.querySelectorAll('.status-chip')).toHaveLength(1);
@@ -178,7 +181,7 @@ for (const [execution, permission, label, tone] of [
 ] as const) test(`list and summary agree for ${execution}/${permission}`, async () => {
   await page.viewport(1280, 900);
   stubArchive({ status: { execution, permission } });
-  const screen = await render(App);
+  const screen = await render(createElement(App));
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
   const list = screen.container.querySelector('.call-state .status-chip')!;
   const summary = screen.container.querySelector('.primary-badges .status-chip')!;
@@ -197,4 +200,39 @@ for (const [execution, permission, label, tone] of [
   expect(screen.container.querySelectorAll('.call-row[aria-pressed="true"] .status-chip')).toHaveLength(1);
   expect(screen.container.querySelectorAll('.call-row[aria-pressed="true"] .call-concern')).toHaveLength(1);
   if (contradictory) expect(screen.container.querySelector('.primary-status .recording-inconsistency')?.textContent).toContain(`execution is ${execution}`);
+});
+
+
+test('a late call response cannot replace a newer manual selection', async () => {
+  await page.viewport(1280, 900);
+  const requests = stubArchive(), fetchArchive = fetch;
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
+    if (new URL(input, location.href).pathname.endsWith(`/invocations/${olderId}`)) await held;
+    return fetchArchive(input, init);
+  }));
+  const screen = await render(createElement(App));
+  try {
+    await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
+    const calls = screen.getByRole('navigation', { name: 'Invocations' }).getByRole('button');
+    await calls.nth(1).click();
+    await calls.nth(0).click();
+    await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
+    release();
+    await expect.poll(() => requests.includes(`/api/sessions/${sessionId}/invocations/${olderId}`)).toBe(true);
+    await new Promise(resolve => setTimeout(resolve, 60));
+    expect(screen.container.querySelector('.decision-title h2 span')?.textContent).toBe('latest');
+    expect(location.search).toContain(`invocation=${latestId}`);
+  } finally { release(); await screen.unmount(); }
+});
+
+test('unmount stops polling and ignores an unfinished archive load', async () => {
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const requests = stubArchive({ hold: held });
+  const screen = await render(createElement(App));
+  await screen.unmount(); release();
+  await new Promise(resolve => setTimeout(resolve, 2100));
+  expect(requests).toEqual(['/api/sessions']);
 });

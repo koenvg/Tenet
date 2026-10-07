@@ -39,7 +39,7 @@ To run only components, complete setup above, then run from the repository root:
 CI=1 bun run inspector:test:components
 ```
 
-Vitest Browser Mode mounts Svelte components in headless Chromium without a production build. Browser-safe view fixtures and mocked same-origin API responses cover:
+Vitest Browser Mode mounts React components in headless Chromium without a production build. Browser-safe view fixtures and mocked same-origin API responses cover:
 
 - Decisions, inert recorded Markdown, question formatting, and evidence navigation.
 - Resizing, initial selection, deep links, and loading/error/recovery states.

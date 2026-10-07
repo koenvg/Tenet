@@ -38,7 +38,7 @@ Selection draws the selected connection once in 420ms. There is no polling anima
 
 PASS can coexist with failed confidence. Missing or unknown data is not a pass. WARN does not block. Never invent evaluator reasoning or serial dependencies between independent checks.
 
-Preserve atomic refresh publication in `App.svelte`. Unchanged polls must not mutate the workspace, move content, replay motion or replace mounted detail state. Keep deep links, manual selection, project filters, pagination, historical questions and exact recorded probabilities.
+Preserve atomic refresh publication in `archive-state.ts`. Unchanged polls must not mutate the workspace, move content, replay motion or replace mounted detail state. Keep deep links, manual selection, project filters, pagination, historical questions and exact recorded probabilities.
 
 See [inspector use](docs/inspector.md) and [recorded evidence explanations](docs/inspection-evidence.md#recorded-and-inspector-explanations) for the reader-visible meaning.
 
