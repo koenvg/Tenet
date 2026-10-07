@@ -453,8 +453,8 @@ export class ArchiveIndex {
         const identity = policyIdentity === 'unrecorded policy identity' ? `${policyIdentity}:${id}` : policyIdentity;
         const key = JSON.stringify([identity, ruleId, profile, gate]);
         let group = groups.get(key);
-        if (!group) { group = { policyIdentity, profile, ruleId, gate, count: 0, first: row.timestamp, last: row.timestamp, invocations: [], omitted: 0 }; groups.set(key, group); }
         const occurred = findings.occurrence;
+        if (!group) { group = { policyIdentity, profile, ruleId, gate, count: 0, first: occurred, last: occurred, invocations: [], omitted: 0 }; groups.set(key, group); }
         group.count++; group.first = Math.min(group.first, occurred); group.last = Math.max(group.last, occurred);
         if (group.invocations.length < 100) group.invocations.push({ id, callId: row.callId, timestamp: row.timestamp });
         else group.omitted++;
