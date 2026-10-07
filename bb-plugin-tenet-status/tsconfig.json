@@ -20,5 +20,5 @@
     "noEmit": true,
     "skipLibCheck": false
   },
-  "include": ["server.ts", "host.ts", "contract.ts", "app.tsx", "*.test.ts", "ui-check.vitest.tsx", "../src/inspector/**/*.ts", "../src/recording/**/*.ts"]
+  "include": ["server.ts", "host.ts", "contract.ts", "app.tsx", "*.test.ts", "*.vitest.tsx", "../src/inspector/**/*.ts", "../src/recording/**/*.ts"]
 }
