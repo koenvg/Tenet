@@ -1,3 +1,4 @@
+@import './status.css';
 /* Shared call, summary and disclosure presentation. No document or host selectors. */
 .tenet-presentation { font: 16px/1.5 var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif); color: var(--tenet-ink, #171918); min-width: 0; }
 .tenet-presentation *, .tenet-presentation { box-sizing: border-box; }
@@ -203,3 +204,6 @@
   .tenet-presentation .trace-a .map-edge.is-selected, .tenet-presentation .trace-b .map-edge.is-selected { animation: none; }
   .tenet-presentation .call-row, .tenet-presentation .rule-row { transition: none; }
 }
+
+/* Shared shadcn controls keep multiline recorded labels readable. */
+.tenet-presentation :is(.call-row, .rule-row) { height: auto; white-space: normal; }

@@ -93,7 +93,7 @@ for (const width of [1280, 390]) test(`default story and keyboard disclosures at
   expect(await p.locator('.action-preview').innerText()).toContain('git status --short');
   await p.locator('.why-disclosure > summary').press('Enter');
   await p.getByRole('button', { name: 'Inspect evidence confidence', exact: true }).press('Enter');
-  expect(await p.evaluate(() => document.activeElement?.id)).toBe('selected-check-details');
+  expect(await p.evaluate(() => document.activeElement?.id)).toBe(await p.getByRole('button', { name: 'Inspect evidence confidence', exact: true }).getAttribute('aria-controls'));
   await p.locator('.evidence-disclosure > summary').press('Enter');
   await expect.poll(() => p.evaluate(() => document.activeElement?.id)).toBe('dock-heading');
   await p.locator('.capture-details > summary').press('Enter');
@@ -172,7 +172,7 @@ test('check selection is keyboard accessible and reduced motion stays static', a
   await p.emulateMedia({ reducedMotion: 'reduce' });
   await p.getByRole('button', { name: 'Inspect evidence confidence', exact: true }).press('Enter');
   expect(await p.locator('.rule-inspection').getAttribute('open')).not.toBeNull();
-  expect(await p.evaluate(() => document.activeElement?.id)).toBe('selected-check-details');
+  expect(await p.evaluate(() => document.activeElement?.id)).toBe(await p.getByRole('button', { name: 'Inspect evidence confidence', exact: true }).getAttribute('aria-controls'));
   expect(await p.locator('.map-edge.is-selected').evaluate(el => getComputedStyle(el).animationName)).toBe('none');
   expect(await p.locator('.primary-status .map-connections').count()).toBe(0);
 });

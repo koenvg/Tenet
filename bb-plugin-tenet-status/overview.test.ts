@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createFakePluginHost } from '@get-bb/plugin-sdk/testing';
 import { experimental_createHostEntryHarness } from '@get-bb/plugin-sdk/testing/host';
-import { ArchiveWriter } from '../src/recording/archive.js';
+import { HistoricalArchiveWriter as ArchiveWriter } from '../test/legacy-recording-fixture.js';
 import { ArchiveIndex } from '../src/inspector/archive-index.js';
 import { readPrivateFile } from '../src/recording/files.js';
 import hostEntry from './host.js';
@@ -13,14 +13,14 @@ import plugin from './server.js';
 import { overviewSchema } from './overview-contract.js';
 import { invocationView } from '../src/inspector/view.js';
 import { standaloneSummary, standaloneCall } from '../inspector/src/shared/standalone-adapter.js';
-import { ArchiveWriter as HistoricalWriter } from '../test/legacy-recording-fixture.js';
+import { HistoricalArchiveWriter as HistoricalWriter } from '../test/legacy-recording-fixture.js';
 const threadId = 'thr_abcdefgh1234', other = 'thr_wxyzabcd1234', machineA = 'host_abcdefgh1234', machineB = 'host_wxyzabcd1234';
 const sentinel = 'RAW-SENTINEL-DO-NOT-SERIALIZE';
 async function fixture() {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-overview-')));
   const writer = new ArchiveWriter({ enabled: true, directory: root });
   const append = (callId: string, link: string | undefined = threadId, sessionId = 'shared-native', failure = false, choice = 'PASS', text = '<script>window.archiveExecuted=true</script>') => {
-    const sink = writer.bind({ sessionId, invocationId: callId, callId, toolName: 'bash', mode: 'observe', host: 'pi', contextId: 'main', cwd: '/same-directory', bbThreadId: link });
+    const sink = writer.bindHistorical({ sessionId, invocationId: callId, callId, toolName: 'bash', mode: 'observe', host: 'pi', contextId: 'main', cwd: '/same-directory', bbThreadId: link }, 4);
     const policy = { digest: 'a'.repeat(64), rules: [{ id: 'r1', text, line: 4, enforcement: 'BLOCK' }] };
     sink('begin', { action: { arguments: sentinel }, policy, config: { effectThreshold: .87, evidenceThreshold: .83 }, questionVersion: 'historical-v1' });
     sink('request', { policy, questionVersion: 'historical-v1', mapping: [], payload: { model: 'fixture', state: { action: { arguments: sentinel }, policy: {}, context: { evidence: sentinel }, trajectory: {}, integrity: {} }, questions: { q: sentinel } } });
@@ -44,9 +44,9 @@ test('host summaries allowlist all categories, exact mixed-thread links and term
     f.append('fail-1', threadId, 'shared-native', true); f.append('fail-2', threadId, 'shared-native', true);
     f.append('pass'); f.append('violation', threadId, 'shared-native', false, 'FAIL'); f.append('approval', threadId, 'shared-native', false, 'APPROVAL_REQUIRED');
     f.append('foreign', other); // Unlinked history is recorded below.
-    const historical = f.writer.bind({ sessionId: 'old', invocationId: 'old', callId: 'old', toolName: 'read', mode: 'observe', host: 'pi', contextId: 'main', cwd: '/same-directory' });
+    const historical = f.writer.bindHistorical({ sessionId: 'old', invocationId: 'old', callId: 'old', toolName: 'read', mode: 'observe', host: 'pi', contextId: 'main', cwd: '/same-directory' }, 4);
     historical('begin', {});
-    const pending = f.writer.bind({ sessionId: 'shared-native', invocationId: 'pending', callId: 'pending', toolName: 'read', mode: 'observe', host: 'pi', contextId: 'main', cwd: '/same-directory', bbThreadId: threadId });
+    const pending = f.writer.bindHistorical({ sessionId: 'shared-native', invocationId: 'pending', callId: 'pending', toolName: 'read', mode: 'observe', host: 'pi', contextId: 'main', cwd: '/same-directory', bbThreadId: threadId }, 4);
     pending('begin', {});
     // A resume uses the same native session, but remains bound to its recorded BB link.
     f.append('resume', threadId); f.append('resume', other);

@@ -1,14 +1,14 @@
 import { Fragment, useState, type CSSProperties } from 'react';
-import type { InvocationView } from '../../src/inspector/view.js';
+import type { SummaryDecision } from './shared/model.js';
 import { Button } from '../../web/components/ui/button.js';
 import DecisionIcon from './DecisionIcon.js';
 import ConfidenceMeter from './ConfidenceMeter.js';
-import { actionPreview, decisionLabel, gateTone, contributionExplanation, toolLabel, type RuleView } from './presentation.js';
+import { decisionLabel, gateTone, contributionExplanation, toolLabel, type RuleView } from './presentation.js';
 import { mapChecks, checkIcon, checkPosition, incomingPath, outgoingPath, type MapCheck } from './decision-map.js';
 
-export default function AssessmentMap({ view, rule, inspect }: { view: InvocationView; rule: RuleView | undefined; inspect: (check: string) => void }) {
+export default function AssessmentMap({ view, rule, inspect, detailsId = 'selected-check-details' }: { view: SummaryDecision; rule: RuleView | undefined; inspect: (check: string) => void; detailsId?: string }) {
   const [active, setActive] = useState(''), [motion, setMotion] = useState(0);
-  const preview = actionPreview(view), checks = mapChecks(rule);
+  const checks = mapChecks(rule);
   const outgoingTone = (check: MapCheck) => check.gate && rule ? gateTone(rule, check.gate) : '';
   const choose = (check: MapCheck) => { setActive(check.id); setMotion(value => value + 1); inspect(check.label); };
   return <div className="map-stage" style={{ '--check-count': checks.length } as CSSProperties}>
@@ -22,11 +22,10 @@ export default function AssessmentMap({ view, rule, inspect }: { view: Invocatio
       <div className="map-action map-endpoint">
         <span className="map-symbol filled"><DecisionIcon kind={view.identity?.toolName === 'bash' ? 'action' : ['read', 'write', 'edit'].includes(view.identity?.toolName ?? '') ? 'document' : 'tool'} /></span>
         <h3>{toolLabel(view.identity?.toolName ?? 'Unknown tool')}</h3>
-        {preview ? <pre className="action-preview" aria-label="Recorded action"><code>{preview}</code></pre> : <p className="action-unavailable">Command or file path not recorded. Submitted arguments remain in evidence.</p>}
       </div>
       <div className="map-checks">{checks.map((check, index) =>
         <div key={check.id} className={`map-check ${outgoingTone(check)}`} style={{ '--node-y': `${checkPosition(index, checks.length)}%` } as CSSProperties}>
-          <Button variant="outline" className="map-symbol" aria-label={`Inspect ${check.label.toLowerCase()}`} aria-controls="selected-check-details" aria-pressed={active === check.id} onClick={() => choose(check)}><DecisionIcon kind={checkIcon(check)} /></Button>
+          <Button variant="outline" className="map-symbol" aria-label={`Inspect ${check.label.toLowerCase()}`} aria-controls={detailsId} aria-pressed={active === check.id} onClick={() => choose(check)}><DecisionIcon kind={checkIcon(check)} /></Button>
           <div className="map-caption">
             <h3>{check.label} <span>/ {check.value}</span></h3>
             {check.id === 'outcome' && rule && <>

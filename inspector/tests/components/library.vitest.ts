@@ -1,7 +1,8 @@
 import { expect, test, vi } from 'vitest';
 import { page } from 'vitest/browser';
-import { tick } from 'svelte';
-import { mountSummaryWorkspace } from '../../src/shared/library.svelte.js';
+import { act } from 'react';
+const tick = () => act(async () => {});
+import { mountSummaryWorkspace } from '../../src/shared/library.js';
 import { previewInput } from '../../src/shared/preview-fixture.js';
 import { standaloneSummary } from '../../src/shared/standalone-adapter.js';
 import { makeView } from './fixtures.js';

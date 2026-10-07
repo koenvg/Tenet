@@ -124,7 +124,7 @@ for (const end of ['close', 'timeout'] as const) test(`late selected-thread meta
   const read = vi.fn(rpc.overview);
   const slot = renderSlot(app.navPanels[0]!, { subPath: overviewPath(stopped, {}, projectA) }, { rpc: { ...rpc, overview: read },
     sdk: { threads: { get: ({ threadId }: any) => ++checks === 1 ? syntheticThread(threadId) as any
-      : new Promise(resolve => { finish = resolve; }) } } });
+      : new Promise(resolve => { finish = value => resolve({ ...value } as any); }) } } });
   try {
     await act(async () => { await vi.advanceTimersByTimeAsync(1); });
     await act(async () => { await vi.advanceTimersByTimeAsync(1); });

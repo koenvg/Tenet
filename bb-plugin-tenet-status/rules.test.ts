@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createFakePluginHost } from '@get-bb/plugin-sdk/testing';
 import { experimental_createHostEntryHarness } from '@get-bb/plugin-sdk/testing/host';
-import { ArchiveWriter } from '../test/legacy-recording-fixture.js';
+import { HistoricalArchiveWriter as ArchiveWriter } from '../test/legacy-recording-fixture.js';
 import { ArchiveIndex } from '../src/inspector/archive-index.js';
 import { readPrivateFile } from '../src/recording/files.js';
 import { invocationView } from '../src/inspector/view.js';
@@ -21,7 +21,7 @@ async function fixture(schema: 3 | 4) {
   const writer = new ArchiveWriter({ enabled: true, directory: root });
   function append(callId: string, link = threadId, failed = false) {
     const identity = { sessionId: 'shared', invocationId: callId, callId, toolName: 'bash', host: 'pi', contextId: 'main', cwd: '/synthetic', mode: 'observe' as const, bbThreadId: link };
-    const sink = schema === 3 ? writer.bindHistorical(identity, 3) : writer.bind(identity);
+    const sink = writer.bindHistorical(identity, schema);
     const rules = Array.from({ length: 19 }, (_, n) => ({ id: `r${n}`, text: n === 0 ? '<script>window.ruleProbe=true</script>' : n === 1 ? 'x'.repeat(3000) : `Recorded rule ${n}`, line: n + 1, enforcement: n === 2 ? 'WARN' : 'BLOCK' }));
     delete (rules[3] as any).text;
     const integrity = { id: 'integrity', text: 'Recorded built-in integrity.' };
@@ -86,7 +86,7 @@ for (const schema of [3, 4] as const) test(`schema-${schema} rule pages preserve
     assert.equal(fail.selected!.failure, 'provider-error'); assert.ok(fail.selected!.rules.every(r => !r.result && r.gateIds === null));
     // A new recorded stage changes this selected snapshot; the old cursor must not select it.
     const identity = { sessionId: 'shared', invocationId: 'first', callId: 'first', toolName: 'bash', host: 'pi', contextId: 'main', cwd: '/synthetic', mode: 'observe' as const, bbThreadId: threadId };
-    const update = schema === 3 ? f.writer.bindHistorical(identity, 3) : f.writer.bind(identity);
+    const update = f.writer.bindHistorical(identity, schema);
     update('execution', { outcome: 'executed' }); await f.writer.drain(5000); await ready(index);
     await assert.rejects(index.threadOverview(threadId, { ...selection, ruleCursor: cursor }), /invalid-page/);
   } finally { await f.writer.close(5000); await rm(f.root, { recursive: true, force: true }); }

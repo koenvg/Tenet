@@ -34,7 +34,7 @@ for (const schema of [3, 4] as const) for (const [n, scenario] of cases.entries(
   try {
     const writer = new FixtureArchiveWriter({ enabled: true, directory: root });
     const identity = { sessionId: 'parity', invocationId: `case-${n}`, callId: `case-${n}`, toolName: 'bash', cwd: '/synthetic', host: 'pi', contextId: 'main', bbThreadId: threadId, mode: c.mode ?? 'enforce' as const };
-    const sink = schema === 3 ? writer.bindHistorical(identity, 3) : writer.bind(identity);
+    const sink = writer.bindHistorical(identity, schema);
     const policy = { digest: 'a'.repeat(64), rules: [{ id: 'rule', text: 'Recorded policy.', line: 1, enforcement: c.enforcement ?? 'BLOCK' }] };
     const integrity = { id: 'integrity', text: 'Recorded integrity.' };
     const outcome = (choice: string) => ({ choice, probabilities: { PASS: choice === 'PASS' ? .97 : .01, FAIL: choice === 'FAIL' ? .97 : .01, APPROVAL_REQUIRED: choice === 'APPROVAL_REQUIRED' ? .97 : .01, UNKNOWN: .01 } });

@@ -80,7 +80,7 @@ For local frontend development only, `bun inspector` starts Vite with live reloa
 
 ## Shared summaries and standalone evidence
 
-The standalone inspector and both BB overview entry points use one Svelte workspace for call, status and rule-summary presentation. The BB plugin is built and installed separately; see [the BB overview guide](../bb-plugin-tenet-status/README.md). Its summary input excludes raw arguments, action previews, submitted evidence, exact questions and provider response bodies.
+The standalone inspector and both BB overview entry points use one React workspace for call, status and rule-summary presentation. The BB plugin is built and installed separately; see [the BB overview guide](../bb-plugin-tenet-status/README.md). Its summary input excludes raw arguments, action previews, submitted evidence, exact questions and provider response bodies.
 
 The standalone inspector retains those detail views and its existing links. Sharing presentation neither exposes nor proxies its loopback listener. Rule text renders as inert text, but recorded policy text can still contain secrets. Same-user access limits remain unchanged.
 
@@ -89,8 +89,8 @@ For checkout-only library builds and a synthetic source preview, use the [shared
 ## Select a session, call and rule
 
 1. Filter by the exact project directory. Choose a suggested path or enter one. New project paths are canonical working directories, not Git remote groups. Older records retain their captured paths.
-2. Select a session, then an invocation. The first view shows the action, actual status, mode, findings and one brief reason.
-3. Open **Why this assessment** for the recorded assessment map, selected check and all rules. Open **Evidence** for the tabbed evidence dock, or **Details** for exact lifecycle, versions, coverage and validation diagnostics.
+2. Select a session, then an invocation. The first view shows call identity, actual status, mode, findings and one brief reason.
+3. Open **Why this assessment** for the recorded assessment map, selected check and all rules. Open **Recorded action** for the command or file preview. Open **Evidence** for the tabbed evidence dock, or **Details** for exact lifecycle, versions, coverage and validation diagnostics.
 4. Select any rule, including PASS and built-in integrity. Read the policy decision, permission and execution separately. Inspect the recorded policy, application-level questions and choices, bounded/redacted submitted state, SDK response, validation and rule contributions.
 
 For APUS, open **Details**, then **Native scoring mappings**. Read captured letter/token mappings and deterministic NONE selectors separately from model probabilities.
@@ -207,10 +207,12 @@ Deletion removes retained evidence. Turning capture off or uninstalling Tenet do
 
 ## Verify the inspector offline
 
-Developer checkout only. Use installed frozen dependencies, Bun 1.3.14+ and Node 22.19+ or 24 for the pinned Pi checks. From the repository root:
+Developer checkout only. Use installed frozen dependencies, Bun 1.3.14+ and Node 22.19+ or 24 for the pinned Pi checks. Use the [isolated validation shell](../CONTRIBUTING.md#check-a-change). From the repository root:
 
 ```sh
 bunx playwright install chromium
+bun run sdk:build
+bun run summary:build
 bun run inspector:check
 CI=1 bun run inspector:test
 bun test test/standalone-workflow.test.ts
@@ -218,6 +220,6 @@ bun test test/standalone-workflow.test.ts
 
 On Linux CI, install Chromium system libraries with `bunx playwright install --with-deps chromium`. Success means the checks exit zero. These tests need no Arc debugging endpoint, signed-in profile, evaluator credential or live provider call. See [inspector test instructions](../inspector/tests/README.md) for focused component/browser commands and setup fixes.
 
-Component tests mount Svelte views with controlled API responses. The full-app suite builds and serves the production client from a temporary loopback archive in disposable headless Chromium. It checks updates, pagination, deep links, failure history, truncation and capture health, and blocks non-local browser requests.
+Component tests mount React views with controlled API responses. The full-app suite builds and serves the production client from a temporary loopback archive in disposable headless Chromium. It checks updates, pagination, deep links, failure history, truncation and capture health, and blocks non-local browser requests.
 
 The integrated workflow records passes, concerns and provider failure with the reader closed, restarts it, resumes the same session, and compares recorded questions/evidence with the scripted SDK payload. It checks permission separately from execution. Offline success does not prove live model accuracy or deployed hook coverage.

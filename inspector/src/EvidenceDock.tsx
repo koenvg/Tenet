@@ -10,7 +10,7 @@ const evidenceOrder = ['action', 'context', 'trajectory', 'policy', 'integrity']
 const evidenceNames: Record<string, string> = { action: 'Action and arguments', context: 'Host context', trajectory: 'Chronological history', policy: 'Submitted policy', integrity: 'Submitted integrity constraint' };
 
 export default function EvidenceDock({ view, rule, activeTab, onTabChange, headingRef }: {
-  view: InvocationView; rule: RuleView | undefined; activeTab: DockTab;
+  view: InvocationView; rule: InvocationView['rules'][number] | undefined; activeTab: DockTab;
   onTabChange: (tab: DockTab) => void; headingRef: Ref<HTMLHeadingElement>;
 }) {
   const [questionFormat, setQuestionFormat] = useState<'rich' | 'json'>('rich');

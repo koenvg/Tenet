@@ -1,7 +1,8 @@
 import { expect, test } from 'vitest';
-import { render } from 'vitest-browser-svelte';
+import { render } from 'vitest-browser-react';
+import { createElement } from 'react';
 import { page } from 'vitest/browser';
-import SummaryWorkspace from '../../src/shared/SummaryWorkspace.svelte';
+import SummaryWorkspace from '../../src/shared/SummaryWorkspace.js';
 import { standaloneSummary } from '../../src/shared/standalone-adapter.js';
 import { makeView } from './fixtures.js';
 
@@ -21,7 +22,7 @@ test('safe summary shows recorded facts and inert rule text without standalone p
   for (const raw of ['git status --short', 'Recorded instructions', 'window.hostile', 'first_outcome', 'payload', 'questions', 'response', 'mapping', 'provider-response-sentinel', 'submitted-evidence-sentinel', 'raw-path-sentinel', 'raw-policy-sentinel', 'exact-question-sentinel', 'raw-mapping-sentinel', 'raw-result-sentinel']) {
     expect(serialized).not.toContain(raw);
   }
-  const screen = await render(SummaryWorkspace, { model: { calls: [], selected: model, coverage: 'Best-effort synthetic capture.', loading: false, error: '', category: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } });
+  const screen = await render(createElement(SummaryWorkspace, { model: { calls: [], selected: model, coverage: 'Best-effort synthetic capture.', loading: false, error: '', category: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } }));
   await expect.element(screen.getByRole('region', { name: 'Actual execution' }).getByText('Ran', { exact: true })).toBeVisible();
   await screen.getByText('Why this assessment', { exact: true }).click();
   await screen.getByText('Selected check details', { exact: true }).click();
@@ -36,7 +37,7 @@ for (const [viewport, container] of [[390, 390], [1280, 390], [1280, 1000]]) {
   test(`workspace navigation follows ${container}px container in ${viewport}px window`, async () => {
     await page.viewport(viewport!, 844);
     const view = makeView({ execution: 'executed' });
-    const screen = await render(SummaryWorkspace, { model: { calls: [], selected: standaloneSummary(view), category: '', coverage: 'Synthetic coverage stays visible.', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } });
+    const screen = await render(createElement(SummaryWorkspace, { model: { calls: [], selected: standaloneSummary(view), category: '', coverage: 'Synthetic coverage stays visible.', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } }));
     screen.container.style.width = `${container}px`;
     screen.container.style.maxWidth = '100%';
     if (container! < 650) {
@@ -65,7 +66,7 @@ for (const [viewport, container] of [[390, 390], [1280, 390], [1280, 1000]]) {
 }
 test('shared workspace keeps the standalone summary hierarchy and check disclosures', async () => {
   await page.viewport(1280, 900);
-  const screen = await render(SummaryWorkspace, { model: { calls: [], selected: standaloneSummary(makeView()), category: '', coverage: 'Synthetic', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } });
+  const screen = await render(createElement(SummaryWorkspace, { model: { calls: [], selected: standaloneSummary(makeView()), category: '', coverage: 'Synthetic', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } }));
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
   expect(screen.container.querySelector('[aria-label="Decision map"]')?.checkVisibility()).toBe(false);
   await screen.getByText('Why this assessment', { exact: true }).click();
@@ -90,7 +91,7 @@ for (const [name, options, text] of [
 ] as const) test(`shared summary preserves ${name} meaning`, async () => {
   await page.viewport(1280, 900);
   const summary = standaloneSummary(makeView(options));
-  const screen = await render(SummaryWorkspace, { model: { calls: [], selected: summary, category: '', coverage: 'Synthetic', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } });
+  const screen = await render(createElement(SummaryWorkspace, { model: { calls: [], selected: summary, category: '', coverage: 'Synthetic', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } }));
   await expect.element(screen.getByText(text)).toBeVisible();
   if (name === 'provider failure') await expect.element(screen.getByText('Recorded assessment: unavailable · provider-error.')).toBeVisible();
 });
@@ -100,7 +101,7 @@ test('historical thresholds and built-in identity are recorded inputs, not curre
   const view = makeView();
   view.rules[0]!.thresholds.evidenceThreshold = .91;
   view.rules[0]!.builtin = true;
-  const screen = await render(SummaryWorkspace, { model: { calls: [], selected: standaloneSummary(view), category: '', coverage: 'Synthetic', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } });
+  const screen = await render(createElement(SummaryWorkspace, { model: { calls: [], selected: standaloneSummary(view), category: '', coverage: 'Synthetic', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } }));
   await screen.getByText('Why this assessment', { exact: true }).click();
   await screen.getByText('Selected check details', { exact: true }).click();
   await expect.element(screen.getByText('Built-in integrity').first()).toBeVisible();
@@ -111,7 +112,7 @@ test('supplied recorded evaluator failure stays distinct from execution and a le
   await page.viewport(1280, 900);
   const summary = standaloneSummary({ ...makeView({ execution: 'executed', decision: 'ALLOW', gate: null }),
     evaluatorState: { status: 'unavailable', reason: 'provider-error' } });
-  const screen = await render(SummaryWorkspace, { model: { calls: [], selected: summary, category: '', coverage: 'Synthetic', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } });
+  const screen = await render(createElement(SummaryWorkspace, { model: { calls: [], selected: summary, category: '', coverage: 'Synthetic', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } }));
   await expect.element(screen.getByText('Recorded assessment: unavailable · provider-error.')).toBeVisible();
   await expect.element(screen.getByText('Assessment unavailable. No completed assessment is available.')).toBeVisible();
   await expect.element(screen.getByRole('region', { name: 'Actual execution' }).getByText('Ran', { exact: true })).toBeVisible();

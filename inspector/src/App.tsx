@@ -1,12 +1,12 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import { categoryLabels, findingCategories, type FindingCategory } from '../../src/decision/finding-triage.js';
+import { useLayoutEffect, useRef } from 'react';
+import { categoryLabels, type FindingCategory } from '../../src/decision/finding-triage.js';
 import { Button } from '../../web/components/ui/button.js';
 import { Input } from '../../web/components/ui/input.js';
 import Detail from './Detail.js';
 import DecisionIcon from './DecisionIcon.js';
-import PaneResizer from './PaneResizer.js';
-import StatusChip from './StatusChip.js';
-import { timestamp, toolLabel, primaryStatus, callConcern, modeLabel, gateLabels } from './presentation.js';
+import SummaryWorkspace from './shared/SummaryWorkspace.js';
+import { standaloneCall, standaloneSummary } from './shared/standalone-adapter.js';
+import { gateLabels } from './presentation.js';
 import { useArchive } from './archive-state.js';
 
 const date = (value: number) => new Date(value).toLocaleString();
@@ -25,7 +25,6 @@ export default function App() {
   const { sessions, invocations, session, invocation, error, project, projectInput, busy, timelineBusy, detailBusy, manualRefreshing,
     view, issues, health, nextSession, nextInvocation, reader, groups, groupsLoaded, groupsBusy, groupsError,
     category, projects, mobileView, pickerOpen, showPatterns } = archive;
-  const [explorerWidth, setExplorerWidth] = useState(300);
   const decisionButton = useRef<HTMLButtonElement>(null), summaryButton = useRef<HTMLButtonElement>(null);
   const currentSession = sessions.find(s => s.id === session);
   const groupFocus = useRef('');
@@ -66,12 +65,15 @@ export default function App() {
       <span className="local-label">Read-only</span>
       <Button variant="outline" size="sm" className="header-button" disabled={busy || timelineBusy || detailBusy || manualRefreshing} onClick={archive.refreshArchive}>Refresh archive</Button>
     </header>
-    <main className="workspace" data-mobile-view={mobileView} style={{ '--explorer-width': `${explorerWidth}px` } as CSSProperties}>
+    <SummaryWorkspace standalone model={{ calls: invocations.map(standaloneCall), selected: view ? standaloneSummary(view) : null, selectedId: invocation,
+      category, coverage: '', loading: timelineBusy, error, moreCalls: nextInvocation !== null }}
+      actions={{ selectCall: archive.selectInvocation, filterCategory: archive.filterCategory, refresh: archive.refreshArchive, loadMoreCalls: () => archive.loadTimeline(nextInvocation ?? undefined) }}
+      mobileView={mobileView} onMobileViewChange={archive.setMobileView} navigation={<>
       <nav className="mobile-nav" aria-label="Workspace views">
         <Button variant="ghost" aria-pressed={mobileView === 'calls'} onClick={() => archive.setMobileView('calls')}>Calls</Button>
         <Button variant="ghost" ref={summaryButton} aria-pressed={mobileView === 'assessment' && !showPatterns} disabled={!view} onClick={archive.showSummary}>Summary</Button>
         <Button variant="ghost" aria-pressed={mobileView === 'assessment' && showPatterns} disabled={!session} onClick={archive.openPatterns}>Patterns</Button>
-      </nav>
+      </nav></>} coverage={<>
       <div className="archive-messages">
         {error && <p className="archive-alert" role="alert">{error}</p>}
         {reader && <details className="reader-status"><summary>Archive details</summary><p>Reader {reader.build} · supported recording schemas {reader.supportedSchemas.join(', ')} · read-only, best-effort archive</p></details>}
@@ -88,33 +90,7 @@ export default function App() {
           </details>
         </section>}
       </div>
-      <aside id="call-explorer" className="explorer" aria-label="Call explorer">
-        <div className="pane-heading"><h2>Recent calls</h2></div>
-        <div className="triage-tools">
-          <label htmlFor="finding-category">Finding category</label>
-          <select id="finding-category" value={category} onChange={event => archive.filterCategory(event.target.value as FindingCategory | '')}>
-            <option value="">All recorded calls</option>{findingCategories.map(c => <option key={c} value={c}>{categoryLabels[c]}</option>)}
-          </select>
-        </div>
-        <nav className="call-list" aria-label="Invocations">{invocations.map(item => {
-          const status = primaryStatus(item), concern = callConcern(item);
-          return <Button variant="ghost" key={item.id} className="call-row" aria-pressed={invocation === item.id} onClick={() => archive.selectInvocation(item.id)}>
-            <DecisionIcon kind={item.toolName === 'bash' ? 'action' : ['read', 'write', 'edit'].includes(item.toolName) ? 'document' : 'tool'} />
-            <span className="call-copy">
-              <span className="call-top"><strong>{toolLabel(item.toolName)}</strong><time>{timestamp(item.timestamp)}</time></span>
-              <span className="call-id" hidden>{item.callId}</span>
-              <span className="call-state" title={status.explanation}><StatusChip value={status.label} tone={status.tone} icon={status.icon} showIcon /><span className="call-mode">{modeLabel(item.mode)}</span></span>
-              {concern && <small className={`call-concern ${concern.tone} ${status.inconsistency ? 'recording-inconsistency' : ''}`} title={concern.description}>{concern.text}</small>}
-            </span>
-          </Button>;
-        })}
-          {timelineBusy ? <p role="status">Loading calls…</p> : session && !invocations.length && <p className="empty-inline">{category ? 'No calls match this finding category.' : 'No recorded invocations in this session.'}</p>}
-          {nextInvocation !== null && <Button variant="ghost" className="text-button" disabled={timelineBusy} onClick={() => archive.loadTimeline(nextInvocation)}>More invocations</Button>}
-        </nav>
-        <div className="explorer-footer"><span>Read-only recorded calls</span></div>
-      </aside>
-      <PaneResizer value={explorerWidth} onValueChange={setExplorerWidth} min={220} max={460} label="Resize call explorer" controls="call-explorer" />
-      <div className="inspection">
+      </>} inspection={<>
         {session && <nav className="inspection-switch" aria-label="Inspection views">
           <Button variant="ghost" ref={decisionButton} aria-pressed={!showPatterns} disabled={!view} onClick={archive.showSummary}>Summary</Button>
           <Button variant="ghost" aria-pressed={showPatterns} onClick={archive.openPatterns}>Uncertainty groups{groupsLoaded ? ` (${groups.items.length}${groups.omittedGroups ? '+' : ''})` : ''}</Button>
@@ -140,7 +116,6 @@ export default function App() {
               {!!groups.omittedGroups && <p className="pattern-overflow">{groups.omittedGroups} more groups omitted from this bounded view. Individual calls remain in the call list.</p>}
             </div>}
         </section>}
-      </div>
-    </main>
+      </>} />
   </>;
 }

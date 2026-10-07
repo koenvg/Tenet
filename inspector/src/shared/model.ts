@@ -1,6 +1,6 @@
 import type { FindingCategory } from '../../../src/decision/finding-triage.js';
 import type { SummaryCall, SummaryDecision } from '../../../src/inspector/summary-model.js';
-export type { SummaryCall, SummaryDecision, SummaryRule, SummaryScore, SummaryEvaluatorState } from '../../../src/inspector/summary-model.js';
+export type { SummaryCall, SummaryDecision, SummaryRule, SummaryScore, SummaryEvaluatorState, SummaryExplanation } from '../../../src/inspector/summary-model.js';
 
 export interface SummaryWorkspaceModel {
   calls: SummaryCall[]; selected: SummaryDecision | null; selectedId?: string;

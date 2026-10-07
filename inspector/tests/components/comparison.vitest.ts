@@ -1,11 +1,12 @@
 import { expect, test } from 'vitest';
-import { render } from 'vitest-browser-svelte';
+import { render } from 'vitest-browser-react';
+import { createElement } from 'react';
 import { page } from 'vitest/browser';
-import ComparisonPreview from '../../src/shared/ComparisonPreview.svelte';
+import ComparisonPreview from '../../src/shared/ComparisonPreview.js';
 
 for (const width of [1000, 390]) test(`both adapters have the same safe content, order and geometry at ${width}px`, async () => {
   await page.viewport(2200, 1200);
-  const screen = await render(ComparisonPreview, { panelWidth: width });
+  const screen = await render(createElement(ComparisonPreview, { panelWidth: width }));
   const left = screen.container.querySelector<HTMLElement>('#standalone-preview')!;
   const right = screen.container.querySelector<HTMLElement>('#embedded-preview')!;
   await expect.element(screen.getByText(/^Comparison ready/)).toBeVisible();

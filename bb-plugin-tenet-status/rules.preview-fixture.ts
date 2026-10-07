@@ -1,6 +1,7 @@
 import type { OverviewSelection, ThreadOverview } from '../src/inspector/bb-summary.js';
 import type { SummaryDecision, SummaryRule } from '../src/inspector/summary-model.js';
 import { syntheticOverview } from './overview.preview-fixture.js';
+import { summarizeBlockingRules } from '../src/inspector/summary-explanation.js';
 const id = (n: number) => n.toString(16).padStart(64, '0');
 const base = syntheticOverview.selected!;
 const rule = (n: number, choice = 'PASS', enforcement = 'BLOCK'): SummaryRule => ({
@@ -31,6 +32,7 @@ export function rulesSyntheticRead(selection: OverviewSelection): ThreadOverview
     permission: 'released', execution: 'unknown', approval: n === 4 ? 'not requested (observe mode)' : 'not required',
     evaluatorState: chosen.evaluatorState, assessmentStatus: chosen.assessmentStatus, failure: chosen.failure,
     categories: chosen.categories, noRulesClassifiedViolated: n === 0 || n === 4 || n === 5,
+    explanation: summarizeBlockingRules(rules),
     rules: rules.slice(offset, offset + 16), omittedRules: 19 - rules.slice(offset, offset + 16).length,
     rulePage: { snapshot: id(90 + n), offset, total: 19, next: offset ? null : `synthetic:${chosen.id}:16` } };
   data.selected = selected; data.selectedId = chosen.id;

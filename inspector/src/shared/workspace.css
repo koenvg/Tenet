@@ -6,6 +6,12 @@
   --tenet-danger: var(--destructive-text, #be3737);
   --tenet-danger-bg: color-mix(in srgb, var(--tenet-danger) 10%, var(--tenet-chrome));
   --tenet-amber-bg: color-mix(in srgb, var(--tenet-amber) 10%, var(--tenet-chrome));
+  --tenet-danger-line: color-mix(in srgb, var(--tenet-danger) 30%, var(--tenet-chrome));
+  --tenet-amber-line: color-mix(in srgb, var(--tenet-amber) 30%, var(--tenet-chrome));
+  --tenet-success-bg: color-mix(in srgb, var(--success-text, #17623e) 10%, var(--tenet-chrome));
+  --tenet-success-line: color-mix(in srgb, var(--success-text, #17623e) 30%, var(--tenet-chrome));
+  --tenet-approval-bg: color-mix(in srgb, var(--approval-text, #62419a) 10%, var(--tenet-chrome));
+  --tenet-approval-line: color-mix(in srgb, var(--approval-text, #62419a) 30%, var(--tenet-chrome));
   container: tenet-summary / inline-size; min-width: 0; width: 100%;
   display: grid; grid-template-columns: clamp(260px, 30%, 300px) minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr); align-content: start; background: var(--tenet-soft);

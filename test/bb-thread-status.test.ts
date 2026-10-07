@@ -246,7 +246,7 @@ test('recorded lifecycle states, invalid responses and missing capture stay sepa
     for (const state of ['completed', 'pending', 'cancelled', 'dropped', 'invalid', 'malformed', 'missing', 'partial-completed', 'unknown-error']) {
       const identity = { sessionId: `states-${schema}`, invocationId: state, callId: state, toolName: 'read', cwd: '/synthetic',
         mode: 'observe' as const, host: 'pi', contextId: 'main', bbThreadId: thread };
-      const sink = schema === 3 ? writer.bindHistorical(identity, 3) : writer.bind(identity);
+      const sink = writer.bindHistorical(identity, schema);
       sink('begin', {});
       if (state === 'missing') continue;
       if (state === 'completed') {

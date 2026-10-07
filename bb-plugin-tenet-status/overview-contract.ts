@@ -17,16 +17,21 @@ const evaluatorState = z.object({ status: z.enum(['completed', 'unavailable', 'p
   reason: z.enum(evaluatorFailureCodes).nullable() }).strict();
 const probability = z.number().min(0).max(1);
 const score = z.object({ choice: z.enum(summaryChoices), probabilities: z.partialRecord(z.enum(summaryChoices), probability) }).strict().nullable();
-const rule = z.object({ id: label, text: z.string().max(2048), line: count.nullable(), enforcement: label, builtin: z.boolean(),
+const origin = z.object({ role: z.enum(['global', 'project']).nullable(), source: label.nullable(), target: label.nullable(),
+  digest: label.nullable(), line: count.positive().nullable() }).strict();
+const rule = z.object({ id: label, text: z.string().max(2048), line: count.nullable(), enforcement: label, builtin: z.boolean(), origin: origin.nullable().optional(),
   result: z.object({ outcome: score, evidence: score }).strict().nullable(), gateIds: z.array(z.enum(summaryGates)).max(8).nullable(),
   contribution: label, thresholds: z.object({ effectThreshold: probability.nullable(), evidenceThreshold: probability.nullable() }).strict(),
   evidenceGate: label, profile: label, textStatus: z.enum(['recorded', 'truncated', 'missing']).optional(), omittedTextChars: count.optional() }).strict();
+const explanation = z.object({ blockerCount: count, uncertaintyOnly: z.boolean(),
+  firstBlocker: z.object({ builtin: z.boolean(), line: count.nullable(), gate: z.enum(summaryGates),
+    result: rule.shape.result, thresholds: rule.shape.thresholds }).strict().nullable() }).strict();
 const facts = { decision: label, permission: label, execution: label, categories, missing: z.array(label).max(8),
   assessmentStatus: label, failure: z.enum(evaluatorFailureCodes).nullable(), evaluatorState };
 const call = z.object({ ...facts, id: recordId, callId: label, toolName: label, timestamp: z.number(), mode: label }).strict();
 const selected = z.object({ ...facts, identity: z.object({ callId: label, toolName: label, mode: z.enum(['observe', 'enforce']) }).strict().nullable(),
   metadata: z.object({ schemas: z.array(z.number().int()).max(4), questionVersion: label, profile: label, policyDigest: recordId.nullable() }).strict(),
-  reason: label, approval: label, noRulesClassifiedViolated: z.boolean(), rules: z.array(rule).max(16), omittedRules: count, missingRuleSnapshots: count.optional(),
+  reason: label, approval: label, noRulesClassifiedViolated: z.boolean(), explanation, rules: z.array(rule).max(16), omittedRules: count, missingRuleSnapshots: count.optional(),
   rulePage: z.object({ snapshot: recordId, offset: count, total: count, next: nullableCursor }).strict().optional() }).strict();
 export const overviewSchema = z.object({ readScope: recordId.optional(), state: z.enum(['available', 'unsupported', 'unavailable']),
   coverage: z.enum(['unknown', 'partial', 'unavailable']), linkedCalls: count, failures: count, issues: codes,

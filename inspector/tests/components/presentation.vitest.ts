@@ -59,7 +59,7 @@ test('UNKNOWN, approval and failed assessment never appear as a pass', async () 
   await approvalScreen.unmount();
   const failed = makeView({ failure: 'timeout', evidence: false });
   const failureScreen = await render(createElement(DecisionSummary, { view: failed }));
-  await expect.element(failureScreen.getByText(/Assessment failed\./)).toBeVisible();
+  await expect.element(failureScreen.getByText(/Assessment unavailable\./)).toBeVisible();
   const failureMap = await render(createElement(AssessmentMap, { view: failed, rule: failed.rules[0], inspect: () => {} }));
   expect(failureMap.container.querySelector('.map-check')?.textContent).not.toContain('Rule outcome / PASS');
 });

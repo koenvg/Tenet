@@ -1,11 +1,3 @@
-.status-chip { display: inline-flex; align-items: center; gap: .35rem; width: fit-content; max-width: 100%; padding: .15rem .5rem; border: 1px solid #cdd6e1; border-radius: 999px; background: #eef2f6; color: #46576b; font-size: .75rem; font-weight: 650; line-height: 1.4; vertical-align: middle; overflow-wrap: anywhere; }
-.status-chip::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex: none; }
-.status-chip.with-icon::before { display: none; }
-.status-chip.with-icon .decision-icon { width: 18px; height: 18px; flex: none; stroke-width: 2; }
-.status-chip.positive { color: #17623e; background: #e7f5ed; border-color: #b4dcc5; }
-.status-chip.danger { color: #9b3534; background: #fbeceb; border-color: #eac1bd; }
-.status-chip.caution { color: #805516; background: #fcf2de; border-color: #e6d1a7; }
-.status-chip.approval { color: #62419a; background: #f0eafb; border-color: #d5c5ed; }
 .pane-resizer { position: relative; min-height: 0; align-self: stretch; cursor: col-resize; touch-action: none; user-select: none; background: #f3f5f8; border-inline: 1px solid #d9dfe6; }
 .pane-resizer::after { content: ''; position: absolute; left: 50%; top: 50%; width: 3px; height: 28px; border-radius: 2px; background: #96a6b8; transform: translate(-50%, -50%); }
 .pane-resizer:hover, .pane-resizer:focus-visible, .pane-resizer.dragging { background: #e5eefb; }

@@ -1,4 +1,4 @@
-import { mountSummaryWorkspace } from './library.svelte';
+import { mountSummaryWorkspace } from './library';
 import { previewInput, previewSummaries } from './preview-fixture';
 const target = document.getElementById('summary-preview')!;
 const narrow = new URLSearchParams(location.search).get('container') === '390';

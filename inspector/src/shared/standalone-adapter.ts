@@ -1,6 +1,7 @@
 import type { InvocationView } from '../../../src/inspector/view.js';
 import type { InvocationSummary } from '../../../src/inspector/archive-index.js';
 import type { SummaryCall, SummaryDecision, SummaryRule, SummaryScore, SummaryEvaluatorState } from './model.js';
+import { summarizeBlockingRules } from '../../../src/inspector/summary-explanation.js';
 
 const score = (value: unknown): SummaryScore | null => {
   if (!value || typeof value !== 'object') return null;
@@ -19,6 +20,7 @@ export function standaloneRule(rule: InvocationView['rules'][number]): SummaryRu
   return {
     id: rule.id, text: rule.text, line: typeof rule.line === 'number' ? rule.line : null,
     enforcement: rule.enforcement, builtin: rule.builtin,
+    origin: rule.origin ? { ...rule.origin } : null,
     result: rule.result ? { outcome: score(rule.result.outcome), evidence: score(rule.result.evidence) } : null,
     gateIds: rule.gateIds ? [...rule.gateIds] : null, contribution: rule.contribution,
     thresholds: { effectThreshold: typeof rule.thresholds.effectThreshold === 'number' ? rule.thresholds.effectThreshold : null,
@@ -27,13 +29,14 @@ export function standaloneRule(rule: InvocationView['rules'][number]): SummaryRu
   };
 }
 export function standaloneSummary(view: InvocationView & { evaluatorState?: SummaryEvaluatorState }): SummaryDecision {
+  const rules = view.rules.map(standaloneRule);
   return {
     identity: view.identity ? { callId: view.identity.callId, toolName: view.identity.toolName, mode: view.identity.mode } : null,
     metadata: { schemas: view.identity?.schemas ?? [], questionVersion: String(view.questionVersion ?? 'unknown'),
-      profile: view.assessmentProfile, policyDigest: typeof view.policy.digest === 'string' && /^[a-f0-9]{64}$/.test(view.policy.digest) ? view.policy.digest : null },
+      profile: view.assessmentProfile, policyDigest: typeof (view.policy.combinedDigest ?? view.policy.digest) === 'string' && /^[a-f0-9]{64}$/.test(view.policy.combinedDigest ?? view.policy.digest) ? view.policy.combinedDigest ?? view.policy.digest : null },
     decision: view.decision, reason: view.reason, permission: view.permission, execution: view.execution, approval: view.approval,
     categories: [...view.categories], missing: [...view.missing], assessmentStatus: view.assessmentStatus,
-    failure: view.failure, noRulesClassifiedViolated: view.noRulesClassifiedViolated, rules: view.rules.map(standaloneRule),
+    failure: view.failure, noRulesClassifiedViolated: view.noRulesClassifiedViolated, rules, explanation: summarizeBlockingRules(rules),
     ...(view.evaluatorState ? { evaluatorState: { status: view.evaluatorState.status, reason: view.evaluatorState.reason } } : {}),
   };
 }

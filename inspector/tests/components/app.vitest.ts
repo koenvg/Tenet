@@ -222,7 +222,7 @@ test('a late call response cannot replace a newer manual selection', async () =>
     release();
     await expect.poll(() => requests.includes(`/api/sessions/${sessionId}/invocations/${olderId}`)).toBe(true);
     await new Promise(resolve => setTimeout(resolve, 60));
-    expect(screen.container.querySelector('.decision-title h2 span')?.textContent).toBe('latest');
+    expect(screen.container.querySelector('.call-label')?.textContent).toBe('Call latest');
     expect(location.search).toContain(`invocation=${latestId}`);
   } finally { release(); await screen.unmount(); }
 });

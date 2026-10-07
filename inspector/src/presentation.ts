@@ -1,6 +1,7 @@
 import type { InvocationView } from '../../src/inspector/view.js';
-import type { SummaryDecision, SummaryRule } from './shared/model.js';
+import type { SummaryDecision, SummaryRule, SummaryExplanation } from './shared/model.js';
 import { categoryLabels, uncertaintyKeys, type FindingCategory } from '../../src/decision/finding-triage.js';
+import { summarizeBlockingRules } from '../../src/inspector/summary-explanation.js';
 
 export type StatusTone = 'neutral' | 'positive' | 'danger' | 'caution' | 'approval';
 export type StatusIcon = 'executed' | 'failed' | 'block' | 'allow' | 'ask' | 'unknown';
@@ -61,12 +62,12 @@ export function contributionExplanation(rule: SummaryRule, mode?: string): strin
   if (rule.contribution === 'approval-required' && mode === 'observe') return 'Approval condition. Approval was not requested in observe mode.';
   return contributions[rule.contribution] ?? 'Contribution unavailable: not recorded.';
 }
-export type RuleView = InvocationView['rules'][number];
+export type RuleView = SummaryRule;
 export type DockTab = 'Evidence' | 'Questions' | 'Response' | 'Policy';
 export type MobileView = 'calls' | 'assessment';
 
 export const pretty = (value: unknown) => value == null ? 'Unavailable: not recorded.' : JSON.stringify(value, null, 2);
-export const ruleName = (rule: SummaryRule) => rule.builtin ? 'Built-in integrity' : `Line ${rule.line ?? 'unavailable'}`;
+export const ruleName = (rule: Pick<SummaryRule, 'builtin' | 'line'>) => rule.builtin ? 'Built-in integrity' : `Line ${rule.line ?? 'unavailable'}`;
 export const gateLabels: Record<string, string> = {
   'rule-fail': 'Reported FAIL',
   'outcome-unknown': 'Outcome unknown',
@@ -82,7 +83,7 @@ export const contributions: Record<string, string> = {
   'approval-required': 'Requires approval. Another rule may still block the invocation.',
   'advisory-approval': 'Advisory approval requirement. WARN does not request confirmation.',
 };
-export function gateExplanation(gate: string, rule: SummaryRule): string {
+export function gateExplanation(gate: string, rule: Pick<SummaryRule, 'result' | 'thresholds'>): string {
   const outcome = rule.result?.outcome;
   switch (gate) {
     case 'rule-fail': return 'The evaluator selected FAIL for this rule.';
@@ -102,17 +103,19 @@ export function orderedRules<T extends SummaryRule>(rules: T[]) {
   return [...rules].sort((a, b) => rank(a) - rank(b));
 }
 // Presentation of recorded outputs only. No threshold comparisons or evaluator imports.
-function uncertaintyNotice(view: SummaryDecision, blockers = view.rules.filter(r => r.enforcement === 'BLOCK' && r.gateIds?.length)): string | null {
-  if (view.decision !== 'BLOCK' || view.reason !== 'insufficient-evidence' || !view.noRulesClassifiedViolated || !blockers.length
-    || !blockers.every(rule => rule.gateIds?.every(gate => ['outcome-unknown', 'outcome-confidence-below-threshold', 'evidence-insufficient', 'evidence-confidence-below-threshold', 'applicability-unresolved'].includes(gate)))) return null;
+function blockingFacts(view: SummaryDecision): SummaryExplanation {
+  return view.explanation ?? summarizeBlockingRules(view.rules);
+}
+function uncertaintyNotice(view: SummaryDecision, context = blockingFacts(view)): string | null {
+  if (view.decision !== 'BLOCK' || view.reason !== 'insufficient-evidence' || !view.noRulesClassifiedViolated
+    || !context.blockerCount || !context.uncertaintyOnly) return null;
   return `No rule was classified as violated. ${view.identity?.mode === 'observe' ? 'The assessment would block in enforce mode' : 'The recorded assessment is blocked'} by uncertainty. This is not a safety guarantee.`;
 }
 export function explainDecision(view: SummaryDecision): string {
-  const blockers = orderedRules(view.rules).filter(r => r.enforcement === 'BLOCK' && r.gateIds?.length);
-  if (view.decision === 'BLOCK' && blockers.length) {
-    const first = blockers[0]!;
-    const notice = uncertaintyNotice(view, blockers);
-    return `${notice ? notice + ' ' : ''}${ruleName(first)}: ${gateExplanation(first.gateIds![0]!, first)}${blockers.length > 1 ? ` ${blockers.length} rules contribute blocking gates.` : ''}`;
+  const context = blockingFacts(view), first = context.firstBlocker;
+  if (view.decision === 'BLOCK' && first) {
+    const notice = uncertaintyNotice(view, context);
+    return `${notice ? notice + ' ' : ''}${ruleName(first)}: ${gateExplanation(first.gate, first)}${context.blockerCount > 1 ? ` ${context.blockerCount} rules contribute blocking gates.` : ''}`;
   }
   if (view.decision === 'ASK') return view.identity?.mode === 'observe' ? 'Would ask for approval in enforce mode. Approval was not requested in observe mode.' : 'Approval is required by the recorded assessment. Actual permission and execution are shown separately.';
   if (view.decision === 'ALLOW') return view.reason === 'advisory-findings'
@@ -151,7 +154,7 @@ export function decisionReason(view: SummaryDecision): string {
   if (!['validated', 'completed'].includes(assessmentStatus)) return `Assessment ${assessmentStatus}. No completed assessment is available.`;
   const uncertainty = uncertaintyNotice(view);
   if (uncertainty) return 'No rule was classified as violated. The assessment is uncertain.';
-  const blocker = orderedRules(view.rules).find(r => r.enforcement === 'BLOCK' && r.gateIds?.length);
+  const blocker = blockingFacts(view).firstBlocker;
   if (view.decision === 'BLOCK' && blocker) {
     const reasons: Record<string, string> = {
       'rule-fail': blocker.builtin ? 'The built-in integrity check reported a violation.' : 'A policy rule was reported as violated.',
@@ -160,7 +163,7 @@ export function decisionReason(view: SummaryDecision): string {
       'evidence-insufficient': 'There was not enough evidence to assess a policy rule.',
       'evidence-confidence-below-threshold': 'Evidence confidence was below the required threshold.',
     };
-    return reasons[blocker.gateIds![0]!] ?? explainDecision(view);
+    return reasons[blocker.gate] ?? explainDecision(view);
   }
   if (view.failure) return 'The assessment could not complete. See Details for the recorded reason.';
   if (view.decision === 'ASK') return 'An approval condition was recorded.';

@@ -183,7 +183,7 @@ Unloading removes observation and enforcement. There is no live-mode mock fallba
 
 ## A check fails
 
-- Missing SDK output, inspector assets or website pages: run the three build commands before the Bun suite.
+- Missing SDK output, inspector assets or website pages: run the four build commands before the Bun suite.
 - Chromium cannot start: install Chromium and, on Linux, its system libraries.
 - Startup tests time out with plain `bun test`: use the isolated serial command above. On Bun 1.3.14, the all-file default can register `node:test` files inside another running test.
 - Archive metadata fails: inspect the named entry and rebuild without host metadata. Do not skip the separate metadata gate.

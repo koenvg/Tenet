@@ -10,15 +10,17 @@ Use Node 22.19+ for the Pi-backed fixtures and Bun 1.3.14+. SDK-only consumers h
 
    ```sh
    bun install --frozen-lockfile
+   npm ci --prefix bb-plugin-tenet-status
    bunx playwright install chromium
    ```
 
    On Linux CI, use `bunx playwright install --with-deps chromium` for browser system libraries. Installation can download packages; the suites do not make external requests.
 
-2. Build the SDK before Pi-backed browser fixtures import it:
+2. Open the [isolated validation shell](../../CONTRIBUTING.md#check-a-change), then build the SDK and shared library. Pi-backed fixtures import the SDK; BB preview tests import the generated shared summary.
 
    ```sh
    bun run sdk:build
+   bun run summary:build
    ```
 
 3. Run static checks, then both UI suites:
@@ -69,6 +71,8 @@ Integration tests cover live session discovery, delayed execution, selected-sess
 ## Execution-first status regressions
 
 `test/inspector-presentation.test.ts` covers the execution/permission matrix, unknown and future values, neutral Ran and contradictions. Assessment, approval and scores cannot establish execution.
+
+`bb-plugin-tenet-status/paginated-summary-parity.test.ts` writes valid schema-3/4 historical archives and current schema-5 production records with 16 user rules plus integrity. Public HOST reads and React-rendered summaries keep integrity violations, uncertainty and multiple-blocker explanations unchanged from first page to second page and back. Inspection still returns at most 16 rules per page; strict explanation schemas reject extra fields and raw sentinels.
 
 Component tests assert identical list/summary labels and tones for Ran, Failed, TENET blocked, Released and Execution unknown. They keep FAIL, uncertainty, approval, WARN and evaluator/lifecycle states separate. Missing assessments and nullable non-applicability evidence cannot invent scores or passing checks.
 

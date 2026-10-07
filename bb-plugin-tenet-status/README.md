@@ -119,6 +119,10 @@ The owner response includes an opaque 64-character `readScope` for its resolved 
 
 Cursors are limited to 512 characters, labels to 256, recorded rule text to 2,048, issue lists to 20 codes, and session/call pages to 50 summaries. Rule pages contain at most 16 rules, including built-in integrity. Summary rules retain recorded thresholds, policy digest and contract versions; they do not read current policy files.
 
+The call explanation uses bounded whole-call facts, separate from the browsed rule page. It keeps the recorded first blocking gate, scores and thresholds, total blocking-rule count and uncertainty-only marker.
+
+Loading another page does not change the call explanation or increase the 16-rule page limit. This context contains no additional rule text or raw payload.
+
 Select a call, open **Why this assessment**, then **Browse all rules**. Use **More rules** for the next page or **First rule page** to return. Page counts identify rules not shown on the current page.
 
 Text over 2,048 characters ends with `[omitted]`; selected rule details show the number of source characters omitted. Missing text and assessed rules without a recorded snapshot are explicit, not passing results.
@@ -127,13 +131,15 @@ Rule cursors bind the operation, thread, linked session, call and recorded snaps
 
 Schema-3 and schema-4 records keep their recorded contract, selected probabilities, effective thresholds and known gates. WARN, built-in integrity, uncertainty and approval remain distinct. Released permission does not prove execution.
 
+Schema-5 summaries retain recorded source roles, paths, targets and digests within the same 256-character label limit. Their policy identity uses the recorded combined digest. Missing historical source roles stay unknown; the reader never infers them from paths.
+
 To inspect raw data, open the standalone inspector on the selected thread's machine with the same private archive. Follow the [checkout standalone inspector guide](../docs/inspector.md). A browser-local inspector or another machine's archive is not a substitute. Opening the BB summary starts no listener and adds no Evidence or Response endpoint.
 
 Exact thread association is checked before grouping or counting. A shared native session or resumed Pi session cannot supply another thread's calls. Missing unlinked history remains standalone-only. Policy text renders inertly, but can itself contain secrets. Summary-only access is not a confidentiality boundary against same-user code or an owner client. Raw arguments, command/file previews, submitted evidence, exact questions, provider bodies and error text stay host-local.
 
 ## Shared summary build
 
-The checkout includes one Svelte summary composition for the standalone inspector and both BB entry points, mounted through a typed React wrapper. Shared-field placement is the same in both hosts. Standalone action previews and raw inspection remain separate extensions.
+The checkout includes one React summary composition used directly by the standalone inspector and both BB entry points through a typed summary interface. Shared-field placement is the same in both hosts. Standalone action previews and raw inspection remain separate extensions.
 
 Before importing the mount or running its tests, build the ignored `.summary-workspace/` output with `bun run summary:build` from the repository root. `bun run plugin:build` rebuilds that output, then builds the plugin. Building files installs or reloads nothing. A missing or stale shared artifact stops `npm run build` with the required command.
 

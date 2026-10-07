@@ -1,7 +1,8 @@
 import { expect, test } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
-import { tick } from 'svelte';
-import { mountSummaryWorkspace } from '../../src/shared/library.svelte.js';
+import { act } from 'react';
+const tick = () => act(async () => {});
+import { mountSummaryWorkspace } from '../../src/shared/library.js';
 import { rulesSyntheticRead } from '../../../bb-plugin-tenet-status/rules.preview-fixture.js';
 for (const [viewport, width] of [[390, 390], [1280, 390], [1280, 1000]]) test(`rule paging and keyboard access in ${width}px container at ${viewport}px`, async () => {
   await page.viewport(viewport!, 900);

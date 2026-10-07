@@ -1,6 +1,6 @@
 # Build and use the shared summary workspace
 
-Use this developer-checkout reference to build the Svelte summary library and mount it from React. The standalone inspector and both BB overview entry points use this workspace. See [the BB overview guide](../bb-plugin-tenet-status/README.md) for main-page selection, the thread panel and safe host reads.
+Use this developer-checkout reference to build the shared React summary library. The standalone inspector and both BB overview entry points use this workspace. See [the BB overview guide](../bb-plugin-tenet-status/README.md) for main-page selection, the thread panel and safe host reads.
 
 ## Build the library and plugin
 
@@ -12,7 +12,7 @@ Use Bun 1.3.14+, Node 22.19+, the [locked development dependencies](../CONTRIBUT
    bun run plugin:build
    ```
 
-   This rebuilds the Svelte library, its bundled runtime, scoped CSS and TypeScript declarations in ignored `bb-plugin-tenet-status/.summary-workspace/`. It then runs `npm run build` in the plugin directory. Nothing is installed or reloaded.
+   This rebuilds the React library, scoped CSS and TypeScript declarations in ignored `bb-plugin-tenet-status/.summary-workspace/`. React stays external so the standalone app and BB each use their own existing React runtime. The command then runs `npm run build` in the plugin directory. Nothing is installed or reloaded.
 
 2. Check the library and React adapter:
 
@@ -61,7 +61,11 @@ The source contract is [shared/model.ts](src/shared/model.ts). It is a presentat
 
 `SummaryDecision` has call/tool identity and mode, those recorded facts, approval, recorded reason code, the recorded no-violation flag and rules. It has no action, evidence, question or provider-response field.
 
-`SummaryRule` has recorded ID, inert text, line, `enforcement` severity, built-in identity, selected outcome/evidence scores and probabilities, gates, contribution, effective thresholds, evidence-gate status and assessment profile. Nullable scores, thresholds and gates remain unknown. The view never compares current policy or recomputes classifications.
+The optional `explanation` holds whole-call blocking facts: blocker count, whether all recorded blocking gates are uncertainty gates, and the first blocker's built-in identity, line, gate, scores and thresholds. Paginated HOST summaries require this strict, bounded context.
+
+Both adapters derive it from the complete snapshot through `summarizeBlockingRules`; changing the inspected rule page cannot change the call explanation. It contains no rule text or raw payload.
+
+`SummaryRule` has recorded ID, inert text, line, `enforcement` severity, built-in identity, selected outcome/evidence scores and probabilities, gates, contribution, effective thresholds, evidence-gate status and assessment profile. The optional recorded source origin retains role, path, target, digest and line; BB bounds its labels to 256 characters. Nullable scores, thresholds and gates remain unknown. The view never compares current policy or recomputes classifications.
 
 BB transport limits are 50 sessions/calls per page, 16 rules per page, 512-character cursors, 256-character labels, 2,048-character rule text and 20 issue codes. Host reads preserve explicit text/page omission markers, the shared 256-stage/16-MiB refresh budget and selected-detail 64-stage/16-MiB cap. They validate exact thread association before grouping or counting.
 
@@ -72,24 +76,24 @@ The optional `evaluatorState` on calls and selected summaries contains recorded 
 ## Two adapters, one presentation
 
 ```text
-standalone HTTP -> explicit summary projection -> shared Svelte workspace
-                  standalone-only snippets   -> raw detail views
+standalone HTTP -> explicit summary projection -> shared React workspace
+                  standalone-only extensions   -> raw detail views
 
 BB host RPC             -> validated safe summary     -> React mount -> same workspace
 ```
 
-The standalone app uses [standalone-adapter.ts](src/shared/standalone-adapter.ts) to copy summary fields. Both hosts render [SummaryDetail.svelte](src/shared/SummaryDetail.svelte) for call identity, recorded assessment status and reason, and the decision summary.
+The standalone app uses [standalone-adapter.ts](src/shared/standalone-adapter.ts) to copy summary fields. Both hosts render [SummaryDetail.tsx](src/shared/SummaryDetail.tsx) for call identity, recorded assessment status and reason, and the decision summary.
 
 The same component renders the recorded map and the **Why this assessment**, **Selected check details** and **Browse all rules** disclosures. Shared spacing, hierarchy and disclosure styles live in [presentation.css](src/shared/presentation.css).
 
-Standalone [Detail.svelte](src/Detail.svelte) adds a separate **Standalone-only inspection** section after the complete common summary. Its **Recorded action**, **Evidence** and **Details** disclosures hold action previews, exact questions, Response, Policy and recording details. No raw extension changes the content or order of common summary rows.
+Standalone [Detail.tsx](src/Detail.tsx) adds a separate **Standalone-only inspection** section after the complete common summary. Its **Recorded action**, **Evidence** and **Details** disclosures hold action previews, exact questions, Response, Policy and recording details. No raw extension changes the content or order of common summary rows.
 
 Rule selection still chooses the standalone dock's recorded rule. Existing session links, history, polling and uncertainty groups stay in the standalone app.
 
-The library entry is [library.svelte.ts](src/shared/library.svelte.ts). `mountSummaryWorkspace(target, input)` returns `update(input)` and asynchronous, idempotent `destroy()`. Updates after disposal do nothing. The entry exposes no raw-detail snippets, HTTP client, polling timer or global history handler.
+The library entry is [library.tsx](src/shared/library.tsx). `mountSummaryWorkspace(target, input)` returns `update(input)` and asynchronous, idempotent `destroy()`. Updates after disposal do nothing. The entry exposes no raw-detail snippets, HTTP client, polling timer or global history handler.
 
-[SummaryWorkspaceMount](../bb-plugin-tenet-status/summary-workspace.tsx) is the typed React wrapper. It mounts once, updates the same Svelte instance for new input and destroys it on unmount. Key the wrapper by adapter scope when switching threads or sessions. The adapter must cancel old reads, ignore late completions and clear stale results after an unavailable read.
+[SummaryWorkspaceMount](../bb-plugin-tenet-status/summary-workspace.tsx) renders the shared React component directly. There is no second UI runtime or polling owner. Key the view by adapter scope when switching threads or sessions. The adapter must cancel old reads, ignore late completions and clear stale results after an unavailable read.
 
-Styles stay under `.tenet-presentation`, `.tenet-summary-workspace.embedded` or Svelte-generated component selectors. They inherit BB theme tokens and do not import standalone document styles. The library opens no iframe, proxy or inspector listener. Standalone loopback, Host, Origin and frame restrictions remain unchanged.
+Styles stay under `.tenet-presentation` and `.tenet-summary-workspace.embedded`. They inherit BB theme tokens and do not import standalone document styles. The library opens no iframe, proxy or inspector listener. Standalone loopback, Host, Origin and frame restrictions remain unchanged.
 
 Raw evidence remains accessible only through the [standalone inspector](../docs/inspector.md). Safe summaries still include recorded rule text. They do not guarantee confidentiality against same-user code, complete capture, live evaluator connectivity, permission or execution.

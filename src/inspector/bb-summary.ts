@@ -6,6 +6,8 @@ import type { SummaryCall, SummaryDecision, SummaryRule, SummaryScore } from './
 import type { Reason } from '../decision/contracts.js';
 import { evaluatorFailureCodes } from './finding-view.js';
 import { recordedDecisionFacts } from './recorded-decision.js';
+import { recordedOrigin } from '../recording/policy-contract.js';
+import { summarizeBlockingRules } from './summary-explanation.js';
 
 // Keep the BB reason allowlist complete when the decision contract changes.
 const decisionReasons = {
@@ -55,12 +57,16 @@ export function projectSummaryDecision(records: ArchiveRecord[], ruleOffset = 0)
   const rules = [...list(policy.rules), ...(typeof integrity.id === 'string' ? [{ ...integrity, enforcement: 'BLOCK', line: null }] : [])];
   const diagnostics = [...list(decision.contributions), ...list(decision.diagnostics)];
   const valid = findings.evaluatorState.status === 'completed' && stage('validation').valid === true;
-  const summaryRules: SummaryRule[] = rules.slice(ruleOffset, ruleOffset + 16).map(rule => {
+  const allRules: SummaryRule[] = rules.map(rule => {
     const result = valid ? list(assessment.rules).find(r => r.ruleId === rule.id) : undefined;
     const contribution = diagnostics.find(r => r.ruleId === rule.id);
     const text = typeof rule.text === 'string' ? rule.text : 'Rule text unavailable';
+    const origin = rule.id === integrity.id ? null : recordedOrigin(records.findLast(r => r.stage === 'request' || r.stage === 'begin')?.schemaVersion, rule, policy);
     return { id: summaryLabel(rule.id), text: text.length <= 2048 ? text : `${text.slice(0, 2038)} [omitted]`,
       line: Number.isSafeInteger(rule.line) && rule.line > 0 ? rule.line : null,
+      origin: origin ? { role: origin.role, source: origin.source === null ? null : summaryLabel(origin.source),
+        target: origin.target === null ? null : summaryLabel(origin.target), digest: origin.digest === null ? null : summaryLabel(origin.digest),
+        line: Number.isSafeInteger(origin.line) && origin.line! > 0 ? origin.line : null } : null,
       textStatus: typeof rule.text !== 'string' ? 'missing' : text.length > 2048 ? 'truncated' : 'recorded',
       omittedTextChars: typeof rule.text === 'string' && text.length > 2048 ? text.length - 2038 : 0,
       enforcement: known(rule.enforcement, ['BLOCK', 'WARN']), builtin: rule.id === integrity.id,
@@ -72,10 +78,11 @@ export function projectSummaryDecision(records: ArchiveRecord[], ruleOffset = 0)
       evidenceGate: known(contribution?.evidenceGate, ['applicable', 'not-applicable', 'unavailable']),
       profile: summaryLabel(contribution?.profile ?? findings.profile) };
   });
+  const summaryRules = allRules.slice(ruleOffset, ruleOffset + 16);
   const facts = recordedDecisionFacts(records);
   return { identity: records[0] ? { callId: summaryLabel(records[0].callId), toolName: summaryLabel(records[0].toolName), mode: records[0].mode } : null,
     metadata: { schemas: [...new Set(records.map(r => r.schemaVersion))], questionVersion: summaryLabel(request.questionVersion ?? begin.questionVersion),
-      profile: summaryLabel(findings.profile), policyDigest: typeof policy.digest === 'string' && /^[a-f0-9]{64}$/.test(policy.digest) ? policy.digest : null },
+      profile: summaryLabel(findings.profile), policyDigest: typeof (policy.combinedDigest ?? policy.digest) === 'string' && /^[a-f0-9]{64}$/.test(policy.combinedDigest ?? policy.digest) ? policy.combinedDigest ?? policy.digest : null },
     decision: known(facts.decision, ['ALLOW', 'ASK', 'BLOCK']),
     reason: known(facts.reason, safeReasons, findings.evaluatorState.reason ?? 'recorded-decision'),
     permission: known(facts.permission, ['released', 'blocked']), execution: known(facts.execution, ['executed', 'failed']),
@@ -84,6 +91,7 @@ export function projectSummaryDecision(records: ArchiveRecord[], ruleOffset = 0)
     missing: ['begin', 'request', 'response', 'validation', 'assessment', 'decision', 'permission', 'execution'].filter(s => !records.some(r => r.stage === s)),
     assessmentStatus: findings.evaluatorState.status, failure: findings.evaluatorState.reason, evaluatorState: { ...findings.evaluatorState },
     noRulesClassifiedViolated: valid && noRulesClassifiedViolated(policy, integrity, assessment, stage('validation'), findings.profile),
+    explanation: summarizeBlockingRules(allRules),
     rules: summaryRules, omittedRules: Math.max(0, rules.length - summaryRules.length),
     missingRuleSnapshots: valid ? list(assessment.rules).filter(result => !rules.some(rule => rule.id === result.ruleId)).length : 0 };
 }

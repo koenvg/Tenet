@@ -63,7 +63,7 @@ describe('finding RPC output contract', () => {
   it('accepts a complete finding through the RPC output validator', async () => {
     const fake = createFakePluginHost();
     try {
-      fake.bb.rpc.register(rpcContract, { status: () => linked, findings: () => page });
+      fake.bb.rpc.register({ status: rpcContract.status, findings: rpcContract.findings }, { status: () => linked, findings: () => page });
       expect(await fake.harness.behavior.callRpc('findings', { threadId })).toEqual(page);
     } finally { await fake.harness.lifecycle.dispose(); }
   });
@@ -71,7 +71,7 @@ describe('finding RPC output contract', () => {
   it.each(rejectedMocks)('rejects $name at the RPC output boundary', async ({ handler, path }) => {
     const fake = createFakePluginHost();
     try {
-      fake.bb.rpc.register(rpcContract, { status: () => linked, findings: handler });
+      fake.bb.rpc.register({ status: rpcContract.status, findings: rpcContract.findings }, { status: () => linked, findings: handler });
       await expect(fake.harness.behavior.callRpc('findings', { threadId })).rejects.toMatchObject({
         code: 'invalid_output', issues: expect.arrayContaining([expect.objectContaining({ path })]),
       });

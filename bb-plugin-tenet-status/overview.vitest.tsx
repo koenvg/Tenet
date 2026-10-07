@@ -98,7 +98,7 @@ test('one adapter ignores late scopes, times out, polls once, and stops reads/ti
   expect(changed).toHaveBeenCalledTimes(notifications); expect(read).toHaveBeenCalledTimes(3); expect(vi.getTimerCount()).toBe(0);
 });
 
-test('panel unmount stops its single ten-second reader and disposes the Svelte mount', async () => {
+test('panel unmount stops its single ten-second reader and disposes the shared workspace', async () => {
   vi.useFakeTimers();
   const app = await loadPluginApp(() => import('./app'));
   const read = vi.fn(() => structuredClone(syntheticOverview));

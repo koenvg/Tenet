@@ -1,12 +1,13 @@
 import type { ThreadOverview } from '../src/inspector/bb-summary.js';
 import { previewSummaries } from '../inspector/src/shared/preview-fixture.js';
+import { summarizeBlockingRules } from '../src/inspector/summary-explanation.js';
 const id = (n: number) => n.toString(16).padStart(64, '0');
 const pass = { ...previewSummaries['synthetic-pass']!, metadata: { schemas: [4], questionVersion: 'synthetic-v1',
-  profile: 'synthetic-recorded-profile', policyDigest: id(10) }, omittedRules: 0, evaluatorState: { status: 'completed' as const, reason: null } };
+  profile: 'synthetic-recorded-profile', policyDigest: id(10) }, omittedRules: 0, explanation: summarizeBlockingRules(previewSummaries['synthetic-pass']!.rules), evaluatorState: { status: 'completed' as const, reason: null } };
 const failed = { ...pass, identity: { toolName: 'bash', callId: 'synthetic-provider-error-1', mode: 'observe' },
   decision: 'BLOCK', reason: 'provider-error', assessmentStatus: 'unavailable', failure: 'provider-error',
   evaluatorState: { status: 'unavailable' as const, reason: 'provider-error' }, categories: ['unavailable' as const],
-  noRulesClassifiedViolated: false, rules: pass.rules.map(rule => ({ ...rule, result: null, gateIds: null })) };
+  noRulesClassifiedViolated: false, explanation: summarizeBlockingRules([]), rules: pass.rules.map(rule => ({ ...rule, result: null, gateIds: null })) };
 export const syntheticOverview: ThreadOverview = {
   state: 'available', coverage: 'partial', linkedCalls: 3, failures: 0, issues: ['corrupt-record'],
   sessions: [{ id: id(1), timestamp: 2000, started: 1000, calls: 3,

@@ -564,7 +564,7 @@ export class ArchiveIndex {
       const first = metadata[0]!;
       const detail = await this.detail(recordSessionKey(first), recordInvocationKey(first), threadId);
       const observed = new Set(detail.records.map(r => r.eventId));
-      if (detail.readIssues.length || metadata.some(r => !observed.has(r.eventId)) || detail.records.some(r => r.host !== 'pi' || ![3, 4].includes(r.schemaVersion))) issues.add('detail-unavailable');
+      if (detail.readIssues.length || metadata.some(r => !observed.has(r.eventId)) || detail.records.some(r => r.host !== 'pi' || ![3, 4, 5].includes(r.schemaVersion))) issues.add('detail-unavailable');
       else {
         // Hash the selected recorded snapshot on this host. No source data enters the cursor.
         const snapshot = sessionKey(JSON.stringify(detail.records));
