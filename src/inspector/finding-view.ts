@@ -36,10 +36,14 @@ export function findingStage(record: Pick<ArchiveRecord, 'stage' | 'data' | 'tim
   return { stage, timestamp, profile };
 }
 
-const failures = new Set(['missing-credentials', 'provider-error', 'invalid-response', 'timeout', 'cancelled',
+// Only these recorded failure codes may cross the BB RPC boundary.
+export const evaluatorFailureCodes = ['missing-credentials', 'provider-error', 'invalid-response', 'timeout', 'cancelled',
   'configuration', 'policy-unavailable', 'policy-format', 'policy-file-limit', 'policy-rule-count-limit', 'policy-rule-size-limit',
-  'guard-error', 'guard-state-changed', 'session-shutdown']);
-
+  'guard-error', 'guard-state-changed', 'session-shutdown', 'validation-failed', 'assessment-unavailable'] as const;
+export type EvaluatorFailureCode = typeof evaluatorFailureCodes[number];
+export type EvaluatorState = { status: 'completed' | 'unavailable' | 'pending' | 'dropped' | 'cancelled' | 'incomplete';
+  reason: EvaluatorFailureCode | null };
+const failures = new Set<string>(evaluatorFailureCodes);
 export function foldFindingStages(records: readonly FindingStage[]) {
   const stage = (name: Stage) => records.findLast(r => r.stage === name);
   const validation = stage('validation'), assessment = stage('assessment'), lifecycle = stage('assessment-status');
@@ -55,9 +59,20 @@ export function foldFindingStages(records: readonly FindingStage[]) {
     rules.set(rule.ruleId, { ruleId: rule.ruleId, outcome: rule.outcome ?? previous?.outcome,
       gates: [...new Set([...(previous?.gates ?? []), ...rule.gates])] });
   }
-  const facts = { assessmentStatus, reason: failure, rules: [...rules.values()] };
+  // A terminal lifecycle record supplies the cause even when validation only says false.
+  // Queue cancellation/drop is not an evaluator failure, including when validation was interrupted.
+  const unfinished = ['pending', 'dropped', 'cancelled'].includes(assessmentStatus);
+  const recordedFailure = unfinished ? null : lifecycle?.status === 'unavailable'
+    ? lifecycle.reason ?? failure ?? 'assessment-unavailable' : failure;
+  const evaluatorState: EvaluatorState = {
+    status: recordedFailure ? 'unavailable' : ['validated', 'completed'].includes(assessmentStatus)
+      ? selectedAssessment?.model ? 'completed' : 'incomplete' : assessmentStatus as EvaluatorState['status'],
+    reason: recordedFailure ? failures.has(recordedFailure) ? recordedFailure as EvaluatorFailureCode : 'assessment-unavailable' : null,
+  };
+  const facts = { assessmentStatus: evaluatorState.status, reason: recordedFailure,
+    rules: evaluatorState.status === 'unavailable' || unfinished ? [] : [...rules.values()] };
   const begin = stage('begin');
-  return { assessmentStatus, failure: lifecycle?.status === 'unavailable' ? lifecycle.reason ?? 'assessment-unavailable' : failure,
+  return { assessmentStatus, failure: recordedFailure, evaluatorState,
     categories: classifyFinding(facts), uncertainty: uncertaintyKeys(facts),
     policyIdentity: begin?.policyIdentity ?? 'unrecorded policy identity',
     profile: lifecycle?.profile ?? records.findLast(r => r.profile && r.profile !== 'legacy (historical)')?.profile ?? begin?.profile ?? 'legacy (historical)',

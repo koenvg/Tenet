@@ -10,15 +10,17 @@ Use Node 22.19+ for the Pi-backed fixtures and Bun 1.3.14+. SDK-only consumers h
 
    ```sh
    bun install --frozen-lockfile
+   npm ci --prefix bb-plugin-tenet-status
    bunx playwright install chromium
    ```
 
    On Linux CI, use `bunx playwright install --with-deps chromium` for browser system libraries. Installation can download packages; the suites do not make external requests.
 
-2. Build the SDK before Pi-backed browser fixtures import it:
+2. Open the [isolated validation shell](../../CONTRIBUTING.md#check-a-change), then build the SDK and shared library. Pi-backed fixtures import the SDK; BB preview tests import the generated shared summary.
 
    ```sh
    bun run sdk:build
+   bun run summary:build
    ```
 
 3. Run static checks, then both UI suites:
@@ -43,6 +45,8 @@ Vitest Browser Mode mounts React components in headless Chromium without a produ
 
 - Decisions, inert recorded Markdown, question formatting, and evidence navigation.
 - Resizing, initial selection, deep links, and loading/error/recovery states.
+- Shared summary hierarchy, check-selection focus, inert rule text and narrow Calls/Summary navigation at a 390px viewport and a 390px container inside a wide window.
+- Summary projection and rendered output exclude sentinel action arguments, submitted evidence, exact questions, provider bodies, raw policy and recording paths. The library mount updates and disposes without transport or shell-style changes.
 
 The API mock rejects unexpected or non-local requests. This suite does not check archive security.
 
@@ -68,6 +72,8 @@ Integration tests cover live session discovery, delayed execution, selected-sess
 
 `test/inspector-presentation.test.ts` covers the execution/permission matrix, unknown and future values, neutral Ran and contradictions. Assessment, approval and scores cannot establish execution.
 
+`bb-plugin-tenet-status/paginated-summary-parity.test.ts` writes valid schema-3/4 historical archives and current schema-5 production records with 16 user rules plus integrity. Public HOST reads and React-rendered summaries keep integrity violations, uncertainty and multiple-blocker explanations unchanged from first page to second page and back. Inspection still returns at most 16 rules per page; strict explanation schemas reject extra fields and raw sentinels.
+
 Component tests assert identical list/summary labels and tones for Ran, Failed, TENET blocked, Released and Execution unknown. They keep FAIL, uncertainty, approval, WARN and evaluator/lifecycle states separate. Missing assessments and nullable non-applicability evidence cannot invent scores or passing checks.
 
 `integration/status.vitest.ts` uses authored inert stage records. Its initial regression failed before the change because the primary badge was Would block rather than Ran. It checks desktop and 390px previews, historical schemas 1 through 4, exact submitted evidence, recorded labels/probabilities/thresholds/questions, result/blocked-permission contradictions and missing-result precedence.
@@ -82,13 +88,17 @@ Verification rewrites no archive or policy and restarts no active service. Owner
 
 ## Simplified first view
 
-TENET-42 keeps the action, actual status, mode, findings and one brief reason visible. The sidebar uses one actual-status chip, quiet mode text and one concern cue.
+The first view keeps call identity, recorded assessment status, actual execution, mode, findings and one brief reason visible. Both adapters use the same safe summary rows. The sidebar uses one actual-status chip, quiet mode text and one concern cue.
 
 A `+N` cue counts additional finding categories, not additional violated rules. All categories remain in the selected call and category filters are unchanged.
 
-**Why this assessment** opens the recorded Open map, selected check and all rules. **Evidence** opens the existing tabbed dock. **Details** opens exact lifecycle, versions, coverage and validation diagnostics.
+**Why this assessment** opens the recorded map, selected check and all rules. The separate **Standalone-only inspection** section contains **Recorded action**, the **Evidence** tabbed dock and **Details** for exact lifecycle, versions, coverage and validation diagnostics.
 
 Native disclosures stay closed on a new selection and remain mounted through polls. Tests open these public entry points before interaction; no old regression was skipped. New desktop/narrow tests check the simpler default and keyboard disclosure path.
+
+The common-only comparison checks identical safe DOM content/order and element positions at wide and 390px container widths. Selection, filters, check details and disclosures stay synchronized across adapters. A raw-extension toggle must not move or change common summary rows; provider failure and coverage facts remain visible.
+
+Browser Back tests check selected-call association, action preview, submitted evidence and exact question access after standalone extension placement changes. These use synthetic archive HTTP and public controls at desktop and 390px viewport sizes.
 
 Expanded Details groups recorded outcomes, recording metadata and coverage. Keys and values align at desktop and narrow widths. Rule notes stay separate from capture counters.
 

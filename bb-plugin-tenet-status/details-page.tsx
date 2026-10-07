@@ -75,11 +75,6 @@ function LinkedFindings({ threadId }: { threadId: string }) {
 }
 
 export function DetailsPage({ subPath }: { subPath: string }) {
-  if (!subPath) return <main className="mx-auto max-w-4xl space-y-3 p-4 text-foreground sm:p-8">
-    <h1 className="text-xl font-semibold">TENET findings</h1>
-    <p>Open a Pi thread, select TENET rules, then View flagged rules.</p>
-    <p>Older records may only be available in the TENET inspector.</p>
-  </main>;
   if (!/^thr_[a-z0-9]{8,64}$/.test(subPath)) return <main className="p-4"><h1>Invalid thread link.</h1></main>;
   return <LinkedFindings key={subPath} threadId={subPath} />;
 }

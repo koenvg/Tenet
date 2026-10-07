@@ -8,7 +8,9 @@ export default function RuleDetail({ rule, mode }: { rule: RuleView; mode?: stri
     <div className="rule-detail-title"><h3>{rule.builtin ? 'Built-in integrity' : `Rule at line ${rule.line}`}</h3><span className="setting">{rule.enforcement}</span></div>
     {!rule.builtin && <p className="setting">Source role: {rule.origin?.role ?? 'unknown, not recorded'}{rule.origin?.source && ` | ${rule.origin.source}`}</p>}
     <p className="snapshot-text">{rule.text}</p>
-    {rule.result?.outcome && <p className="rule-outcome">Rule outcome <StatusChip value={rule.result.outcome.choice ?? 'Unavailable'} /></p>}
+    {rule.textStatus === 'truncated' && <p className="missing-data">Rule text truncated to 2,048 characters. {rule.omittedTextChars ?? 0} characters omitted.</p>}
+    {rule.textStatus === 'missing' && <p className="missing-data">No rule text snapshot recorded. Missing text is not a pass.</p>}
+    {rule.result?.outcome && <div className="rule-outcome">Rule outcome <StatusChip value={rule.result.outcome.choice ?? 'Unavailable'} /></div>}
     {rule.evidenceGate === 'not-applicable' && <p className="muted">Evidence-confidence gate does not apply. No evidence score was recorded.</p>}
     {(!!rule.gateIds?.length || rule.contribution.includes('approval')) && <p className="contribution">{contributionExplanation(rule, mode)}</p>}
     {rule.gateIds === null ? <p className="missing-data">Gate coverage unavailable: not recorded.</p>

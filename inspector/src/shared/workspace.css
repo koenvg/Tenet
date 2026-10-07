@@ -1,0 +1,42 @@
+/* Workspace shell only. Call and detail presentation live in presentation.css. */
+.tenet-summary-workspace.embedded {
+  --tenet-ink: var(--foreground, #171918); --tenet-muted: var(--muted-foreground, #5b605e);
+  --tenet-chrome: var(--background, #fff); --tenet-soft: var(--muted, #eff0ed);
+  --tenet-line: var(--border, #d4d7d4); --tenet-amber: var(--warning-text, #795617);
+  --tenet-danger: var(--destructive-text, #be3737);
+  --tenet-danger-bg: color-mix(in srgb, var(--tenet-danger) 10%, var(--tenet-chrome));
+  --tenet-amber-bg: color-mix(in srgb, var(--tenet-amber) 10%, var(--tenet-chrome));
+  --tenet-danger-line: color-mix(in srgb, var(--tenet-danger) 30%, var(--tenet-chrome));
+  --tenet-amber-line: color-mix(in srgb, var(--tenet-amber) 30%, var(--tenet-chrome));
+  --tenet-success-bg: color-mix(in srgb, var(--success-text, #17623e) 10%, var(--tenet-chrome));
+  --tenet-success-line: color-mix(in srgb, var(--success-text, #17623e) 30%, var(--tenet-chrome));
+  --tenet-approval-bg: color-mix(in srgb, var(--approval-text, #62419a) 10%, var(--tenet-chrome));
+  --tenet-approval-line: color-mix(in srgb, var(--approval-text, #62419a) 30%, var(--tenet-chrome));
+  container: tenet-summary / inline-size; min-width: 0; width: 100%;
+  display: grid; grid-template-columns: clamp(260px, 30%, 300px) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr); align-content: start; background: var(--tenet-soft);
+}
+.tenet-summary-workspace.embedded .mobile-nav { display: none; gap: 8px; }
+.tenet-summary-workspace.embedded :is(.archive-messages, .mobile-nav) { grid-column: 1 / -1; padding: 12px 24px; }
+.tenet-summary-workspace.embedded .archive-messages { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; color: var(--tenet-muted); font-size: 12px; }
+.tenet-summary-workspace.embedded .archive-messages p { flex: 1; min-width: 160px; }
+.tenet-summary-workspace.embedded .archive-messages label { min-width: 0; max-width: 100%; }
+.tenet-summary-workspace.embedded .archive-messages select { width: 100%; min-width: 0; max-width: 100%; }
+.tenet-summary-workspace.embedded .archive-messages .session-counts { flex-basis: 100%; }
+.tenet-summary-workspace.embedded .explorer { display: flex; flex-direction: column; min-width: 0; padding: 12px 0 20px; }
+.tenet-summary-workspace.embedded .call-list { max-height: 600px; }
+.tenet-summary-workspace.embedded .inspection { min-width: 0; overflow-wrap: anywhere; background: var(--tenet-chrome); border-radius: 16px; margin: 0 24px 20px 0; }
+.tenet-summary-workspace.embedded .invocation { height: auto; }
+.tenet-summary-workspace.embedded [role='alert'] { color: var(--tenet-danger); }
+.tenet-summary-workspace.embedded .call-id { overflow-wrap: anywhere; font-size: 12px; }
+@container tenet-summary (max-width: 650px) {
+  .tenet-summary-workspace.embedded .mobile-nav { display: flex; }
+  .tenet-summary-workspace.embedded .mobile-nav button { flex: 1; text-align: center; }
+  .tenet-summary-workspace.embedded .mobile-nav button[aria-pressed='true'] { background: var(--tenet-soft); font-weight: 600; }
+  .tenet-summary-workspace.embedded :is(.explorer, .inspection) { grid-column: 1 / -1; }
+  .tenet-summary-workspace.embedded .inspection { margin: 0; border-radius: 0; }
+  .tenet-summary-workspace.embedded .call-list { padding: 0 12px; }
+  .tenet-summary-workspace.embedded .call-row { border-radius: 12px; }
+  .tenet-summary-workspace.embedded[data-mobile-view='calls'] .inspection { display: none; }
+  .tenet-summary-workspace.embedded:not([data-mobile-view='calls']) .explorer { display: none; }
+}

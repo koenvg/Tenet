@@ -4,6 +4,8 @@ import { ArchiveIndex } from '../src/inspector/archive-index.js';
 import { recordingConfig } from '../src/recording/archive.js';
 import { directory } from '../src/recording/files.js';
 import { hostContract, unavailable, unavailableFindings } from './contract.js';
+import { emptyOverview } from '../src/inspector/bb-summary.js';
+import { overviewSchema } from './overview-contract.js';
 
 // Retain validated metadata for incremental bounded refreshes on this machine.
 const indexes = new Map<string, ArchiveIndex>();
@@ -35,6 +37,10 @@ export default experimental_defineHostEntry({
     async readFindings({ threadId, cursor, recordingDirectory }) {
       const index = await refreshedIndex(recordingDirectory);
       return index ? index.threadFindings(threadId, cursor) : unavailableFindings();
+    },
+    async readOverview({ threadId, recordingDirectory, ...selection }) {
+      const index = await refreshedIndex(recordingDirectory);
+      return overviewSchema.parse(index ? await index.threadOverview(threadId, selection) : emptyOverview());
     },
   },
   dispose() { indexes.clear(); },

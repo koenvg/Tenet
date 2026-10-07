@@ -1,5 +1,5 @@
 import { type FindingCategory } from '../decision/finding-triage.js';
-import { findingStage, foldFindingStages, type FindingStage } from './finding-view.js';
+import { findingStage, foldFindingStages, type FindingStage, type EvaluatorState, type EvaluatorFailureCode } from './finding-view.js';
 import { lstat, opendir } from 'node:fs/promises';
 import type { Dir } from 'node:fs';
 import { join } from 'node:path';
@@ -8,12 +8,14 @@ import { READER_SCHEMAS, type ArchiveRecord, validRecord } from '../recording/co
 import { directory, MAX_RECORD_BYTES, readPrivateFile } from '../recording/files.js';
 import { captureHealth, invocationView, type CaptureHealth } from './view.js';
 import { projectThreadFinding, type ThreadFinding } from './bb-findings.js';
+import { projectSummaryCall, projectSummaryDecision, type LinkedSessionSummary, type ThreadOverview, type OverviewSelection } from './bb-summary.js';
 
 export interface PageOptions { limit?: number; cursor?: string; offset?: number }
 export interface InvocationSummary {
   id: string; invocationId: string; callId: string; toolName: string; host: string; contextId: string;
   timestamp: number; updated: number; decision: string; missing: string[]; categories: FindingCategory[];
   failure: string | null; assessmentStatus: string;
+  evaluatorState: EvaluatorState;
   mode: string; permission: string; execution: string;
 }
 export interface SessionSummary {
@@ -38,6 +40,7 @@ function countIssue(target: Counts, reason: string, sign = 1): void {
 export interface ThreadStatus {
   coverage: 'unknown' | 'partial'; linkedCalls: number; failures: number; issues: string[];
   notices: { approvals: number; uncertain: number; incomplete: number };
+  assessments: Record<EvaluatorState['status'], number> & { reasons: { code: EvaluatorFailureCode; count: number }[] };
 }
 
 /** Persist only bounded rule facts for the BB thread summary, never assessment evidence. */
@@ -409,7 +412,7 @@ export class ArchiveIndex {
     return { id, invocationId: first.invocationId, callId: first.callId, toolName: first.toolName,
       host: first.host ?? 'pi', contextId: first.contextId ?? 'main', timestamp: first.timestamp,
       updated: Math.max(...records.map(r => r.timestamp)), decision: records.find(r => r.decision)?.decision ?? 'unavailable',
-      failure: findings.failure, assessmentStatus: findings.assessmentStatus, categories: findings.categories, mode: first.mode,
+      evaluatorState: findings.evaluatorState, failure: findings.failure, assessmentStatus: findings.assessmentStatus, categories: findings.categories, mode: first.mode,
       permission: records.findLast(r => r.stage === 'permission')?.outcome ?? 'unknown',
       execution: records.findLast(r => r.stage === 'execution')?.outcome ?? 'unknown',
       missing: ['begin', 'request', 'response', 'validation', 'assessment', 'decision', 'permission', 'execution'].filter(s => !records.some(r => r.stage === s)) };
@@ -479,7 +482,7 @@ export class ArchiveIndex {
   private selectedFailure(records: Metadata[]): boolean {
     records.sort((a, b) => a.writerId === b.writerId ? a.sequence - b.sequence : a.timestamp - b.timestamp || a.eventId.localeCompare(b.eventId));
     if (!records.some(r => r.stage === 'validation' && r.valid === true)
-      || foldFindingStages(records.map(r => r.finding)).failure !== null) return false;
+      || foldFindingStages(records.map(r => r.finding)).evaluatorState.status !== 'completed') return false;
     const begin = records.findLast(r => r.stage === 'begin');
     const request = records.findLast(r => r.stage === 'request');
     const assessment = records.findLast(r => r.stage === 'assessment');
@@ -493,6 +496,8 @@ export class ArchiveIndex {
     const issues = new Set(this.issues().map(issue => issue.reason));
     if (writerLoss) issues.add('writer-loss');
     const notices = { approvals: 0, uncertain: 0, incomplete: 0 };
+    const assessments: ThreadStatus['assessments'] = { completed: 0, unavailable: 0, pending: 0, dropped: 0, cancelled: 0, incomplete: 0, reasons: [] };
+    const reasons = new Map<EvaluatorFailureCode, number>();
     const candidates: { id: string; timestamp: number; session: string; invocation: string; expectedEvents: Set<string> }[] = [];
     for (const [id, records] of groups) {
       if (!['begin', 'request', 'response', 'validation', 'assessment', 'decision', 'permission', 'execution']
@@ -502,17 +507,91 @@ export class ArchiveIndex {
         expectedEvents: new Set(records.map(r => r.eventId)) });
       const facts = foldFindingStages(records.map(r => r.finding));
       if (facts.categories.includes('approval')) notices.approvals++;
-      if (facts.categories.includes('uncertainty') || records.some(r => r.stage === 'assessment' && r.finding.rules?.some(rule => rule.outcome === 'UNKNOWN'))) notices.uncertain++;
-      if (facts.failure || facts.categories.includes('pending')) notices.incomplete++;
+      if (facts.categories.includes('uncertainty')) notices.uncertain++;
+      assessments[facts.evaluatorState.status]++;
+      if (facts.evaluatorState.reason) reasons.set(facts.evaluatorState.reason, (reasons.get(facts.evaluatorState.reason) ?? 0) + 1);
+      if (facts.evaluatorState.status === 'incomplete') notices.incomplete++;
     }
+    assessments.reasons = [...reasons].sort(([a], [b]) => a.localeCompare(b)).map(([code, count]) => ({ code, count }));
     const status: ThreadStatus = { coverage: groups.size ? 'partial' : 'unknown', linkedCalls: groups.size,
-      failures: candidates.length, notices, issues: [...issues].slice(0, 20) };
+      failures: candidates.length, notices, assessments, issues: [...issues].slice(0, 20) };
     return { status, candidates };
   }
   threadStatus(bbThreadId: string): ThreadStatus { return this.threadSnapshot(bbThreadId).status; }
+  /** One refreshed metadata snapshot, no per-row detail reads. Exact links precede aggregation. */
+  async threadOverview(threadId: string, selection: OverviewSelection = {}): Promise<ThreadOverview> {
+    for (const cursor of [selection.sessionCursor, selection.callCursor, selection.ruleCursor]) if (cursor && cursor.length > 512) throw new Error('invalid-page');
+    if (selection.ruleCursor && (!selection.sessionId || !selection.callId)) throw new Error('invalid-selection');
+    const { groups, writerLoss } = this.linkedGroups(threadId);
+    const sessions = new Map<string, { row: LinkedSessionSummary; groups: Map<string, Metadata[]> }>();
+    let failures = 0;
+    for (const [id, records] of groups) {
+      const native = recordSessionKey(records[0]!);
+      const sessionId = sessionKey(JSON.stringify([threadId, native]));
+      let session = sessions.get(sessionId);
+      if (!session) {
+        session = { row: { id: sessionId, timestamp: 0, started: Infinity, calls: 0,
+          categoryCounts: { violation: 0, uncertainty: 0, approval: 0, unavailable: 0, pending: 0 } }, groups: new Map() };
+        sessions.set(sessionId, session);
+      }
+      const row = this.summarize(id, records);
+      const selectedFail = this.selectedFailure(records);
+      if (selectedFail) failures++;
+      row.categories = row.categories.filter(c => c !== 'violation' || selectedFail);
+      session.row.timestamp = Math.max(session.row.timestamp, row.updated);
+      session.row.started = Math.min(session.row.started, row.timestamp);
+      session.row.calls++;
+      for (const c of row.categories) session.row.categoryCounts[c]++;
+      session.groups.set(id, records);
+    }
+    const sessionPage = page([...sessions.values()].map(s => s.row), { limit: 50, cursor: selection.sessionCursor }, `bb-sessions:${threadId}`);
+    const sessionId = selection.sessionId ?? sessionPage.items[0]?.id ?? null;
+    const selectedSession = sessionId ? sessions.get(sessionId) : null;
+    if ((selection.sessionId && !selectedSession) || (selection.callId && !selectedSession) || (selection.callCursor && !selectedSession)) throw new Error('invalid-selection');
+    const rows = [...(selectedSession?.groups ?? [])].map(([id, records]) => {
+      const row = this.summarize(id, records);
+      row.categories = row.categories.filter(c => c !== 'violation' || this.selectedFailure(records));
+      return projectSummaryCall(row);
+    }).filter(row => !selection.category || row.categories.includes(selection.category));
+    const callPage = page(rows, { limit: 50, cursor: selection.callCursor }, `bb-calls:${threadId}:${sessionId}:${selection.category ?? ''}`);
+    const selectedId = selection.callId ?? callPage.items[0]?.id ?? null;
+    const metadata = selectedId ? selectedSession?.groups.get(selectedId) : null;
+    if (selection.callId && !metadata) throw new Error('invalid-selection');
+    let selected = null;
+    const issues = new Set(this.issues().map(i => i.reason));
+    if (writerLoss) issues.add('writer-loss');
+    if (metadata) {
+      const first = metadata[0]!;
+      const detail = await this.detail(recordSessionKey(first), recordInvocationKey(first), threadId);
+      const observed = new Set(detail.records.map(r => r.eventId));
+      if (detail.readIssues.length || metadata.some(r => !observed.has(r.eventId)) || detail.records.some(r => r.host !== 'pi' || ![3, 4, 5].includes(r.schemaVersion))) issues.add('detail-unavailable');
+      else {
+        // Hash the selected recorded snapshot on this host. No source data enters the cursor.
+        const snapshot = sessionKey(JSON.stringify(detail.records));
+        const scope = sessionKey(JSON.stringify(['bb-rules', threadId, sessionId, selectedId, snapshot]));
+        let offset = 0;
+        if (selection.ruleCursor) {
+          let key: any;
+          try { key = JSON.parse(Buffer.from(selection.ruleCursor, 'base64url').toString()); } catch { throw new Error('invalid-page'); }
+          if (!key || Object.keys(key).sort().join(',') !== 'offset,scope' || key.scope !== scope
+            || !Number.isSafeInteger(key.offset) || key.offset < 16 || key.offset % 16 !== 0) throw new Error('invalid-page');
+          offset = key.offset;
+        }
+        selected = projectSummaryDecision(detail.records, offset);
+        const total = selected.rules.length + (selected.omittedRules ?? 0);
+        if (offset && offset >= total) throw new Error('invalid-page');
+        const nextOffset = offset + selected.rules.length;
+        selected.rulePage = { snapshot, offset, total, next: nextOffset < total
+          ? Buffer.from(JSON.stringify({ scope, offset: nextOffset })).toString('base64url') : null };
+      }
+    }
+    return { state: 'available', coverage: groups.size ? 'partial' : 'unknown', linkedCalls: groups.size, failures,
+      issues: [...issues].slice(0, 20), sessions: sessionPage.items, nextSession: sessionPage.next, sessionId,
+      calls: callPage.items, nextCall: callPage.next, selectedId, selected };
+  }
   /** At most five candidate calls per page, each re-read by detail's 64-stage / 16-MiB cap. */
   async threadFindings(bbThreadId: string, cursor?: string): Promise<{ coverage: ThreadStatus['coverage']; linkedCalls: number;
-    notices: ThreadStatus['notices']; issues: string[]; items: ThreadFinding[]; next: string | null }> {
+    notices: ThreadStatus['notices']; assessments: ThreadStatus['assessments']; issues: string[]; items: ThreadFinding[]; next: string | null }> {
     const { status, candidates } = this.threadSnapshot(bbThreadId);
     const selection = page(candidates, { limit: 5, cursor }, `thread-findings:${bbThreadId}`);
     const issues = new Set(status.issues);
@@ -528,7 +607,7 @@ export class ArchiveIndex {
       for (const gap of projected.gaps) issues.add(gap);
       if (projected.item) items.push(projected.item);
     }
-    return { coverage: status.coverage, linkedCalls: status.linkedCalls, notices: status.notices, issues: [...issues].slice(0, 20),
+    return { coverage: status.coverage, linkedCalls: status.linkedCalls, notices: status.notices, assessments: status.assessments, issues: [...issues].slice(0, 20),
       items, next: selection.next };
   }
   async detail(session: string, invocation: string, bbThreadId?: string) {

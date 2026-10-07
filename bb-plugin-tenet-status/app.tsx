@@ -1,11 +1,12 @@
 import { Button } from './components/ui/button';
 import { useEffect, useState } from 'react';
 import { definePluginApp, useBbNavigate, useRpc, useSdk } from '@get-bb/plugin-sdk/app';
-import { DetailsPage } from './details-page';
+import { MainPage } from './main-page';
 import type { Status, rpcContract } from './contract';
 import { liveRead } from './live-read';
 import { CoverageDetails } from './coverage-details';
 import { StatusIcon } from './status-icon';
+import { OverviewPanel } from './overview-panel';
 
 function ThreadRules(props: { threadId: string; isCompactViewport: boolean }) {
   return <ThreadStatus key={props.threadId} {...props} />;
@@ -72,6 +73,8 @@ function ThreadStatus({ threadId, isCompactViewport }: { threadId: string; isCom
           : `No flagged calls in ${callLabel(status.linkedCalls)}.`}</p>
       </div>}
       {status && <CoverageDetails {...status} />}
+      <Button variant="outline" size="sm" type="button" className="w-full"
+        onClick={() => { if (navigate.openThreadPanel({ actionId: 'tenet-overview', title: 'TENET overview', params: null })) setOpen(false); }}>Open thread overview</Button>
       <Button variant="outline" size="sm" type="button" className="flex w-full items-center justify-between gap-3 rounded-md bg-foreground px-3 py-2.5 text-xs font-medium text-background hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
         onClick={() => { setOpen(false); navigate.toPluginPanel('findings', { subPath: threadId }); }}>View flagged rules<StatusIcon name="arrow" /></Button>
     </section>}
@@ -81,5 +84,6 @@ function ThreadStatus({ threadId, isCompactViewport }: { threadId: string; isCom
 export default definePluginApp(app => {
   // The action is absent on non-Pi threads, rather than opening an empty panel there.
   app.slots.experimental_threadHeaderAction({ id: 'tenet-rules', title: 'TENET rules', component: ThreadRules });
-  app.slots.navPanel({ id: 'tenet-findings', title: 'TENET findings', icon: 'ShieldAlert', path: 'findings', component: DetailsPage });
+  app.slots.threadPanelAction({ id: 'tenet-overview', title: 'TENET overview', icon: 'ShieldAlert', layout: 'flush', component: OverviewPanel });
+  app.slots.navPanel({ id: 'tenet-findings', title: 'TENET', icon: 'ShieldAlert', path: 'findings', component: MainPage });
 });

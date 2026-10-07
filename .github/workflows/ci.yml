@@ -36,6 +36,8 @@ jobs:
       - run: bun run inspector:build
       # Website content checks read the prerendered React pages.
       - run: bun run site:build
+      # The typed React summary mount imports ignored generated library output.
+      - run: bun run summary:build
       # Isolate node:test-based Pi smoke tests from other Bun test files.
       - run: bun test --isolate --max-concurrency=1 --timeout=30000
       - run: bun run typecheck
@@ -61,6 +63,9 @@ jobs:
       - run: bun install --frozen-lockfile
       # Browser fixtures load Pi's adapter through the compiled SDK entry.
       - run: bun run sdk:build
+      # BB browser fixtures need plugin dependencies and the generated shared mount.
+      - run: npm ci --prefix bb-plugin-tenet-status
+      - run: bun run summary:build
       - run: bun run inspector:check
       - run: bunx playwright install --with-deps chromium
       - run: CI=1 bun run inspector:test

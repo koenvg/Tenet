@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
-import { act, fireEvent } from '@testing-library/react';
+import { act, fireEvent, within } from '@testing-library/react';
 import type { ComponentType } from 'react';
 import { createFakePluginHost } from '@get-bb/plugin-sdk/testing';
 import { loadPluginApp, renderSlot as renderSdkSlot, type PluginRpcTestHandlers, type RenderSlotOptions } from '@get-bb/plugin-sdk/testing/app';
@@ -17,6 +17,7 @@ function renderSlot<Props extends object>(registration: { component: ComponentTy
     ...(findings ? { findings: async (input: unknown) => rpcContract.findings.output.parse(await findings(rpcContract.findings.input.parse(input))) } : {}),
   } });
 }
+import { renderSummarySlot, summaryCalls } from './summary-rpc.fixture';
 
 const threadId = 'thr_abcdefgh1234';
 const linked: Status = { coverage: 'partial', linkedCalls: 2, failures: 1, issues: [] };
@@ -62,7 +63,7 @@ describe('finding RPC output contract', () => {
   it('accepts a complete finding through the RPC output validator', async () => {
     const fake = createFakePluginHost();
     try {
-      fake.bb.rpc.register(rpcContract, { status: () => linked, findings: () => page });
+      fake.bb.rpc.register({ status: rpcContract.status, findings: rpcContract.findings }, { status: () => linked, findings: () => page });
       expect(await fake.harness.behavior.callRpc('findings', { threadId })).toEqual(page);
     } finally { await fake.harness.lifecycle.dispose(); }
   });
@@ -70,7 +71,7 @@ describe('finding RPC output contract', () => {
   it.each(rejectedMocks)('rejects $name at the RPC output boundary', async ({ handler, path }) => {
     const fake = createFakePluginHost();
     try {
-      fake.bb.rpc.register(rpcContract, { status: () => linked, findings: handler });
+      fake.bb.rpc.register({ status: rpcContract.status, findings: rpcContract.findings }, { status: () => linked, findings: handler });
       await expect(fake.harness.behavior.callRpc('findings', { threadId })).rejects.toMatchObject({
         code: 'invalid_output', issues: expect.arrayContaining([expect.objectContaining({ path })]),
       });
@@ -243,7 +244,7 @@ describe('Pi thread rule action', () => {
   it('does not request details from malformed deep links', async () => {
     const app = await loadPluginApp(() => import('./app'));
     const slot = renderSlot(app.navPanels[0]!, { subPath: 'not-a-thread' }, { rpc: { findings: () => { throw new Error('must not call'); } } });
-    try { expect(slot.getByText('Invalid thread link.')).toBeTruthy(); expect(slot.inspection.rpcCalls.length).toBe(0); }
+    try { expect(slot.getByText('Invalid Tenet selection. Choose a project to start again. No archive requested.')).toBeTruthy(); expect(slot.inspection.rpcCalls.length).toBe(0); }
     finally { slot.lifecycle.unmount(); }
   });
   it('keeps earlier detail gaps visible across successful pages and clears them on Refresh', async () => {
@@ -265,10 +266,11 @@ describe('Pi thread rule action', () => {
       expect(slot.queryByText(/Some flagged calls could not be read/)).toBeNull();
     } finally { slot.lifecycle.unmount(); }
   });
-  it('explains how to reach details from the sidebar root without an RPC', async () => {
+  it('opens the sidebar root with metadata only and no findings or archive RPC', async () => {
     const app = await loadPluginApp(() => import('./app'));
-    const slot = renderSlot(app.navPanels[0]!, { subPath: '' }, { rpc: { findings: () => { throw new Error('must not call'); } } });
-    try { expect(slot.getByText(/Open a Pi thread/)).toBeTruthy(); expect(slot.inspection.rpcCalls.length).toBe(0); }
+    const slot = renderSummarySlot(app.navPanels[0]!, { subPath: '' }, { rpc: { pickerProjects: () => ({ items: [], next: null }),
+      findings: () => { throw new Error('must not call'); } } });
+    try { expect(await slot.findByText('No projects on this page.')).toBeTruthy(); expect(summaryCalls(slot).map(call => call.method)).toEqual(['pickerProjects']); }
     finally { slot.lifecycle.unmount(); }
   });
   it('polls while closed and removes the finding indicator after a failed read', async () => {
@@ -383,6 +385,49 @@ describe('Pi thread rule action', () => {
       expect(slot.getByText('Some calls were not saved.').closest('details')?.open).toBe(false);
       fireEvent.click(disclosure!.querySelector('summary')!);
       expect(disclosure?.open).toBe(true);
+    } finally { slot.lifecycle.unmount(); }
+  });
+  it('shows terminal provider failure in the header disclosure and findings without a selected-FAIL badge', async () => {
+    const app = await loadPluginApp(() => import('./app'));
+    const status: Status = { coverage: 'partial', linkedCalls: 2, failures: 0, issues: ['corrupt-record'],
+      notices: { approvals: 0, uncertain: 0, incomplete: 0 },
+      assessments: { completed: 0, unavailable: 2, pending: 0, dropped: 0, cancelled: 0, incomplete: 0,
+        reasons: [{ code: 'provider-error', count: 2 }] } };
+    const header = renderSlot(app.threadHeaderActions[0]!, { threadId, projectId: 'project', isCompactViewport: true },
+      { sdk: { threads: { get: async () => ({ providerId: 'pi' }) as any } }, rpc: { status: () => status } });
+    const { failures: _failures, ...page } = status;
+    const findings = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: () => ({ ...page, items: [], next: null }) } });
+    try {
+      const button = await header.findByRole('button', { name: 'TENET rule status' });
+      expect(button.textContent).toBe('T');
+      expect(within(header.container).queryByText(/evaluator assessments failed/)).toBeNull();
+      fireEvent.click(button);
+      for (const slot of [within(header.container), within(findings.container)]) {
+        const message = await slot.findByText('2 evaluator assessments failed. No valid policy result is available for these calls.');
+        expect(message.closest('details')).toBeNull();
+        expect(slot.getByText('Provider error: 2 assessments. Code: provider-error.').closest('details')?.open).toBe(false);
+        expect(slot.getByText('These warnings may include records from other threads.')).toBeTruthy();
+        expect(slot.queryByText(/checks are missing or unfinished/)).toBeNull();
+        expect(slot.queryByLabelText(/recorded FAIL calls/)).toBeNull();
+      }
+      expect(within(findings.container).getByText('No flagged calls to show.')).toBeTruthy();
+    } finally { header.lifecycle.unmount(); findings.lifecycle.unmount(); }
+  });
+  it('keeps pending, cancelled, dropped and incomplete assessments separate from terminal invalid responses', async () => {
+    const app = await loadPluginApp(() => import('./app'));
+    const slot = renderSlot(app.navPanels[0]!, { subPath: threadId }, { rpc: { findings: () => ({
+      coverage: 'partial', linkedCalls: 6, issues: ['missing-stages'], items: [], next: null,
+      notices: { approvals: 0, uncertain: 0, incomplete: 1 },
+      assessments: { completed: 1, unavailable: 1, pending: 1, dropped: 1, cancelled: 1, incomplete: 1,
+        reasons: [{ code: 'invalid-response', count: 1 }] },
+    }) } });
+    try {
+      expect(await slot.findByText('1 evaluator assessment failed. No valid policy result is available for this call.')).toBeTruthy();
+      for (const label of ['1 assessment completed.', '1 assessment is pending.', '1 assessment was cancelled.',
+        '1 assessment was dropped before completion.', '1 assessment has incomplete records.', 'Invalid evaluator response: 1 assessment. Code: invalid-response.']) {
+        expect(slot.getByText(label)).toBeTruthy();
+      }
+      expect(slot.queryByText(/missing or unfinished/)).toBeNull();
     } finally { slot.lifecycle.unmount(); }
   });
 });

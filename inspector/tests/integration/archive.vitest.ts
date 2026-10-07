@@ -131,16 +131,17 @@ test('corrupt and interrupted captures remain unavailable, and archive errors re
     for (const kind of ['missing-credentials', 'provider-error', 'invalid-response', 'interrupted', 'truncated-response', 'unavailable-response', 'missing-payload', 'capture-loss']) {
       await call(page, kind);
       const detail = await page.locator('.invocation').textContent();
+      const inspection = await page.getByRole('region', { name: 'Standalone-only inspection', exact: true }).textContent();
       if (kind === 'interrupted' || kind === 'capture-loss') {
         expect(detail).toContain('Assessment incomplete');
         expect(detail).toContain('unknown');
         expect(await page.locator('.rule-row .status-chip').allTextContents()).not.toContain('PASS');
-      } else expect(detail).toContain('Assessment failed');
-      if (kind === 'missing-credentials') expect(detail).toContain('not submitted');
-      if (kind === 'missing-payload') expect(detail).toContain('submitted; payload unavailable');
-      if (kind === 'truncated-response') expect(detail).toContain('Response truncated');
-      if (kind === 'unavailable-response') expect(detail).toContain('Response snapshot unavailable');
-      expect(await page.locator('.invocation script').count()).toBe(0);
+      } else expect(detail).toContain('Assessment unavailable');
+      if (kind === 'missing-credentials') expect(inspection).toContain('not submitted');
+      if (kind === 'missing-payload') expect(inspection).toContain('submitted; payload unavailable');
+      if (kind === 'truncated-response') expect(inspection).toContain('Response truncated');
+      if (kind === 'unavailable-response') expect(inspection).toContain('Response snapshot unavailable');
+      expect(await page.locator('.standalone-detail script').count()).toBe(0);
     }
     await openPicker(page);
     await page.locator('.session-row').filter({ has: page.locator('strong', { hasText: 'historical-incomplete' }) }).click();
@@ -152,7 +153,7 @@ test('corrupt and interrupted captures remain unavailable, and archive errors re
     await page.getByRole('tab', { name: 'Response' }).click();
     expect(await page.locator('#panel-Response').textContent()).toContain('2000000');
     expect(await page.locator('#panel-Response').textContent()).toContain('"truncated": true');
-    expect(await page.locator('.invocation script').count()).toBe(0);
+    expect(await page.locator('.standalone-detail script').count()).toBe(0);
     expect(await page.locator('body').textContent()).not.toContain('fixture-transport-secret');
     await page.route('**/api/sessions?*', route => route.fulfill({ status: 503, body: '{}' }));
     await page.getByRole('button', { name: 'Refresh archive' }).click();
@@ -248,7 +249,7 @@ test('real archive filters overlapping categories, expands grouped calls and war
     expect(await page.locator('.uncertainty-group').filter({ hasText: '2 calls' }).locator('.pattern-context').textContent()).toContain('target /triage/TENET.md');
     await page.locator('.uncertainty-group').filter({ hasText: '2 calls' }).getByRole('button', { name: /first/ }).click();
     await expect.poll(() => page.getByRole('region', { name: 'Uncertainty groups' }).isVisible()).toBe(false);
-    await expect.poll(() => page.locator('.decision-title h2 span').textContent()).toBe('first');
+    await expect.poll(() => page.locator('.call-label').textContent()).toBe('Call first');
     await mkdir('coverage/inspector-artifacts', { recursive: true });
     await page.screenshot({ path: 'coverage/inspector-artifacts/triage-desktop.png' });
     await page.setViewportSize({ width: 390, height: 844 });
@@ -262,7 +263,7 @@ test('real archive filters overlapping categories, expands grouped calls and war
     await page.screenshot({ path: 'coverage/inspector-artifacts/triage-groups-mobile.png' });
     expect(new URL(link).searchParams.get('session')).toBe(key);
     const reopened = await open(new URL(link).pathname + new URL(link).search);
-    await expect.poll(() => reopened.locator('.decision-title h2 span').textContent()).toBe('first');
+    await expect.poll(() => reopened.locator('.call-label').textContent()).toBe('Call first');
     await reopened.close();
     await page.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Calls' }).click();
     await page.locator('#finding-category').selectOption('violation');

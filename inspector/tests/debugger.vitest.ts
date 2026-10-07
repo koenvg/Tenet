@@ -16,7 +16,7 @@ const currentPage = () => { if (!page) throw new Error('Browser page unavailable
 const pickCall = async (id: string) => {
   const p = currentPage();
   await p.locator('.call-row').filter({ has: p.locator('.call-id', { hasText: new RegExp(`^${id}$`) }) }).click();
-  await expect.poll(() => p.locator('.decision-title h2 span').textContent()).toBe(id);
+  await expect.poll(() => p.locator('.call-label').textContent()).toBe(`Call ${id}`);
   await reveal(p, '.why-disclosure');
   await reveal(p, '.rule-inspection');
   await reveal(p, '.capture-details');
@@ -49,21 +49,51 @@ beforeEach(async () => {
   await page.locator('[aria-label="Decision summary"]').waitFor();
 });
 
+for (const width of [1280, 390]) test(`browser Back retains call association and standalone action/evidence access at ${width}px`, async () => {
+  const p = currentPage(); await p.setViewportSize({ width, height: 844 });
+  const choose = async (id: string) => {
+    if (width === 390) await p.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Calls', exact: true }).click();
+    await p.locator('.call-row').filter({ has: p.locator('.call-id', { hasText: new RegExp(`^${id}$`) }) }).click();
+    await expect.poll(() => p.locator('.call-label').textContent()).toBe(`Call ${id}`);
+  };
+  await choose('summary');
+  const summaryLink = p.url();
+  await reveal(p, '.action-disclosure');
+  expect(await p.locator('.action-preview').innerText()).toContain('git status --short');
+  await openEvidence(p);
+  expect(await p.locator('#panel-Evidence').innerText()).toContain('git status --short');
+  await choose('rich');
+  await openEvidence(p, 'Questions');
+  await p.getByRole('button', { name: 'JSON', exact: true }).click();
+  expect(JSON.parse((await p.locator('.question-json').first().textContent())!)).toEqual(recordedQuestion);
+  await p.goBack();
+  await expect.poll(() => p.locator('.call-label').textContent()).toBe('Call summary');
+  expect(p.url()).toBe(summaryLink);
+  expect(await p.locator('.common-summary').textContent()).not.toContain('git status --short');
+  await reveal(p, '.action-disclosure');
+  expect(await p.locator('.action-preview').innerText()).toContain('git status --short');
+  await openEvidence(p);
+  expect(await p.locator('#panel-Evidence').innerText()).toContain('git status --short');
+});
+
 for (const width of [1280, 390]) test(`default story and keyboard disclosures at ${width}px`, async () => {
   const p = currentPage(); await p.setViewportSize({ width, height: 844 });
   if (width <= 900) await p.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Calls' }).click();
   await p.locator('.call-row').filter({ has: p.locator('.call-id', { hasText: /^summary$/ }) }).click();
-  await p.locator('.story-action').waitFor();
+  await p.locator('.decision-summary').waitFor();
   expect(await p.locator('.primary-status').innerText()).toContain('Ran');
   expect(await p.locator('.primary-status').innerText()).toContain('Observe');
   expect(await p.locator('.story-assessment').innerText()).toBe('Would block in enforce mode');
   expect(await p.locator('.decision-map').isVisible()).toBe(false);
   expect(await p.locator('.evidence-dock').isVisible()).toBe(false);
   expect(await p.locator('.lifecycle').isVisible()).toBe(false);
-  expect(await p.locator('.summary-content > details > summary').allTextContents()).toEqual(['Why this assessment', 'Evidence', 'Details']);
+  expect(await p.locator('.common-summary > details > summary, .standalone-inspection > details > summary').allTextContents()).toEqual(['Why this assessment', 'Recorded action', 'Evidence', 'Details']);
+  expect(await p.locator('.action-preview').isVisible()).toBe(false);
+  await p.locator('.action-disclosure > summary').press('Enter');
+  expect(await p.locator('.action-preview').innerText()).toContain('git status --short');
   await p.locator('.why-disclosure > summary').press('Enter');
   await p.getByRole('button', { name: 'Inspect evidence confidence', exact: true }).press('Enter');
-  expect(await p.evaluate(() => document.activeElement?.id)).toBe('selected-check-details');
+  expect(await p.evaluate(() => document.activeElement?.id)).toBe(await p.getByRole('button', { name: 'Inspect evidence confidence', exact: true }).getAttribute('aria-controls'));
   await p.locator('.evidence-disclosure > summary').press('Enter');
   await expect.poll(() => p.evaluate(() => document.activeElement?.id)).toBe('dock-heading');
   await p.locator('.capture-details > summary').press('Enter');
@@ -88,7 +118,7 @@ test('background refresh does not flash archive-wide warnings into the selected 
   const p = currentPage(); await pickCall('summary');
   let completedPolls = 0;
   p.on('response', response => { if (response.url().includes('/invocations/')) completedPolls++; });
-  const before = await p.locator('.decision-title').boundingBox();
+  const before = await p.locator('.recorded-context').boundingBox();
   const mutations = await p.evaluate(() => new Promise<number>(resolve => {
     let count = 0;
     const observer = new MutationObserver(records => count += records.length);
@@ -97,7 +127,7 @@ test('background refresh does not flash archive-wide warnings into the selected 
   }));
   expect(completedPolls).toBeGreaterThanOrEqual(2);
   expect(mutations).toBe(0);
-  expect(await p.locator('.decision-title').boundingBox()).toEqual(before);
+  expect(await p.locator('.recorded-context').boundingBox()).toEqual(before);
   expect(await p.getByRole('region', { name: 'Recording issues' }).count()).toBe(0);
   expect(pageErrors).toEqual([]);
 });
@@ -142,7 +172,7 @@ test('check selection is keyboard accessible and reduced motion stays static', a
   await p.emulateMedia({ reducedMotion: 'reduce' });
   await p.getByRole('button', { name: 'Inspect evidence confidence', exact: true }).press('Enter');
   expect(await p.locator('.rule-inspection').getAttribute('open')).not.toBeNull();
-  expect(await p.evaluate(() => document.activeElement?.id)).toBe('selected-check-details');
+  expect(await p.evaluate(() => document.activeElement?.id)).toBe(await p.getByRole('button', { name: 'Inspect evidence confidence', exact: true }).getAttribute('aria-controls'));
   expect(await p.locator('.map-edge.is-selected').evaluate(el => getComputedStyle(el).animationName)).toBe('none');
   expect(await p.locator('.primary-status .map-connections').count()).toBe(0);
 });
@@ -325,7 +355,7 @@ test('mobile views retain selection, hide drag handles and avoid horizontal over
     await p.getByRole('button', { name: 'Calls', exact: true }).click();
     await p.getByRole('button', { name: 'Summary', exact: true }).click();
     await p.getByRole('group', { name: 'Decision map', exact: true }).waitFor({ state: 'visible' });
-    expect(await p.locator('.decision-title h2 span').textContent()).toBe('rich');
+    expect(await p.locator('.call-label').textContent()).toBe('Call rich');
   }
 });
 
@@ -357,6 +387,8 @@ test('visual summary separates the policy result from execution and hides debugg
   expect(await p.locator('.execution-summary').textContent()).toContain('A successful tool result was recorded.');
   expect(await p.locator('.map-stage').getByRole('meter', { name: 'Evidence confidence' }).getAttribute('aria-valuenow')).toBe('0.85');
   expect(await p.locator('.map-stage').getByRole('meter').getAttribute('aria-valuetext')).toContain('required confidence 0.9');
+  expect(await p.locator('.common-summary').textContent()).not.toContain('git status --short');
+  await p.locator('.action-disclosure > summary').click();
   expect(await p.locator('.action-preview').textContent()).toContain('git status --short');
   expect(await p.locator('.evidence-dock').isVisible()).toBe(false);
   expect(await p.locator('.distributions').isVisible()).toBe(false);

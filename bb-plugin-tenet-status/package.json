@@ -2,13 +2,16 @@
   "name": "bb-plugin-tenet-status",
   "version": "0.1.0",
   "type": "module",
+  "scripts": {
+    "build": "bun ../scripts/check-summary-build.ts && bb plugin build ."
+  },
   "engines": {
     "bb": ">=0.43",
     "bbPluginSdk": ">=0.5.9"
   },
   "bb": {
     "name": "Tenet Status",
-    "description": "Read-only TENET rule failures for BB Pi threads.",
+    "description": "Read-only TENET recorded call summaries and findings for BB Pi threads.",
     "branding": {
       "icon": "ShieldAlert"
     },
@@ -24,7 +27,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@get-bb/plugin-sdk": "0.5.29",
+    "@get-bb/plugin-sdk": "0.6.15",
     "@pierre/diffs": "^1.2.9",
     "@radix-ui/react-alert-dialog": "^1.1.19",
     "@radix-ui/react-context-menu": "^2.3.3",
