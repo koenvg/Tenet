@@ -7,7 +7,7 @@ Tenet is MIT licensed. See `LICENSE`.
 The built inspector includes:
 
 - Kode Mono, copyright 2023 The Kode Mono Project Authors. See `inspector/OFL-Kode-Mono.txt` for the SIL Open Font License 1.1.
-- Svelte runtime, copyright Svelte contributors. See `inspector/LICENSE-Svelte.md` for its MIT license.
+- React, React DOM, shadcn/ui, Radix primitives and other bundled UI dependencies. See `inspector/THIRD_PARTY_NOTICES.txt` for their upstream copyright notices and licenses.
 
 The compiled APUS OpenJev renderer port retains Apache License 2.0 terms, APUS AI-LAB authors gumpcheng and zhangxu, and the upstream Copyright 2026 Alibaba Cloud notice. See [the unchanged license](third-party/apus/LICENSE) and [the port attribution and changes](third-party/apus/NOTICE). The pinned source revision is `7389d774472c9e29ddc84fffb392951f0f25de74`. Tenet's MIT license does not relicense that work.
 

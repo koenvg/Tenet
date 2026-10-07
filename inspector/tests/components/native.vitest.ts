@@ -1,7 +1,10 @@
+import { createElement } from 'react';
+import '../../src/components.css';
+import '../../../web/theme.css';
 import { expect, test } from 'vitest';
 import { page } from 'vitest/browser';
-import { render } from 'vitest-browser-svelte';
-import Detail from '../../src/Detail.svelte';
+import { render } from 'vitest-browser-react';
+import Detail from "../../src/Detail.js";
 import { makeView } from './fixtures.js';
 import '../../src/style.css';
 import '../../src/summary.css';
@@ -23,7 +26,7 @@ function nativeView() {
 test('APUS metadata and deterministic provenance are readable under Details at desktop and narrow widths', async () => {
   for (const width of [1280, 390]) {
     await page.viewport(width, 844);
-    const screen = await render(Detail, { view: nativeView() });
+    const screen = await render(createElement(Detail, { view: nativeView() }));
     screen.container.style.containerType = 'inline-size';
     await screen.getByText('Details', { exact: true }).click();
     screen.getByText('apus-llamacpp experimental', { exact: true }).element().scrollIntoView();
@@ -46,7 +49,7 @@ test('APUS metadata and deterministic provenance are readable under Details at d
 });
 
 test('Response shows all native exchanges and omission markers, with native HTML inert', async () => {
-  const screen = await render(Detail, { view: nativeView() });
+  const screen = await render(createElement(Detail, { view: nativeView() }));
   await screen.getByText('Evidence', { exact: true }).first().click();
   await screen.getByRole('tab', { name: 'Response' }).click();
   await screen.getByText('Recorded native exchanges', { exact: true }).click();
@@ -57,7 +60,7 @@ test('Response shows all native exchanges and omission markers, with native HTML
 });
 
 test('historical metadata is not labelled as APUS or filled from current settings', async () => {
-  const screen = await render(Detail, { view: makeView() });
+  const screen = await render(createElement(Detail, { view: makeView() }));
   screen.container.style.containerType = 'inline-size';
   await screen.getByText('Details', { exact: true }).click();
   screen.getByText('Provider not recorded', { exact: true }).element().scrollIntoView();

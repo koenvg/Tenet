@@ -23,12 +23,34 @@ test('the reviewed delivery list matches the production TypeScript source graph'
     'review source graph changes and explicitly update the closed delivery list');
 });
 
+test('shipped frontend notices include the complete Tailwind license', async () => {
+  const license = await readFile(new URL('../node_modules/tailwindcss/LICENSE', import.meta.url), 'utf8');
+  const notices = await readFile(new URL('../third-party/web/NOTICES.txt', import.meta.url), 'utf8');
+  assert.ok(notices.includes(license.trim()), 'frontend attribution must include the complete upstream license');
+  const root = await fixture();
+  try {
+    await rm(join(root, 'inspector/THIRD_PARTY_NOTICES.txt'));
+    await assert.rejects(assertDelivery(root), /missing delivery file: inspector\/THIRD_PARTY_NOTICES.txt/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+  assert.equal(await readFile(new URL('../site/dist/THIRD_PARTY_NOTICES.txt', import.meta.url), 'utf8'), notices,
+    'the public website must ship the shared frontend notices');
+});
+
+test('the BB frontend can resolve Slot from production dependencies', async () => {
+  const manifest = JSON.parse(await readFile(new URL('../bb-plugin-tenet-status/package.json', import.meta.url), 'utf8'));
+  const lock = JSON.parse(await readFile(new URL('../bb-plugin-tenet-status/package-lock.json', import.meta.url), 'utf8'));
+  assert.equal(manifest.dependencies['@radix-ui/react-slot'], '1.4.0');
+  assert.equal(manifest.devDependencies['@radix-ui/react-slot'], undefined);
+  assert.equal(lock.packages[''].dependencies['@radix-ui/react-slot'], manifest.dependencies['@radix-ui/react-slot']);
+  assert.notEqual(lock.packages['node_modules/@radix-ui/react-slot'].dev, true);
+});
+
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'tenet-delivery-contract-'));
   const manifest = deliveryManifest({ version: '0.1.0', engines: { node: '>=22.12', bun: '>=1.3.14' },
     dependencies: { '@typesafe-ai/sdk': '0.6.0' }, peerDependencies: { '@earendil-works/pi-coding-agent': '0.85.1' } });
   const files = [...runtimeModules.flatMap(name => [`dist/${name}.js`, `dist/${name}.d.ts`]), ...documentFiles,
-    'inspector/LICENSE-Svelte.md',
+    'inspector/THIRD_PARTY_NOTICES.txt',
     'inspector/OFL-Kode-Mono.txt', 'inspector/dist/index.html', 'inspector/dist/assets/app-abc123.js', 'inspector/dist/assets/app-abc123.css'];
   for (const file of files) {
     await mkdir(dirname(join(root, file)), { recursive: true });

@@ -1,3 +1,4 @@
+import { Button } from './components/ui/button';
 import { useEffect, useState } from 'react';
 import { definePluginApp, useBbNavigate, useRpc, useSdk } from '@get-bb/plugin-sdk/app';
 import { DetailsPage } from './details-page';
@@ -48,16 +49,16 @@ function ThreadStatus({ threadId, isCompactViewport }: { threadId: string; isCom
 
   const callLabel = (count: number) => `${count} recorded ${count === 1 ? 'call' : 'calls'}`;
   return <div className="relative">
-    <button type="button" aria-label="TENET rule status" aria-expanded={open} aria-controls={`tenet-status-${threadId}`}
+    <Button variant="outline" size="sm" type="button" aria-label="TENET rule status" aria-expanded={open} aria-controls={`tenet-status-${threadId}`}
       className="rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-accent" onClick={() => setOpen(value => !value)}>
       {isCompactViewport ? 'T' : 'TENET rules'}
       {status?.coverage === 'partial' && status.failures > 0 && <span className="ml-1 rounded bg-accent px-1 font-semibold"
         aria-label={`${status.failures} recorded FAIL ${status.failures === 1 ? 'call' : 'calls'}`}>{status.failures}</span>}
-    </button>
+    </Button>
     {open && <section id={`tenet-status-${threadId}`} role="region" aria-label="TENET rule status"
       className="fixed inset-x-2 top-14 z-50 mt-2 max-h-[calc(100dvh-4.5rem)] w-auto space-y-3 overflow-y-auto rounded-lg border border-border bg-background p-4 text-sm text-foreground shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:max-h-[65vh] sm:w-[min(22rem,calc(100vw-1rem))]">
       <div className="flex items-center justify-between gap-3"><h2 className="font-semibold">TENET status</h2>
-        <button type="button" aria-label="Close TENET status" className="rounded-sm hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" onClick={() => setOpen(false)}>Close</button></div>
+        <Button variant="outline" size="sm" type="button" aria-label="Close TENET status" className="rounded-sm hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" onClick={() => setOpen(false)}>Close</Button></div>
       {loading && !status && <p role="status">Checking recordings...</p>}
       {!loading && !status && <p role="status">Status unavailable right now.</p>}
       {status?.coverage === 'unavailable' && <p role="status">Status unavailable right now.</p>}
@@ -71,8 +72,8 @@ function ThreadStatus({ threadId, isCompactViewport }: { threadId: string; isCom
           : `No flagged calls in ${callLabel(status.linkedCalls)}.`}</p>
       </div>}
       {status && <CoverageDetails {...status} />}
-      <button type="button" className="flex w-full items-center justify-between gap-3 rounded-md bg-foreground px-3 py-2.5 text-xs font-medium text-background hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-        onClick={() => { setOpen(false); navigate.toPluginPanel('findings', { subPath: threadId }); }}>View flagged rules<StatusIcon name="arrow" /></button>
+      <Button variant="outline" size="sm" type="button" className="flex w-full items-center justify-between gap-3 rounded-md bg-foreground px-3 py-2.5 text-xs font-medium text-background hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+        onClick={() => { setOpen(false); navigate.toPluginPanel('findings', { subPath: threadId }); }}>View flagged rules<StatusIcon name="arrow" /></Button>
     </section>}
   </div>;
 }

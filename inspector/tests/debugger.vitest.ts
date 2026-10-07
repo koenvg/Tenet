@@ -270,9 +270,9 @@ test('evidence keeps its scroll position when selecting rules or switching tabs'
   await p.getByRole('tab', { name: 'Questions', exact: true }).click();
   expect(await p.locator('#panel-Questions').textContent()).toContain('rule_1_outcome');
   await p.getByRole('tab', { name: 'Questions', exact: true }).press('ArrowRight');
-  expect(await p.getByRole('tab', { name: 'Response', exact: true }).getAttribute('aria-selected')).toBe('true');
+  await expect.poll(() => p.getByRole('tab', { name: 'Response', exact: true }).getAttribute('aria-selected')).toBe('true');
   await p.getByRole('tab', { name: 'Response', exact: true }).press('ArrowRight');
-  expect(await p.getByRole('tab', { name: 'Policy', exact: true }).getAttribute('aria-selected')).toBe('true');
+  await expect.poll(() => p.getByRole('tab', { name: 'Policy', exact: true }).getAttribute('aria-selected')).toBe('true');
   await p.getByRole('tab', { name: 'Evidence', exact: true }).click();
   expect(await evidence.evaluate(el => el.scrollTop)).toBe(scroll);
 });

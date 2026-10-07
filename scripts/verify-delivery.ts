@@ -31,7 +31,7 @@ export async function verifyArchive(archive: string): Promise<void> {
     await assertDelivery(installation);
     run('npm', ['ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'], installation);
     const requireInstalled = createRequire(join(installation, 'package.json'));
-    for (const name of ['@earendil-works/pi-coding-agent', 'typescript', 'vite', 'svelte', 'playwright'])
+    for (const name of ['@earendil-works/pi-coding-agent', 'typescript', 'vite', 'react', 'react-dom', 'svelte', 'playwright'])
       assert.throws(() => requireInstalled.resolve(name), `production installation must not contain ${name}`);
     const consumer = join(root, 'consumer'); await mkdir(consumer);
     await writeFile(join(consumer, 'package.json'), JSON.stringify({ name: 'isolated-consumer', private: true, type: 'module',

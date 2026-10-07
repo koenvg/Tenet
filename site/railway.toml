@@ -1,7 +1,7 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile"
-watchPatterns = ["/site/**"]
+dockerfilePath = "site/Dockerfile"
+watchPatterns = ["/site/**", "/web/**", "/third-party/web/**", "/package.json", "/bun.lock"]
 
 [deploy]
 healthcheckPath = "/"

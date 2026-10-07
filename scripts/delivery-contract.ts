@@ -56,7 +56,7 @@ export async function assertDelivery(root: string): Promise<void> {
   const references = [...html.matchAll(/(?:src|href)="\/(assets\/[\w.-]+\.(?:js|css))"/g)].map(m => m[1]!);
   assert.ok(html.includes('<div id="app">') && references.some(n => n.endsWith('.js')), 'missing built inspector entry');
   const required = new Set([...runtimeModules.flatMap(n => [`dist/${n}.js`, `dist/${n}.d.ts`]), ...documentFiles,
-    'package.json', 'package-lock.json', 'inspector/OFL-Kode-Mono.txt', 'inspector/LICENSE-Svelte.md', 'inspector/dist/index.html']);
+    'package.json', 'package-lock.json', 'inspector/OFL-Kode-Mono.txt', 'inspector/THIRD_PARTY_NOTICES.txt', 'inspector/dist/index.html']);
   for (const name of references) required.add(`inspector/dist/${name}`);
   const found = new Set<string>();
   const allowedDirectory = (name: string) => [...required].some(file => file.startsWith(`${name}/`)) || name === 'inspector/dist/assets';
@@ -102,7 +102,7 @@ export async function assertDelivery(root: string): Promise<void> {
   assert.equal(lock.packages['node_modules/@typesafe-ai/sdk']?.version, manifest.dependencies['@typesafe-ai/sdk'], 'SDK lock mismatch');
   for (const [name, value] of Object.entries(lock.packages) as [string, { dev?: boolean }][]) {
     assert.ok(!value.dev, `development lock entry: ${name}`);
-    assert.ok(!/node_modules\/(?:@earendil-works\/|typescript$|vite$|vitest$|svelte$|playwright$)/.test(name), `development or host lock entry: ${name}`);
+    assert.ok(!/node_modules\/(?:@earendil-works\/|typescript$|vite$|vitest$|react$|react-dom$|svelte$|playwright$)/.test(name), `development or host lock entry: ${name}`);
   }
   for (const name of references) assert.ok(found.has(`inspector/dist/${name}`), `missing asset: ${name}`);
   for (const module of runtimeModules) {

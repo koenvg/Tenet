@@ -1,3 +1,4 @@
+import { Badge } from './components/ui/badge';
 import type { Findings } from './contract';
 import { StatusIcon } from './status-icon';
 
@@ -21,7 +22,7 @@ export function RuleGroups({ items }: { items: Findings['items'] }) {
             <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
               <span className="tabular-nums">{group.calls.length} {group.calls.length === 1 ? 'call' : 'calls'} shown</span>
               <span>{group.rule.kind === 'integrity' ? 'Rule protection' : group.rule.severity === 'WARN' ? 'Warning' : 'Blocking rule'}</span>
-              {uncertain && <span className="rounded border border-border px-1.5 py-0.5 text-foreground">Uncertain</span>}
+              {uncertain && <Badge variant="outline" className="text-foreground">Uncertain</Badge>}
             </span>
           </span>
           <StatusIcon name="chevron" className="mt-1 text-muted-foreground group-open:rotate-90" />

@@ -58,7 +58,7 @@ The written rule and outcome remain readable HTML. The SVG has a static accessib
 
 ## Motion
 
-`hero.js` runs one four-second sequence. The key descends, stops above the plate and settles. A high-contrast "Blocked" label appears beside it, then the finding fades in beneath the written rule. "Delete blocked" is emphasized in the HTML result. No data disappears, no deletion executes, and nothing is restored. The final frame holds without looping.
+The React `use-key-motion.ts` hook runs one four-second sequence. The key descends, stops above the plate and settles. A high-contrast "Blocked" label appears beside it, then the finding fades in beneath the written rule. "Delete blocked" is emphasized in the HTML result. No data disappears, no deletion executes, and nothing is restored. The final frame holds without looping.
 
 Clicking or tapping the key, or pressing Enter or Space while it is focused, starts a 480ms attempted press. It dips toward the plate and returns to the blocked position without touching the plate or executing anything. An attempt interrupts the intro, begins from the current key position and does not queue extra animations on rapid clicks. The label stays blocked. A polite live region announces each attempt without changing the visible copy.
 

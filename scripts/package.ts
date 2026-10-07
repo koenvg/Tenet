@@ -23,7 +23,7 @@ try {
     ['third-party/apus/LICENSE', 'third-party/apus/LICENSE'], ['third-party/apus/NOTICE', 'third-party/apus/NOTICE'],
     ['LICENSE', 'LICENSE'], ['docs/ARCHIVE-NOTICES.md', 'THIRD_PARTY_NOTICES.md'],
     ['inspector/src/fonts/OFL-Kode-Mono.txt', 'inspector/OFL-Kode-Mono.txt'],
-    ['node_modules/svelte/LICENSE.md', 'inspector/LICENSE-Svelte.md'],
+    ['third-party/web/NOTICES.txt', 'inspector/THIRD_PARTY_NOTICES.txt'],
   ]) {
     await mkdir(dirname(join(stage, destination!)), { recursive: true });
     await cp(join(repository, source!), join(stage, destination!));
