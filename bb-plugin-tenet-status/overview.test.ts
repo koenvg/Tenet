@@ -121,11 +121,11 @@ test('summary pages and cursors are bounded and scoped; refresh/detail budgets r
 test('backend resolves only the selected Pi machine, rejects client escapes, and clears unavailable hosts/archives', async () => {
   const a = await fixture(), b = await fixture();
   const hostA = experimental_createHostEntryHarness(hostEntry), hostB = experimental_createHostEntryHarness(hostEntry);
-  const calls: any[] = []; let disconnected = false;
+  const calls: any[] = []; let disconnected = false, currentEnvironment = 'env_machinea';
   try {
     a.append('machine-a'); b.append('machine-b', other); await a.writer.close(5000); await b.writer.close(5000);
     const fake = createFakePluginHost({ pluginId: 'tenet-overview', settings: { recordingDirectories: JSON.stringify({ [machineA]: a.root, [machineB]: b.root }) },
-      sdk: { threads: { get: async ({ threadId: id }: any) => ({ id, providerId: id === 'thr_nonpi1234' ? 'codex' : 'pi', environmentId: id === other ? 'env_machineb' : 'env_machinea' }) as any },
+      sdk: { threads: { get: async ({ threadId: id }: any) => ({ id, providerId: id === 'thr_nonpi1234' ? 'codex' : 'pi', environmentId: id === other ? 'env_machineb' : currentEnvironment }) as any },
         environments: { get: async ({ environmentId }: any) => ({ id: environmentId, hostId: environmentId === 'env_machineb' ? machineB : machineA }) as any } },
       experimental_callHostRpc: async ({ method, input, hostId }: any) => { calls.push({ method, input, hostId }); if (disconnected) throw new Error(sentinel); return (hostId === machineA ? hostA : hostB).experimental_call(method, input); } });
     try {
@@ -134,10 +134,19 @@ test('backend resolves only the selected Pi machine, rejects client escapes, and
       assert.deepEqual(local.calls.map((c: any) => c.callId), ['machine-a']); assert.equal(calls[0].hostId, machineA);
       const remote: any = await fake.harness.behavior.callRpc('overview', { threadId: other });
       assert.deepEqual(remote.calls.map((c: any) => c.callId), ['machine-b']); assert.equal(calls[1].hostId, machineB);
+      assert.match(local.readScope, /^[a-f0-9]{64}$/); assert.notEqual(local.readScope, remote.readScope);
+      assert.ok(!JSON.stringify(local).includes(a.root));
+      const unchanged: any = await fake.harness.behavior.callRpc('overview', { threadId }); assert.equal(unchanged.readScope, local.readScope);
+      currentEnvironment = 'env_machinea_moved';
+      const moved: any = await fake.harness.behavior.callRpc('overview', { threadId }); assert.notEqual(moved.readScope, local.readScope);
+      currentEnvironment = 'env_machinea';
+      await fake.harness.behavior.setSettings({ recordingDirectories: JSON.stringify({ [machineA]: b.root, [machineB]: b.root }) });
+      const changedArchive: any = await fake.harness.behavior.callRpc('overview', { threadId }); assert.notEqual(changedArchive.readScope, local.readScope);
+      await fake.harness.behavior.setSettings({ recordingDirectories: JSON.stringify({ [machineA]: a.root, [machineB]: b.root }) });
       const before = calls.length;
       const unsupported: any = await fake.harness.behavior.callRpc('overview', { threadId: 'thr_nonpi1234' });
       assert.equal(unsupported.state, 'unsupported'); assert.equal(calls.length, before);
-      for (const extra of [{ hostId: machineB }, { recordingDirectory: b.root }, { nativeSession: 'shared-native' }, { limit: 51 }, { cursor: 'x' }])
+      for (const extra of [{ readScope: local.readScope }, { hostId: machineB }, { recordingDirectory: b.root }, { nativeSession: 'shared-native' }, { limit: 51 }, { cursor: 'x' }])
         await assert.rejects(fake.harness.behavior.callRpc('overview', { threadId, ...extra } as any));
       await assert.rejects(fake.harness.behavior.callRpc('overview', { threadId, callCursor: 'x'.repeat(513) }));
       const forged: any = await fake.harness.behavior.callRpc('overview', { threadId, sessionId: remote.sessionId });
@@ -177,4 +186,28 @@ test('historical contract, label/rule limits and selected-detail cap do not beco
     const capped = await index.threadOverview(threadId, { sessionId: data.sessionId!, callId: data.calls[0]!.id });
     assert.equal(capped.selected, null); assert.ok(capped.issues.includes('detail-unavailable')); assert.ok(!JSON.stringify(capped).includes(sentinel));
   } finally { await writer.close(5000); await rm(root, { recursive: true, force: true }); }
+});
+
+
+test('live archive stages update an older selected call without losing bounded cursor history or leaking raw fields', async () => {
+  const f = await fixture();
+  try {
+    const older = f.append('older');
+    for (let n = 0; n < 55; n++) { f.append(`newer-${n}`); await f.writer.drain(5000); }
+    const index = new ArchiveIndex(f.root); await ready(index);
+    const first = await index.threadOverview(threadId);
+    const second = await index.threadOverview(threadId, { sessionId: first.sessionId!, callCursor: first.nextCall! });
+    const selectedId = second.calls.find(c => c.callId === 'older')!.id;
+    const selection = { sessionId: first.sessionId!, callId: selectedId };
+    const selected = await index.threadOverview(threadId, selection);
+    assert.equal(selected.selected!.identity!.callId, 'older'); assert.equal(selected.calls.some(c => c.id === selectedId), false);
+    older('assessment-status', { status: 'unavailable', reason: 'provider-error', error: sentinel });
+    f.append('live-appended'); await f.writer.drain(5000); await ready(index);
+    const live = await index.threadOverview(threadId, selection); overviewSchema.parse(live);
+    assert.equal(live.calls.length, 50); assert.equal(live.linkedCalls, 57);
+    assert.equal(live.selected!.evaluatorState!.status, 'unavailable'); assert.equal(live.selectedId, selectedId);
+    assert.equal(live.selected!.permission, 'released'); assert.equal(live.selected!.execution, 'executed');
+    const olderPage = await index.threadOverview(threadId, { ...selection, callCursor: first.nextCall! });
+    assert.ok(olderPage.calls.some(c => c.id === selectedId)); assert.ok(!JSON.stringify([live, olderPage]).includes(sentinel));
+  } finally { await f.writer.close(5000); await rm(f.root, { recursive: true, force: true }); }
 });

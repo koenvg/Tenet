@@ -36,11 +36,13 @@ The picker reads BB metadata only; it does not scan project machines or archives
 
 Picker output contains at most 50 project names or Pi threads per page. Thread reads inspect one 50-row BB metadata window at a time. The current SDK has no project-page API, so the owner RPC pages its project list without requesting included threads.
 
-**Refresh archive** restarts page reads while keeping the main route's session, call and category. Reads use one ten-second polling owner and an eight-second timeout. An unavailable read clears the summary and offers manual refresh.
+Live reads preserve the selected session, call, category and valid rule selection. They keep loaded older pages while adding the newest calls. Same-thread Back/Forward changes the selected detail without restarting loaded history.
 
-Reconnect the selected machine or check its owner archive setting before retrying.
+Use **Refresh archive** to restart session, call and rule pagination. It keeps the selected session, call and category, including a detail outside the newest page. Load older session pages again for their counts.
 
-Complete live-history retention and recovery remain a later delivery; loaded older pages are not retained across route changes.
+Each workspace has one ten-second polling owner and an eight-second timeout. Disconnects, lost archives, unreadable scopes, timeouts and rejected cursors clear old results. Polling pauses after a failed read. Reconnect the selected machine or check its owner archive setting, then use **Refresh archive** to retry from page one.
+
+An environment, machine or owner archive change clears the old scope. Refresh from page one; do not use another machine's archive as a fallback.
 
 ## Browse calls beside a conversation
 
@@ -49,7 +51,7 @@ After the separate installation steps above:
 1. Open a Pi thread, select **TENET rules**, then **Open thread overview**. BB opens a flush overview tab beside the conversation. Repeating the same open requests focus of the existing tab.
 2. Pick a **Linked session**. Use **More sessions** or **More invocations** for older records. Pages contain at most 50 summaries. **Finding category** filters recorded categories; one call can have several categories.
 3. Select a call. A narrow panel offers **Calls** and **Summary**, even inside a wide window. The common summary shows call identity, recorded contract metadata, assessment, findings, confidence or approval conditions, recorded decision, Tenet permission and execution separately.
-4. Use **Refresh archive** to restart at page one. The panel polls every ten seconds and times out after eight seconds. Unavailable reads clear old results. Reconnect the selected machine or correct its archive setting, then refresh manually. Closing or switching the tab stops its reader and mount.
+4. Keep **Calls**, **Summary**, coverage and **Refresh archive** reachable in a narrow panel. These controls use the panel's width, not the window's width. Use the same [live-read and manual retry controls](#browse-from-the-main-tenet-page) as the main page. Closing, switching scope or reloading disposes its reader and shared mount.
 
 Evaluator failures use safe reason codes such as `provider-error`. They do not count as selected FAIL or unfinished assessments, even if the tool ran. Archive warnings appear in a separate disclosure and can concern other threads. No record means unknown, not pass.
 
@@ -113,6 +115,8 @@ The host caches validated metadata. Each refresh shares a 256-stage/16-MiB parse
 
 The host constructs strict allowlisted summaries before serialization. The owner request accepts only a thread ID, opaque linked session/call IDs, a category and scoped cursors. It rejects extra fields, client machine IDs, archive paths and native-session selectors.
 
+The owner response includes an opaque 64-character `readScope` for its resolved thread, environment, machine and archive. It contains no path or machine selector and is not accepted in requests. The adapter never combines different scopes.
+
 Cursors are limited to 512 characters, labels to 256, recorded rule text to 2,048, issue lists to 20 codes, and session/call pages to 50 summaries. Rule pages contain at most 16 rules, including built-in integrity. Summary rules retain recorded thresholds, policy digest and contract versions; they do not read current policy files.
 
 Select a call, open **Why this assessment**, then **Browse all rules**. Use **More rules** for the next page or **First rule page** to return. Page counts identify rules not shown on the current page.
@@ -150,7 +154,7 @@ Browse the pass, selected FAIL, WARN, integrity, approval, uncertainty and provi
 
 This preview reads no archive and makes no evaluator request. It installs or reloads nothing. Without `?rules`, the preview retains the two-call provider-failure scenario.
 
-If the mount is missing or stale, rebuild the summary library before restarting Vite. The preview does not reproduce native BB tab focus or persistence. SDK tests can verify identical open requests, not installed-host focus. Native tab behavior and deployed remote-host reads need separate authorized checks. Full live-history recovery is a later delivery.
+If the mount is missing or stale, rebuild the summary library before restarting Vite. The preview does not reproduce native BB tab focus or persistence. SDK tests can verify identical open requests, not installed-host focus. Native tab behavior and deployed remote-host reads need separate authorized checks.
 
 ### Try the main page offline
 
@@ -159,6 +163,16 @@ With the same checkout-only Vite preview running, open `http://127.0.0.1:4174/ma
 Expect separate evaluator failures, selected FAIL findings and archive warnings. The preview uses authored fixtures for two simulated machines and makes no real archive or evaluator request.
 
 Stop the preview with Ctrl+C. To restart it, run the commands in [Try the panel offline](#try-the-panel-offline) again. The synthetic shell models navigation; it does not prove installed BB history, native panels or deployed machine routing.
+### Try live browsing and recovery offline
+
+With the same checkout-only Vite process running, open `http://127.0.0.1:4174/live.preview.html?entry=panel` or `http://127.0.0.1:4174/live.preview.html?entry=main`. Both use the real adapter and shared workspace with authored history and rule pages.
+
+1. Load **More sessions** and **More invocations**, then select an older call. Browse past the first 16 rules and select a rule.
+2. Select **Append recorded stage**. Wait for the ten-second poll. The new call appears without losing the loaded history or selection.
+3. Select **Disconnect archive**, **Reject cursors** on a continued rule page, or **Hang archive read**. The next poll clears results after a failure or an eight-second timeout. Select **Make archive readable**, then **Refresh archive** for manual retry.
+4. Try Calls/Summary with a 390px container, Back/Forward on the main page, and close/reopen. **Switch thread scope** aborts the previous view's reads. Preview controls are fixture inputs, not production machine or path selectors.
+
+Expect one polling owner per workspace and no old result after a failed read. These checks do not prove native BB navigation or remote-host deployment. Stop or restart only this preview as described above.
 
 ## Validation
 

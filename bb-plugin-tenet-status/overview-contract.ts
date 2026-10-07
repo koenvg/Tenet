@@ -28,7 +28,7 @@ const selected = z.object({ ...facts, identity: z.object({ callId: label, toolNa
   metadata: z.object({ schemas: z.array(z.number().int()).max(4), questionVersion: label, profile: label, policyDigest: recordId.nullable() }).strict(),
   reason: label, approval: label, noRulesClassifiedViolated: z.boolean(), rules: z.array(rule).max(16), omittedRules: count, missingRuleSnapshots: count.optional(),
   rulePage: z.object({ snapshot: recordId, offset: count, total: count, next: nullableCursor }).strict().optional() }).strict();
-export const overviewSchema = z.object({ state: z.enum(['available', 'unsupported', 'unavailable']),
+export const overviewSchema = z.object({ readScope: recordId.optional(), state: z.enum(['available', 'unsupported', 'unavailable']),
   coverage: z.enum(['unknown', 'partial', 'unavailable']), linkedCalls: count, failures: count, issues: codes,
   sessions: z.array(z.object({ id: recordId, timestamp: z.number(), started: z.number(), calls: count,
     categoryCounts: z.object({ violation: count, uncertainty: count, approval: count, unavailable: count, pending: count }).strict() }).strict()).max(50),

@@ -1,6 +1,7 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import { act, fireEvent, waitFor } from '@testing-library/react';
-import { loadPluginApp, renderSlot } from '@get-bb/plugin-sdk/testing/app';
+import { loadPluginApp } from '@get-bb/plugin-sdk/testing/app';
+import { renderSummarySlot as renderSlot, summaryCalls } from './summary-rpc.fixture';
 import { MainPage } from './main-page';
 import { overviewPath } from './main-route';
 import { syntheticPicker, syntheticThread, mainSyntheticRead, projectA, projectB, stopped, noHistory, nonPi, deleted } from './main.preview-fixture';
@@ -25,8 +26,8 @@ test('registered main root pages metadata only and sends project/thread choices 
     slot.lifecycle.rerender(<MainPage subPath={`project/${projectA}`} />);
     fireEvent.click(await slot.findByRole('button', { name: /Stopped Pi/ }));
     expect(slot.inspection.navigateCalls.at(-1)).toEqual({ method: 'toPluginPanel', path: 'findings', options: { subPath: overviewPath(stopped, {}, projectA) } });
-    expect(slot.inspection.rpcCalls.every(c => c.method.startsWith('picker'))).toBe(true);
-    expect(slot.inspection.sdkCalls).toHaveLength(0);
+    expect(summaryCalls(slot).every(c => c.method.startsWith('picker'))).toBe(true);
+    expect(slot.inspection.sdkCalls.every(call => call.method === 'plugins.callRpc')).toBe(true);
   } finally { slot.lifecycle.unmount(); }
 });
 test('stopped-thread main view reuses safe summaries; BB route restoration restores call/session/category and old findings', async () => {
@@ -54,7 +55,7 @@ test('stopped-thread main view reuses safe summaries; BB route restoration resto
     expect(slot.inspection.navigateCalls.at(-1)).toEqual({ method: 'toPluginPanel', path: 'findings', options: {
       subPath: overviewPath(stopped, { sessionId: 'a'.repeat(64), category: 'unavailable' }, projectA) } });
     expect(slot.container.querySelector('.action-preview, .evidence-dock, .question-json')).toBeNull();
-    expect(slot.inspection.rpcCalls.every(c => ['pickerSelection', 'overview'].includes(c.method))).toBe(true);
+    expect(summaryCalls(slot).every(c => ['pickerSelection', 'overview'].includes(c.method))).toBe(true);
     slot.lifecycle.rerender(<MainPage subPath={stopped} />);
     expect(await slot.findByRole('heading', { name: 'Flagged rules' })).toBeTruthy();
     await waitFor(() => expect(slot.inspection.rpcCalls.at(-1)?.method).toBe('findings'));
@@ -66,14 +67,14 @@ test('non-Pi, deleted, changed-scope and invalid selections clear old summary wi
   const slot = renderSlot(app.navPanels[0]!, { subPath: overviewPath(stopped, {}, projectA) }, { sdk, rpc });
   try {
     await slot.findByText(/2 evaluator failures/);
-    const initialReads = slot.inspection.rpcCalls.filter(c => c.method === 'overview').length;
+    const initialReads = summaryCalls(slot).filter(c => c.method === 'overview').length;
     for (const [path, message] of [[overviewPath(nonPi, {}, projectA), /supports Pi threads only/],
       [overviewPath(deleted, {}, projectA), /unavailable or deleted/], [overviewPath(stopped, {}, projectB), /project changed/],
       ['overview/not-a-thread', /Invalid Tenet selection/]] as const) {
       slot.lifecycle.rerender(<MainPage subPath={path} />);
       expect(await slot.findByText(message)).toBeTruthy();
       expect(slot.container.querySelector('.call-row, .common-summary')).toBeNull();
-      expect(slot.inspection.rpcCalls.filter(c => c.method === 'overview')).toHaveLength(initialReads);
+      expect(summaryCalls(slot).filter(c => c.method === 'overview')).toHaveLength(initialReads);
     }
     slot.lifecycle.rerender(<MainPage subPath={overviewPath(noHistory, {}, projectA)} />);
     expect(await slot.findByText('No recordings linked to this thread. Assessment unknown, not pass.')).toBeTruthy();

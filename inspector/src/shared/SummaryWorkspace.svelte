@@ -35,6 +35,9 @@
       {#if model.sessions?.length}
         <label>Linked session
           <select aria-label="Linked session" value={model.sessionId} disabled={model.loading} on:change={event => actions.selectSession?.(event.currentTarget.value)}>
+            {#if model.sessionId && !model.sessions.some(session => session.id === model.sessionId)}
+              <option value={model.sessionId}>Selected older session · {model.sessionId.slice(0, 8)} · Load more sessions for counts</option>
+            {/if}
             {#each model.sessions as session}<option value={session.id}>{new Date(session.started).toLocaleString()} · {session.calls} calls · {session.id.slice(0, 8)}</option>{/each}
           </select>
         </label>

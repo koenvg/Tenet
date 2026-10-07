@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useRpc, useSdk } from '@get-bb/plugin-sdk/app';
+import { useSdk } from '@get-bb/plugin-sdk/app';
 import { z } from 'zod';
-import type { rpcContract } from './contract';
+import { useSummaryRpc } from './summary-rpc';
 import { overviewSelection } from './overview-contract';
 import { OverviewAdapter } from './overview-adapter';
 import { SummaryWorkspaceMount } from './summary-workspace';
@@ -12,16 +12,16 @@ type PanelSelection = { threadId: string; params: unknown };
 type Navigation = { projectId?: string; onSelection?: (selection: OverviewSelection) => void };
 type ThreadMetadata = { id?: string; providerId: string; projectId?: string; deletedAt?: number | null };
 export function OverviewPanel(props: PanelSelection & Navigation) {
-  const rpc = useRpc<typeof rpcContract>();
+  const call = useSummaryRpc();
   const sdk = useSdk();
-  const readThread = useCallback((threadId: string) => sdk.threads.get({ threadId }), [sdk]);
-  const readOverview = useCallback((threadId: string, selection: OverviewSelection) => rpc.call('overview', { threadId, ...selection }), [rpc]);
+  const readThread = useCallback((threadId: string, signal: AbortSignal) => sdk.threads.get({ threadId, signal }), [sdk]);
+  const readOverview = useCallback((threadId: string, selection: OverviewSelection, signal: AbortSignal) => call('overview', { threadId, ...selection }, signal), [call]);
   return <OverviewView key={props.threadId} {...props} readThread={readThread} readOverview={readOverview} />;
 }
 /** The same mount for native thread panels, main navigation, and offline previews. */
 export function OverviewView({ threadId, params, projectId, onSelection, readThread, readOverview }: PanelSelection & Navigation & {
-  readThread: (threadId: string) => Promise<ThreadMetadata>;
-  readOverview: (threadId: string, selection: OverviewSelection) => Promise<ThreadOverview>;
+  readThread: (threadId: string, signal: AbortSignal) => Promise<ThreadMetadata>;
+  readOverview: (threadId: string, selection: OverviewSelection, signal: AbortSignal) => Promise<ThreadOverview>;
 }) {
   const [adapter, setAdapter] = useState<OverviewAdapter | null>(null);
   const [, update] = useState(0);
@@ -31,7 +31,7 @@ export function OverviewView({ threadId, params, projectId, onSelection, readThr
     let current = true, owner: OverviewAdapter | undefined;
     const controller = new AbortController();
     setAdapter(null); setMessage('Checking thread provider…');
-    liveRead(readThread(threadId), controller.signal).then(thread => {
+    liveRead(readThread(threadId, controller.signal), controller.signal).then(thread => {
       if (!current) return;
       if (thread?.providerId !== 'pi') { setMessage('This overview supports Pi threads only. No archive requested.'); return; }
       if (thread.deletedAt || projectId && (thread.id !== threadId || thread.projectId !== projectId)) {
@@ -43,15 +43,15 @@ export function OverviewView({ threadId, params, projectId, onSelection, readThr
         // Main routes keep their selected project scope. A moved/deleted/non-Pi
         // thread cannot trigger another archive read during the next refresh.
         if (projectId) {
-          const latest = await readThread(threadId);
+          const latest = await readThread(threadId, signal);
           if (latest.providerId !== 'pi') return emptyOverview('unsupported');
           if (latest.id !== threadId || latest.deletedAt || latest.projectId !== projectId) return emptyOverview();
         }
         if (!current || signal.aborted) return emptyOverview();
-        return readOverview(threadId, selection);
+        return readOverview(threadId, selection, signal);
       }, () => { if (current) update(v => v + 1); }, initial.data, onSelection);
       setAdapter(owner);
-    }, () => { if (current) setMessage('Thread unavailable. No archive requested.'); });
+    }, () => { controller.abort(); if (current) setMessage('Thread unavailable. No archive requested.'); });
     return () => { current = false; controller.abort(); owner?.dispose(); };
   }, [readThread, readOverview, threadId, projectId, onSelection, retry]);
   useEffect(() => {

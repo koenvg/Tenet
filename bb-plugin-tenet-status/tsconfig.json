@@ -20,5 +20,5 @@
     "noEmit": true,
     "skipLibCheck": false
   },
-  "include": ["server.ts", "host.ts", "contract.ts", "app.tsx", "summary-workspace.tsx", "*.test.ts", "*.vitest.tsx", "overview.preview.tsx", "../src/inspector/**/*.ts", "../src/recording/**/*.ts"]
+  "include": ["server.ts", "host.ts", "contract.ts", "app.tsx", "summary-workspace.tsx", "*.test.ts", "*.vitest.tsx", "overview.preview.tsx", "live.preview.tsx", "../src/inspector/**/*.ts", "../src/recording/**/*.ts"]
 }

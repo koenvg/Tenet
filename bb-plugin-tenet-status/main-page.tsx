@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useBbNavigate, useRpc, type PluginNavPanelProps } from '@get-bb/plugin-sdk/app';
-import type { rpcContract } from './contract';
+import { useBbNavigate, type PluginNavPanelProps } from '@get-bb/plugin-sdk/app';
+import { useSummaryRpc } from './summary-rpc';
 import type { PickerSelection, ProjectPage, ThreadPage } from './picker-contract';
 import { parseMainRoute, overviewPath, type MainRoute } from './main-route';
 import { OverviewPanel } from './overview-panel';
@@ -9,20 +9,20 @@ import { liveRead } from './live-read';
 import type { OverviewSelection } from '../src/inspector/bb-summary';
 
 export interface PickerClient {
-  projects: (cursor?: string) => Promise<ProjectPage>;
-  threads: (projectId: string, cursor?: string) => Promise<ThreadPage>;
-  selection: (threadId: string, projectId?: string) => Promise<PickerSelection>;
+  projects: (cursor?: string, signal?: AbortSignal) => Promise<ProjectPage>;
+  threads: (projectId: string, cursor?: string, signal?: AbortSignal) => Promise<ThreadPage>;
+  selection: (threadId: string, projectId?: string, signal?: AbortSignal) => Promise<PickerSelection>;
 }
 type OverviewProps = { threadId: string; projectId: string; params: OverviewSelection; onSelection: (selection: OverviewSelection) => void };
 const button = 'rounded-md border border-border px-3 py-2 text-sm hover:bg-accent focus-visible:outline focus-visible:outline-2';
 export function MainPage({ subPath }: PluginNavPanelProps) {
-  const rpc = useRpc<typeof rpcContract>();
+  const call = useSummaryRpc();
   const navigate = useBbNavigate();
   const client = useMemo<PickerClient>(() => ({
-    projects: cursor => rpc.call('pickerProjects', cursor ? { cursor } : {}),
-    threads: (projectId, cursor) => rpc.call('pickerThreads', { projectId, ...(cursor ? { cursor } : {}) }),
-    selection: (threadId, projectId) => rpc.call('pickerSelection', { threadId, ...(projectId ? { projectId } : {}) }),
-  }), [rpc]);
+    projects: (cursor, signal) => call('pickerProjects', cursor ? { cursor } : {}, signal),
+    threads: (projectId, cursor, signal) => call('pickerThreads', { projectId, ...(cursor ? { cursor } : {}) }, signal),
+    selection: (threadId, projectId, signal) => call('pickerSelection', { threadId, ...(projectId ? { projectId } : {}) }, signal),
+  }), [call]);
   const go = useCallback((path: string) => navigate.toPluginPanel('findings', { subPath: path }), [navigate]);
   return <MainPageView subPath={subPath} client={client} navigate={go}
     overview={props => <OverviewPanel {...props} />} findings={threadId => <DetailsPage subPath={threadId} />} />;
@@ -53,8 +53,8 @@ function Picker({ client, projectId, navigate }: { client: PickerClient; project
     let current = true;
     const controller = new AbortController();
     setPage(null); setError('');
-    liveRead(projectId ? client.threads(projectId, cursor) : client.projects(cursor), controller.signal)
-      .then(value => { if (current) setPage(value); }, () => { if (current) setError('Selection list unavailable. Retry from the first page.'); });
+    liveRead(projectId ? client.threads(projectId, cursor, controller.signal) : client.projects(cursor, controller.signal), controller.signal)
+      .then(value => { if (current) setPage(value); }, () => { controller.abort(); if (current) setError('Selection list unavailable. Retry from the first page.'); });
     return () => { current = false; controller.abort(); };
   }, [client, projectId, cursor, retry]);
   return <section aria-label={projectId ? 'Pi threads' : 'Projects'} className="space-y-3 p-4" style={{ padding: 16, overflowWrap: 'anywhere' }}>
@@ -84,8 +84,8 @@ function SelectedThread({ route, client, navigate, overview }: {
     let current = true;
     const controller = new AbortController();
     setSelected(null);
-    liveRead(client.selection(route.threadId, route.projectId), controller.signal).then(value => { if (current) setSelected(value); },
-      () => { if (current) setSelected({ state: 'unavailable', thread: null, project: null }); });
+    liveRead(client.selection(route.threadId, route.projectId, controller.signal), controller.signal).then(value => { if (current) setSelected(value); },
+      () => { controller.abort(); if (current) setSelected({ state: 'unavailable', thread: null, project: null }); });
     return () => { current = false; controller.abort(); };
   }, [client, route.threadId, route.projectId, retry]);
   const projectId = route.projectId ?? selected?.project?.id;

@@ -1,6 +1,7 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import { fireEvent, waitFor } from '@testing-library/react';
-import { loadPluginApp, renderSlot } from '@get-bb/plugin-sdk/testing/app';
+import { loadPluginApp } from '@get-bb/plugin-sdk/testing/app';
+import { renderSummarySlot as renderSlot, summaryCalls } from './summary-rpc.fixture';
 import { OverviewAdapter } from './overview-adapter';
 import { rulesSyntheticRead } from './rules.preview-fixture';
 import { syntheticOverview, syntheticRead } from './overview.preview-fixture';
@@ -38,7 +39,7 @@ test('restored non-Pi panel reads no archive; forged params read no summaries', 
     const slot = renderSlot(app.threadPanelActions[0]!, { threadId, params }, {
       sdk: { threads: { get: async () => ({ providerId }) as any } }, rpc: { overview: () => { throw new Error('must not read'); } },
     });
-    try { expect(await slot.findByText(message)).toBeTruthy(); expect(slot.inspection.rpcCalls).toHaveLength(0); }
+    try { expect(await slot.findByText(message)).toBeTruthy(); expect(summaryCalls(slot)).toHaveLength(0); }
     finally { slot.lifecycle.unmount(); }
   }
 });
@@ -70,7 +71,7 @@ test('real panel mounts shared safe summary, displays inert text, and clears sta
     expect(slot.getAllByText('<script>window.archiveExecuted=true</script>')).toBeTruthy();
     expect(slot.container.querySelector('script')).toBeNull(); expect((window as any).archiveExecuted).toBeUndefined();
     expect(slot.container.innerHTML).not.toContain('RAW-SENTINEL');
-    expect(slot.inspection.rpcCalls.every(c => c.method === 'overview')).toBe(true);
+    expect(summaryCalls(slot).every(c => c.method === 'overview')).toBe(true);
     disconnected = true;
     fireEvent.click(slot.getByRole('button', { name: 'Refresh archive' }));
     expect(await slot.findByText('Host or archive unavailable. No current result.')).toBeTruthy();
@@ -131,7 +132,7 @@ test('panel adapter reads scoped rule pages through overview only and resets pag
     fireEvent.click(slot.getByText('synthetic-WARN'));
     await slot.findByText('Call synthetic-WARN');
     expect(read.mock.calls.at(-1)![0].ruleCursor).toBeUndefined();
-    expect(slot.inspection.rpcCalls.every(c => c.method === 'overview')).toBe(true);
+    expect(summaryCalls(slot).every(c => c.method === 'overview')).toBe(true);
     expect(slot.container.querySelector('script')).toBeNull();
   } finally { slot.lifecycle.unmount(); }
 });

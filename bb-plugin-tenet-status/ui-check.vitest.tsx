@@ -17,6 +17,7 @@ function renderSlot<Props extends object>(registration: { component: ComponentTy
     ...(findings ? { findings: async (input: unknown) => rpcContract.findings.output.parse(await findings(rpcContract.findings.input.parse(input))) } : {}),
   } });
 }
+import { renderSummarySlot, summaryCalls } from './summary-rpc.fixture';
 
 const threadId = 'thr_abcdefgh1234';
 const linked: Status = { coverage: 'partial', linkedCalls: 2, failures: 1, issues: [] };
@@ -267,9 +268,9 @@ describe('Pi thread rule action', () => {
   });
   it('opens the sidebar root with metadata only and no findings or archive RPC', async () => {
     const app = await loadPluginApp(() => import('./app'));
-    const slot = renderSlot(app.navPanels[0]!, { subPath: '' }, { rpc: { pickerProjects: () => ({ items: [], next: null }),
+    const slot = renderSummarySlot(app.navPanels[0]!, { subPath: '' }, { rpc: { pickerProjects: () => ({ items: [], next: null }),
       findings: () => { throw new Error('must not call'); } } });
-    try { expect(await slot.findByText('No projects on this page.')).toBeTruthy(); expect(slot.inspection.rpcCalls.map(call => call.method)).toEqual(['pickerProjects']); }
+    try { expect(await slot.findByText('No projects on this page.')).toBeTruthy(); expect(summaryCalls(slot).map(call => call.method)).toEqual(['pickerProjects']); }
     finally { slot.lifecycle.unmount(); }
   });
   it('polls while closed and removes the finding indicator after a failed read', async () => {

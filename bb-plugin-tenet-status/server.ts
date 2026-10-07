@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { BbPluginApi } from '@get-bb/plugin-sdk';
 import { hostContract, rpcContract, unavailable, unavailableFindings } from './contract.js';
 import { emptyOverview } from '../src/inspector/bb-summary.js';
@@ -22,7 +23,8 @@ export default function plugin(bb: BbPluginApi) {
     if (!configured || typeof configured !== 'object' || Array.isArray(configured)) return null;
     const directory = (configured as Record<string, unknown>)[hostId];
     if (directory !== undefined && (typeof directory !== 'string' || directory.length > 4096)) return null;
-    return { hostId, input: directory === undefined ? {} : { recordingDirectory: directory } };
+    const readScope = createHash('sha256').update(JSON.stringify([threadId, environment.id, hostId, directory ?? null])).digest('hex');
+    return { hostId, readScope, input: directory === undefined ? {} : { recordingDirectory: directory } };
   };
   bb.rpc.register(rpcContract, {
     ...pickerHandlers(bb.sdk),
@@ -44,7 +46,9 @@ export default function plugin(bb: BbPluginApi) {
         const thread = await bb.sdk.threads.get({ threadId });
         if (thread && thread.providerId !== 'pi') return overviewSchema.parse(emptyOverview('unsupported'));
         const selected = await target(threadId);
-        return selected ? await host.call('readOverview', { threadId, ...selection, ...selected.input }, { hostId: selected.hostId }) : overviewSchema.parse(emptyOverview());
+        if (!selected) return overviewSchema.parse(emptyOverview());
+        const data = await host.call('readOverview', { threadId, ...selection, ...selected.input }, { hostId: selected.hostId });
+        return overviewSchema.parse({ ...data, readScope: selected.readScope });
       } catch { return overviewSchema.parse(emptyOverview()); }
     },
   });

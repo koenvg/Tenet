@@ -84,6 +84,8 @@ export interface LinkedSessionSummary {
 }
 export interface ThreadOverview {
   state: 'available' | 'unavailable' | 'unsupported';
+  /** Opaque owner-resolved environment/host/archive identity. Never a client selector. */
+  readScope?: string;
   coverage: 'unknown' | 'partial' | 'unavailable'; linkedCalls: number; failures: number;
   issues: string[]; sessions: LinkedSessionSummary[]; nextSession: string | null;
   sessionId: string | null; calls: SummaryCall[]; nextCall: string | null;
