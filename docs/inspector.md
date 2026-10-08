@@ -1,6 +1,6 @@
 # Inspect findings and recordings
 
-Use this guide to open Tenet's local inspector, select a session and call, and read retained evidence. It covers Pi 0.85.1 and standalone use from a developer checkout or the production archive. The inspector is read-only. It cannot approve, retry or execute tools, edit policy, or ask a provider to reassess a call.
+Use this guide to open Tenet's local inspector, select a session and call, and read retained evidence. It covers Pi 1.1.0 and standalone use from a developer checkout or the production archive. The inspector is read-only. It cannot approve, retry or execute tools, edit policy, or ask a provider to reassess a call.
 
 - If Pi is running, [open the inspector from Pi](#open-it-from-pi).
 - To read retained files without Pi, [start the standalone inspector](#open-it-without-pi).

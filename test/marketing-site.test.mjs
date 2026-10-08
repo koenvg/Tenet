@@ -205,7 +205,7 @@ test("owner setup uses the archive's offline compiled doctor and separates devel
   expect(setup).toBeDefined();
   for (const text of [
     "recommended Pi owner path", "docs/INSTALL-ARCHIVE.md", "Node 22.19+ with npm",
-    "Bun 1.3.14+", "separate Pi 0.85.1 installation", "No compiler or frontend build is needed",
+    "Bun 1.3.14+", "separate Pi 1.1.0 installation", "No compiler or frontend build is needed",
     "supported offline check", "Replace both paths", "No global <code>tenet</code> command is installed",
     "local prerequisites are valid, not verified hooks or provider connectivity",
     "Off and dormant are bypass states, not passing assessments",

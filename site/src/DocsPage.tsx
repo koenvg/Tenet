@@ -16,7 +16,7 @@ export default function DocsPage() {
 
       <section id="setup" aria-labelledby="setup-title">
         <h2 id="setup-title">Install the archive</h2>
-        <p>Use the <a href="https://github.com/koenvg/Tenet/blob/main/docs/INSTALL-ARCHIVE.md">production archive guide</a> for the recommended Pi owner path. It needs Node 22.19+ with npm, Bun 1.3.14+ and a separate Pi 0.85.1 installation.</p>
+        <p>Use the <a href="https://github.com/koenvg/Tenet/blob/main/docs/INSTALL-ARCHIVE.md">production archive guide</a> for the recommended Pi owner path. It needs Node 22.19+ with npm, Bun 1.3.14+ and a separate Pi 1.1.0 installation.</p>
         <p>The private passing-main artifact expires after 14 days. No compiler or frontend build is needed.</p>
         <p>Real assessments send policy, paths, tool evidence and bounded recent observations to TypeSafe and use quota. Redaction cannot find every secret in source, commands or rules. Configure <code>TYPESAFE_API_KEY</code> through your secret manager, not in policy or chat.</p>
         <p>After installation, run this supported offline check in the shell the next Pi process will inherit. Replace both paths:</p>
@@ -38,7 +38,7 @@ export default function DocsPage() {
         <p>The sources share 16 declarations and 64 KiB of file bytes, with 4096 UTF-8 bytes per rule. Global declarations are assessed first. Project permissions, severity or thresholds cannot weaken them.</p>
         <p>Follow <a href="https://github.com/koenvg/Tenet/blob/main/docs/policy.md#write-a-first-rule">first-policy steps</a>. For advisory <code>WARN</code> or per-rule metadata, see <a href="https://github.com/koenvg/Tenet/blob/main/docs/policy.md#rule-grammar-and-limits">exact grammar and limits</a>.</p>
         <p>Policy changes invalidate active snapshots. Pi policy-only changes need session-start reload or restart and checked source digests and total count. Code or environment changes need a full restart. SDK hosts close and reopen sessions; the Claude prototype uses bridge reselection.</p>
-        <p>In pinned Pi 0.85.1, a switch from eligible to dormant can leave old Tenet command names listed until full native extension reload. Their handlers stay silent while dormant or transitioning, and old status and footer state are cleared. A listed name does not prove active enforcement. See <a href="https://github.com/koenvg/Tenet/blob/main/docs/policy.md#choose-the-policy-file">the pinned host limit</a>.</p>
+        <p>In pinned Pi 1.1.0, a switch from eligible to dormant can leave old Tenet command names listed until full native extension reload. Their handlers stay silent while dormant or transitioning, and old status and footer state are cleared. A listed name does not prove active enforcement. See <a href="https://github.com/koenvg/Tenet/blob/main/docs/policy.md#choose-the-policy-file">the pinned host limit</a>.</p>
         <p>Older releases can ignore global discovery and cannot reproduce additive enforcement. See <a href="https://github.com/koenvg/Tenet/blob/main/docs/INSTALL-ARCHIVE.md#removal-and-rollback">owner-reviewed rollback steps</a> before reverting.</p>
         <p>The judge can be wrong or unavailable. Review findings before relying on enforcement.</p>
       </section>

@@ -96,7 +96,7 @@ Do not put credentials in it. Global and project sources share the limits below.
 
 Dormant calls have no veto, approval, recording, active footer or notification. A file that appears later needs a new session or extension reload. `/tenet on` cannot activate a dormant session. Deletion after activation is unavailable, not dormant.
 
-A fresh dormant Pi extension registers no Tenet commands. In pinned Pi 0.85.1, a switch from eligible to dormant can leave previously registered command names listed until a full native extension reload. Their handlers stay silent while the current session is dormant or transitioning. Old source, digest, readiness and footer state are cleared. The supported Pi API has no command unregister or hide operation; listed names do not prove active enforcement.
+A fresh dormant Pi extension registers no Tenet commands. In pinned Pi 1.1.0, a switch from eligible to dormant can leave previously registered command names listed until a full native extension reload. Their handlers stay silent while the current session is dormant or transitioning. Old source, digest, readiness and footer state are cleared. The supported Pi API has no command unregister or hide operation; listed names do not prove active enforcement.
 
 ## Source snapshot contract
 
@@ -249,7 +249,7 @@ Changing the policy while confirmation is open does not authorize the pending ac
 2. Use the session-start reload path for policy-file-only changes, or restart Pi.
 3. Check both selected roles, their new source digests and rule counts in native status. Use a fresh call for any action that was pending.
 
-Code and environment changes need a full process restart. Under Pi 0.85.1 and Bun 1.3.14, `/reload` and `/new` can retain old module imports.
+Code and environment changes need a full process restart. Do not use `/reload` or `/new` to apply code or environment changes.
 
 Integrity is semantic protection, not filesystem isolation. Jev can misclassify actions, hidden aliases may be unknown, and Tenet cannot freeze the filesystem between checking and execution.
 

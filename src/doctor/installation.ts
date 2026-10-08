@@ -2,7 +2,7 @@ import { constants } from 'node:fs';
 import { access, open, realpath, stat } from 'node:fs/promises';
 import { delimiter, dirname, join } from 'node:path';
 
-export const TESTED_PI_VERSION = '0.85.1';
+export const TESTED_PI_VERSION = '1.1.0';
 const PI_PACKAGE = '@earendil-works/pi-coding-agent';
 // Common compiled readiness entries. The manifest selects the development or production host layout.
 export const DELIVERY_FILES = Object.freeze([

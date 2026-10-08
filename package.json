@@ -47,14 +47,14 @@
     "@typesafe-ai/sdk": "0.6.0"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "0.85.1"
+    "@earendil-works/pi-coding-agent": "1.1.0"
   },
   "peerDependenciesMeta": {
     "@earendil-works/pi-coding-agent": { "optional": true }
   },
   "devDependencies": {
-    "@earendil-works/pi-ai": "0.85.1",
-    "@earendil-works/pi-coding-agent": "0.85.1",
+    "@earendil-works/pi-ai": "1.1.0",
+    "@earendil-works/pi-coding-agent": "1.1.0",
     "@radix-ui/react-slot": "1.4.0",
     "@radix-ui/react-tabs": "1.1.22",
     "@tailwindcss/vite": "4.3.3",

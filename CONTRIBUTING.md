@@ -8,7 +8,7 @@ Before creating or editing documentation, read and follow [the writing guide](do
 
 ## Set up
 
-Use this developer checkout to change Tenet and run offline checks. Use Bun 1.3.14+ and Node 22.19+ with pinned Pi 0.85.1. SDK-only consumers support Node 22.12+.
+Use this developer checkout to change Tenet and run offline checks. Use Bun 1.3.14+ and Node 22.19+ with pinned Pi 1.1.0. SDK-only consumers support Node 22.12+.
 
 1. From the repository root, install the locked application and BB plugin dependencies:
 
@@ -177,7 +177,7 @@ This is user-level registration; do not add `-l`. Pi loads `src/pi/extension.ts`
 
 Launch plain `pi`, not a second `-e` copy or `bun run pi`. Each eligible session uses the reviewed optional global policy alongside any local or explicitly selected project policy. See [project policy selection](docs/policy.md#choose-the-policy-file) before restarting.
 
-Code and environment changes need a full Pi process restart. Under Pi 0.85.1 and Bun 1.3.14, `/reload` and `/new` can retain old imports. Policy-only changes can use session-start reload; check the new digest and count.
+Code and environment changes need a full Pi process restart. Do not use `/reload` or `/new` to apply code or environment changes. Policy-only changes can use session-start reload; check the new digest and count.
 
 Unloading removes observation and enforcement. There is no live-mode mock fallback. See [owner controls, removal and rollback](docs/INSTALL-ARCHIVE.md#removal-and-rollback).
 
