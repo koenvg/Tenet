@@ -13,7 +13,7 @@ export const runtimeModules = [
   ...['activation', 'approval', 'config', 'configuration', 'judge', 'settings', 'consequences', 'guard', 'invocation-authorization', 'observation-queue', 'owner-record', 'policy-selection', 'resolved-action', 'resources'].map(n => `runtime/${n}`),
   ...['archive', 'contract', 'files', 'judge', 'native', 'policy-contract', 'rules'].map(n => `recording/${n}`),
   ...['approval', 'boundary', 'config', 'extension', 'guard', 'history', 'inspector-command', 'owner-reports', 'report-history'].map(n => `pi/${n}`),
-  ...['archive-index', 'assessment-completeness', 'bb-findings', 'bb-summary', 'summary-model', 'summary-explanation', 'finding-view', 'recorded-decision', 'serve-cli', 'server', 'view'].map(n => `inspector/${n}`),
+  ...['archive-index', 'assessment-completeness', 'bb-findings', 'bb-summary', 'summary-model', 'summary-explanation', 'finding-view', 'recorded-assessment', 'recorded-decision', 'serve-cli', 'server', 'view'].map(n => `inspector/${n}`),
 ];
 export const documentFiles = ['README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'docs/operation.md', 'docs/sdk.md', 'docs/doctor.md', 'docs/judge.md', 'third-party/apus/LICENSE', 'third-party/apus/NOTICE'];
 

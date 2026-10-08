@@ -1,10 +1,11 @@
 import { classifyFinding, uncertaintyKeys } from '../decision/finding-triage.js';
 import type { ArchiveRecord, Stage } from '../recording/contract.js';
+import { recordedAssessment } from './recorded-assessment.js';
 
 import { recordedPolicyIdentity } from '../recording/policy-contract.js';
 export type RuleFacts = { ruleId: string; outcome?: string; gates: string[] };
 export type FindingStage = { stage: Stage; timestamp: number; reason?: string; valid?: boolean; status?: string;
-  model?: string; rules?: RuleFacts[]; policyIdentity?: string; profile?: string };
+  model?: string; assessmentValid?: boolean; rules?: RuleFacts[]; policyIdentity?: string; profile?: string };
 const object = (v: unknown): Record<string, any> => v && typeof v === 'object' && !Array.isArray(v) ? v : {};
 const reason = (v: unknown) => typeof v === 'string' && v.length <= 256 ? v : undefined;
 const ruleFacts = (v: unknown): RuleFacts[] => Array.isArray(v) ? v.slice(0, 17).map(object)
@@ -24,10 +25,10 @@ export function findingStage(record: Pick<ArchiveRecord, 'stage' | 'data' | 'tim
         : typeof config.assessmentProfile === 'string' && config.assessmentProfile.length <= 128 ? config.assessmentProfile : 'legacy (historical)' };
   }
   if (stage === 'assessment' || stage === 'validation') {
-    const assessment = object(data.assessment);
+    const assessment = recordedAssessment(data.assessment);
     return { stage, timestamp, profile, reason: reason(data.reason), valid: stage === 'validation' ? data.valid === true : undefined,
-      model: typeof assessment.model === 'string' && Array.isArray(assessment.rules) ? 'recorded' : undefined,
-      rules: ruleFacts(assessment.rules) };
+      assessmentValid: data.assessment == null ? undefined : assessment !== null,
+      model: assessment ? 'recorded' : undefined, rules: assessment ? ruleFacts(assessment.rules) : [] };
   }
   if (stage === 'decision') return { stage, timestamp, profile, reason: reason(data.reason), rules: ruleFacts(data.contributions ?? data.diagnostics) };
   if (stage === 'permission') return { stage, timestamp, profile, reason: reason(data.reason) };
@@ -49,7 +50,8 @@ export function foldFindingStages(records: readonly FindingStage[]) {
   const validation = stage('validation'), assessment = stage('assessment'), lifecycle = stage('assessment-status');
   const failure = [assessment?.reason, stage('decision')?.reason, validation?.reason, stage('permission')?.reason]
     .find(value => value && failures.has(value)) ?? (validation?.valid === false ? 'validation-failed' : null);
-  const selectedAssessment = assessment?.model ? assessment : validation;
+  const selectedAssessment = assessment?.model || assessment?.assessmentValid === false ? assessment : validation;
+  const inconsistent = selectedAssessment?.assessmentValid === false;
   const legacyStatus = failure ? 'failed' : selectedAssessment?.model ? 'validated' : 'incomplete';
   const assessmentStatus = lifecycle && ['pending', 'completed', 'dropped', 'cancelled', 'unavailable'].includes(lifecycle.status ?? '')
     ? lifecycle.status! : legacyStatus;
@@ -66,11 +68,11 @@ export function foldFindingStages(records: readonly FindingStage[]) {
     ? lifecycle.reason ?? failure ?? 'assessment-unavailable' : failure;
   const evaluatorState: EvaluatorState = {
     status: recordedFailure ? 'unavailable' : ['validated', 'completed'].includes(assessmentStatus)
-      ? selectedAssessment?.model ? 'completed' : 'incomplete' : assessmentStatus as EvaluatorState['status'],
+      ? selectedAssessment?.model && !inconsistent ? 'completed' : 'incomplete' : assessmentStatus as EvaluatorState['status'],
     reason: recordedFailure ? failures.has(recordedFailure) ? recordedFailure as EvaluatorFailureCode : 'assessment-unavailable' : null,
   };
   const facts = { assessmentStatus: evaluatorState.status, reason: recordedFailure,
-    rules: evaluatorState.status === 'unavailable' || unfinished ? [] : [...rules.values()] };
+    rules: evaluatorState.status === 'unavailable' || unfinished || inconsistent ? [] : [...rules.values()] };
   const begin = stage('begin');
   return { assessmentStatus, failure: recordedFailure, evaluatorState,
     categories: classifyFinding(facts), uncertainty: uncertaintyKeys(facts),

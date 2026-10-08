@@ -2,6 +2,7 @@ import { recordedOrigin } from '../recording/policy-contract.js';
 import type { ArchiveRecord } from '../recording/contract.js';
 import { findingStage, foldFindingStages } from './finding-view.js';
 import { createHash } from 'node:crypto';
+import { recordedAssessment } from './recorded-assessment.js';
 
 export interface ThreadFinding {
   id: string; callId: string; toolName: string; timestamp: number; mode: 'observe' | 'enforce';
@@ -25,8 +26,8 @@ export function projectThreadFinding(records: ArchiveRecord[], id: string, threa
   const facts = foldFindingStages(records.map(findingStage));
   if (stage('validation').valid !== true || facts.evaluatorState.status !== 'completed')
     return { item: null, gaps: ['detail-unavailable'] };
-  const assessment = object(stage('assessment').assessment);
-  if (typeof assessment.model !== 'string' || !Array.isArray(assessment.rules)) return { item: null, gaps: ['detail-unavailable'] };
+  const assessment = recordedAssessment(stage('assessment').assessment);
+  if (!assessment) return { item: null, gaps: ['detail-unavailable'] };
   const request = stage('request'), begin = stage('begin');
   const policy = object(Object.keys(request).length ? request.policy : begin.policy);
   const integrity = object(Object.keys(request).length ? object(object(request.payload).state).integrity : begin.integrity);
@@ -36,7 +37,7 @@ export function projectThreadFinding(records: ArchiveRecord[], id: string, threa
   const diagnostics = stage('decision').contributions ?? stage('decision').diagnostics;
   const threshold = object(stage('assessment').config ?? begin.config).effectThreshold;
   for (const result of assessment.rules) {
-    if (result?.outcome?.choice !== 'FAIL' || typeof result.ruleId !== 'string' || selected.has(result.ruleId)) continue;
+    if (result.outcome.choice !== 'FAIL') continue;
     const rule = rules.find(r => r?.id === result.ruleId && (r.enforcement === 'BLOCK' || r.enforcement === 'WARN'));
     if (!rule) continue;
     if (selected.size >= 16) { gaps.push('detail-rule-limit'); break; }
@@ -48,7 +49,7 @@ export function projectThreadFinding(records: ArchiveRecord[], id: string, threa
       policyText: text !== null && text.length <= 2048 ? text : null,
       confidence: typeof confidence === 'number' && Number.isFinite(confidence) && confidence >= 0 && confidence <= 1 ? confidence : null,
       kind: result.ruleId === integrity.id ? 'integrity' : 'policy',
-      uncertain: !Number.isFinite(confidence) || !Number.isFinite(threshold) || confidence < threshold
+      uncertain: typeof confidence !== 'number' || !Number.isFinite(confidence) || !Number.isFinite(threshold) || confidence < threshold
         || !Array.isArray(diagnostics) || !diagnostics.some(d => d?.ruleId === result.ruleId && Array.isArray(d.gates))
         || facts.uncertainty.some(value => value.ruleId === result.ruleId) });
   }

@@ -9,6 +9,7 @@ import { directory, MAX_RECORD_BYTES, readPrivateFile } from '../recording/files
 import { captureHealth, invocationView, type CaptureHealth } from './view.js';
 import { projectThreadFinding, type ThreadFinding } from './bb-findings.js';
 import { projectSummaryCall, projectSummaryDecision, type LinkedSessionSummary, type ThreadOverview, type OverviewSelection } from './bb-summary.js';
+import { recordedAssessment } from './recorded-assessment.js';
 
 export interface PageOptions { limit?: number; cursor?: string; offset?: number }
 export interface InvocationSummary {
@@ -60,18 +61,8 @@ function bbFacts(record: ArchiveRecord): Pick<Metadata, 'valid' | 'policyRuleIds
   const integrityRuleId = integrity === undefined || integrity === null ? undefined
     : typeof integrity === 'object' && !Array.isArray(integrity) && typeof (integrity as { id?: unknown }).id === 'string'
       && (integrity as { id: string }).id.length <= 256 ? (integrity as { id: string }).id : null;
-  const selected = stage === 'assessment' && data.assessment && typeof data.assessment === 'object'
-    ? data.assessment as { model?: unknown; rules?: unknown } : null;
-  let selectedFailIds: string[] | undefined;
-  if (typeof selected?.model === 'string' && Array.isArray(selected.rules)) {
-    selectedFailIds = [];
-    const seen = new Set<string>();
-    for (const rule of selected.rules) {
-      if (!rule || typeof rule.ruleId !== 'string' || rule.ruleId.length > 256 || seen.has(rule.ruleId)) continue;
-      seen.add(rule.ruleId);
-      if (rule.outcome?.choice === 'FAIL' && selectedFailIds.length < 64) selectedFailIds.push(rule.ruleId);
-    }
-  }
+  const selected = stage === 'assessment' ? recordedAssessment(data.assessment) : null;
+  const selectedFailIds = selected?.rules.filter(rule => rule.outcome.choice === 'FAIL').slice(0, 64).map(rule => rule.ruleId);
   return { valid: stage === 'validation' ? data.valid === true : undefined, policyRuleIds, integrityRuleId, selectedFailIds };
 }
 const compare = (a: { timestamp: number; id: string }, b: { timestamp: number; id: string }) => b.timestamp - a.timestamp || a.id.localeCompare(b.id);
@@ -500,6 +491,7 @@ export class ArchiveIndex {
     const reasons = new Map<EvaluatorFailureCode, number>();
     const candidates: { id: string; timestamp: number; session: string; invocation: string; expectedEvents: Set<string> }[] = [];
     for (const [id, records] of groups) {
+      if (records.some(r => r.finding.assessmentValid === false)) issues.add('assessment-inconsistent');
       if (!['begin', 'request', 'response', 'validation', 'assessment', 'decision', 'permission', 'execution']
         .every(stage => records.some(r => r.stage === stage))) issues.add('missing-stages');
       if (this.selectedFailure(records)) candidates.push({ id, timestamp: records[0]!.timestamp,
@@ -560,6 +552,7 @@ export class ArchiveIndex {
     let selected = null;
     const issues = new Set(this.issues().map(i => i.reason));
     if (writerLoss) issues.add('writer-loss');
+    if ([...groups.values()].some(records => records.some(r => r.finding.assessmentValid === false))) issues.add('assessment-inconsistent');
     if (metadata) {
       const first = metadata[0]!;
       const detail = await this.detail(recordSessionKey(first), recordInvocationKey(first), threadId);
