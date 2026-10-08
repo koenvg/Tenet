@@ -96,7 +96,7 @@ Externally derived paths, digests and detected versions are bounded, strip termi
 | `control-unavailable` | Check the absolute control path and private same-user file/directory. Fix unsafe links or permissions outside Pi. Doctor does not repair control. |
 | `invalid-recording-setting` or `invalid-recording-directory` | Use exact `on`/`off` and an absolute recording directory, even when capture is off. |
 | `delivery-incomplete` | For a checkout, build SDK/CLI and inspector and install locked dependencies. For an archive, replace the incomplete installation and install its locked production dependencies. |
-| `untested-pi-version` | Use tested Pi 0.85.1 or a Tenet release tested with your host. Unknown metadata is a limitation, not a tested result. |
+| `untested-pi-version` | Use tested Pi 1.1.0 or a Tenet release tested with your host. Unknown metadata is a limitation, not a tested result. |
 | `missing-credentials` | Configure the key securely before active launch. Doctor does not test validity or connectivity. |
 | APUS ready but assessments unavailable | Check the owner-operated loopback backend and matching alias outside Pi. Doctor does not test connectivity, context capacity or native responses. Do not add a TypeSafe key as a fix. |
 | Ready but no footer or `/tenet` command | Check the actual launch directory, policy selection, `pi list` and extension load errors. Fully restart Pi. Doctor cannot check registration or hook activation. |
@@ -127,7 +127,7 @@ A real default assessment sends policy and evaluator evidence to TypeSafe and us
 
 ### Host discovery does not prove the next launch
 
-Pi 0.85.1 is the tested host. Doctor reads package metadata for the first executable `pi` launcher on PATH without executing it. Read-only permission checks skip non-executable candidates. Empty PATH components mean the current command directory, not the selected project.
+Pi 1.1.0 is the tested host. Doctor reads package metadata for the first executable `pi` launcher on PATH without executing it. Read-only permission checks skip non-executable candidates. Empty PATH components mean the current command directory, not the selected project.
 
 Valid prerelease and build metadata are recognized, but only the exact tested pin is tested. With no launcher, doctor checks the selected project's then the installation's local Pi package metadata.
 

@@ -48,7 +48,7 @@ test('the BB frontend can resolve Slot from production dependencies', async () =
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'tenet-delivery-contract-'));
   const manifest = deliveryManifest({ version: '0.1.0', engines: { node: '>=22.12', bun: '>=1.3.14' },
-    dependencies: { '@typesafe-ai/sdk': '0.6.0' }, peerDependencies: { '@earendil-works/pi-coding-agent': '0.85.1' } });
+    dependencies: { '@typesafe-ai/sdk': '0.6.0' }, peerDependencies: { '@earendil-works/pi-coding-agent': '1.1.0' } });
   const files = [...runtimeModules.flatMap(name => [`dist/${name}.js`, `dist/${name}.d.ts`]), ...documentFiles,
     'inspector/THIRD_PARTY_NOTICES.txt',
     'inspector/OFL-Kode-Mono.txt', 'inspector/dist/index.html', 'inspector/dist/assets/app-abc123.js', 'inspector/dist/assets/app-abc123.css'];
@@ -164,7 +164,7 @@ for (const change of ['development-script', 'host-dependency', 'lock-mismatch', 
       const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
       const lock = JSON.parse(await readFile(join(root, 'package-lock.json'), 'utf8'));
       if (change === 'development-script') manifest.scripts.test = 'bun test src';
-      if (change === 'host-dependency') manifest.dependencies['@earendil-works/pi-coding-agent'] = '0.85.1';
+      if (change === 'host-dependency') manifest.dependencies['@earendil-works/pi-coding-agent'] = '1.1.0';
       if (change === 'lock-mismatch') lock.packages[''].dependencies['@typesafe-ai/sdk'] = '0.5.0';
       if (change === 'development-lock') lock.packages['node_modules/typescript'] = { version: '5.9.3', dev: true };
       await writeFile(join(root, 'package.json'), JSON.stringify(manifest));

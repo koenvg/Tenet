@@ -29,7 +29,7 @@ Observe never vetoes or opens approval, including on invalid configuration, miss
    ```
 
    A checkout needs its SDK/CLI and inspector built first. An installed archive needs no build. See [Run doctor](doctor.md#direct-invocation).
-3. Correct invalid settings, then close and restart Pi. Code and environment changes require a full process restart. `/reload` and `/new` can retain old module imports under Pi 0.85.1 and Bun 1.3.14.
+3. Correct invalid settings, then close and restart Pi. Code and environment changes require a full process restart. Do not use `/reload` or `/new` to apply code or environment changes.
 4. Run `/tenet status` in an eligible session. Check mode, policy readiness, activation and effective capture. Doctor's `ready` means local readiness, not provider connectivity or active hooks.
 
 ## Mode, policy and credentials

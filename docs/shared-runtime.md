@@ -46,7 +46,7 @@ Readiness uses immutable `policy-sources-v1`, not a singular file snapshot. Sour
 
 Confirmed absence of both implicit candidates without an override is dormant in both modes. A missing explicit file, unusable source, broken link, filesystem uncertainty or empty override remains unavailable. Deletion after activation never makes a session dormant. Mode is selected once at construction; observe is the default. See [policy selection](policy.md#choose-the-policy-file).
 
-Pi clears old owner source, digest, readiness and footer state on session transitions. A fresh dormant extension registers no commands. Pi 0.85.1 can retain old command names after a switch until full native extension reload, but their handlers stay silent while dormant or transitioning. See [the pinned host limit](policy.md#choose-the-policy-file).
+Pi clears old owner source, digest, readiness and footer state on session transitions. A fresh dormant extension registers no commands. Pi 1.1.0 can retain old command names after a switch until full native extension reload, but their handlers stay silent while dormant or transitioning. See [the pinned host limit](policy.md#choose-the-policy-file).
 
 ### Assess the current call
 

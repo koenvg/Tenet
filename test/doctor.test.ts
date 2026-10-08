@@ -157,7 +157,7 @@ test('doctor reports capture opt-out, unsafe controls, missing project and incom
 test('doctor reads Pi metadata without executing it and distinguishes tested, untested and unknown versions', async () => fixture(async f => {
   const host = join(f.project, 'node_modules/@earendil-works/pi-coding-agent');
   await mkdir(host, { recursive: true });
-  for (const [version, status, exit] of [['0.85.1', 'tested', 0], ['0.86.0', 'unavailable', 1], ['0.86.0+build.1', 'unavailable', 1], ['0.85.1+build.1', 'unavailable', 1], ['0.86.0-alpha.1+build.1', 'unavailable', 1], ['0.86.0-01', 'unknown', 0], ['01.86.0', 'unknown', 0], [canary, 'unknown', 0]] as const) {
+  for (const [version, status, exit] of [['1.1.0', 'tested', 0], ['0.85.1', 'unavailable', 1], ['0.86.0', 'unavailable', 1], ['0.86.0+build.1', 'unavailable', 1], ['1.1.0+build.1', 'unavailable', 1], ['0.86.0-alpha.1+build.1', 'unavailable', 1], ['0.86.0-01', 'unknown', 0], ['01.86.0', 'unknown', 0], [canary, 'unknown', 0]] as const) {
     await writeFile(join(host, 'package.json'), JSON.stringify({ name: '@earendil-works/pi-coding-agent', version }));
     const report = await diagnoseProject({ projectDir: f.project, deliveryDir: f.delivery, env: f.env });
     assert.equal(report.compatibility.status, status); assert.equal(report.exitCode, exit);
@@ -185,7 +185,7 @@ test('doctor redacts semver-shaped credentials and credential substrings in comp
 
 test('doctor skips non-executable PATH candidates and selects the first executable Pi', async () => fixture(async f => {
   const bins: string[] = [];
-  for (const [name, version, mode] of [['first', '0.85.1', 0o644], ['second', '0.86.0', 0o755]] as const) {
+  for (const [name, version, mode] of [['first', '1.1.0', 0o644], ['second', '0.86.0', 0o755]] as const) {
     const host = join(f.root, name), bin = join(host, 'bin');
     await mkdir(bin, { recursive: true }); bins.push(bin);
     await writeFile(join(host, 'package.json'), JSON.stringify({ name: '@earendil-works/pi-coding-agent', version }));
@@ -196,7 +196,7 @@ test('doctor skips non-executable PATH candidates and selects the first executab
   assert.equal(report.compatibility.version, '0.86.0'); assert.equal(report.exitCode, 1);
   await chmod(join(bins[0]!, 'pi'), 0o755);
   report = await diagnoseProject({ projectDir: f.project, deliveryDir: f.delivery, env: f.env });
-  assert.equal(report.compatibility.version, '0.85.1'); assert.equal(report.exitCode, 0);
+  assert.equal(report.compatibility.version, '1.1.0'); assert.equal(report.exitCode, 0);
 }));
 
 test('doctor detects PATH host metadata without executing a launcher', async () => fixture(async f => {
@@ -208,7 +208,7 @@ test('doctor detects PATH host metadata without executing a launcher', async () 
   f.env.PATH = bin;
   let report = await diagnoseProject({ projectDir: f.project, deliveryDir: f.delivery, env: f.env });
   assert.equal(report.compatibility.source, 'path'); assert.equal(report.compatibility.status, 'unavailable');
-  assert.equal(report.exitCode, 1); assert.ok(report.issues.some(i => i.guidance.includes('0.85.1')));
+  assert.equal(report.exitCode, 1); assert.ok(report.issues.some(i => i.guidance.includes('1.1.0')));
   await rm(join(bin, 'pi')); await writeFile(join(bin, 'pi'), 'unknown launcher', { mode: 0o755 });
   report = await diagnoseProject({ projectDir: f.project, deliveryDir: f.delivery, env: f.env });
   assert.equal(report.compatibility.status, 'unknown'); assert.equal(report.compatibility.version, null);

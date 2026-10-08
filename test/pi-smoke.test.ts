@@ -102,11 +102,11 @@ test('pinned Pi dispatch gates built-in, extension and dynamically registered to
       return stream;
     };
     let serial = 0;
-    const invokeMany = async (calls: { name: string; args: Record<string, unknown> }[]) => {
+    const invokeMany = async (calls: { name: string; args: ToolCall['arguments'] }[]) => {
       pendingCalls = calls.map(({ name, args }) => ({ type: 'toolCall', id: `smoke-${++serial}`, name, arguments: args }));
       await session!.agent.prompt('scripted offline call');
     };
-    const invoke = (name: string, args: Record<string, unknown>) => invokeMany([{ name, args }]);
+    const invoke = (name: string, args: ToolCall['arguments']) => invokeMany([{ name, args }]);
     const args = { payload: { code: 'hello', Authorization: 'hidden-credential' } };
     await invoke('dummy', args);
     assert.equal(executed.length, 1);
