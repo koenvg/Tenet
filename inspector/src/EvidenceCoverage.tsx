@@ -19,7 +19,7 @@ export default function EvidenceCoverage({ context }: { context: InvocationView[
       <details className="record-note coverage-notes"><summary>What the coverage data means</summary>
         <p>A shortened result still has a recorded observation; a missing result remains unknown. Matching IDs do not prove execution or success.</p>
         <p>Capture omissions can count source slots, not missing calls or effects.</p>
-        <p>Known limitations and byte counts are in the evidence dock. Coverage gaps do not explain the evaluator's UNKNOWN or INSUFFICIENT choices.</p>
+        <p>Known limitations and byte counts are in the Recorded data. Coverage gaps do not explain the evaluator's UNKNOWN or INSUFFICIENT choices.</p>
       </details>
     </> : <p>Not recorded. Missing historical diagnostics do not mean complete coverage.</p>}
   </section>;

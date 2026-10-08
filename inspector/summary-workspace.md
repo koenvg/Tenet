@@ -46,7 +46,7 @@ Open `http://127.0.0.1:52351/comparison-preview.html` for the common-summary-onl
 
 Add `?container=390` to compare 390px containers inside a wide window. Check that shared fields have the same content, order and positions, not only that they fit. The preview starts without raw extensions, so omitted raw content cannot change the common layout.
 
-Select **Show standalone-only inspection**, or add `?raw=1`, to show the separate raw section after the left summary. **Recorded action**, **Evidence** and **Details** are standalone-only additions; BB receives no raw values. The left workspace can become taller; its common summary rows retain their positions.
+Select **Show standalone-only inspection**, or add `?raw=1`, to show Recorded data after the left summary. Submitted action, captured policy, exact questions, evidence, response and recording details stay in that private section; BB receives no raw values. The left workspace can become taller; its common summary rows retain their positions.
 
 ## Summary input
 
@@ -73,27 +73,26 @@ Reason, failure and gate fields contain safe recorded codes, never provider bodi
 
 The optional `evaluatorState` on calls and selected summaries contains recorded status and a safe reason from the shared stage fold. When absent, the workspace displays the `assessmentStatus` and `failure` fields. Both adapters preserve terminal evaluator failure separately from unfinished assessment, findings, permission and execution.
 
-## Two adapters, one presentation
+## Shared layout and separate recorded detail
 
 ```text
-standalone HTTP -> explicit summary projection -> shared React workspace
-                  standalone-only extensions   -> raw detail views
+standalone HTTP -> archive-state.ts -> shared workspace layout
+                                     -> private call rows and Detail.tsx
 
-BB host RPC             -> validated safe summary     -> React mount -> same workspace
+BB host RPC -> validated safe summary -> React mount -> shared workspace
+                                                     -> SummaryDetail.tsx
 ```
 
-The standalone app uses [standalone-adapter.ts](src/shared/standalone-adapter.ts) to copy summary fields. Both hosts render [SummaryDetail.tsx](src/shared/SummaryDetail.tsx) for call identity, recorded assessment status and reason, and the decision summary.
+The standalone app uses `useArchive` in [archive-state.ts](src/archive-state.ts) for its loader, polling and history. [SummaryWorkspace.tsx](src/shared/SummaryWorkspace.tsx) owns the shared pane layout and resizer. Internal render slots keep private command/file rows and [Detail.tsx](src/Detail.tsx) out of the public summary input.
 
-The same component renders the recorded map and the **Why this assessment**, **Selected check details** and **Browse all rules** disclosures. Shared spacing, hierarchy and disclosure styles live in [presentation.css](src/shared/presentation.css).
+Standalone Detail shows named permission, tool result and assessment facts, followed by two native disclosures. **Why this assessment** contains compact recorded-rule explanations. **Recorded data** contains submitted action, policy, exact evidence/questions, response and recording details. New selections close disclosures; unchanged polls keep them mounted. The standalone UI does not fetch groups.
 
-Standalone [Detail.tsx](src/Detail.tsx) adds a separate **Standalone-only inspection** section after the complete common summary. Its **Recorded action**, **Evidence** and **Details** disclosures hold action previews, exact questions, Response, Policy and recording details. No raw extension changes the content or order of common summary rows.
-
-Rule selection still chooses the standalone dock's recorded rule. Existing session links, history, polling and uncertainty groups stay in the standalone app.
+BB keeps [SummaryDetail.tsx](src/shared/SummaryDetail.tsx), its recorded map, selected-check controls and paginated rule summaries. Those components still use [presentation.css](src/shared/presentation.css). The synthetic comparison also renders this safe summary on both sides; it is not proof of the private Inspector's layout.
 
 The library entry is [library.tsx](src/shared/library.tsx). `mountSummaryWorkspace(target, input)` returns `update(input)` and asynchronous, idempotent `destroy()`. Updates after disposal do nothing. The entry exposes no raw-detail snippets, HTTP client, polling timer or global history handler.
 
 [SummaryWorkspaceMount](../bb-plugin-tenet-status/summary-workspace.tsx) renders the shared React component directly. There is no second UI runtime or polling owner. Key the view by adapter scope when switching threads or sessions. The adapter must cancel old reads, ignore late completions and clear stale results after an unavailable read.
 
-Styles stay under `.tenet-presentation` and `.tenet-summary-workspace.embedded`. They inherit BB theme tokens and do not import standalone document styles. The library opens no iframe, proxy or inspector listener. Standalone loopback, Host, Origin and frame restrictions remain unchanged.
+Embedded styles stay under `.tenet-presentation` and `.tenet-summary-workspace.embedded`. They inherit BB theme tokens and do not import standalone document styles. Shared status chips also support the private `.standalone-inspector` scope. The library opens no iframe, proxy or inspector listener. Standalone loopback, Host, Origin and frame restrictions remain unchanged.
 
 Raw evidence remains accessible only through the [standalone inspector](../docs/inspector.md). Safe summaries still include recorded rule text. They do not guarantee confidentiality against same-user code, complete capture, live evaluator connectivity, permission or execution.

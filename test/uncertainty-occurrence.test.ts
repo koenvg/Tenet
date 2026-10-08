@@ -69,6 +69,8 @@ for (const scenario of scenarios) {
     const grouped = index.uncertaintyGroups(key);
     const rows = index.invocations(key).items;
     assert.deepEqual(grouped, { items: [{
+      id: sessionKey(JSON.stringify([JSON.stringify(['/p/TENET.md', 'digest', '/p/TENET.md']), 'r', 'legacy (historical)', gate])),
+      rulePreview: { value: 'Rule', shortened: false },
       policyIdentity: JSON.stringify(['/p/TENET.md', 'digest', '/p/TENET.md']),
       profile: 'legacy (historical)', ruleId: 'r', gate, count: scenario.calls.length,
       first: scenario.first, last: scenario.last, omitted: 0,
@@ -77,6 +79,7 @@ for (const scenario of scenarios) {
     assert.deepEqual(new Set(grouped.items[0]!.invocations.map(ref => JSON.stringify(ref))),
       new Set(scenario.calls.map(call => JSON.stringify({
         id: rows.find(row => row.callId === call.id)!.id, callId: call.id, timestamp: call.begin,
+        actionPreview: { key: null, value: null, shortened: false },
       }))));
     assert.equal(index.sessions().items[0]!.categoryCounts.uncertainty, scenario.calls.length);
     assert.equal(reads, coldReads, 'groups and call summaries do not hydrate private detail');

@@ -28,7 +28,8 @@ test('APUS metadata and deterministic provenance are readable under Details at d
     await page.viewport(width, 844);
     const screen = await render(createElement(Detail, { view: nativeView() }));
     screen.container.style.containerType = 'inline-size';
-    await screen.getByText('Details', { exact: true }).click();
+    await screen.getByText('Recorded data', { exact: true }).click();
+    await screen.getByText('Recording and coverage', { exact: true }).click();
     screen.getByText('apus-llamacpp experimental', { exact: true }).element().scrollIntoView();
     await expect.element(screen.getByText('apus-llamacpp experimental', { exact: true })).toBeVisible();
     screen.getByText('recorded-apus-alias', { exact: true }).element().scrollIntoView();
@@ -42,7 +43,7 @@ test('APUS metadata and deterministic provenance are readable under Details at d
     await expect.element(screen.getByText(/Not model confidence or authenticated coverage/)).toBeVisible();
     expect(screen.container.querySelector('.native-mappings')!.textContent).toContain('A → PASS');
     expect(screen.container.querySelector('.native-mappings')!.textContent).toContain('B → FAIL');
-    expect(screen.container.querySelector('.capture-details')!.getBoundingClientRect().right).toBeLessThanOrEqual(width);
+    expect(screen.container.querySelector('.recording-details')!.getBoundingClientRect().right).toBeLessThanOrEqual(width);
     await screen.unmount();
   }
   await page.viewport(1280, 720);
@@ -50,19 +51,20 @@ test('APUS metadata and deterministic provenance are readable under Details at d
 
 test('Response shows all native exchanges and omission markers, with native HTML inert', async () => {
   const screen = await render(createElement(Detail, { view: nativeView() }));
-  await screen.getByText('Evidence', { exact: true }).first().click();
-  await screen.getByRole('tab', { name: 'Response' }).click();
+  await screen.getByText('Recorded data', { exact: true }).click();
+  await screen.getByText('Application response and validation', { exact: true }).click();
   await screen.getByText('Recorded native exchanges', { exact: true }).click();
-  expect(screen.container.querySelector('#panel-Response')!.textContent).toContain('tokens_cached');
-  expect(screen.container.querySelector('#panel-Response')!.textContent).toContain('predicted_n');
-  expect(screen.container.querySelector('#panel-Response')!.textContent).toContain('unavailable');
-  expect(screen.container.querySelector('#panel-Response script')).toBeNull();
+  expect(screen.container.querySelector('.recorded-response')!.textContent).toContain('tokens_cached');
+  expect(screen.container.querySelector('.recorded-response')!.textContent).toContain('predicted_n');
+  expect(screen.container.querySelector('.recorded-response')!.textContent).toContain('unavailable');
+  expect(screen.container.querySelector('.recorded-response script')).toBeNull();
 });
 
 test('historical metadata is not labelled as APUS or filled from current settings', async () => {
   const screen = await render(createElement(Detail, { view: makeView() }));
   screen.container.style.containerType = 'inline-size';
-  await screen.getByText('Details', { exact: true }).click();
+  await screen.getByText('Recorded data', { exact: true }).click();
+  await screen.getByText('Recording and coverage', { exact: true }).click();
   screen.getByText('Provider not recorded', { exact: true }).element().scrollIntoView();
   await expect.element(screen.getByText('Provider not recorded', { exact: true })).toBeVisible();
   expect(screen.container.textContent).not.toContain('experimental');

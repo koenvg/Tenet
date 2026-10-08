@@ -1,9 +1,9 @@
 /* React status chips are shared. All selectors stay inside the summary. */
-.tenet-presentation .status-chip { display: inline-flex; align-items: center; gap: .35rem; width: fit-content; max-width: 100%; padding: .15rem .5rem; border: 1px solid var(--tenet-line, #cdd6e1); border-radius: 999px; background: var(--tenet-soft, #eef2f6); color: var(--tenet-muted, #46576b); font-size: .75rem; font-weight: 650; line-height: 1.4; vertical-align: middle; overflow-wrap: anywhere; }
-.tenet-presentation .status-chip::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex: none; }
-.tenet-presentation .status-chip.with-icon::before { display: none; }
-.tenet-presentation .status-chip.with-icon .decision-icon { width: 18px; height: 18px; flex: none; stroke-width: 2; }
-.tenet-presentation .status-chip.positive { color: var(--success-text, #17623e); background: var(--tenet-success-bg, #e7f5ed); border-color: var(--tenet-success-line, #b4dcc5); }
-.tenet-presentation .status-chip.danger { color: var(--tenet-danger, #9b3534); background: var(--tenet-danger-bg, #fbeceb); border-color: var(--tenet-danger-line, #eac1bd); }
-.tenet-presentation .status-chip.caution { color: var(--tenet-amber, #805516); background: var(--tenet-amber-bg, #fcf2de); border-color: var(--tenet-amber-line, #e6d1a7); }
-.tenet-presentation .status-chip.approval { color: var(--approval-text, #62419a); background: var(--tenet-approval-bg, #f0eafb); border-color: var(--tenet-approval-line, #d5c5ed); }
+:is(.tenet-presentation, .standalone-inspector) .status-chip { display: inline-flex; align-items: center; gap: .35rem; width: fit-content; max-width: 100%; padding: .15rem .5rem; border: 1px solid var(--tenet-line, #cdd6e1); border-radius: 999px; background: var(--tenet-soft, #eef2f6); color: var(--tenet-muted, #46576b); font-size: .75rem; font-weight: 650; line-height: 1.4; vertical-align: middle; overflow-wrap: anywhere; }
+:is(.tenet-presentation, .standalone-inspector) .status-chip::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex: none; }
+:is(.tenet-presentation, .standalone-inspector) .status-chip.with-icon::before { display: none; }
+:is(.tenet-presentation, .standalone-inspector) .status-chip.with-icon .decision-icon { width: 18px; height: 18px; flex: none; stroke-width: 2; }
+:is(.tenet-presentation, .standalone-inspector) .status-chip.positive { color: var(--success-text, #17623e); background: var(--tenet-success-bg, #e7f5ed); border-color: var(--tenet-success-line, #b4dcc5); }
+:is(.tenet-presentation, .standalone-inspector) .status-chip.danger { color: var(--tenet-danger, #9b3534); background: var(--tenet-danger-bg, #fbeceb); border-color: var(--tenet-danger-line, #eac1bd); }
+:is(.tenet-presentation, .standalone-inspector) .status-chip.caution { color: var(--tenet-amber, #805516); background: var(--tenet-amber-bg, #fcf2de); border-color: var(--tenet-amber-line, #e6d1a7); }
+:is(.tenet-presentation, .standalone-inspector) .status-chip.approval { color: var(--approval-text, #62419a); background: var(--tenet-approval-bg, #f0eafb); border-color: var(--tenet-approval-line, #d5c5ed); }

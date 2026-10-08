@@ -6,10 +6,11 @@ import { join } from 'node:path';
 import { type ArchiveIssue, sessionKey, recordSessionKey, recordInvocationKey } from '../recording/archive.js';
 import { READER_SCHEMAS, type ArchiveRecord, validRecord } from '../recording/contract.js';
 import { directory, MAX_RECORD_BYTES, readPrivateFile } from '../recording/files.js';
-import { captureHealth, invocationView, type CaptureHealth } from './view.js';
+import { captureHealth, invocationView, recordedAssessmentInvalid, type CaptureHealth } from './view.js';
 import { projectThreadFinding, type ThreadFinding } from './bb-findings.js';
 import { projectSummaryCall, projectSummaryDecision, type LinkedSessionSummary, type ThreadOverview, type OverviewSelection } from './bb-summary.js';
 import { recordedAssessment } from './recorded-assessment.js';
+import { recordedRulePreviews, recordedActionPreview, unavailableActionPreview, type TextPreview, type ActionPreview } from './action-preview.js';
 
 export interface PageOptions { limit?: number; cursor?: string; offset?: number }
 export interface InvocationSummary {
@@ -17,16 +18,21 @@ export interface InvocationSummary {
   timestamp: number; updated: number; decision: string; missing: string[]; categories: FindingCategory[];
   failure: string | null; assessmentStatus: string;
   evaluatorState: EvaluatorState;
+  assessmentInvalid: boolean;
   mode: string; permission: string; execution: string;
+  actionPreview: ActionPreview;
 }
 export interface SessionSummary {
   id: string; sessionId: string; host: string; contextId: string; projects: string[]; timestamp: number; started: number;
   invocations: number; concerns: number; unavailable: number; coverage: string; categoryCounts: Record<FindingCategory, number>;
 }
-export type UncertaintyGroup = { policyIdentity: string; profile: string; ruleId: string; gate: string; count: number; first: number; last: number;
-  invocations: { id: string; callId: string; timestamp: number }[]; omitted: number };
+export type UncertaintyGroup = { id: string; policyIdentity: string; profile: string; ruleId: string; gate: string; count: number; first: number; last: number;
+  rulePreview: TextPreview;
+  invocations: { id: string; callId: string; timestamp: number; actionPreview: ActionPreview }[]; omitted: number };
+// Private display allowlist: one action preview and at most 16 policy excerpts plus integrity.
+// Each value is <=512 UTF-8 bytes. No full evidence or display strings enter BB projections.
 type Metadata = Omit<ArchiveRecord, 'data'> & { decision?: string; outcome?: string; finding: FindingStage; health?: CaptureHealth[number];
-  valid?: boolean; selectedFailIds?: string[]; policyRuleIds?: string[]; integrityRuleId?: string | null };
+  assessmentInvalid?: boolean; actionPreview?: ActionPreview; rulePreviews?: ReturnType<typeof recordedRulePreviews>; valid?: boolean; selectedFailIds?: string[]; policyRuleIds?: string[]; integrityRuleId?: string | null };
 type Entry = { fingerprint: string; bytes: number; metadata?: Metadata; issue?: ArchiveIssue; unsupportedVersion?: number };
 type Counts = { unsupported: number; newerUnsupported: number; corrupt: number; otherIssues: number };
 const counts = (): Counts => ({ unsupported: 0, newerUnsupported: 0, corrupt: 0, otherIssues: 0 });
@@ -93,8 +99,9 @@ const ROOT_ENTRIES_PER_REFRESH = 128;
 const STAGE_ENTRIES_PER_REFRESH = 512;
 const MAX_OPEN_SESSIONS = 256;
 
-/** Rebuildable metadata-only cache. Directory entries and file stats are swept in bounded
- * rounds; unchanged evidence is not reread. Detail is always read and validated anew.
+/** Rebuildable metadata cache with private evidence-derived display fields: action previews
+ * and at most 16 policy rule excerpts plus integrity, each at most 512 UTF-8 bytes.
+ * Full evidence is discarded. Unchanged evidence is not reread. Detail is validated anew.
  * Each refresh parses at most 256 stages / 16 MiB and reports incomplete cold sweeps. */
 export class ArchiveIndex {
   private *allEntries(): IterableIterator<[string, Entry]> {
@@ -327,6 +334,9 @@ export class ArchiveIndex {
             if (!validRecord(record) || recordSessionKey(record) !== session) throw new Error('invalid-record');
             const { data, ...metadata } = record;
             entry.metadata = { ...metadata, finding: findingStage(record), ...bbFacts(record),
+              assessmentInvalid: recordedAssessmentInvalid(record),
+              actionPreview: record.stage === 'request' ? recordedActionPreview(data.payload) : undefined,
+              rulePreviews: recordedRulePreviews(data, record.stage),
               decision: record.stage === 'decision' ? String(data.decision) : undefined,
               health: captureHealth([record])[0] };
             if ((record.stage === 'permission' || record.stage === 'execution') && typeof record.data.outcome === 'string') entry.metadata.outcome = record.data.outcome;
@@ -404,8 +414,10 @@ export class ArchiveIndex {
       host: first.host ?? 'pi', contextId: first.contextId ?? 'main', timestamp: first.timestamp,
       updated: Math.max(...records.map(r => r.timestamp)), decision: records.find(r => r.decision)?.decision ?? 'unavailable',
       evaluatorState: findings.evaluatorState, failure: findings.failure, assessmentStatus: findings.assessmentStatus, categories: findings.categories, mode: first.mode,
+      assessmentInvalid: records.some(r => r.assessmentInvalid),
       permission: records.findLast(r => r.stage === 'permission')?.outcome ?? 'unknown',
       execution: records.findLast(r => r.stage === 'execution')?.outcome ?? 'unknown',
+      actionPreview: records.findLast(r => r.stage === 'request')?.actionPreview ?? unavailableActionPreview,
       missing: ['begin', 'request', 'response', 'validation', 'assessment', 'decision', 'permission', 'execution'].filter(s => !records.some(r => r.stage === s)) };
   }
   sessions(options: PageOptions & { project?: string } = {}) {
@@ -445,9 +457,14 @@ export class ArchiveIndex {
         const key = JSON.stringify([identity, ruleId, profile, gate]);
         let group = groups.get(key);
         const occurred = findings.occurrence;
-        if (!group) { group = { policyIdentity, profile, ruleId, gate, count: 0, first: occurred, last: occurred, invocations: [], omitted: 0 }; groups.set(key, group); }
+        const rulePreview = records.findLast(r => r.rulePreviews !== undefined)?.rulePreviews?.find(r => r.id === ruleId)?.preview ?? { value: null, shortened: false };
+        if (!group) {
+          group = { id: sessionKey(key), policyIdentity, profile, ruleId, gate, rulePreview, count: 0, first: occurred, last: occurred, invocations: [], omitted: 0 };
+          groups.set(key, group);
+        }
+        if (group.rulePreview.value === null && rulePreview.value !== null) group.rulePreview = rulePreview;
         group.count++; group.first = Math.min(group.first, occurred); group.last = Math.max(group.last, occurred);
-        if (group.invocations.length < 100) group.invocations.push({ id, callId: row.callId, timestamp: row.timestamp });
+        if (group.invocations.length < 100) group.invocations.push({ id, callId: row.callId, timestamp: row.timestamp, actionPreview: row.actionPreview });
         else group.omitted++;
       }
     }

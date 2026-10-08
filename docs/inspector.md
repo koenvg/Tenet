@@ -4,7 +4,7 @@ Use this guide to open Tenet's local inspector, select a session and call, and r
 
 - If Pi is running, [open the inspector from Pi](#open-it-from-pi).
 - To read retained files without Pi, [start the standalone inspector](#open-it-without-pi).
-- Once it is open, [select a session, call and rule](#select-a-session-call-and-rule).
+- Once it is open, [select a session and call](#select-a-session-and-call).
 - For missing calls or old reader code, use [the status fixes](#no-calls-or-stale-reader-status-appear).
 
 ## Before you open the inspector
@@ -80,24 +80,50 @@ For local frontend development only, `bun inspector` starts Vite with live reloa
 
 ## Shared summaries and standalone evidence
 
-The standalone inspector and both BB overview entry points use one React workspace for call, status and rule-summary presentation. The BB plugin is built and installed separately; see [the BB overview guide](../bb-plugin-tenet-status/README.md). Its summary input excludes raw arguments, action previews, submitted evidence, exact questions and provider response bodies.
+The standalone Inspector and both BB overview entry points use one React workspace layout. The standalone reader adds private call rows and recorded-data disclosures through internal render slots. The BB plugin keeps its safe summary presentation and is built and installed separately; see [the BB overview guide](../bb-plugin-tenet-status/README.md). Its summary input excludes raw arguments, action previews, submitted evidence, exact questions and provider response bodies.
 
 The standalone inspector retains those detail views and its existing links. Sharing presentation neither exposes nor proxies its loopback listener. Rule text renders as inert text, but recorded policy text can still contain secrets. Same-user access limits remain unchanged.
 
 For checkout-only library builds and a synthetic source preview, use the [shared summary developer reference](../inspector/summary-workspace.md). These commands do not install or reload the BB plugin.
 
-## Select a session, call and rule
+## Select a session and call
 
-1. Filter by the exact project directory. Choose a suggested path or enter one. New project paths are canonical working directories, not Git remote groups. Older records retain their captured paths.
-2. Select a session, then an invocation. The first view shows call identity, actual status, mode, findings and one brief reason.
-3. Open **Why this assessment** for the recorded assessment map, selected check and all rules. Open **Recorded action** for the command or file preview. Open **Evidence** for the tabbed evidence dock, or **Details** for exact lifecycle, versions, coverage and validation diagnostics.
-4. Select any rule, including PASS and built-in integrity. Read the policy decision, permission and execution separately. Inspect the recorded policy, application-level questions and choices, bounded/redacted submitted state, SDK response, validation and rule contributions.
+1. Open **Session / archive** to choose a project and session, read the read-only explanation or reader build/schema metadata, or use **Refresh archive**. For the project filter, choose a suggested directory or enter its exact path. New paths are canonical working directories, not Git remote groups. Older records retain their captured paths.
+2. Select a session, then an invocation. The first view names Tenet permission, Tool result and Assessment separately. It also shows the action, recorded mode, applicable findings, recorded approval when available and one brief reason.
+3. Open **Why this assessment** for compact recorded rule text and confidence bars, with findings before passing rules. Each reading names the selected score and recorded threshold; evidence confidence uses SUFFICIENT, separately from a different selected evidence probability.
+4. Open **Recorded data** for submitted action fields, captured policy and exact technical records.
+5. Open **Exact rule records and captured questions** to inspect every retained reader rule record and captured question. Read permission and tool result separately from the assessment.
 
-For APUS, open **Details**, then **Native scoring mappings**. Read captured letter/token mappings and deterministic NONE selectors separately from model probabilities.
+This one JSON destination retains full rule text, identity, source line, severity, owner/integrity marker, outcome and evidence choices, contribution, complete distributions, recorded thresholds, gates, mappings, question objects and question version. It remains available when the application response is missing, unavailable or truncated.
 
-Open **Evidence**, then **Response** and **Recorded native exchanges** for every bounded snapshot and omission marker, not just the final backend reply. Partial exchanges never establish a complete returned assessment.
+Use Tab to reach the native disclosure, then Enter or Space to open it. Tab reaches its scrollable exact-data region. Questions are JSON data, not formatted Markdown. HTML, links and images remain inert.
+
+Missing scores, thresholds and gate coverage stay missing. Non-applicable evidence has no invented score. A selected evidence probability remains separate from SUFFICIENT in the recorded distribution. Model probabilities are not calibrated safety guarantees.
+
+A recorded confidence gate with PASS is uncertainty, not a selected violation. WARN gates are advisory. Approval conditions remain separate from permission and tool results. The inspector never compares against current policy settings.
+
+**Why this assessment** keeps compact recorded-rule text and confidence bars. Question shortcuts, readable question sections, the repeated PASS confidence note, separate Rule outcome rows and **Probabilities and rule details** are absent. Use **Recorded data** for the complete exact records.
+
+For APUS, open **Recorded data**, then **Recording and coverage** and **Native scoring mappings**. Read captured letter/token mappings and deterministic NONE selectors separately from model probabilities.
+
+Open **Recorded data**, then **Application response and validation** and **Recorded native exchanges** for every bounded snapshot and omission marker, not just the final backend reply. Partial exchanges never establish a complete returned assessment.
 
 Evidence and response text are inert. The inspector never reevaluates policy or invents model reasoning.
+
+### Read submitted and exact data
+
+Recorded data starts with the submitted action and captured policy. Submitted path, command and before/after edit text keep their original strings. They describe a submitted proposal, not an executed filesystem change. Arbitrary fields stay inert. Missing or malformed arguments have an unavailable readable view and retain the captured action JSON.
+
+Use these native disclosures for the technical records:
+
+- **Exact submitted action JSON** retains the complete captured action.
+- **Policy identity and exact JSON** retains policy source, target, digest and rules when recorded.
+- **Exact submitted evidence** contains every state section, chronological history, reference values pools, redaction and omission markers. It does not reconstruct references or omitted content.
+- **Exact rule records and captured questions** retains every reader rule record, original question objects, choices, keys, rule references, mappings and captured question version in one JSON disclosure. It does not depend on response availability or current templates.
+- **Application response and validation** keeps the SDK response and validation fields. Truncated responses retain their preview and original serialized byte count after field omissions. Unavailable snapshots remain explicit.
+- **Recording and coverage** contains lifecycle, approval, permission, execution, failure, identifiers, schemas, adapter coverage, profile, durations, missing stages and interpretation limits. **Exact runtime evidence context JSON** retains coverage metadata and loss counts separately from submitted evidence.
+
+The view preserves open disclosures, exact-data nodes, focus and evidence scroll through unchanged polls and delayed stages. Exact JSON retains recorded numeric precision. No control runs a tool, reads a current file, reassesses a call or grants approval.
 
 ```text
 captured action + policy + bounded evidence
@@ -113,27 +139,50 @@ released or withheld          executed, failed or unknown
 
 The finding describes the assessment. Permission describes whether Tenet released the call. Execution records describe observed outcomes only when the host supports exact result correlation; these facts do not prove an external effect.
 
+Read the named facts this way:
+
+| Field | Meaning |
+| --- | --- |
+| Tenet permission: Not blocked by Tenet | Recorded `released` permission. Tenet let the host proceed; this does not prove dispatch, execution, approval or a passing assessment. |
+| Tenet permission: Blocked by Tenet | Actual recorded block, including an unexpected block in observe mode. It does not certify prevention on every host path. |
+| Tenet permission: Unknown | No known permission fact. An ALLOW decision or approval cannot supply it. |
+| Tool result: Successful or Failed | A correlated result was recorded, separate from policy findings. Failure does not prove that there were no external effects. |
+| Tool result: Unknown / not recorded | No known correlated result. Released permission and approval are not results. |
+| Assessment | The recorded decision or lifecycle status. Observe BLOCK/ASK says would block or would ask in enforce mode. It is not actual prevention or requested approval. |
+
+Contradictory blocked permission and a tool result show both facts with an inconsistency warning. Pending, dropped, cancelled, incomplete, invalid and unavailable assessments are never a policy all-clear. Their status appears once in Assessment, not as repeated badges. All independent violation, uncertainty and approval findings remain visible; capture-loss notices remain separate.
+
 Current SDK-backed Pi execution remains `unknown` even when a native result reports success or failure. Pi lacks exact result correlation. Historical recorded `executed` and `failed` outcomes retain their meanings.
 
 For example, an observe-mode PASS with `p=0.88` can fail the default `0.9` outcome gate while evidence is SUFFICIENT at `0.93`. It reports uncertainty and would block in enforce mode, not a selected violation. Observe still releases the call. With no captured result, execution remains unknown. See [exact gates and validation](limits.md#read-a-block-diagnostic).
 
-A selected FAIL is a suspected violation, not proof that Tenet blocked or that the tool ran. Missing, pending, dropped, cancelled or unavailable assessment is not a pass. Coverage gaps and UNKNOWN/INSUFFICIENT outcomes are separate facts. Stock Pi and Claude do not supply authenticated action resolution, and Tenet is not a sandbox.
+A selected FAIL is a suspected violation, not proof that Tenet blocked or that the tool ran. Missing, pending, dropped, cancelled, invalid or unavailable assessment is not a pass. Coverage gaps and UNKNOWN/INSUFFICIENT outcomes are separate facts. Stock Pi and Claude do not supply authenticated action resolution, and Tenet is not a sandbox.
 
 ## Browse more calls and share a link
 
 Session summaries show start/update times, call and concern counts, unavailable assessments and best-effort coverage. Lists contain 50 items per page and sort newest-started first. Resuming adds calls to the original session without moving it across an existing page boundary. Forks have separate session IDs.
 
-Use **More sessions** or **More invocations** to continue. Loading more calls preserves the selected detail. Copy the address-bar URL for a session or invocation link. It contains hashed IDs, not evidence. Browser back/forward restores selection, including calls beyond page one.
+Call rows show a recorded command or file path when available. The reader checks string arguments in this order: `command`, `path`, `file_path`. It skips empty or non-string values. If none is usable, the row says **Action preview unavailable**. It does not infer an action from the tool name or read current files.
 
-The sidebar filters individual calls by suspected violations, uncertainty, approval conditions, evaluator failures or pending/incomplete observations. Counts are distinct calls; categories can overlap. BLOCK alone is not a violation.
+The display copy normalizes whitespace and keeps at most 512 UTF-8 bytes without splitting characters. **Preview shortened** marks a longer value, not capture loss. Select the call and open **Recorded data** to read the full captured argument, with its original whitespace. These are submitted strings, not resolved targets or proof that a tool ran.
 
-Open **Uncertainty groups** in the main workspace for calls with the same recorded versioned policy identity, rule ID, profile and gate. One-call groups remain separate. Missing policy identity never merges unrelated calls. Each group has up to 100 invocation links; use paginated calls beyond that.
+Previews can contain secrets. They remain in the private inspector and do not enter links, logs, BB thread status, agent context or evaluator inputs.
 
-Groups are session-wide. A call filter, even one with no matches, does not remove them. The inspector requests bounded group references only when that view opens, not in normal call-list pages or category-filter polling. On small screens, switch between Calls, Summary and Patterns.
+Common mode, Not blocked by Tenet and absent-result wording may appear above the list only when every displayed call records that fact. This is context for displayed calls, not a claim about the full session or archive. Filtering, loading more calls and new stages recalculate it. Blocks, failures, mixed or unknown modes, invalid assessments and incomplete or conflicting records keep individual cues.
+
+Use **More sessions** inside **Session / archive** or **More invocations** below the call list to continue. Loading more calls preserves the selected detail. Copy the address-bar URL for a session or invocation link. It contains hashed IDs, not evidence. Browser back/forward restores selection, including calls beyond page one.
+
+Commands and file paths lead each call row. Tool names, times and separate recorded facts follow. The native **Finding category** select is always visible above the loaded call list in Calls.
+
+Use **Finding category** to filter suspected violations, uncertainty, approval conditions, evaluator failures or pending/incomplete observations. There is no filter accordion. The native select keeps its accessible label and keyboard selection. Counts are distinct calls; categories can overlap. BLOCK alone is not a violation. An active category and **Clear filter** stay visible, including when no calls match.
+
+There is no Repeated uncertainty section or replacement group view. The UI does not request groups. Public reader/group APIs and their recorded facts remain unchanged.
+
+On narrow screens, use **Calls** and **Selected call**. Calls retains the complete loaded list, direct filter and pagination. Selecting an individual call opens Selected call; Calls returns to the list. There is no Summary/Patterns switch.
 
 ## Check fresh stages and partial coverage
 
-The inspector polls every two seconds. It preserves project filters, loaded pages and selected detail. Use manual session or timeline refresh to check sooner. Resume the same Pi session to see new calls and stages.
+The inspector polls every two seconds. It preserves project filters, loaded pages and selected detail. Use Refresh archive inside Session / archive to check sooner. Resume the same Pi session to see new calls and stages.
 
 The metadata-only index has these per-refresh limits:
 
@@ -145,7 +194,7 @@ The metadata-only index has these per-refresh limits:
 | Parsed bytes | 16 MiB |
 | Selected invocation detail | 64 stages and 16 MiB |
 
-Cold indexing reads each stage envelope once, then discards its evidence. Later sweeps recheck cached files without rereading unchanged evidence. Large archives can take several polls to show changes, deletions, corrupt files or unsafe files. An indexing notice means the sweep or parsing is incomplete. A capped detail read reports an explicit issue.
+Cold indexing reads each stage envelope once, keeps only bounded action previews, up to 16 policy-rule excerpts plus integrity, and other allowlisted metadata, then discards full evidence. Later sweeps recheck cached files without rereading unchanged evidence. Large archives can take several polls to show changes, deletions, corrupt files or unsafe files. An indexing notice means the sweep or parsing is incomplete. A capped detail read reports an explicit issue.
 
 New writes use schema 5 and `policy-sources-v1`. The reader preserves schemas 1 through 4, their submitted payloads, singular identities and recorded thresholds. A rule's source role, configured path, target and digest come from its record.
 
@@ -154,6 +203,18 @@ A missing historical role says unknown, not recorded. Readers never consult curr
 Pending or dropped assessments have no invented would-decision or final history counters. Unsupported newer records, corrupt files and incomplete indexing produce a partial-coverage warning even while supported calls remain readable.
 
 Provider/model fields come only from recorded data. APUS's additive native recording contract leaves schema 4 unchanged. Missing historical fields stay not recorded; the reader never uses today's settings to rebuild native prompts or label old providers. See [the recorded native contract](assessment-contract.md#native-recording-contract).
+
+Unsupported newer records and corrupt files produce a short Partial archive indicator. Indexing archive means indexing is still in progress. Supported calls remain readable.
+
+One short archive-state line stays visible outside Session / archive and in both mobile views, including empty lists. **Coverage unknown** is not known incompleteness. **Supported records** identifies the reader's supported subset, not a complete audit.
+
+Healthy reader metadata stays in Session / archive, without a recording warning.
+
+Open **Recording issues** for exact unsupported/newer/corrupt/other counters, indexing state, reader build and supported schemas, individual file issues, and per-writer capture counters. Writer counters are cumulative, not per call, and may cover other sessions. Zero counters do not prove complete capture.
+
+The disclosure scrolls if needed. Paused/reconnecting updates and other live alerts remain separate and visible.
+
+Recording issues also gives reader update guidance. For an updated checkout reader, rebuild and restart the process; rebuilding alone leaves the old listener running. Archive owners replace the installation and restart.
 
 See [evidence provenance and historical interpretation](inspection-evidence.md#recorded-and-inspector-explanations) and [host/session attribution](cross-host-recordings.md). Incomplete archives are unknown, never passes.
 
@@ -203,7 +264,7 @@ Deletion removes retained evidence. Turning capture off or uninstalling Tenet do
 - A malformed policy, missing explicit path or missing credential means unavailable assessment. Repair the policy outside the guarded agent path or configure the secret securely, then restart. Observe permits; enforce blocks. Neither is a pass.
 - No new archive can mean capture is off, the shared choice is off, a dormant session, unsafe storage, writer loss or interruption. Check `/tenet status` and coverage notices. Native findings can exist without local capture.
 - Missing or invalid frontend assets in a checkout require `bun run inspector:build`. After any reader/frontend update, rebuild **and restart** the standalone server or the Pi process that launched it. Rebuilding alone leaves old reader code and in-memory assets running. Archive owners replace the installation and restart; they do not need a build.
-- An unsupported-schema warning means only the supported subset is visible. Check the displayed reader build identity and supported schemas. Old links resolve without archive migration. Do not rewrite records for an older reader.
+- A Partial archive indicator for unsupported schemas means only the supported subset is visible. Check the displayed reader build identity and supported schemas. Old links resolve without archive migration. Do not rewrite records for an older reader.
 
 ## Verify the inspector offline
 

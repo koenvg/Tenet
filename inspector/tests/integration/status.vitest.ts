@@ -3,7 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { FixtureArchiveWriter } from '../../../test/archive-fixture.js';
 import { recordSessionKey, recordInvocationKey } from '../../../src/recording/archive.js';
 import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
-import { openEvidence, reveal } from '../ui-navigation.js';
+import { openRecordedData, reveal } from '../ui-navigation.js';
 
 beforeAll(launchBrowser);
 afterAll(closeBrowser);
@@ -53,17 +53,19 @@ test('observe BLOCK with a recorded result has neutral Ran first on desktop and 
     await page.screenshot({ path: 'coverage/inspector-artifacts/status-narrow.png' });
     await page.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Calls' }).click();
     await page.screenshot({ path: 'coverage/inspector-artifacts/status-narrow-calls.png' });
-    expect((await page.locator('.call-state .status-chip').first().textContent())?.trim()).toBe('Ran');
-    expect(await page.locator('.call-state .status-chip.neutral').count()).toBe(1);
-    expect(await page.locator('.call-mode').textContent()).toBe('Observe');
-    await page.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Summary' }).click();
-    expect((await page.locator('.primary-badges .status-chip').first().textContent())?.trim()).toBe('Ran');
+    expect((await page.locator('[data-list-fact="result"] .status-chip').first().textContent())?.trim()).toBe('Successful');
+    expect(await page.locator('[data-list-fact="result"] .status-chip.neutral').count()).toBe(1);
+    expect(await page.locator('.displayed-context').textContent()).toContain('Displayed calls: Observe mode. Not blocked by Tenet.');
+    await page.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Selected call' }).click();
+    expect((await page.locator('[data-fact="result"]').first().textContent())?.trim()).toBe('Successful');
     expect(await page.locator('.primary-status').textContent()).toContain('Observe');
-    expect(await page.locator('.primary-status .finding-chips .caution').textContent()).toContain('Assessment uncertainty');
-    expect(await page.locator('.map-policy').textContent()).toContain('Recorded assessment');
-    expect(await page.locator('.map-policy').textContent()).toContain('Would block in enforce mode');
-    expect(await page.locator('.map-check.danger').count()).toBe(0);
-    expect(await page.locator('.map-check.caution').count()).toBe(2);
+    expect(await page.locator('[data-fact="findings"] .caution').textContent()).toContain('Assessment uncertainty');
+    await openRecordedData(page, 'Questions');
+    const recorded = JSON.parse((await page.locator('.exact-rule-data pre').textContent())!);
+    expect(recorded.rules[0].builtin).toBe(false);
+    expect(await page.locator('[data-fact="assessment"]').textContent()).toContain('Would block in enforce mode');
+    expect(recorded.rules[0].gateIds).toEqual(['outcome-confidence-below-threshold', 'evidence-confidence-below-threshold']);
+    expect(await page.locator('.rule-question-link, .rule-outcome, .recorded-rule-facts').count()).toBe(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }, { base: false, seed: directory => seedStatus(directory), path: link(1) });
 });
@@ -82,36 +84,43 @@ for (const schema of [1, 2, 3, 4] as const) test(`schema ${schema} preserves rec
     expect(data.view.rules[0].result.outcome.probabilities.PASS).toBe(.88);
     expect(data.view.rules[0].thresholds).toEqual({ effectThreshold: .91, evidenceThreshold: .93 });
     expect(data.view.evidence).toEqual(evidence);
-    expect((await page.locator('.call-state .status-chip').first().textContent())?.trim()).toBe('Ran');
-    expect(await page.locator('.primary-badges .status-chip > span').first().textContent()).toBe('Ran');
-    await reveal(page, '.why-disclosure');
-    expect(await page.getByRole('meter', { name: 'Outcome confidence' }).getAttribute('aria-valuetext')).toBe('0.88; required confidence 0.91');
-    await openEvidence(page);
+    expect((await page.locator('[data-list-fact="result"] .status-chip').first().textContent())?.trim()).toBe('Successful');
+    expect(await page.locator('[data-fact="result"]').first().textContent()).toBe('Successful');
+    expect(await page.locator('.rule-question-link, .rule-outcome, .recorded-rule-facts').count()).toBe(0);
+    await openRecordedData(page);
     expect(JSON.parse((await page.locator('.evidence-section').filter({ hasText: 'state.action' }).locator('pre').textContent())!)).toEqual(evidence.action);
-    await page.getByRole('tab', { name: 'Questions' }).click();
-    await page.getByRole('button', { name: 'JSON', exact: true }).click();
-    expect(JSON.parse((await page.locator('.question-json').first().textContent())!)).toEqual(question);
-    await page.locator('.question-details summary').click();
-    expect(await page.locator('.question-details').textContent()).toContain('historical-status-v1');
+    await openRecordedData(page, 'Questions');
+    const exact = JSON.parse((await page.locator('.exact-rule-data pre').textContent())!);
+    expect(exact).toEqual({ questionVersion: data.view.questionVersion, rules: data.view.rules });
+    expect(exact.rules[0].questions.outcome).toEqual(question);
     const linked = await open(link(schema));
-    expect(await linked.locator('.primary-badges .status-chip > span').first().textContent()).toBe('Ran');
+    expect(await linked.locator('[data-fact="result"]').first().textContent()).toBe('Successful');
     await linked.close();
   }, { base: false, seed: directory => seedStatus(directory, { schema }), path: link(schema) });
 });
 
-for (const [execution, permission, label] of [
-  ['executed', 'blocked', 'Ran'], ['failed', 'blocked', 'Failed'],
-  [null, 'blocked', 'TENET blocked'], [null, 'released', 'Released'], [null, null, 'Execution unknown'],
-] as const) test(`real archive shows ${label} for ${execution}/${permission} without changing recorded decisions`, async () => {
-  await withInspector(`status-${label}`, async ({ page }) => {
+for (const [execution, permission] of [
+  ['executed', 'blocked'], ['failed', 'blocked'],
+  [null, 'blocked'], [null, 'released'], [null, null],
+] as const) test(`real archive preserves permission/result for ${execution}/${permission}`, async () => {
+  await withInspector('separate-facts', async ({ page }) => {
     await page.locator('.decision-summary').waitFor();
-    expect((await page.locator('.call-state .status-chip').first().textContent())?.trim()).toBe(label);
-    expect((await page.locator('.primary-badges .status-chip').first().textContent())?.trim()).toBe(label);
-    expect(await page.locator('.map-verdict').textContent()).toBe('Would block in enforce mode');
+    const result = execution === 'executed' ? 'Successful' : execution === 'failed' ? 'Failed' : 'Unknown / not recorded';
+    const permissionLabel = permission === 'blocked' ? 'Blocked by Tenet' : permission === 'released' ? 'Not blocked by Tenet' : 'Unknown';
+    expect(await page.locator('[data-fact="result"]').textContent()).toBe(result);
+    expect(await page.locator('[data-fact="permission"]').textContent()).toBe(permissionLabel);
+    if (permission === 'released' && execution === null) {
+      expect(await page.locator('.displayed-context').textContent()).toContain('No tool results recorded.');
+      expect(await page.locator('[data-list-fact]').count()).toBe(0);
+    } else {
+      expect((await page.locator('[data-list-fact="result"]').textContent())?.trim()).toBe(result);
+      expect((await page.locator('[data-list-fact="permission"]').textContent())?.trim()).toBe(permissionLabel);
+    }
+    expect(await page.locator('[data-fact="assessment"]').textContent()).toBe('Would block in enforce mode');
     const contradiction = permission === 'blocked' && execution !== null;
     expect(await page.locator('.recording-inconsistency').count()).toBe(contradiction ? 2 : 0);
     if (contradiction) expect(await page.locator('.primary-status .recording-inconsistency').textContent()).toContain(`execution is ${execution}`);
-    if (label === 'Failed') expect(await page.locator('.execution-summary').textContent()).toContain('does not prove there were no external effects');
+    if (execution === 'failed') expect(await page.locator('.summary-note').textContent()).toContain('does not prove there were no external effects');
   }, { base: false, seed: directory => seedStatus(directory, { execution, permission }), path: link(1) });
 });
 
@@ -119,12 +128,12 @@ for (const width of [1280, 390]) test(`Observe with blocked permission keeps its
   await withInspector(`observe-blocked-first-view-${width}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
     await page.locator('.decision-summary').waitFor();
-    expect(await page.locator('.primary-badges .status-chip > span').first().textContent()).toBe('TENET blocked');
+    expect(await page.locator('[data-fact="permission"]').textContent()).toBe('Blocked by Tenet');
     expect(await page.locator('.primary-status').innerText()).toContain('Observe');
-    expect(await page.locator('.story-assessment').isVisible()).toBe(true);
-    expect(await page.locator('.story-assessment').innerText()).toBe('Would block in enforce mode');
-    expect(await page.locator('.decision-map').isVisible()).toBe(false);
-    expect(await page.locator('.capture-details').getAttribute('open')).toBeNull();
+    expect(await page.locator('[data-fact="assessment"]').isVisible()).toBe(true);
+    expect(await page.locator('[data-fact="assessment"]').innerText()).toBe('Would block in enforce mode');
+    expect(await page.locator('.decision-map').count()).toBe(0);
+    expect(await page.locator('.recording-details').getAttribute('open')).toBeNull();
   }, { base: false, seed: directory => seedStatus(directory, { permission: 'blocked', execution: null }), path: link(1) });
 });
 
@@ -132,17 +141,18 @@ for (const width of [1280, 390]) test(`polling Released to Ran at ${width}px ret
   await withInspector(`status-poll-${width}`, async ({ page, directory }) => {
     await page.setViewportSize({ width, height: 844 });
     await page.locator('.decision-summary').waitFor();
-    expect((await page.locator('.call-state .status-chip').first().textContent())?.trim()).toBe('Released');
-    expect(await page.locator('.primary-badges .status-chip > span').first().textContent()).toContain('Released');
-    expect(await page.locator('.map-verdict').textContent()).toBe('Decision unavailable');
-    expect(await page.locator('.assessment-status').textContent()).toContain('pending');
+    expect((await page.locator('[data-list-fact="permission"] .status-chip').first().textContent())?.trim()).toBe('Not blocked by Tenet');
+    expect(await page.locator('[data-fact="permission"]').textContent()).toBe('Not blocked by Tenet');
+    expect(await page.locator('[data-fact="assessment"]').textContent()).toBe('Pending');
+    expect(await page.locator('[data-fact="assessment"]').textContent()).toBe('Pending');
     expect(await page.getByRole('meter').count()).toBe(0);
-    await reveal(page, '.why-disclosure');
-    await reveal(page, '.other-rules');
-    await page.locator('.rule-row').click();
-    const selectedRule = await page.locator('.rule-row[aria-pressed="true"]').textContent();
-    await openEvidence(page);
-    const panel = page.locator('#panel-Evidence');
+    expect(await page.locator('.rule-question-link, .rule-outcome').count()).toBe(0);
+    const selectedRule = JSON.parse((await page.locator('.exact-rule-data pre').textContent())!).rules[0].text;
+    await page.locator('.why-disclosure > summary').click();
+    const ruleNode = page.locator('.rule-detail').first();
+    await ruleNode.evaluate(el => { (el as HTMLElement).dataset.retained = 'delayed-rule'; });
+    await openRecordedData(page);
+    const panel = page.locator('.submitted-evidence');
     const scroll = await panel.evaluate(el => { el.dataset.retention = 'same-node'; el.scrollTop = 180; return el.scrollTop; });
     expect(scroll).toBeGreaterThan(0);
     const selectedLink = page.url();
@@ -152,13 +162,15 @@ for (const width of [1280, 390]) test(`polling Released to Ran at ${width}px ret
     sink('assessment-status', { status: 'completed', profile: 'legacy' });
     sink('execution', { outcome: 'executed' });
     await writer.complete();
-    await expect.poll(() => page.locator('.primary-badges .status-chip > span').first().textContent(), { timeout: 10_000 }).toBe('Ran');
-    expect((await page.locator('.call-row[aria-pressed="true"] .call-state .status-chip').first().textContent())?.trim()).toBe('Ran');
-    expect(await page.locator('.rule-row[aria-pressed="true"]').textContent()).toContain('Keep private data local.');
+    await expect.poll(() => page.locator('[data-fact="result"]').first().textContent(), { timeout: 10_000 }).toBe('Successful');
+    expect((await page.locator('.call-row[aria-pressed="true"] [data-list-fact="result"] .status-chip').first().textContent())?.trim()).toBe('Successful');
+    expect(JSON.parse((await page.locator('.exact-rule-data pre').textContent())!).rules[0].text).toBe('Keep private data local.');
     expect(selectedRule).toContain('Keep private data local.');
+    expect(await ruleNode.getAttribute('data-retained')).toBe('delayed-rule');
+    expect(await page.locator('.why-disclosure').getAttribute('open')).not.toBeNull();
     expect(await panel.getAttribute('data-retention')).toBe('same-node');
     expect(await panel.evaluate(el => el.scrollTop)).toBe(scroll);
-    expect(await page.getByRole('tab', { name: 'Evidence' }).getAttribute('aria-selected')).toBe('true');
+    expect(await page.locator('.submitted-evidence-details').getAttribute('open')).not.toBeNull();
     expect(page.url()).toBe(selectedLink);
     expect(await page.locator('.call-row[aria-pressed="true"] .call-id').textContent()).toBe('ran');
   }, { base: false, seed: directory => seedStatus(directory, { schema: 3, execution: null, pending: true }), path: link(3) });

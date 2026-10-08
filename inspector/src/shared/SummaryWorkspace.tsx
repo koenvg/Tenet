@@ -8,15 +8,15 @@ import PaneResizer from '../PaneResizer.js';
 import './workspace.css';
 
 // Standalone extensions never enter the public mount input.
-export default function SummaryWorkspace({ model, actions, standalone = false, inspection, coverage, navigation, mobileView: controlledMobileView, onMobileViewChange }: SummaryWorkspaceInput & {
-  standalone?: boolean; inspection?: ReactNode; coverage?: ReactNode; navigation?: ReactNode;
+export default function SummaryWorkspace({ model, actions, standalone = false, inspection, coverage, navigation, explorer, mobileView: controlledMobileView, onMobileViewChange }: SummaryWorkspaceInput & {
+  standalone?: boolean; inspection?: ReactNode; coverage?: ReactNode; navigation?: ReactNode; explorer?: ReactNode;
   mobileView?: MobileView; onMobileViewChange?: (view: MobileView) => void;
 }) {
   const [localMobileView, setLocalMobileView] = useState<MobileView>('calls'), [explorerWidth, setExplorerWidth] = useState(300);
   const mobileView = controlledMobileView ?? localMobileView;
   function setMobileView(value: MobileView) { setLocalMobileView(value); onMobileViewChange?.(value); }
   const session = model.sessions?.find(s => s.id === model.sessionId);
-  return <main className={`workspace tenet-summary-workspace tenet-presentation ${standalone ? '' : 'embedded'}`} data-mobile-view={mobileView} style={{ '--explorer-width': `${explorerWidth}px` } as CSSProperties}>
+  return <main className={`workspace tenet-summary-workspace ${standalone ? 'standalone-inspector' : 'tenet-presentation embedded'}`} data-mobile-view={mobileView} style={{ '--explorer-width': `${explorerWidth}px` } as CSSProperties}>
     {navigation ?? <nav className="mobile-nav" aria-label="Workspace views">
       <Button variant="ghost" aria-pressed={mobileView === 'calls'} onClick={() => setMobileView('calls')}>Calls</Button>
       <Button variant="ghost" aria-pressed={mobileView === 'assessment'} onClick={() => setMobileView('assessment')}>Summary</Button>
@@ -37,8 +37,8 @@ export default function SummaryWorkspace({ model, actions, standalone = false, i
       </>}
       {!!model.archiveWarnings?.length && <details><summary>Archive warnings</summary><p>These warnings can include records from other threads. They are not assessment failures.</p><ul>{model.archiveWarnings.map(code => <li key={code}>{code}</li>)}</ul></details>}
     </div>}
-    <CallExplorer filterId={standalone ? 'finding-category' : undefined} showCallLabels={!standalone} explorerId={standalone ? 'call-explorer' : undefined} calls={model.calls} selectedId={model.selectedId ?? ''} category={model.category} loading={model.loading} unavailable={model.unavailable ?? false} more={model.moreCalls ?? false}
-      selectCall={id => { setMobileView('assessment'); actions.selectCall(id); }} filterCategory={actions.filterCategory} loadMore={actions.loadMoreCalls} />
+    {explorer ?? <CallExplorer filterId={standalone ? 'finding-category' : undefined} showCallLabels={!standalone} explorerId={standalone ? 'call-explorer' : undefined} calls={model.calls} selectedId={model.selectedId ?? ''} category={model.category} loading={model.loading} unavailable={model.unavailable ?? false} more={model.moreCalls ?? false}
+      selectCall={id => { setMobileView('assessment'); actions.selectCall(id); }} filterCategory={actions.filterCategory} loadMore={actions.loadMoreCalls} />}
     {standalone && <PaneResizer value={explorerWidth} onValueChange={setExplorerWidth} min={220} max={460} label="Resize call explorer" controls="call-explorer" />}
     <div className="inspection">
       {inspection ?? (model.selected ? <SummaryDetail key={model.selectedId ?? model.selected.identity?.callId} view={model.selected} moreRules={model.moreRules} loading={model.loading} loadMoreRules={actions.loadMoreRules} restartRules={actions.restartRules} />

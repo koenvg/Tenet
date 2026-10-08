@@ -17,6 +17,11 @@ export function captureHealth(records: ArchiveRecord[]) {
     dropped: Number(r.data.dropped), drainTimeouts: Number(r.data.drainTimeouts) }));
 }
 export type CaptureHealth = ReturnType<typeof captureHealth>;
+// Private presentation fact. Do not change finding classification or BB status.
+export function recordedAssessmentInvalid(record: Pick<ArchiveRecord, 'stage' | 'data'>): boolean {
+  return ['assessment', 'validation', 'decision', 'assessment-status'].includes(record.stage)
+    && (record.data.valid === false || record.data.validationIssue !== undefined);
+}
 export function invocationView(records: ArchiveRecord[]) {
   const findings = foldFindingStages(records.map(findingStage));
   const stage = (name: string) => object(records.findLast(r => r.stage === name)?.data);
@@ -34,8 +39,7 @@ export function invocationView(records: ArchiveRecord[]) {
   const submitted = validation.request === 'submitted' || permission.requestStatus === 'submitted';
   const contexts = [...records].reverse().map(r => r.data.evidenceContext).filter(validEvidenceContext);
   const recordedContext = contexts.find(c => c.preparation === 'completed') ?? contexts[0];
-  const invalidRecordedAssessment = records.some(r => ['assessment', 'validation', 'decision', 'assessment-status'].includes(r.stage)
-    && (r.data.valid === false || r.data.validationIssue !== undefined));
+  const invalidRecordedAssessment = records.some(recordedAssessmentInvalid);
   return {
     identity: records[0] ? { host: records[0].host ?? 'pi', contextId: records[0].contextId ?? 'main',
       schemas: [...new Set(records.map(r => r.schemaVersion))],
@@ -49,6 +53,7 @@ export function invocationView(records: ArchiveRecord[]) {
     judge: recordedJudge(records), native: nativeHistory(records),
     failure: findings.failure, assessmentStatus: findings.assessmentStatus,
     evaluatorState: findings.evaluatorState,
+    assessmentInvalid: invalidRecordedAssessment,
     evidenceContext: recordedContext ? freeze(structuredClone(recordedContext)) : null,
     noRulesClassifiedViolated: ['ALLOW', 'ASK', 'BLOCK'].includes(decision.decision)
       && !invalidRecordedAssessment && !findings.failure && ['completed', 'validated'].includes(findings.assessmentStatus)

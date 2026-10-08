@@ -68,43 +68,71 @@ Integration tests cover live session discovery, delayed execution, selected-sess
 2. For Pi-generated fixtures, use `guardHarness.shutdownCaptured()`. It waits for clean current capture, shuts down once, and requires the existing terminal owner status to report zero loss and a completed drain. Shutdown can enqueue additional execution stages. Keep raw `emit('session_shutdown')` for deliberate failure tests.
 3. For a valid invocation deep link, wait for `withInspector.open()` to render invocation detail. A document `load` event does not finish archive selection. Put semantic assertions after that boundary; do not extend their poll deadlines to cover setup.
 
-## Execution-first status regressions
+## Separate call-fact regressions
 
-`test/inspector-presentation.test.ts` covers the execution/permission matrix, unknown and future values, neutral Ran and contradictions. Assessment, approval and scores cannot establish execution.
+`test/inspector-presentation.test.ts` retains the execution/permission matrix and historical contract cases. `test/inspector-call-facts.test.ts` checks named facts, future/unknown values, invalid completed assessments and strict shared-context requirements. Assessment, approval and scores cannot establish execution.
 
 `bb-plugin-tenet-status/paginated-summary-parity.test.ts` writes valid schema-3/4 historical archives and current schema-5 production records with 16 user rules plus integrity. Public HOST reads and React-rendered summaries keep integrity violations, uncertainty and multiple-blocker explanations unchanged from first page to second page and back. Inspection still returns at most 16 rules per page; strict explanation schemas reject extra fields and raw sentinels.
 
-Component tests assert identical list/summary labels and tones for Ran, Failed, TENET blocked, Released and Execution unknown. They keep FAIL, uncertainty, approval, WARN and evaluator/lifecycle states separate. Missing assessments and nullable non-applicability evidence cannot invent scores or passing checks.
+Component tests check the named Tenet permission, Tool result and Assessment fields. The list shares ordinary context only for displayed calls that establish it. `components/context.vitest.ts` changes filters, loads another page and adds a late result without replacing selected detail. Independent violation, uncertainty and approval findings stay visible. Lifecycle status is not repeated as summary badges.
 
-`integration/status.vitest.ts` uses authored inert stage records. Its initial regression failed before the change because the primary badge was Would block rather than Ran. It checks desktop and 390px previews, historical schemas 1 through 4, exact submitted evidence, recorded labels/probabilities/thresholds/questions, result/blocked-permission contradictions and missing-result precedence.
+`integration/status.vitest.ts` retains desktop and 390px checks, historical schemas 1 through 4, exact evidence, scores, thresholds, questions, actual observe-mode blocks and permission/result contradictions. Delayed assessment and result stages preserve the invocation link, mounted exact-data regions, Recorded data disclosures, evidence DOM node and scroll position.
 
-A pending Released call receives delayed assessment and execution stages through real archive polling on both layouts. The test checks Ran in both views without changing the invocation link, selected rule, Evidence tab, evidence DOM node or its scroll position. Existing archive tests retain category filters, uncertainty groups, deep links and partial-coverage warnings.
+`integration/call-facts.vitest.ts` serves an authored fictional archive through the built app. It checks pending, dropped, cancelled, incomplete, unavailable and invalid assessments, successful and failed results, observe ASK, separate approval and all overlapping findings. `integration/summary-preview.vitest.ts` captures the minimal desktop/mobile first view. Existing archive checks retain direct filters, the public group API, deep links and partial-coverage indicators and issue disclosures.
 
-These are recorded-data presentation tests, not live semantic-accuracy measurements. Fixture actions never execute, and a failed tool result does not prove no external effects.
+These are recorded-data presentation tests, not live accuracy measurements. Fixture actions never execute. No result is inferred from released permission or approval. A failed result does not prove there were no external effects.
 
-A Released fixture keeps execution unknown until an execution stage is recorded. ALLOW and approval do not prove dispatch. Blocked permission plus a result shows that result first, with an inconsistency notice that preserves both facts.
+Verification rewrites no archive or policy and restarts no active service. Owners must rebuild and restart the inspector to load changed assets; rebuilding alone leaves a running reader unchanged.
 
-Verification rewrites no archive or policy and restarts no active service. Owners must rebuild and restart the inspector to load changed assets; rebuilding alone leaves a running reader unchanged. Rollback restores the previous code and rebuilds through the owner, preserving all archives.
+Rollback needs a separately preserved, verified previous installation and its build. Do not reset a shared working tree. Preserve recordings and unrelated local changes; see [archive rollback prerequisites](../../docs/INSTALL-ARCHIVE.md#removal-and-rollback).
+
+## Call workspace and direct category filtering
+
+The selected call replaces the desktop Summary/group switch. On narrow screens, Calls and Selected call remain.
+
+The native Finding category select is directly visible in Calls, without an accordion, and retains its label, keyboard access, counts, overlap guidance, active category and Clear filter. There is no Repeated uncertainty UI, replacement group view or group fetching by the UI.
+
+Session / archive holds project/session selection, More sessions, manual refresh, read-only explanation and healthy reader metadata. More invocations stays below all loaded calls.
+
+`components/navigation.vitest.ts` checks command/path-first rows, the direct select, active filters, both pagination controls and empty selection. It checks healthy, unknown, indexing and capture-only archive states, plus mobile access to exact reader/file/writer details and restart guidance.
+
+`integration/navigation.vitest.ts` checks desktop, 1380px/460px sidebar and mobile states, native controls, genuine zero-match reset, individual hashed call links, history and no UI group requests. Unchanged polls retain selected detail and Recording issues disclosures, focus, scroll and private URLs. Existing archive/history, resizing, status and delayed-stage cases remain.
+
+`integration/complete-flow.vitest.ts` checks the assembled 390px route with native keyboard input. It reaches the last compact rule, scrolls exact records to the end, retains focus/scroll across a real poll, selects a true zero-match category by type-ahead, resets the filter and scrolls Recording issues. A complete fictional call and a later partial archive are separate states.
+
+Direct API and Bun regressions preserve group identities, counters, references, bounds and overflow without a group view.
+
+`test/inspector-group-display.test.ts` checks the 512 UTF-8 byte excerpts, supported 16-rule bound, separate identities, unavailable previews, cache invalidation, unchanged-evidence reads, accurate group/reference overflow and private API projections. `test/inspector-preview.test.ts` retains non-empty BB projection sentinels. Existing BB policy-text fields are unchanged; private display metadata is not added to them.
 
 ## Simplified first view
 
-The first view keeps call identity, recorded assessment status, actual execution, mode, findings and one brief reason visible. Both adapters use the same safe summary rows. The sidebar uses one actual-status chip, quiet mode text and one concern cue.
+The first view shows the action, recorded mode, named permission/result/assessment, applicable findings and one brief recorded-data reason. Released permission displays as **Not blocked by Tenet**, with the raw archived `released` value unchanged. The sidebar keeps per-call exceptions and one concern cue; it compacts only proved displayed context.
 
 A `+N` cue counts additional finding categories, not additional violated rules. All categories remain in the selected call and category filters are unchanged.
 
-**Why this assessment** opens the recorded map, selected check and all rules. The separate **Standalone-only inspection** section contains **Recorded action**, the **Evidence** tabbed dock and **Details** for exact lifecycle, versions, coverage and validation diagnostics.
+**Recorded data** replaces Evidence and Details with submitted action fields, captured policy, exact shared evidence, one **Exact rule records and captured questions** destination, SDK response/validation and recording/coverage. **Why this assessment** keeps compact recorded-rule text and confidence bars. Question shortcuts/readable questions, repeated PASS notes, separate outcome rows and technical rule panels are absent. Complete exact records stay in Recorded data.
 
-Native disclosures stay closed on a new selection and remain mounted through polls. Tests open these public entry points before interaction; no old regression was skipped. New desktop/narrow tests check the simpler default and keyboard disclosure path.
+`components/compact-rules.vitest.ts`, `detail.vitest.ts` and `presentation.vitest.ts` keep finding-first historical FAIL/approval priority, outcome, severity, integrity, gate, approval, WARN and missing/non-applicable cases. Compact readings show each precise score and threshold once, distinguish selected evidence from SUFFICIENT and flag only recorded confidence gates. Full exact records remain independent of raw response and retain all fields. Tests check removed controls stay absent, text stays inert, and rule/data/evidence nodes, focus, disclosures and scroll survive updates.
 
 The common-only comparison checks identical safe DOM content/order and element positions at wide and 390px container widths. Selection, filters, check details and disclosures stay synchronized across adapters. A raw-extension toggle must not move or change common summary rows; provider failure and coverage facts remain visible.
 
 Browser Back tests check selected-call association, action preview, submitted evidence and exact question access after standalone extension placement changes. These use synthetic archive HTTP and public controls at desktop and 390px viewport sizes.
 
-Expanded Details groups recorded outcomes, recording metadata and coverage. Keys and values align at desktop and narrow widths. Rule notes stay separate from capture counters.
+Native disclosures and the exact-data region retain keyboard access. Text roles use the existing sans and monospace families, fixed rem sizes and readable body text. Desktop, narrow and enlarged-root-text checks cover wrapping, bounded records and 44px disclosure targets.
+
+`integration/rule-explanations.vitest.ts` checks complete exact rule/question records despite a truncated response at 1103px and 390px. Real unchanged polls retain the data node, disclosure, focus, inner/outer scroll, exact values and invocation URL.
+
+Native disclosures stay closed on a new selection and remain mounted through polls. Tests open public entry points before interaction. Superseded explanation, readable-question and meter assertions are replaced by exact-data, absence, keyboard and mounted-state checks; historical and status semantics remain covered.
+
+Recorded data's Recording and coverage disclosure groups recorded outcomes, recording metadata and coverage. Keys and values align at desktop and narrow widths. Assessment facts stay separate from capture counters.
 
 Record identifiers are bounded read-only fields. Coverage explanations and interpretation limits have named disclosures. Regressions check the groups, long identifier values and bounds at both widths.
 
-The Observe plus blocked-permission regression keeps the counterfactual assessment visible in the first view, without opening the map. No archived fact is repaired or rejected.
+`components/recorded-data.vitest.ts` checks full submitted edit strings, arbitrary/missing/malformed arguments, exact null values, shared state/history/reference pools, loss markers, policy identity, all rule questions/choices/mappings, precision, response truncation/unavailability, validation and approval. All rule and question JSON uses one named native disclosure, independent of raw response availability, not a format switch.
+
+`integration/recorded-data-preview.vitest.ts` serves authored fictional edit/policy/question/response/loss cases. It captures desktop/mobile Recorded data and questions. Real polls test delayed request/result stages, lossless UTF-16 identities and stable exact-data nodes, evidence nodes, focus, open disclosures, scroll and unchanged URLs. Existing history, threshold, status and pagination tests use the new destinations without removing their semantic cases.
+
+The Observe plus blocked-permission regression keeps the counterfactual assessment visible in the first view, without opening Recorded data. No archived fact is repaired or rejected.
 
 The enclosing test deadlines still apply. The delayed schema-3 regression checks the deep-link ordering through real archive HTTP and rendered findings.
 

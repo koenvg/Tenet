@@ -6,7 +6,7 @@ import { sessionKey, qualifiedSessionKey, recordInvocationKey } from '../../../s
 import { FixtureArchiveWriter as ArchiveWriter } from '../../../test/archive-fixture.js';
 import { recordFailureFixture } from '../../../test/failure-fixture.js';
 import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
-import { openEvidence, reveal } from '../ui-navigation.js';
+import { openRecordedData, reveal } from '../ui-navigation.js';
 
 beforeAll(launchBrowser);
 afterAll(closeBrowser);
@@ -15,8 +15,6 @@ const call = async (page: import('playwright').Page, id: string) => {
   await page.locator('.call-row').filter({ has: page.locator('.call-id', { hasText: new RegExp(`^${id}$`) }) }).click();
   await expect.poll(() => page.locator('.call-row[aria-pressed="true"] .call-id').textContent()).toBe(id);
   await page.locator('.decision-summary').waitFor();
-  await reveal(page, '.why-disclosure');
-  await reveal(page, '.rule-inspection');
 };
 
 const openPicker = async (page: import('playwright').Page) => {
@@ -55,7 +53,8 @@ test('project filters and cursor pagination retain a safe deep link through back
       history.replaceState(null, '', `/?session=${session}&invocation=${invocation}`);
       window.dispatchEvent(new PopStateEvent('popstate'));
     }, [sessionKey(arbitrary), sessionKey('page-0')]);
-    await reveal(page, '.capture-details');
+    await reveal(page, '.recorded-disclosure');
+    await reveal(page, '.recording-details');
     await reveal(page, '.record-identifiers');
     await expect.poll(() => page.getByLabel('Recorded invocation ID', { exact: true }).inputValue()).toBe('page-0');
     expect(await page.getByLabel('Recorded session ID', { exact: true }).inputValue()).toBe(arbitrary);
@@ -73,7 +72,8 @@ test('project filters and cursor pagination retain a safe deep link through back
     await page.getByRole('button', { name: 'All projects' }).click();
     await expect.poll(() => page.locator('.session-row strong').allTextContents()).toContain(arbitrary);
     const linked = await open(`/?session=${sessionKey(arbitrary)}&invocation=${sessionKey('page-0')}`);
-    await reveal(linked, '.capture-details');
+    await reveal(linked, '.recorded-disclosure');
+    await reveal(linked, '.recording-details');
     await reveal(linked, '.record-identifiers');
     await expect.poll(() => linked.getByLabel('Recorded invocation ID', { exact: true }).inputValue()).toBe('page-0');
     await linked.close();
@@ -92,7 +92,7 @@ test('fresh link opens an older session omitted from the first picker page', asy
     expect(firstPage.sessions).toHaveLength(50);
     expect(firstPage.sessions.some((item: { sessionId: string }) => item.sessionId === 'older-session')).toBe(false);
     await expect.poll(() => page.locator('.invocation').textContent()).toContain('older-call');
-    expect((await page.locator('.session-picker summary').textContent())?.trim()).toBe('Selected session');
+    expect((await page.locator('.session-picker summary').textContent())?.trim()).toBe('Session / archiveSelected session');
   }, { base: false, path: `/?session=${oldKey}`, seed: async directory => {
     const writer = new ArchiveWriter({ enabled: true, directory });
     writer.bindHistorical({ sessionId: 'older-session', invocationId: 'older-call', callId: 'older-call', toolName: 'read', mode: 'observe', cwd: '/old-project' }, 1)('begin', {});
@@ -109,7 +109,7 @@ test('unrecorded linked session waits without borrowing another session’s call
     await page.getByRole('heading', { name: 'Waiting for recorded calls' }).waitFor();
     expect(new URL(page.url()).searchParams.get('session')).toBe(emptyKey);
     expect(await page.locator('.call-row[aria-pressed="true"]').count()).toBe(0);
-    expect((await page.locator('.session-picker summary').textContent())?.trim()).toBe('Selected session');
+    expect((await page.locator('.session-picker summary').textContent())?.trim()).toBe('Session / archiveSelected session');
     await openPicker(page);
     await page.locator('.session-row').filter({ has: page.locator('strong', { hasText: 's' }) }).click();
     await page.locator('.invocation').waitFor();
@@ -131,31 +131,31 @@ test('corrupt and interrupted captures remain unavailable, and archive errors re
     for (const kind of ['missing-credentials', 'provider-error', 'invalid-response', 'interrupted', 'truncated-response', 'unavailable-response', 'missing-payload', 'capture-loss']) {
       await call(page, kind);
       const detail = await page.locator('.invocation').textContent();
-      const inspection = await page.getByRole('region', { name: 'Standalone-only inspection', exact: true }).textContent();
       if (kind === 'interrupted' || kind === 'capture-loss') {
-        expect(detail).toContain('Assessment incomplete');
+        expect(await page.locator('[data-fact="assessment"]').textContent()).toBe('Incomplete');
         expect(detail).toContain('unknown');
-        expect(await page.locator('.rule-row .status-chip').allTextContents()).not.toContain('PASS');
-      } else expect(detail).toContain('Assessment unavailable');
-      if (kind === 'missing-credentials') expect(inspection).toContain('not submitted');
-      if (kind === 'missing-payload') expect(inspection).toContain('submitted; payload unavailable');
-      if (kind === 'truncated-response') expect(inspection).toContain('Response truncated');
-      if (kind === 'unavailable-response') expect(inspection).toContain('Response snapshot unavailable');
-      expect(await page.locator('.standalone-detail script').count()).toBe(0);
+        expect(JSON.parse((await page.locator('.exact-rule-data pre').textContent())!).rules.every((rule: { result: unknown }) => rule.result === null)).toBe(true);
+      } else expect(await page.locator('[data-fact="assessment"]').textContent()).toBe('Unavailable');
+      if (kind === 'missing-credentials') expect(detail).toContain('not submitted');
+      if (kind === 'missing-payload') expect(detail).toContain('submitted; payload unavailable');
+      if (kind === 'truncated-response') expect(detail).toContain('Response truncated');
+      if (kind === 'unavailable-response') expect(detail).toContain('Response snapshot unavailable');
+      expect(await page.locator('.invocation script').count()).toBe(0);
     }
     await openPicker(page);
     await page.locator('.session-row').filter({ has: page.locator('strong', { hasText: 'historical-incomplete' }) }).click();
     await call(page, 'incomplete');
     expect(await page.locator('.decision-explanation').textContent()).toMatch(/timeout.*not recorded/);
-    expect(await page.locator('.rule-detail').textContent()).toContain('Gate coverage unavailable');
-    await openEvidence(page);
-    expect(await page.locator('#panel-Evidence').textContent()).toContain('Submitted evidence unavailable');
-    await page.getByRole('tab', { name: 'Response' }).click();
-    expect(await page.locator('#panel-Response').textContent()).toContain('2000000');
-    expect(await page.locator('#panel-Response').textContent()).toContain('"truncated": true');
-    expect(await page.locator('.standalone-detail script').count()).toBe(0);
+    expect(JSON.parse((await page.locator('.exact-rule-data pre').textContent())!).rules.every((rule: { gateIds: unknown }) => rule.gateIds === null)).toBe(true);
+    await openRecordedData(page);
+    expect(await page.locator('.submitted-evidence').textContent()).toContain('Submitted evidence unavailable');
+    await reveal(page, '.recorded-response');
+    expect(await page.locator('.recorded-response').textContent()).toContain('2000000');
+    expect(await page.locator('.recorded-response').textContent()).toContain('"truncated": true');
+    expect(await page.locator('.invocation script').count()).toBe(0);
     expect(await page.locator('body').textContent()).not.toContain('fixture-transport-secret');
     await page.route('**/api/sessions?*', route => route.fulfill({ status: 503, body: '{}' }));
+    await reveal(page, '.session-picker');
     await page.getByRole('button', { name: 'Refresh archive' }).click();
     await expect.poll(() => page.getByRole('alert').textContent()).toContain('503');
     await page.unroute('**/api/sessions?*');
@@ -182,19 +182,20 @@ test('mixed schema-1 Pi and host-qualified Pi/Claude links keep evidence and out
     const legacy = await open(`/?session=${sessionKey('same')}&invocation=${sessionKey('same')}`);
     await legacy.locator('.decision-summary').waitFor();
     expect(await legacy.locator('.session-picker summary').textContent()).toContain('pi / main');
-    expect(await legacy.locator('.capture-details').textContent()).toContain('legacy-pi-coverage-not-recorded');
-    expect(await legacy.locator('.rule-detail').textContent()).toContain('Historical rule');
+    expect(await legacy.locator('.recording-details').textContent()).toContain('legacy-pi-coverage-not-recorded');
+    expect(await legacy.locator('.exact-rule-data pre').textContent()).toContain('Historical rule');
     await legacy.close();
     const child = sessions.find(session => session.host === 'claude-code' && session.contextId === 'child')!;
     const calls = (await (await fetch(`${app.origin}/api/sessions/${child.id}`)).json()).invocations;
     expect(calls).toHaveLength(1);
     await page.goto(`${app.origin}/?session=${child.id}&invocation=${calls[0].id}`);
     await page.locator('.decision-summary').waitFor();
-    expect(await page.locator('.capture-details').textContent()).toContain('actual-host-unverified');
+    expect(await page.locator('.recording-details').textContent()).toContain('actual-host-unverified');
     expect(await page.locator('.primary-status').textContent()).toContain('Failed');
-    await page.locator('.capture-details > summary').click();
-    expect(await page.locator('.capture-details').textContent()).toMatch(/Would decide.*ALLOW.*Permission.*released.*Execution.*failed/s);
-    expect(await page.locator('.capture-details').textContent()).toContain('approval-unavailable');
+    await reveal(page, '.recorded-disclosure');
+    await page.locator('.recording-details > summary').click();
+    expect(await page.locator('.recording-details').textContent()).toMatch(/Would decide.*ALLOW.*Permission.*released.*Execution.*failed/s);
+    expect(await page.locator('.recording-details').textContent()).toContain('approval-unavailable');
     const parent = sessions.find(session => session.host === 'claude-code' && session.contextId === 'main')!;
     const parentCalls = (await (await fetch(`${app.origin}/api/sessions/${parent.id}`)).json()).invocations;
     expect(parentCalls[0].execution).toBe('unknown');
@@ -215,7 +216,7 @@ test('mixed schema-1 Pi and host-qualified Pi/Claude links keep evidence and out
   } });
 });
 
-test('real archive filters overlapping categories, expands grouped calls and warns about newer records', async () => {
+test('real archive preserves group API, direct category filtering, individual links and newer-record notices', async () => {
   const key = sessionKey('triage-browser');
   await withInspector('triage-browser', async ({ page, app, open }) => {
     await page.locator('.invocation').waitFor();
@@ -230,40 +231,43 @@ test('real archive filters overlapping categories, expands grouped calls and war
     const grouped = await (await fetch(`${app.origin}/api/sessions/${key}/groups`)).json();
     expect(grouped.groups.items).toHaveLength(2);
     expect(grouped.groups.items.find((g: { count: number }) => g.count === 2)?.invocations).toHaveLength(2);
+    expect(new Set(grouped.groups.items.map((g: { policyIdentity: string }) => g.policyIdentity)).size).toBe(2);
+    for (const group of grouped.groups.items) {
+      expect(group.ruleId).toBe('r');
+      expect(group.gate).toBe('evidence-confidence-below-threshold');
+      expect(group.policyIdentity).toContain('/triage/');
+      expect(group.first).toBeLessThanOrEqual(group.last);
+      expect(group.invocations.every((ref: { id: string }) => /^[a-f0-9]{64}$/.test(ref.id))).toBe(true);
+    }
     expect((await fetch(`${app.origin}/api/sessions/${key}?category=not-a-category`)).status).toBe(400);
-    await expect.poll(() => page.locator('.compatibility-warning').textContent()).toContain('1 unsupported schema records (1 newer)');
-    expect(await page.locator('.reader-status').textContent()).toContain('supported recording schemas 1, 2, 3');
+    await page.locator('.recording-issues > summary').click();
+    await expect.poll(() => page.locator('.reader-coverage').textContent()).toContain('1 unsupported schema records (1 newer)');
+    expect(await page.locator('.upgrade-guidance').isVisible()).toBe(true);
+    await page.locator('.recording-issues > summary').click();
+    expect(await page.locator('.session-menu').textContent()).toContain('supported recording schemas 1, 2, 3');
     await page.locator('#finding-category').selectOption('approval');
     await expect.poll(() => page.locator('.call-row').count()).toBe(1);
-    expect(await page.locator('.explorer .uncertainty-groups').count()).toBe(0);
-    await page.getByRole('button', { name: 'Uncertainty groups' }).click();
-    await expect.poll(() => page.getByRole('region', { name: 'Uncertainty groups' }).isVisible()).toBe(true);
-    await expect.poll(() => page.locator('.uncertainty-group').count()).toBe(2);
-    await mkdir('coverage/inspector-artifacts', { recursive: true });
-    expect(new Set(await page.locator('.uncertainty-group > summary small').allTextContents())).toEqual(new Set([
-      'Rule r · legacy · Policy A · target /triage/TENET.md',
-      'Rule r · legacy · Policy A · target /triage/alternate/TENET.md',
-    ]));
-    await page.screenshot({ path: 'coverage/inspector-artifacts/triage-groups-desktop.png' });
-    await page.locator('.uncertainty-group').filter({ hasText: '2 calls' }).locator('summary').click();
-    expect(await page.locator('.uncertainty-group').filter({ hasText: '2 calls' }).locator('.pattern-context').textContent()).toContain('target /triage/TENET.md');
-    await page.locator('.uncertainty-group').filter({ hasText: '2 calls' }).getByRole('button', { name: /first/ }).click();
-    await expect.poll(() => page.getByRole('region', { name: 'Uncertainty groups' }).isVisible()).toBe(false);
-    await expect.poll(() => page.locator('.call-label').textContent()).toBe('Call first');
+    expect(await page.locator('.repeated-uncertainty, .uncertainty-group').count()).toBe(0);
+    expect(await page.locator('.triage-tools summary').count()).toBe(0);
+    await page.locator('#finding-category').selectOption('uncertainty');
+    await expect.poll(() => page.locator('.call-row').count()).toBe(3);
+    await call(page, 'first');
+    await expect.poll(() => page.locator('.decision-title h2 span').textContent()).toBe('first');
     await mkdir('coverage/inspector-artifacts', { recursive: true });
     await page.screenshot({ path: 'coverage/inspector-artifacts/triage-desktop.png' });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Calls' }).click();
     await expect.poll(() => page.locator('#finding-category').isVisible()).toBe(true);
-    expect(await page.locator('.mobile-upgrade').isVisible()).toBe(true);
+    await page.locator('.recording-issues > summary').click();
+    expect(await page.locator('.upgrade-guidance').isVisible()).toBe(true);
+    expect(await page.locator('.upgrade-guidance').textContent()).toContain('A rebuild alone does not update a running reader.');
+    await page.locator('.recording-issues > summary').click();
     await page.screenshot({ path: 'coverage/inspector-artifacts/triage-mobile.png' });
     const link = page.url();
-    await page.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Patterns' }).click();
-    await expect.poll(() => page.getByRole('region', { name: 'Uncertainty groups' }).isVisible()).toBe(true);
-    await page.screenshot({ path: 'coverage/inspector-artifacts/triage-groups-mobile.png' });
+    expect(await page.locator('.repeated-uncertainty').count()).toBe(0);
     expect(new URL(link).searchParams.get('session')).toBe(key);
     const reopened = await open(new URL(link).pathname + new URL(link).search);
-    await expect.poll(() => reopened.locator('.call-label').textContent()).toBe('Call first');
+    await expect.poll(() => reopened.locator('.decision-title h2 span').textContent()).toBe('first');
     await reopened.close();
     await page.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Calls' }).click();
     await page.locator('#finding-category').selectOption('violation');
@@ -271,10 +275,10 @@ test('real archive filters overlapping categories, expands grouped calls and war
     await page.locator('.session-picker summary').click();
     await page.locator('.session-row').first().click();
     await expect.poll(() => page.locator('.call-list .empty-inline').textContent()).toBe('No calls match this finding category.');
-    await page.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Patterns' }).click();
-    await page.locator('.uncertainty-group').filter({ hasText: '2 calls' }).locator('summary').click();
-    await page.locator('.uncertainty-group').filter({ hasText: '2 calls' }).getByRole('button', { name: /first/ }).click();
-    await expect.poll(() => page.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Summary' }).evaluate(el => document.activeElement === el)).toBe(true);
+    await page.getByRole('button', { name: 'Clear filter' }).click();
+    await expect.poll(() => page.locator('.call-row').count()).toBe(3);
+    await call(page, 'first');
+    await expect.poll(() => page.locator('.decision-title h2 span').textContent()).toBe('first');
   }, { base: false, path: `/?session=${key}`, seed: async directory => {
     const writer = new ArchiveWriter({ enabled: true, directory });
     for (const [id, target] of [['first', '/triage/TENET.md'], ['second', '/triage/TENET.md'], ['third', '/triage/alternate/TENET.md']] as const) {
@@ -288,7 +292,7 @@ test('real archive filters overlapping categories, expands grouped calls and war
       sink('execution', { outcome: 'executed' });
     }
     await writer.complete();
-    await writeFile(join(directory, key, 'newer.json'), JSON.stringify({ schemaVersion: 6 }), { mode: 0o600 });
+    await writeFile(join(directory, key, 'newer.json'), JSON.stringify({ schemaVersion: 999 }), { mode: 0o600 });
   } });
 });
 
@@ -302,17 +306,18 @@ test('schema 3 lifecycle deep links keep pending and dropped apart from permissi
       const row = rows.find((r: { callId: string }) => r.callId === status);
       expect(row.categories).toEqual(['pending']);
       const linked = await open(`/?session=${key}&invocation=${row.id}`);
-      await expect.poll(() => linked.locator('.finding-tags').textContent()).toContain('Observation pending or incomplete');
-      await expect.poll(() => linked.locator('.assessment-status').textContent()).toContain(status);
-      await linked.locator('.capture-details > summary').click();
-      expect(await linked.locator('.capture-details').textContent()).toContain('Recording schemas3');
-      expect(await linked.locator('.capture-details').textContent()).toContain('Assessment profilelegacy');
-      expect(await linked.locator('.capture-details').textContent()).toContain('Would decideunavailable');
+      await expect.poll(() => linked.locator('[data-fact="assessment"]').textContent()).toBe(status[0]!.toUpperCase() + status.slice(1));
+      await expect.poll(() => linked.locator('[data-fact="assessment"]').textContent()).toBe(status[0]!.toUpperCase() + status.slice(1));
+    await reveal(linked, '.recorded-disclosure');
+      await linked.locator('.recording-details > summary').click();
+      expect(await linked.locator('.recording-details').textContent()).toContain('Recording schemas3');
+      expect(await linked.locator('.recording-details').textContent()).toContain('Assessment profilelegacy');
+      expect(await linked.locator('.recording-details').textContent()).toContain('Would decideunavailable');
       await linked.close();
     }
   }, { base: false, path: `/?session=${key}`, seed: async directory => {
     const writer = new ArchiveWriter({ enabled: true, directory });
-    writer.bindHistorical({ sessionId: 'lifecycle-browser', invocationId: 'old', callId: 'old', toolName: 'read', cwd: '/p', mode: 'observe', host: 'pi', contextId: 'main' }, 2)('begin', {});
+    writer.bindHistorical({ sessionId: 'lifecycle-browser', invocationId: 'old', callId: 'old', toolName: 'read', cwd: '/p', mode: 'observe', host: 'pi', contextId: 'main' }, 4)('begin', {});
     await writer.complete();
     const folder = join(directory, key), base = JSON.parse(await readFile(join(folder, (await readdir(folder))[0]!), 'utf8'));
     for (const [id, status] of [['pending', 'pending'], ['dropped', 'dropped']] as const) {
@@ -342,10 +347,11 @@ test('schema 3 pending deep link is ready after a delayed archive response', asy
       await route.fulfill({ response });
     });
     const linked = await open(`/?session=${key}&invocation=${rows[0].id}`);
-    await expect.poll(() => linked.locator('.finding-tags').textContent()).toContain('Observation pending or incomplete');
-    expect(await linked.locator('.assessment-status').textContent()).toContain('Assessment pending');
-    await linked.locator('.capture-details > summary').click();
-    const details = await linked.locator('.capture-details').textContent();
+    await expect.poll(() => linked.locator('[data-fact="assessment"]').textContent()).toBe('Pending');
+    expect(await linked.locator('[data-fact="assessment"]').textContent()).toBe('Pending');
+    await reveal(linked, '.recorded-disclosure');
+    await linked.locator('.recording-details > summary').click();
+    const details = await linked.locator('.recording-details').textContent();
     expect(details).toContain('Recording schemas3');
     expect(details).toContain('Would decideunavailable');
     expect(details).toContain('Permissionunknown');

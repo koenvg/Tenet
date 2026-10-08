@@ -1,29 +1,23 @@
-import { useRef, useState } from 'react';
 import type { InvocationView } from '../../src/inspector/view.js';
-import EvidenceDock from './EvidenceDock.js';
-import RecordingDetails from './RecordingDetails.js';
-import SummaryDetail from './shared/SummaryDetail.js';
-import { standaloneSummary } from './shared/standalone-adapter.js';
-import { actionPreview, orderedRules, type DockTab, type MobileView } from './presentation.js';
-import './standalone-inspection.css';
+import type { MobileView } from './presentation.js';
+import CallSummary from './CallSummary.js';
+import RecordedRule from './RecordedRule.js';
+import RecordedData from './RecordedData.js';
+import { orderedRules } from './standalone-presentation.js';
 
-export default function Detail({ view, onMobileViewChange, showRaw = true }: { view: InvocationView; onMobileViewChange?: (view: MobileView) => void; showRaw?: boolean }) {
-  const [selected, setSelected] = useState(''), [activeTab, setActiveTab] = useState<DockTab>(view.assessmentStatus === 'failed' ? 'Response' : 'Evidence');
-  const dockHeading = useRef<HTMLHeadingElement>(null);
-  const rules = orderedRules(view.rules), rule = view.rules.find(r => r.id === selected) ?? view.rules.find(r => r.id === rules[0]?.id);
-  const preview = actionPreview(view);
-  return <div className="tenet-presentation standalone-detail">
-    <SummaryDetail view={standaloneSummary(view)} onRuleSelect={setSelected} />
-    {showRaw && <section className="standalone-inspection" aria-label="Standalone-only inspection">
-      <h2>Standalone-only inspection</h2>
-      <p className="muted">Recorded action and source details are separate from the common summary. They can contain secrets.</p>
-      <details className="action-disclosure disclosure"><summary>Recorded action</summary>
-        {preview ? <pre className="action-preview" aria-label="Recorded action"><code>{preview}</code></pre> : <p className="action-unavailable">Command or file path not recorded. See Evidence for submitted arguments.</p>}
+export default function Detail({ view, onMobileViewChange }: { view: InvocationView; onMobileViewChange?: (view: MobileView) => void }) {
+  return <section className="invocation standalone-inspector" aria-label="Invocation detail">
+    <div className="summary-content">
+      <header className="decision-header"><div className="decision-title visually-hidden"><h2>Call summary <span hidden>{view.identity?.callId}</span></h2></div><CallSummary view={view} /></header>
+      <details className="why-disclosure disclosure"><summary>Why this assessment</summary>
+        <section className="assessment-pane" aria-label="Recorded rule explanations">
+          {orderedRules(view.rules).map(rule => <RecordedRule key={rule.id} rule={rule} mode={view.identity?.mode} />)}
+          {!view.rules.length && <p className="empty-inline">No rule snapshot recorded. Inspect Recorded data for available information.</p>}
+        </section>
       </details>
-      <details className="evidence-disclosure disclosure" onToggle={event => { if (event.currentTarget.open) { onMobileViewChange?.('assessment'); dockHeading.current?.focus(); } }}>
-        <summary>Evidence</summary><EvidenceDock view={view} rule={rule} activeTab={activeTab} onTabChange={setActiveTab} headingRef={dockHeading} />
+      <details className="recorded-disclosure disclosure" onToggle={event => { if (event.currentTarget.open) onMobileViewChange?.('assessment'); }}>
+        <summary>Recorded data</summary><RecordedData view={view} />
       </details>
-      <details className="capture-details disclosure"><summary>Details</summary><RecordingDetails view={view} /></details>
-    </section>}
-  </div>;
+    </div>
+  </section>;
 }
