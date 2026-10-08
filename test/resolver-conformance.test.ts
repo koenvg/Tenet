@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtemp, realpath, rm, writeFile, symlink, link, readFile, stat, unlink } from 'node:fs/promises';
+import { mkdtemp, realpath, rm, writeFile, symlink, link, readFile, stat, unlink, lstat, readlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ActionResolution, type ActionBinding, type ActionFacts, type ActionResolver } from '../src/runtime/resolved-action.js';
@@ -20,7 +20,11 @@ async function executor() {
     callId: 'call-1', toolName: 'edit', argumentDigest: argumentDigest({ anchor: 'abcd' }), cwd };
   const describe = async (bound: ActionBinding, requested: string, parent: boolean): Promise<ActionFacts | null> => {
     if (!pending) return null;
-    const resolved = await realpath(aliases.get(requested) ?? requested);
+    const selected = aliases.get(requested) ?? requested;
+    // This fixture has realpath cwd and only one-level absolute symlinks.
+    // Native realpath on macOS can return a sibling hardlink's name for the
+    // same inode. Preserve the selected entry and follow only its explicit link.
+    const resolved = (await lstat(selected)).isSymbolicLink() ? await readlink(selected) : selected;
     const info = await stat(resolved);
     const before = parent ? null : await readFile(resolved, 'utf8');
     return { version: 1, binding: bound, integration: { id: 'contract-fixture', version: '1' }, resolverState: 'generation-1', coverage: 'complete', limitations: [],
@@ -53,6 +57,7 @@ for (const name of ['abcd', 'policy-link', 'policy-hardlink']) {
       const resource = resolved.evidence.facts.operations[0]!.resources[0]!;
       const policyStat = await stat(e.target);
       assert.ok(resource.identity.startsWith(`${policyStat.dev}:${policyStat.ino}:`));
+      assert.equal(resource.resolved, name === 'policy-hardlink' ? join(e.cwd, name) : e.target);
       assert.equal(await resolved.revalidate(new AbortController().signal), true);
       await writeFile(e.target, 'changed bytes');
       assert.equal(await resolved.revalidate(new AbortController().signal), false);
@@ -73,6 +78,24 @@ for (const change of ['alias-retarget', 'link-retarget', 'cancel']) {
     } finally { await e.close(); }
   });
 }
+
+test('contract fixture rejects symlink retarget to the same-inode hardlink with unchanged bytes', async () => {
+  const e = await executor();
+  try {
+    e.select(join(e.cwd, 'policy-link'));
+    const resolved = await e.capture();
+    assert.equal(resolved.evidence.status, 'authenticated-complete');
+    const beforeStat = await stat(e.target);
+    const hardlinkStat = await stat(join(e.cwd, 'policy-hardlink'));
+    assert.equal(hardlinkStat.dev, beforeStat.dev);
+    assert.equal(hardlinkStat.ino, beforeStat.ino);
+    assert.equal(await readFile(join(e.cwd, 'policy-hardlink'), 'utf8'), await readFile(e.target, 'utf8'));
+    assert.equal(await resolved.revalidate(new AbortController().signal), true);
+    await unlink(join(e.cwd, 'policy-link'));
+    await symlink(join(e.cwd, 'policy-hardlink'), join(e.cwd, 'policy-link'));
+    assert.equal(await resolved.revalidate(new AbortController().signal), false);
+  } finally { await e.close(); }
+});
 
 test('parent-directory operation is explicit and cannot masquerade as an unrelated literal edit', async () => {
   const e = await executor();
