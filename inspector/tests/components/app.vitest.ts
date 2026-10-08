@@ -4,7 +4,7 @@ import '../../../web/theme.css';
 import { afterEach, expect, test, vi } from 'vitest';
 import { render } from 'vitest-browser-react';
 import { page } from 'vitest/browser';
-import App from "../../src/App.js";
+import App from '../../src/App.js';
 import { makeView } from './fixtures.js';
 import '../../src/style.css';
 import '../../src/summary.css';
@@ -14,8 +14,10 @@ const sessions = [{ id: sessionId, sessionId: 'offline-session', projects: ['/of
   invocations: 2, concerns: 1, unavailable: 0, coverage: 'best-effort' }];
 const calls = [
   { id: latestId, invocationId: 'latest', callId: 'latest', toolName: 'bash', timestamp: 200, updated: 200,
+    actionPreview: { key: 'command', value: '<script>fictional()</script> echo 雪', shortened: true },
     decision: 'BLOCK', missing: [], failure: null, assessmentStatus: 'validated', mode: 'observe', permission: 'released', execution: 'unknown', categories: ['uncertainty', 'approval'] },
   { id: olderId, invocationId: 'older', callId: 'older', toolName: 'read', timestamp: 100, updated: 100,
+    actionPreview: { key: 'path', value: 'src/billing/format.ts', shortened: false },
     decision: 'ALLOW', missing: [], failure: null, assessmentStatus: 'validated', mode: 'observe', permission: 'released', execution: 'executed', categories: ['uncertainty'] },
 ];
 
@@ -27,8 +29,6 @@ function stubArchive(options: { fail?: () => boolean; hold?: Promise<void>; part
     if (init?.headers && 'Authorization' in init.headers) throw new Error('Unexpected authorization');
     const data = url.pathname === '/api/sessions' ? { sessions, next: null }
       : url.pathname === `/api/sessions/${sessionId}` ? { invocations: url.searchParams.get('category') ? calls.filter(c => c.categories.includes(url.searchParams.get('category')!)) : options.status ? [{ ...calls[0], ...options.status }] : calls, next: null }
-      : url.pathname === `/api/sessions/${sessionId}/groups` ? { groups: { items: [{ policyIdentity: '["/offline/TENET.md","digest-a","/offline/TENET.md"]', profile: 'legacy', ruleId: 'rule-one', gate: 'evidence-confidence-below-threshold', count: 2,
-          first: 100, last: 200, omitted: 0, invocations: [{ id: latestId, callId: 'latest', timestamp: 200 }, { id: olderId, callId: 'older', timestamp: 100 }] }], omittedGroups: 0 } }
       : url.pathname === `/api/sessions/${sessionId}/invocations/${latestId}` ? { view: makeView({ callId: 'latest', choice: 'APPROVAL_REQUIRED', ...options.status }) }
       : url.pathname === `/api/sessions/${sessionId}/invocations/${olderId}` ? { view: makeView({ callId: 'older', decision: 'ALLOW', gate: null, execution: 'executed' }) }
       : null;
@@ -46,18 +46,32 @@ afterEach(() => {
   history.replaceState(null, '', location.pathname);
 });
 
+test('call rows show inert recorded previews and explicit shortening without eager detail', async () => {
+  await page.viewport(1280, 900);
+  const requests = stubArchive();
+  const screen = await render(createElement(App));
+  await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
+  const list = screen.getByRole('navigation', { name: 'Invocations' });
+  await expect.element(list.getByText('<script>fictional()</script> echo 雪', { exact: true })).toBeVisible();
+  await expect.element(list.getByText('Preview shortened', { exact: true })).toBeVisible();
+  await expect.element(list.getByText('src/billing/format.ts', { exact: true })).toBeVisible();
+  expect(screen.container.querySelector('.call-list script')).toBeNull();
+  expect(requests.filter(path => path.includes('/invocations/'))).toEqual([`/api/sessions/${sessionId}/invocations/${latestId}`]);
+  expect(location.href).not.toContain('fictional');
+});
+
 test('fresh visits select the latest call, then navigate without an archive server', async () => {
   await page.viewport(1280, 900);
   const requests = stubArchive();
   const screen = await render(createElement(App));
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
   expect(screen.container.querySelector('.call-row[aria-pressed="true"] .call-id')?.textContent).toBe('latest');
-  expect(screen.container.querySelector('.call-label')?.textContent).toBe('Call latest');
+  expect(screen.container.querySelector('.decision-title h2 span')?.textContent).toBe('latest');
   expect(requests).toContain(`/api/sessions/${sessionId}/invocations/${latestId}`);
   expect(location.search).toContain(`invocation=${latestId}`);
   await screen.getByRole('navigation', { name: 'Invocations' }).getByRole('button').nth(1).click();
-  await expect.element(screen.getByRole('region', { name: 'Actual execution' }).getByText('Ran', { exact: true })).toBeVisible();
-  expect(screen.container.querySelector('.call-label')?.textContent).toBe('Call older');
+  await expect.element(screen.getByRole('region', { name: 'Recorded call facts' }).getByText('Successful', { exact: true })).toBeVisible();
+  expect(screen.container.querySelector('.decision-title h2 span')?.textContent).toBe('older');
   expect(location.search).toContain(`invocation=${olderId}`);
   expect(requests).toContain(`/api/sessions/${sessionId}/invocations/${olderId}`);
 });
@@ -68,7 +82,7 @@ test('a deep link selects the requested call instead of the newest', async () =>
   const screen = await render(createElement(App));
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
   expect(screen.container.querySelector('.call-row[aria-pressed="true"] .call-id')?.textContent).toBe('older');
-  expect(screen.container.querySelector('.call-label')?.textContent).toBe('Call older');
+  expect(screen.container.querySelector('.decision-title h2 span')?.textContent).toBe('older');
   expect(requests).toContain(`/api/sessions/${sessionId}/invocations/${olderId}`);
   expect(requests).not.toContain(`/api/sessions/${sessionId}/invocations/${latestId}`);
 });
@@ -87,6 +101,7 @@ test('loading state and manual failure recover without implying a pass', async (
   release();
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
   failing = true;
+  await screen.getByText('Session / archive', { exact: true }).click();
   await screen.getByRole('button', { name: 'Refresh archive' }).click();
   await expect.element(screen.getByRole('alert')).toBeVisible();
   expect(screen.container.querySelector('[role="alert"]')?.textContent).toContain('503');
@@ -96,48 +111,46 @@ test('loading state and manual failure recover without implying a pass', async (
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
 });
 
-test('category filter, grouped references and partial reader coverage keep individual links usable', async () => {
+test('direct category filter and partial reader coverage keep individual call links usable', async () => {
   await page.viewport(1280, 900);
   const requests = stubArchive({ partial: true });
   const screen = await render(createElement(App));
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
-  await expect.element(screen.getByText(/Partial archive coverage: 1 unsupported schema records \(1 newer\)/)).toBeVisible();
+  await expect.element(screen.getByText('Partial archive', { exact: true })).toBeVisible();
+  await screen.getByText('Recording issues', { exact: true }).click();
+  await expect.element(screen.getByText(/Reader coverage: 1 unsupported schema records \(1 newer\)/)).toBeVisible();
   await expect.element(screen.getByText(/restart the inspector process/)).toBeVisible();
+  await screen.getByText('Recording issues', { exact: true }).click();
   await screen.getByRole('combobox', { name: 'Finding category' }).selectOptions('approval');
   await vi.waitFor(() => expect(screen.container.querySelectorAll('.call-row')).toHaveLength(1));
   expect(screen.container.querySelector('.explorer .uncertainty-groups')).toBeNull();
   expect(requests.some(path => path.endsWith('/groups'))).toBe(false);
-  await screen.getByRole('button', { name: 'Uncertainty groups' }).click();
-  await expect.element(screen.getByRole('region', { name: 'Uncertainty groups' }).getByText('Low evidence confidence')).toBeVisible();
-  expect(requests.filter(path => path.endsWith('/groups'))).toHaveLength(1);
-  await screen.getByRole('region', { name: 'Uncertainty groups' }).getByText('Low evidence confidence').click();
-  await screen.getByRole('button', { name: /older ·/ }).click();
-  expect((screen.container.querySelector('.pattern-view') as HTMLElement).hidden).toBe(true);
-  await expect.element(screen.getByRole('region', { name: 'Actual execution' }).getByText('Ran', { exact: true })).toBeVisible();
+  await screen.getByRole('combobox', { name: 'Finding category' }).selectOptions('uncertainty');
+  await vi.waitFor(() => expect(screen.container.querySelectorAll('.call-row')).toHaveLength(2));
+  await screen.getByRole('navigation', { name: 'Invocations' }).getByRole('button').nth(1).click();
+  await expect.element(screen.getByRole('region', { name: 'Recorded call facts' }).getByText('Successful', { exact: true })).toBeVisible();
   expect(location.search).toContain(`invocation=${olderId}`);
   await screen.getByRole('combobox', { name: 'Finding category' }).selectOptions('uncertainty');
   await vi.waitFor(() => expect(screen.container.querySelectorAll('.call-row')).toHaveLength(2));
 });
 
-test('small screens keep calls, summary and session patterns as distinct views', async () => {
+test('small screens keep Calls with a direct filter and Selected call as distinct views', async () => {
   await page.viewport(390, 844);
   stubArchive();
   const screen = await render(createElement(App));
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
   await screen.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Calls' }).click();
   expect(getComputedStyle(screen.container.querySelector('.inspection')!).display).toBe('none');
-  await screen.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Patterns' }).click();
-  await expect.element(screen.getByRole('region', { name: 'Uncertainty groups' }).getByText('Low evidence confidence')).toBeVisible();
-  expect(getComputedStyle(screen.container.querySelector('.explorer')!).display).toBe('none');
-  await screen.getByRole('region', { name: 'Uncertainty groups' }).getByText('Low evidence confidence').click();
-  await screen.getByRole('button', { name: /older ·/ }).click();
-  await expect.element(screen.getByRole('region', { name: 'Actual execution' }).getByText('Ran', { exact: true })).toBeVisible();
-  expect((screen.container.querySelector('.pattern-view') as HTMLElement).hidden).toBe(true);
+  await expect.element(screen.getByRole('combobox', { name: 'Finding category' })).toBeVisible();
+  expect(screen.container.querySelector('.repeated-uncertainty')).toBeNull();
+  await screen.getByRole('navigation', { name: 'Invocations' }).getByRole('button').nth(1).click();
+  await expect.element(screen.getByRole('region', { name: 'Recorded call facts' }).getByText('Successful', { exact: true })).toBeVisible();
+  expect((screen.container.querySelector('.workspace') as HTMLElement).dataset.mobileView).toBe('assessment');
   await screen.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Calls' }).click();
   await expect.element(screen.getByRole('navigation', { name: 'Invocations' })).toBeVisible();
 });
 
-test('session patterns stay reachable without a matching call and focus returns after navigation', async () => {
+test('empty filtered sessions retain the direct filter, reset and individual call navigation', async () => {
   await page.viewport(1280, 900);
   const requests = stubArchive();
   const screen = await render(createElement(App));
@@ -148,91 +161,50 @@ test('session patterns stay reachable without a matching call and focus returns 
   (screen.container.querySelector('.session-row') as HTMLButtonElement).click();
   await expect.element(screen.getByText('No calls match this finding category.')).toBeVisible();
   expect(requests.some(path => path.endsWith('/groups'))).toBe(false);
-  await screen.getByRole('button', { name: 'Uncertainty groups' }).click();
-  await expect.element(screen.getByRole('region', { name: 'Uncertainty groups' }).getByText('Low evidence confidence')).toBeVisible();
-  expect(requests.filter(path => path.endsWith('/groups'))).toHaveLength(1);
-  await screen.getByRole('region', { name: 'Uncertainty groups' }).getByText('Low evidence confidence').click();
-  await screen.getByRole('button', { name: /latest ·/ }).click();
+  await expect.element(screen.getByRole('combobox', { name: 'Finding category' })).toBeVisible();
+  expect(screen.container.querySelector('.repeated-uncertainty')).toBeNull();
+  await screen.getByRole('button', { name: 'Clear filter' }).click();
+  await screen.getByRole('navigation', { name: 'Invocations' }).getByRole('button').nth(0).click();
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
   expect(location.search).toContain(`invocation=${latestId}`);
-  expect((document.activeElement as HTMLElement)?.textContent).toBe('Summary');
+  expect(requests.some(path => path.endsWith('/groups'))).toBe(false);
 });
 
 
-test('sidebar uses one status chip, quiet mode and one concern while detail keeps overlapping findings', async () => {
+test('sidebar compacts proved displayed context while detail keeps overlapping findings', async () => {
   await page.viewport(1280, 900);
   stubArchive();
   const screen = await render(createElement(App));
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
   const row = screen.container.querySelector('.call-row[aria-pressed="true"]')!;
   expect(row.querySelectorAll('.status-chip')).toHaveLength(1);
-  expect(row.querySelector('.call-mode')?.textContent).toBe('Observe');
+  expect(row.querySelector('.call-mode')).toBeNull();
+  expect(screen.container.querySelector('.displayed-context')?.textContent).toContain('Displayed calls: Observe mode. Not blocked by Tenet.');
   expect(row.querySelectorAll('.call-concern')).toHaveLength(1);
   expect(row.querySelector('.call-concern')?.textContent).toContain('Approval condition +1');
-  expect(row.querySelector('.call-concern')?.textContent).toContain('No recorded result');
-  expect(screen.container.querySelectorAll('.primary-status .finding-chips .status-chip')).toHaveLength(2);
+  expect(screen.container.querySelector('[data-fact="findings"]')?.textContent).toContain('Approval condition');
+  expect(screen.container.querySelector('[data-fact="findings"]')?.textContent).toContain('Assessment uncertainty');
 });
 
-for (const [execution, permission, label, tone] of [
-  ['executed', 'released', 'Ran', 'neutral'], ['failed', 'released', 'Failed', 'danger'],
-  ['unknown', 'blocked', 'TENET blocked', 'danger'], ['unknown', 'released', 'Released', 'caution'],
-  ['unknown', 'unknown', 'Execution unknown', 'neutral'], ['executed', 'blocked', 'Ran', 'neutral'],
-  ['failed', 'blocked', 'Failed', 'danger'],
-] as const) test(`list and summary agree for ${execution}/${permission}`, async () => {
+for (const [execution, permission, result, permissionLabel] of [
+  ['executed', 'released', 'Successful', 'Not blocked by Tenet'], ['failed', 'released', 'Failed', 'Not blocked by Tenet'],
+  ['unknown', 'blocked', 'Unknown / not recorded', 'Blocked by Tenet'], ['unknown', 'released', 'Unknown / not recorded', 'Not blocked by Tenet'],
+  ['unknown', 'unknown', 'Unknown / not recorded', 'Unknown'], ['executed', 'blocked', 'Successful', 'Blocked by Tenet'],
+  ['failed', 'blocked', 'Failed', 'Blocked by Tenet'],
+] as const) test(`list and summary preserve separate facts for ${execution}/${permission}`, async () => {
   await page.viewport(1280, 900);
   stubArchive({ status: { execution, permission } });
   const screen = await render(createElement(App));
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
-  const list = screen.container.querySelector('.call-state .status-chip')!;
-  const summary = screen.container.querySelector('.primary-badges .status-chip')!;
-  expect(list.textContent?.trim()).toBe(label);
-  expect(summary.textContent?.trim()).toBe(label);
-  expect(list.classList.contains(tone)).toBe(true);
-  expect(summary.classList.contains(tone)).toBe(true);
-  expect(screen.container.querySelector('.call-state')?.textContent).toContain('Observe');
-  expect(screen.container.querySelector('.primary-status')?.textContent).toContain('Observe');
-  if (label === 'Released') {
-    expect(screen.container.querySelector('.call-concern')?.textContent).toContain('No recorded result');
-    expect(screen.container.querySelector('.execution-summary')?.textContent).toContain('does not prove dispatch or execution');
-  }
+  expect(screen.container.querySelector('[data-list-fact="result"]')?.textContent?.trim()).toBe(result);
+  expect(screen.container.querySelector('[data-fact="result"]')?.textContent).toBe(result);
+  expect(screen.container.querySelector('[data-fact="permission"]')?.textContent).toBe(permissionLabel);
+  if (permission !== 'released' || execution === 'failed') {
+    expect(screen.container.querySelector('[data-list-fact="permission"]')?.textContent?.trim()).toBe(permissionLabel);
+    expect(screen.container.querySelector('.call-mode')?.textContent).toBe('Observe');
+  } else expect(screen.container.querySelector('.displayed-context')?.textContent).toContain('Observe mode. Not blocked by Tenet.');
   const contradictory = permission === 'blocked' && execution !== 'unknown';
   expect(screen.container.querySelectorAll('.recording-inconsistency').length).toBe(contradictory ? 2 : 0);
-  expect(screen.container.querySelectorAll('.call-row[aria-pressed="true"] .status-chip')).toHaveLength(1);
   expect(screen.container.querySelectorAll('.call-row[aria-pressed="true"] .call-concern')).toHaveLength(1);
   if (contradictory) expect(screen.container.querySelector('.primary-status .recording-inconsistency')?.textContent).toContain(`execution is ${execution}`);
-});
-
-
-test('a late call response cannot replace a newer manual selection', async () => {
-  await page.viewport(1280, 900);
-  const requests = stubArchive(), fetchArchive = fetch;
-  let release!: () => void;
-  const held = new Promise<void>(resolve => { release = resolve; });
-  vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
-    if (new URL(input, location.href).pathname.endsWith(`/invocations/${olderId}`)) await held;
-    return fetchArchive(input, init);
-  }));
-  const screen = await render(createElement(App));
-  try {
-    await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
-    const calls = screen.getByRole('navigation', { name: 'Invocations' }).getByRole('button');
-    await calls.nth(1).click();
-    await calls.nth(0).click();
-    await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
-    release();
-    await expect.poll(() => requests.includes(`/api/sessions/${sessionId}/invocations/${olderId}`)).toBe(true);
-    await new Promise(resolve => setTimeout(resolve, 60));
-    expect(screen.container.querySelector('.call-label')?.textContent).toBe('Call latest');
-    expect(location.search).toContain(`invocation=${latestId}`);
-  } finally { release(); await screen.unmount(); }
-});
-
-test('unmount stops polling and ignores an unfinished archive load', async () => {
-  let release!: () => void;
-  const held = new Promise<void>(resolve => { release = resolve; });
-  const requests = stubArchive({ hold: held });
-  const screen = await render(createElement(App));
-  await screen.unmount(); release();
-  await new Promise(resolve => setTimeout(resolve, 2100));
-  expect(requests).toEqual(['/api/sessions']);
 });

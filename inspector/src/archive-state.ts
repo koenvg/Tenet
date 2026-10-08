@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { FindingCategory } from '../../src/decision/finding-triage.js';
-import type { UncertaintyGroup, SessionSummary, InvocationSummary } from '../../src/inspector/archive-index.js';
+import type { SessionSummary, InvocationSummary } from '../../src/inspector/archive-index.js';
 import type { CaptureHealth, InvocationView } from '../../src/inspector/view.js';
 import type { ArchiveIssue } from '../../src/recording/archive.js';
 import type { MobileView } from './presentation.js';
@@ -12,8 +12,7 @@ type ArchiveState = {
   busy: boolean; timelineBusy: boolean; detailBusy: boolean; manualRefreshing: boolean;
   view: InvocationView | null; issues: ArchiveIssue[]; health: CaptureHealth;
   nextSession: string | null; nextInvocation: string | null; reader: Reader | null;
-  groups: { items: UncertaintyGroup[]; omittedGroups: number }; groupsLoaded: boolean; groupsBusy: boolean; groupsError: string;
-  category: FindingCategory | ''; mobileView: MobileView; pickerOpen: boolean; showPatterns: boolean;
+  category: FindingCategory | ''; mobileView: MobileView; pickerOpen: boolean;
 };
 const message = (e: unknown) => e instanceof Error ? e.message : 'Archive unavailable. Try refreshing.';
 
@@ -22,11 +21,10 @@ function createArchive() {
     sessions: [], invocations: [], projects: [], session: '', invocation: '', error: '', project: '', projectInput: '',
     busy: false, timelineBusy: false, detailBusy: false, manualRefreshing: false,
     view: null, issues: [], health: [], nextSession: null, nextInvocation: null, reader: null,
-    groups: { items: [], omittedGroups: 0 }, groupsLoaded: false, groupsBusy: false, groupsError: '',
-    category: '', mobileView: 'calls', pickerOpen: true, showPatterns: false,
+    category: '', mobileView: 'calls', pickerOpen: true,
   };
   const listeners = new Set<() => void>();
-  let navigation = 0, sessionRequest = 0, timelineRequest = 0, detailRequest = 0, groupRequest = 0, polling = false;
+  let navigation = 0, sessionRequest = 0, timelineRequest = 0, detailRequest = 0, polling = false;
   function update(patch: Partial<ArchiveState>) {
     state = { ...state, ...patch };
     listeners.forEach(listener => listener());
@@ -58,22 +56,6 @@ function createArchive() {
     } catch (e) { if (current === sessionRequest) update({ error: message(e) }); }
     finally { if (current === sessionRequest) update({ busy: false }); }
   }
-  async function loadGroups() {
-    if (!state.session) return;
-    const current = ++groupRequest, selected = state.session, generation = navigation;
-    update({ groupsBusy: true, groupsError: '' });
-    try {
-      const data = await api(`/api/sessions/${selected}/groups`);
-      if (current !== groupRequest || generation !== navigation) return;
-      update({ groups: data.groups, groupsLoaded: true, issues: data.issues, health: data.captureHealth, reader: data.reader ?? null });
-    } catch (e) { if (current === groupRequest && generation === navigation) update({ groupsError: message(e) }); }
-    finally { if (current === groupRequest && generation === navigation) update({ groupsBusy: false }); }
-  }
-  function openPatterns() {
-    if (!state.session) return;
-    update({ showPatterns: true, mobileView: 'assessment' });
-    if (!state.groupsBusy) void loadGroups();
-  }
   async function loadTimeline(cursor?: string) {
     const current = ++timelineRequest, selected = state.session, generation = navigation, selectedCategory = state.category;
     update({ timelineBusy: true });
@@ -89,10 +71,9 @@ function createArchive() {
     finally { if (current === timelineRequest) update({ timelineBusy: false }); }
   }
   async function selectSession(id: string, updateLink = true, openLatest = true) {
-    const generation = ++navigation; detailRequest++; groupRequest++; timelineRequest++;
+    const generation = ++navigation; detailRequest++; timelineRequest++;
     update({ pickerOpen: !id, session: id, invocation: '', view: null, error: '', detailBusy: false, timelineBusy: false,
-      mobileView: 'calls', showPatterns: false, invocations: [], nextInvocation: null,
-      groups: { items: [], omittedGroups: 0 }, groupsLoaded: false, groupsBusy: false, groupsError: '' });
+      mobileView: 'calls', invocations: [], nextInvocation: null });
     if (updateLink) link();
     if (id) await loadTimeline();
     if (generation === navigation && openLatest && state.invocations[0]) {
@@ -101,9 +82,9 @@ function createArchive() {
     }
   }
   async function selectInvocation(id: string, updateLink = true) {
-    if (id === state.invocation && state.view) { update({ mobileView: 'assessment', showPatterns: false }); return; }
+    if (id === state.invocation && state.view) { update({ mobileView: 'assessment' }); return; }
     const current = ++detailRequest, generation = navigation;
-    update({ invocation: id, view: null, error: '', detailBusy: true, mobileView: 'assessment', showPatterns: false });
+    update({ invocation: id, view: null, error: '', detailBusy: true, mobileView: 'assessment' });
     if (updateLink) link();
     try {
       const data = await api(`/api/sessions/${state.session}/invocations/${id}`);
@@ -160,7 +141,7 @@ function createArchive() {
       const sessionData = await livePage<SessionSummary>(`/api/sessions?${query}`, 'sessions', state.sessions.length, current);
       if (!sessionData) return;
       let invocations = state.invocations, nextInvocation = state.nextInvocation, view = state.view;
-      let issues = sessionData.issues, health = sessionData.health, groups = state.groups;
+      let issues = sessionData.issues, health = sessionData.health;
       if (selectedSession) {
         const query = new URLSearchParams(); if (state.category) query.set('category', state.category);
         const invocationData = await livePage<InvocationSummary>(`/api/sessions/${selectedSession}?${query}`, 'invocations', state.invocations.length, current);
@@ -171,17 +152,11 @@ function createArchive() {
           if (!current()) return;
           view = detail.view; issues = detail.issues; health = detail.captureHealth;
         }
-        if (state.showPatterns && !state.groupsBusy) {
-          const groupData = await api(`/api/sessions/${selectedSession}/groups`);
-          if (!current()) return;
-          groups = groupData.groups;
-        }
       }
       // Publish changed data atomically. Unchanged polls keep the current UI snapshot.
       const patch: Partial<ArchiveState> = { sessions: sessionData.items, nextSession: sessionData.next, reader: sessionData.reader,
         projects: [...new Set([...state.projects, ...sessionData.items.flatMap(s => s.projects)])].sort(),
         invocations, nextInvocation, view, issues, health,
-        ...(selectedSession && state.showPatterns && !state.groupsBusy ? { groups, groupsLoaded: true } : {}),
         ...(state.error.startsWith('Live updates paused;') ? { error: '' } : {}) };
       if (Object.entries(patch).some(([key, value]) => JSON.stringify(value) !== JSON.stringify(state[key as keyof ArchiveState]))) update(patch);
     } catch (e) { if (current()) update({ error: `Live updates paused; reconnecting automatically. ${message(e)}` }); }
@@ -201,13 +176,13 @@ function createArchive() {
       const restore = () => { void restoreLink(); };
       window.addEventListener('popstate', restore);
       const timer = setInterval(() => { void refreshLive(); }, 2000);
-      return () => { navigation++; sessionRequest++; timelineRequest++; detailRequest++; groupRequest++; clearInterval(timer); window.removeEventListener('popstate', restore); };
+      return () => { navigation++; sessionRequest++; timelineRequest++; detailRequest++; clearInterval(timer); window.removeEventListener('popstate', restore); };
     },
-    loadSessions, loadTimeline, loadGroups, selectSession, selectInvocation, filterCategory, filterProjects, openPatterns, refreshArchive,
+    loadSessions, loadTimeline, selectSession, selectInvocation, filterCategory, filterProjects, refreshArchive,
     setPickerOpen: (pickerOpen: boolean) => { if (pickerOpen !== state.pickerOpen) update({ pickerOpen }); },
     setProjectInput: (projectInput: string) => update({ projectInput }),
     setMobileView: (mobileView: MobileView) => update({ mobileView }),
-    showSummary: () => update({ mobileView: 'assessment', showPatterns: false }),
+    showSummary: () => update({ mobileView: 'assessment' }),
   };
 }
 

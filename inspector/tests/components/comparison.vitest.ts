@@ -47,7 +47,6 @@ for (const width of [1000, 390]) test(`both adapters have the same safe content,
   await screen.getByRole('checkbox', { name: 'Show standalone-only inspection' }).click();
   await match();
   const raw = leftUI.getByRole('region', { name: 'Standalone-only inspection' });
-  await raw.getByText('Recorded action', { exact: true }).click();
   await expect.element(raw.getByText('RAW_ACTION_SENTINEL', { exact: true })).toBeVisible();
   expect(right.querySelector('[aria-label="Standalone-only inspection"]')).toBeNull();
   await expect.poll(() => snapshot(right)).toEqual(snapshot(left));

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { invocationView } from '../src/inspector/view.js';
-import { explainDecision, orderedRules, gateExplanation, primaryStatus, modeLabel, gateTone, findingPresentation } from '../inspector/src/presentation.js';
+import { explainDecision, orderedRules, gateExplanation, primaryStatus, modeLabel, pretty, findingPresentation } from '../inspector/src/standalone-presentation.js';
 
 const fixture = (decision = 'BLOCK') => invocationView([
   { stage: 'begin', data: { policy: { rules: [
@@ -151,7 +151,7 @@ for (const execution of ['executed', 'failed', 'unknown', undefined, 'future-res
       const facts = Object.freeze({ execution, permission });
       const status = primaryStatus(facts);
       const expected = execution === 'executed' ? ['Ran', 'neutral'] : execution === 'failed' ? ['Failed', 'danger']
-        : permission === 'blocked' ? ['TENET blocked', 'danger'] : permission === 'released' ? ['Released', 'caution'] : ['Execution unknown', 'neutral'];
+        : permission === 'blocked' ? ['TENET blocked', 'danger'] : permission === 'released' ? ['Not blocked by Tenet', 'caution'] : ['Execution unknown', 'neutral'];
       assert.deepEqual([status.label, status.tone], expected);
       assert.equal(status.inconsistency, permission === 'blocked' && ['executed', 'failed'].includes(execution ?? ''));
       assert.equal(!!status.notice, status.inconsistency);
@@ -164,7 +164,7 @@ test('assessment, approval, mode and scores cannot change primary status', () =>
     for (const mode of ['observe', 'enforce', undefined]) {
       const facts = { decision, mode, approval: 'approved', scores: { PASS: 1 } };
       assert.equal(primaryStatus(facts as any).label, 'Execution unknown');
-      assert.equal(primaryStatus({ ...facts, permission: 'released' }).label, 'Released');
+      assert.equal(primaryStatus({ ...facts, permission: 'released' }).label, 'Not blocked by Tenet');
       assert.equal(primaryStatus({ ...facts, execution: 'failed' }).label, 'Failed');
     }
   }
@@ -172,14 +172,14 @@ test('assessment, approval, mode and scores cannot change primary status', () =>
   assert.match(primaryStatus({ execution: 'failed' }).explanation, /does not prove.*external effects/);
   assert.equal(modeLabel(undefined), 'Mode unknown');
 });
-test('recorded uncertainty gates are amber even when a recorded score would clear them; FAIL remains distinct', () => {
+test('recorded gates and scores remain exact; uncertainty and FAIL stay distinct summary findings', () => {
   const rule = fixture().rules[1]!;
   rule.result!.outcome.probabilities.PASS = 1;
-  for (const gate of ['outcome-unknown', 'outcome-confidence-below-threshold', 'evidence-insufficient', 'evidence-confidence-below-threshold', 'applicability-unresolved']) {
-    assert.equal(gateTone(rule, gate), 'caution');
-  }
-  assert.equal(gateTone(rule, 'rule-fail'), 'danger');
-  assert.equal(gateTone({ ...rule, enforcement: 'WARN' }, 'rule-fail'), 'caution');
+  rule.gateIds = ['outcome-unknown', 'outcome-confidence-below-threshold', 'evidence-insufficient', 'evidence-confidence-below-threshold', 'applicability-unresolved', 'rule-fail'];
+  const captured = JSON.parse(pretty(rule));
+  assert.deepEqual(captured.gateIds, rule.gateIds);
+  assert.equal(captured.result.outcome.probabilities.PASS, 1);
+  assert.deepEqual(captured, rule);
   assert.equal(findingPresentation('violation').tone, 'danger');
   assert.equal(findingPresentation('uncertainty').tone, 'caution');
 });

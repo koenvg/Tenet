@@ -9,9 +9,8 @@ import { ActionResolution, UNSUPPORTED_ACTION } from '../src/runtime/resolved-ac
 import { answer, policy, sdkAnswers } from './helpers.js';
 import { ruleContributions } from '../src/recording/rules.js';
 import { invocationView } from '../src/inspector/view.js';
-import { confidenceReadings } from '../inspector/src/presentation.js';
+import { pretty } from '../inspector/src/presentation.js';
 import type { ArchiveRecord } from '../src/recording/contract.js';
-import { mapChecks } from '../inspector/src/decision-map.js';
 import { recoverReport } from '../src/pi/report-history.js';
 import { readConfig } from '../src/runtime/config.js';
 
@@ -83,8 +82,8 @@ test('candidate SDK mapping records fact references and genuinely absent evidenc
   assert.equal(view.rules[0]!.thresholds.evidenceThreshold, null);
   assert.equal(view.rules[0]!.evidenceGate, 'not-applicable');
   assert.equal(view.rules[0]!.result!.evidence, null);
-  assert.deepEqual(confidenceReadings(view.rules[0]!), []);
-  assert.deepEqual(mapChecks(view.rules[0]).map(check => [check.id, check.unknown]), [['outcome', false]]);
+  assert.deepEqual(JSON.parse(pretty({ questionVersion: view.questionVersion, rules: view.rules })).rules[0], view.rules[0]);
+  assert.equal(view.rules[0]!.result?.outcome?.choice, 'NOT_APPLICABLE');
   assert.equal(invocationView([{ ...records[0]!, data: { policy } }]).assessmentProfile, 'legacy (historical)');
   const historical = structuredClone(records);
   historical[0]!.data.profile = 'legacy';

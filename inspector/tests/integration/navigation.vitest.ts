@@ -1,0 +1,86 @@
+import { afterAll, beforeAll, expect, test } from 'vitest';
+import { launchBrowser, closeBrowser, withInspector } from './fixture.js';
+import { seedNavigation, navigationPath } from './navigation-fixture.js';
+import { reveal } from '../ui-navigation.js';
+beforeAll(launchBrowser);
+afterAll(closeBrowser);
+
+for (const width of [1380, 1103, 390]) test(`direct category filter and individual calls retain mounted state without group requests at ${width}px`, async () => {
+  await withInspector('navigation', async ({ page, app }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    const groupRequests: string[] = [];
+    page.on('request', request => { if (request.url().endsWith('/groups')) groupRequests.push(request.url()); });
+    await page.locator('.decision-summary').waitFor();
+    expect(await page.evaluate(() => performance.getEntriesByType('resource').some(entry => new URL(entry.name).pathname.endsWith('/groups')))).toBe(false);
+    expect(await page.getByText(/Repeated uncertainty/).count()).toBe(0);
+    expect(await page.locator('.repeated-uncertainty, .uncertainty-group, .inspection-switch').count()).toBe(0);
+    expect(await page.locator('.triage-tools details, .triage-tools summary').count()).toBe(0);
+    expect(await page.locator('.archive-state > p').textContent()).toContain('Partial archive');
+    expect(await page.locator('.session-picker').getAttribute('open')).toBeNull();
+    if (width === 1380) {
+      await page.getByRole('separator', { name: 'Resize call explorer' }).focus();
+      await page.keyboard.press('End');
+      await expect.poll(async () => (await page.locator('.explorer').boundingBox())!.width).toBe(460);
+    }
+    const issues = page.locator('.recording-issues');
+    const issueToggle = issues.locator(':scope > summary');
+    await issueToggle.focus(); await page.keyboard.press('Enter');
+    expect(await page.locator('.upgrade-guidance').isVisible()).toBe(true);
+    await issues.evaluate(el => { (el as HTMLElement).dataset.retained = 'mounted'; el.scrollTop = 32; });
+    const issueScroll = await issues.evaluate(el => el.scrollTop);
+    await page.waitForResponse(response => response.url().includes('/api/sessions?'));
+    expect(await issues.getAttribute('data-retained')).toBe('mounted');
+    expect(await issues.getAttribute('open')).not.toBeNull();
+    expect(await issueToggle.evaluate(el => document.activeElement === el)).toBe(true);
+    expect(await issues.evaluate(el => el.scrollTop)).toBe(issueScroll);
+    await page.keyboard.press('Enter');
+
+    await reveal(page, '.why-disclosure');
+    await reveal(page, '.recorded-disclosure');
+    await reveal(page, '.exact-rules');
+    const exact = page.locator('.exact-rule-data');
+    await exact.evaluate(el => { (el as HTMLElement).dataset.retained = 'mounted'; el.scrollTop = 20; });
+    await page.locator('.story-title h2').focus();
+    const exactScroll = await exact.evaluate(el => el.scrollTop);
+    const link = page.url();
+    await page.waitForResponse(response => response.url().includes('/api/sessions?'));
+    expect(await exact.getAttribute('data-retained')).toBe('mounted');
+    expect(await exact.evaluate(el => el.scrollTop)).toBe(exactScroll);
+    expect(await page.locator('.story-title h2').evaluate(el => document.activeElement === el)).toBe(true);
+    expect(await page.locator('.recorded-disclosure').getAttribute('open')).not.toBeNull();
+    expect(page.url()).toBe(link);
+
+    if (width === 390) await page.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Calls', exact: true }).click();
+    const filter = page.getByRole('combobox', { name: 'Finding category' });
+    expect(await filter.isVisible()).toBe(true);
+    expect(await filter.evaluate(el => el.tagName)).toBe('SELECT');
+    expect((await filter.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    expect(await filter.locator('option[value="uncertainty"]').textContent()).toContain('(4)');
+    expect(await page.locator('.triage-tools').textContent()).toContain('Categories can overlap.');
+    await filter.selectOption('violation');
+    await expect.poll(() => page.locator('.call-row').count()).toBe(0);
+    expect(await page.getByRole('button', { name: 'Clear filter' }).isVisible()).toBe(true);
+    expect(await filter.isVisible()).toBe(true);
+    expect(await page.locator('.active-filter').textContent()).toContain('Suspected violation');
+    expect(await exact.getAttribute('data-retained')).toBe('mounted');
+    await page.getByRole('button', { name: 'Clear filter' }).click();
+    await expect.poll(() => page.locator('.call-row').count()).toBe(4);
+    await page.getByRole('navigation', { name: 'Invocations' }).getByRole('button', { name: /src\/billing\/format.ts/ }).click();
+    expect(new URL(page.url()).searchParams.get('invocation')).toMatch(/^[a-f0-9]{64}$/);
+    expect(page.url()).not.toContain('format.ts');
+    expect(await page.locator('.story-action').textContent()).toBe('src/billing/format.ts');
+    const selected = page.url();
+    await page.goBack();
+    await page.locator('.decision-summary').waitFor();
+    await page.goForward();
+    await expect.poll(() => page.url()).toBe(selected);
+    await reveal(page, '.session-picker');
+    await page.getByRole('button', { name: 'Refresh archive' }).click();
+    await expect.poll(() => page.getByRole('button', { name: 'Refresh archive' }).isEnabled()).toBe(true);
+    expect(groupRequests).toEqual([]);
+    expect(await page.evaluate(() => performance.getEntriesByType('resource').some(entry => new URL(entry.name).pathname.endsWith('/groups')))).toBe(false);
+    const data = await (await fetch(`${app.origin}/api/sessions/${new URL(page.url()).searchParams.get('session')}/groups`)).json();
+    expect(data.groups.items.map((group: { count: number }) => group.count).sort()).toEqual([1, 3]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }, { base: false, seed: directory => seedNavigation(directory, true), path: navigationPath });
+});

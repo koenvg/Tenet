@@ -4,47 +4,30 @@ import '../../../web/theme.css';
 import { expect, test } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import { render } from 'vitest-browser-react';
-import Detail from "../../src/Detail.js";
-import PaneResizer from "../../src/PaneResizer.js";
+import Detail from '../../src/Detail.js';
+import PaneResizer from '../../src/PaneResizer.js';
 import { makeView, recordedQuestion } from './fixtures.js';
+import { invocationView } from '../../../src/inspector/view.js';
+import { type ArchiveRecord } from '../../../src/recording/contract.js';
 import '../../src/style.css';
 import '../../src/summary.css';
 
-test('common summary includes recorded identity and failure, with raw inspection separate', async () => {
-  const view = makeView({ execution: 'executed', failure: 'provider-error' });
-  view.evidence.action.arguments.command = 'RAW_ACTION_SENTINEL';
-  const screen = await render(createElement(Detail, { view }));
-  const common = screen.getByRole('region', { name: 'Common call summary' });
-  await expect.element(common.getByText('Call offline-call', { exact: true })).toBeVisible();
-  await expect.element(common.getByText('Recorded assessment: unavailable · provider-error.', { exact: true })).toBeVisible();
-  await expect.element(common.getByRole('region', { name: 'Actual execution' }).getByText('Ran', { exact: true })).toBeVisible();
-  expect(common.element().textContent).not.toContain('RAW_ACTION_SENTINEL');
-  const raw = screen.getByRole('region', { name: 'Standalone-only inspection' });
-  await raw.getByText('Recorded action', { exact: true }).click();
-  await expect.element(raw.getByText('RAW_ACTION_SENTINEL', { exact: true })).toBeVisible();
-  await raw.getByText('Evidence', { exact: true }).first().click();
-  await expect.element(raw.getByRole('heading', { name: 'Evidence dock' })).toBeVisible();
-});
-
-test('the first view tells the call story and separates summary from standalone inspection disclosures', async () => {
+test('the first view tells the call story and keeps diagnostics behind Recorded data', async () => {
   const screen = await render(createElement(Detail, { view: makeView({ execution: 'executed' }) }));
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
-  expect(screen.container.querySelector('.common-summary')?.textContent).not.toContain('git status --short');
-  await screen.getByText('Recorded action', { exact: true }).click();
   await expect.element(screen.getByText('git status --short', { exact: true }).first()).toBeVisible();
-  expect(screen.container.querySelector('.primary-badges')?.textContent).toContain('Ran');
-  expect(screen.container.querySelector('.primary-badges')?.textContent).toContain('Observe');
+  expect(screen.container.querySelector('[data-fact="result"]')?.textContent).toBe('Successful');
+  expect(screen.container.querySelector('.recorded-mode')?.textContent).toContain('Observe');
   await expect.element(screen.getByText('Would block in enforce mode', { exact: true }).first()).toBeVisible();
-  expect(screen.container.querySelector('.decision-map')?.checkVisibility()).toBe(false);
-  expect(screen.container.querySelector('.evidence-dock')?.checkVisibility()).toBe(false);
+  expect(screen.container.querySelector('.decision-map')).toBeNull();
+  expect(screen.container.querySelector('.recorded-data')?.checkVisibility()).toBe(false);
   expect(screen.container.querySelector('.lifecycle')?.checkVisibility()).toBe(false);
-  const entries = [...screen.container.querySelectorAll('.common-summary > details > summary, .standalone-inspection > details > summary')].map(el => el.textContent?.trim());
-  expect(entries).toEqual(['Why this assessment', 'Recorded action', 'Evidence', 'Details']);
-  await screen.getByText('Why this assessment', { exact: true }).click();
-  await expect.element(screen.getByRole('group', { name: 'Decision map' })).toBeVisible();
-  await screen.getByText('Evidence', { exact: true }).first().click();
-  await expect.element(screen.getByRole('heading', { name: 'Evidence dock' })).toBeVisible();
-  await screen.getByText('Details', { exact: true }).click();
+  const entries = [...screen.container.querySelectorAll('.summary-content > details > summary')].map(el => el.textContent?.trim());
+expect(entries).toEqual(['Why this assessment', 'Recorded data']);
+  expect(screen.container.querySelector('.rule-question-link, .rule-questions, .rule-outcome, .recorded-rule-facts, .confidence-note')).toBeNull();
+  await screen.getByText('Recorded data', { exact: true }).click();
+  await expect.element(screen.getByRole('heading', { name: 'Submitted action' })).toBeVisible();
+  await screen.getByText('Recording and coverage', { exact: true }).click();
   await expect.element(screen.getByText('Recording schemas', { exact: true })).toBeVisible();
 });
 
@@ -55,9 +38,10 @@ test('expanded Details groups exact facts and bounds long identifiers at desktop
     const id = 'recorded-identifier-'.repeat(160);
     view.identity!.invocationId = id;
     const screen = await render(createElement(Detail, { view }));
-    await screen.getByText('Details', { exact: true }).click();
-    expect([...screen.container.querySelectorAll('.capture-details .record-group > h3')].map(el => el.textContent)).toEqual(['Recorded outcomes', 'Recording', 'Coverage and limits']);
-    const facts = screen.container.querySelector('.capture-details .lifecycle')!;
+    await screen.getByText('Recorded data', { exact: true }).click();
+    await screen.getByText('Recording and coverage', { exact: true }).click();
+    expect([...screen.container.querySelectorAll('.recording-details .record-group > h3')].map(el => el.textContent)).toEqual(['Recorded outcomes', 'Recording', 'Coverage and limits']);
+    const facts = screen.container.querySelector('.recording-details .lifecycle')!;
     expect(facts.textContent).toContain('blocked');
     expect(facts.textContent).toContain('unknown');
     expect(getComputedStyle(facts).display).toBe('grid');
@@ -66,7 +50,7 @@ test('expanded Details groups exact facts and bounds long identifiers at desktop
     expect(value.value).toBe(id);
     expect(value.clientHeight).toBeLessThanOrEqual(100);
     expect(value.scrollHeight).toBeGreaterThan(value.clientHeight);
-    expect(screen.container.querySelector('.capture-details')!.getBoundingClientRect().right).toBeLessThanOrEqual(width);
+    expect(screen.container.querySelector('.recording-details')!.getBoundingClientRect().right).toBeLessThanOrEqual(width);
     await screen.getByText('Interpretation limits', { exact: true }).click();
     await expect.element(screen.getByText(/does not certify that every host path was prevented/)).toBeVisible();
     await screen.unmount();
@@ -74,58 +58,19 @@ test('expanded Details groups exact facts and bounds long identifiers at desktop
   await page.viewport(1280, 720);
 });
 
-test('precision rejection is readable at desktop and mobile widths without implying a violation', async () => {
-  for (const width of [1280, 390]) {
-    await page.viewport(width, 844);
-    const view = makeView({ failure: 'invalid-response', gate: null });
-    view.validationIssue = 'unit-sum';
-    const screen = await render(createElement(Detail, { view }));
-    await screen.getByText('Details', { exact: true }).click();
-    const notice = screen.getByText(/unit-sum: Evaluator probabilities/);
-    await expect.element(notice).toBeVisible();
-    const message = screen.container.textContent!;
-    expect(message).toContain('Precision accommodation is unsupported');
-    expect(message).toContain('not a semantic violation');
-    const box = screen.container.querySelectorAll('.assessment-status');
-    for (const el of box) expect(el.getBoundingClientRect().right).toBeLessThanOrEqual(width);
-    await screen.unmount();
-  }
-  await page.viewport(1280, 720);
-});
-
-test('questions toggle between safe Rich text and exact recorded JSON', async () => {
-  const screen = await render(createElement(Detail, { view: makeView() }));
-  await screen.getByText('Evidence', { exact: true }).first().click();
-  await screen.getByRole('tab', { name: 'Questions' }).click();
-  await expect.element(screen.getByRole('heading', { name: 'Recorded instructions' }).first()).toBeVisible();
-  expect(screen.container.querySelectorAll('.question-rich script, .question-rich img, .question-rich a')).toHaveLength(0);
-  await screen.getByRole('button', { name: 'JSON', exact: true }).click();
-  await expect.element(screen.getByText(/"historical-test-v1"/).first()).toBeVisible();
-  expect(JSON.parse(screen.container.querySelector('.question-json')!.textContent!)).toEqual(recordedQuestion);
-  await screen.getByRole('button', { name: 'Rich', exact: true }).click();
-  await expect.element(screen.getByRole('heading', { name: 'Recorded instructions' }).first()).toBeVisible();
-});
-
-test('rule selection and keyboard tabs preserve shared evidence scroll and focus', async () => {
-  const screen = await render(createElement(Detail, { view: makeView() }));
-  await screen.getByText('Evidence', { exact: true }).first().click();
-  await expect.element(screen.getByRole('heading', { name: 'Evidence dock' })).toBeVisible();
-  expect(document.activeElement?.id).toBe('dock-heading');
-  const panel = screen.container.querySelector<HTMLElement>('#panel-Evidence')!;
-  panel.style.height = '80px'; panel.scrollTop = 37;
-  expect(panel.scrollTop).toBeGreaterThan(0);
-  await screen.getByText('Why this assessment', { exact: true }).click();
-  await screen.getByText(/Browse all rules/).click();
-  await screen.getByRole('button', { name: /Record every file edit/ }).click();
-  await expect.element(screen.getByRole('heading', { name: 'Rule at line 9' })).toBeVisible();
-  expect(screen.container.querySelector('#panel-Evidence')).toBe(panel);
-  expect(panel.scrollTop).toBe(37);
-  await screen.getByRole('tab', { name: 'Questions' }).click();
-  await expect.element(screen.getByText('second_outcome')).toBeVisible();
-  await userEvent.keyboard('{ArrowRight}');
-  await expect.element(screen.getByRole('tab', { name: 'Response' })).toHaveAttribute('aria-selected', 'true');
-  await screen.getByRole('tab', { name: 'Evidence' }).click();
-  expect(panel.scrollTop).toBe(37);
+test('exact questions are keyboard accessible, inert, and separate from submitted evidence', async () => {
+  const view = makeView();
+  const screen = await render(createElement(Detail, { view }));
+  await screen.getByText('Recorded data', { exact: true }).click();
+  const exact = screen.container.querySelector<HTMLDetailsElement>('.exact-rules')!;
+  exact.querySelector<HTMLElement>('summary')!.focus();
+  await userEvent.keyboard('{Enter}');
+  expect(exact.open).toBe(true);
+  await userEvent.keyboard('{Tab}');
+  expect(document.activeElement).toBe(exact.querySelector('.exact-rule-data'));
+  const captured = JSON.parse(exact.querySelector('pre')!.textContent!);
+  expect(captured.rules[0].questions.outcome).toEqual(recordedQuestion);
+  expect(exact.querySelector('script, img, a, iframe, object')).toBeNull();
 });
 
 test('resizer clamps pointer and keyboard updates at desktop and mobile widths', async () => {
@@ -154,23 +99,116 @@ test('resizer clamps pointer and keyboard updates at desktop and mobile widths',
   await page.viewport(1280, 720);
 });
 
-test('applicability displays absent evidence without inventing a confidence score', async () => {
-  const view = makeView();
-  view.assessmentProfile = 'applicability-v1';
-  view.decision = 'ALLOW';
+test('all recorded outcomes, selected evidence and SUFFICIENT probabilities retain their separate meanings', async () => {
+  for (const choice of ['PASS', 'FAIL', 'APPROVAL_REQUIRED', 'UNKNOWN']) {
+    const view = makeView({ choice });
+    const rule = view.rules[0]!;
+    rule.result!.outcome!.probabilities = { PASS: .88123456789, FAIL: .07123456789, UNKNOWN: .04753086422 };
+    rule.result!.evidence = { choice: 'INSUFFICIENT', probabilities: { INSUFFICIENT: .85123456789, SUFFICIENT: .14876543211 } };
+    rule.thresholds = { effectThreshold: .9123456789, evidenceThreshold: .9323456789 };
+    rule.gateIds = ['outcome-confidence-below-threshold', 'evidence-insufficient', 'evidence-confidence-below-threshold', 'historical-unknown-gate'];
+    const screen = await render(createElement(Detail, { view }));
+    const data = JSON.parse(screen.container.querySelector('.exact-rule-data pre')!.textContent!);
+    expect(data.rules).toEqual(view.rules);
+    expect(data.rules[0].result.outcome.choice).toBe(choice);
+    expect(data.rules[0].result.evidence.choice).toBe('INSUFFICIENT');
+    expect(data.rules[0].result.evidence.probabilities.SUFFICIENT).toBe(.14876543211);
+    expect(data.rules[0].gateIds).toEqual(rule.gateIds);
+    expect(screen.container.querySelector('.rule-question-link, .rule-outcome, .confidence-note')).toBeNull();
+    await screen.unmount();
+  }
+});
+
+test('unavailable evidence and confidence are not replaced with zeros, passes or current thresholds', async () => {
+  const view = makeView({ evidence: false });
   const rule = view.rules[0]!;
-  rule.result = { outcome: { choice: 'NOT_APPLICABLE', probabilities: { NOT_APPLICABLE: 0.95, PASS: 0.05 } }, evidence: null };
-  rule.gateIds = [];
-  rule.evidenceGate = 'not-applicable';
-  rule.contribution = 'pass';
-  rule.thresholds.evidenceThreshold = null;
-  view.rules = [rule];
+  rule.result = null; rule.gateIds = null; rule.thresholds = { effectThreshold: null, evidenceThreshold: null };
   const screen = await render(createElement(Detail, { view }));
-  await screen.getByText('Why this assessment', { exact: true }).click();
-  await screen.getByText('Selected check details', { exact: true }).click();
-  await expect.element(screen.getByText('Evidence-confidence gate does not apply. No evidence score was recorded.')).toBeVisible();
-  await screen.getByText('Probabilities and rule details', { exact: true }).click();
-  await expect.element(screen.getByText('Not applicable. No evidence score.', { exact: true })).toBeVisible();
-  await expect.element(screen.getByText('Evidence-confidence gate does not apply. No evidence score.', { exact: true })).toBeVisible();
-  expect(screen.container.querySelectorAll('.confidence-meter')).toHaveLength(0);
+  await screen.getByText('Recorded data', { exact: true }).click();
+  await screen.getByText('Exact rule records and captured questions', { exact: true }).click();
+  const data = JSON.parse(screen.container.querySelector('.exact-rule-data pre')!.textContent!);
+  expect(data.rules).toEqual(view.rules);
+  expect(data.rules[0].result).toBeNull(); expect(data.rules[0].thresholds.effectThreshold).toBeNull();
+  expect(data.rules[0].questions).toBeNull(); expect(data.rules[0].mapping).toBeNull();
+  expect(screen.container.querySelector('.exact-rules')!.textContent).toContain('Missing data is not a pass');
+  expect(screen.container.querySelector('[data-rule-id="rule-one"] [role="meter"]')).toBeNull();
+});
+
+
+for (const choice of ['FAIL', 'APPROVAL_REQUIRED']) test(`historical ${choice} remains exact beside PASS without inventing absent diagnostics`, async () => {
+  const policy = { rules: [
+    { id: 'pass', text: 'Recorded passing rule.', line: 1, enforcement: 'BLOCK' },
+    { id: 'affected', text: 'Recorded affected rule.', line: 2, enforcement: 'BLOCK' },
+  ] };
+  const stages = [
+    { stage: 'begin', data: { policy } },
+    { stage: 'validation', data: { valid: true } },
+    { stage: 'assessment', data: { assessment: { model: 'offline', rules: policy.rules.map(rule => ({
+      ruleId: rule.id, outcome: { choice: rule.id === 'pass' ? 'PASS' : choice, probabilities: rule.id === 'pass' ? { PASS: .95, FAIL: .02, APPROVAL_REQUIRED: .03 } : choice === 'FAIL' ? { PASS: .02, FAIL: .95, APPROVAL_REQUIRED: .03 } : { PASS: .02, FAIL: .03, APPROVAL_REQUIRED: .95 } },
+      evidence: { choice: 'SUFFICIENT', probabilities: { SUFFICIENT: .95, INSUFFICIENT: .05 } },
+    })) } } },
+    { stage: 'decision', data: { decision: choice === 'FAIL' ? 'BLOCK' : 'ASK', reason: choice === 'FAIL' ? 'rule-failed' : 'approval-required' } },
+  ];
+  const records = stages.map((record, sequence) => ({ ...record, sequence: sequence + 1,
+    schemaVersion: 1, writerId: '00000000-0000-0000-0000-000000000000', eventId: `00000000-0000-0000-0000-${String(sequence).padStart(12, '0')}`, sessionId: 'historical', invocationId: 'historical-call', callId: 'historical-call',
+    toolName: 'bash', cwd: '/fictional', mode: 'observe', timestamp: sequence + 1,
+  }));
+  const view = invocationView(records as ArchiveRecord[]);
+  expect(view.assessmentStatus).toBe('validated');
+  expect(view.categories).toContain(choice === 'FAIL' ? 'violation' : 'approval');
+  expect(view.rules.map(rule => rule.gateIds)).toEqual([null, null]);
+  const screen = await render(createElement(Detail, { view }));
+  await screen.getByText('Recorded data', { exact: true }).click();
+  await screen.getByText('Exact rule records and captured questions', { exact: true }).click();
+  const data = JSON.parse(screen.container.querySelector('.exact-rule-data pre')!.textContent!);
+  expect(data.rules).toEqual(view.rules);
+  expect(data.rules.map((rule: { id: string }) => rule.id)).toEqual(['pass', 'affected']);
+  expect(data.rules[1].result.outcome.choice).toBe(choice);
+  expect(data.rules.every((rule: { gateIds: unknown }) => rule.gateIds === null)).toBe(true);
+  expect(data.rules.every((rule: { thresholds: { effectThreshold: unknown } }) => rule.thresholds.effectThreshold === null)).toBe(true);
+  expect(screen.container.querySelector('.rule-question-link, .rule-questions, .rule-outcome')).toBeNull();
+});
+
+for (const [width, fontSize] of [[1103, 16], [390, 16], [1103, 32]] as const) test(`remaining roles and exact records wrap at ${width}px with ${fontSize}px root text`, async () => {
+  const previous = document.documentElement.style.fontSize;
+  await page.viewport(width, 1318);
+  document.documentElement.style.fontSize = `${fontSize}px`;
+  try {
+    const view = makeView();
+    view.rules[0]!.text = 'Long recorded rule with 雪 and 😀 '.repeat(80);
+    const screen = await render(createElement(Detail, { view }));
+    await screen.getByText('Recorded data', { exact: true }).click();
+    await screen.getByText('Exact rule records and captured questions', { exact: true }).click();
+    const data = screen.container.querySelector<HTMLElement>('.exact-rule-data')!;
+    const body = screen.container.querySelector<HTMLElement>('.recorded-data .muted')!;
+    expect(getComputedStyle(body).fontSize).toBe(`${fontSize}px`);
+    expect(getComputedStyle(data.querySelector('pre')!).fontSize).toBe(`${fontSize * .875}px`);
+    expect(getComputedStyle(data.querySelector('pre')!).overflowWrap).toBe('anywhere');
+    expect(data.getBoundingClientRect().right).toBeLessThanOrEqual(width);
+    expect(JSON.parse(data.querySelector('pre')!.textContent!).rules).toEqual(view.rules);
+    expect(screen.container.querySelector('.exact-rules > summary')!.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+    await screen.unmount();
+  } finally {
+    document.documentElement.style.fontSize = previous;
+    await page.viewport(1280, 720);
+  }
+});
+test('precision rejection is readable at desktop and mobile widths without implying a violation', async () => {
+  for (const width of [1280, 390]) {
+    await page.viewport(width, 844);
+    const view = makeView({ failure: 'invalid-response', gate: null });
+    view.validationIssue = 'unit-sum';
+    const screen = await render(createElement(Detail, { view }));
+    await screen.getByText('Recorded data', { exact: true }).click();
+    await screen.getByText('Recording and coverage', { exact: true }).click();
+    const notice = screen.getByText(/unit-sum: Evaluator probabilities/);
+    await expect.element(notice).toBeVisible();
+    const message = screen.container.textContent!;
+    expect(message).toContain('Precision accommodation is unsupported');
+    expect(message).toContain('not a semantic violation');
+    const box = screen.container.querySelectorAll('.assessment-status');
+    for (const el of box) expect(el.getBoundingClientRect().right).toBeLessThanOrEqual(width);
+    await screen.unmount();
+  }
+  await page.viewport(1280, 720);
 });
