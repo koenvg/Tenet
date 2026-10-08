@@ -18,6 +18,10 @@ Local recordings can contain secrets despite redaction. This read-only view is n
 
    Replace the path with this checkout's plugin directory.
 
+   The build prepares `.server-workspace/server.js` from the current `server.ts` and its shared source. BB loads this plugin-local entry so no server import leaves the plugin directory. Keep the generated files and locked dependencies in the stable checkout.
+
+   To update an existing local-path installation, rebuild from the same checkout, then run `bb plugin reload tenet-status --json`. A zero exit code and no failed-reload status in `bb plugin list --json` confirm activation. Do not remove and reinstall the plugin. Removal deletes its settings. A successful build alone does not prove activation.
+
 3. Start a fresh Pi process with the current extension and recording enabled. Do not set `TENET_RECORDING=off`.
 4. Open its BB Pi thread and select **TENET rules** in the header, or **T** on compact viewports.
 
