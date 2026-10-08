@@ -33,6 +33,7 @@ test('independent server reads retained and delayed lifecycle stages without aut
     assert.equal((await get('/api/file?path=/etc/passwd')).status, 404);
     const response = await get('/api/sessions');
     assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.equal(response.headers.get('content-security-policy'), "default-src 'none'; script-src 'self'; style-src 'self'; font-src data:; connect-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
     const index: any = await response.json();
     assert.equal(index.sessions[0].sessionId, '../../s');
     const session = index.sessions[0].id;
