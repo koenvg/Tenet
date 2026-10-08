@@ -62,9 +62,10 @@ test('UNKNOWN, approval and failed assessments keep recorded choices and never i
   expect(JSON.parse(screen.container.querySelector('.exact-rule-data pre')!.textContent!).rules[0].result).toBeNull();
 });
 
-for (const status of ['pending', 'dropped', 'cancelled', 'unavailable', 'incomplete']) test(`${status} assessment does not invent a decision, passing check or confidence`, async () => {
+for (const status of ['pending', 'dropped', 'cancelled', 'unavailable', 'incomplete'] as const) test(`${status} assessment does not invent a decision, passing check or confidence`, async () => {
   const view = makeView({ execution: 'executed' });
   view.assessmentStatus = status; view.decision = 'unavailable';
+  view.evaluatorState = { status, reason: status === 'unavailable' ? 'assessment-unavailable' : null };
   view.categories = status === 'unavailable' ? ['unavailable'] : ['pending'];
   view.rules = view.rules.map(rule => ({ ...rule, result: null, gateIds: null, contribution: 'unavailable' }));
   const screen = await render(createElement(DecisionSummary, { view }));
@@ -123,6 +124,7 @@ test('missing historical mode and permission stay unknown even with approval and
 test('named facts replace repeated permission and pending summary badges', async () => {
   const view = makeView({ permission: 'released', execution: 'unknown' });
   view.assessmentStatus = 'pending'; view.decision = 'unavailable'; view.reason = 'not-started'; view.categories = ['pending'];
+  view.evaluatorState = { status: 'pending', reason: null };
   const screen = await render(createElement(DecisionSummary, { view }));
   expect(screen.container.querySelector('[data-fact="permission"]')?.textContent).toBe('Not blocked by Tenet');
   expect(screen.container.querySelector('[data-fact="result"]')?.textContent).toBe('Unknown / not recorded');

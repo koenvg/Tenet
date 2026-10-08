@@ -15,6 +15,7 @@ for (const status of ['pending', 'dropped', 'cancelled', 'unavailable', 'incompl
 });
 test('invalid completed assessment stays unavailable and all independent findings survive', () => {
   const view = invocationView([]); view.assessmentStatus = 'completed'; view.decision = 'ALLOW'; view.validationIssue = 'unit-sum';
+  view.evaluatorState = { status: 'unavailable', reason: 'validation-failed' };
   view.categories = ['violation', 'uncertainty', 'approval', 'unavailable'];
   assert.equal(assessmentFact(view), 'Unavailable');
   assert.deepEqual(summaryFindings(view), ['violation', 'uncertainty', 'approval']);

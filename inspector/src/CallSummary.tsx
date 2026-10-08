@@ -16,7 +16,7 @@ export default function CallSummary({ view }: { view: InvocationView }) {
       <dl className="call-facts">
         <div><dt>Tenet permission</dt><dd data-fact="permission" className={permission.tone}>{permission.label}</dd></div>
         <div><dt>Tool result</dt><dd data-fact="result" className={result.tone}>{result.label}</dd></div>
-        <div><dt>Assessment</dt><dd data-fact="assessment" className={!["validated", "completed"].includes(view.assessmentStatus) || view.assessmentInvalid || !!view.failure || !!view.validationIssue ? "assessment-status" : undefined}>{assessmentFact(view)}</dd></div>
+        <div><dt>Assessment</dt><dd data-fact="assessment" className={view.evaluatorState.status !== 'completed' || view.assessmentInvalid || !!view.failure || !!view.validationIssue ? "assessment-status" : undefined}>{assessmentFact(view)}</dd></div>
         {!!findings.length && <div><dt>Findings</dt><dd data-fact="findings">{findings.map((category, i) => <span key={category} className={findingPresentation(category).tone}>{i ? ' · ' : ''}{findingPresentation(category).label}</span>)}</dd></div>}
         {!['unknown', 'not required', 'not requested (observe mode)'].includes(view.approval) && <div><dt>Recorded approval</dt><dd data-fact="approval">{view.approval}</dd></div>}
       </dl>

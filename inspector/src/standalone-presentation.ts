@@ -1,6 +1,6 @@
 import type { InvocationView } from '../../src/inspector/view.js';
 import { categoryLabels, type FindingCategory } from '../../src/decision/finding-triage.js';
-import { primaryStatus as sharedPrimaryStatus, decisionLabel, findingPresentation, explainDecision, type StatusTone } from './presentation.js';
+import { primaryStatus as sharedPrimaryStatus, decisionLabel, findingPresentation, explainDecision, decisionReason as sharedDecisionReason, type StatusTone } from './presentation.js';
 export * from './presentation.js';
 type RuleView = InvocationView['rules'][number];
 
@@ -27,10 +27,11 @@ export function resultFact(execution?: string | null) {
 }
 export function assessmentFact(view: InvocationView) {
   const labels: Record<string, string> = { pending: 'Pending', dropped: 'Dropped', cancelled: 'Cancelled', incomplete: 'Incomplete', unavailable: 'Unavailable', failed: 'Unavailable' };
-  const incomplete = !['validated', 'completed'].includes(view.assessmentStatus);
+  const incomplete = view.evaluatorState.status !== 'completed';
   const unavailable = view.assessmentInvalid || view.failure || view.validationIssue || view.categories.includes('unavailable');
+  if (unavailable && view.evaluatorState.status === 'incomplete') return 'Unavailable';
   if (incomplete) {
-    const lifecycle = labels[view.assessmentStatus] ?? 'Unknown';
+    const lifecycle = labels[view.evaluatorState.status] ?? 'Unknown';
     return unavailable && !['Unavailable'].includes(lifecycle) ? `${lifecycle} · Evaluator unavailable` : lifecycle;
   }
   return unavailable ? 'Unavailable' : decisionLabel(view.decision, view.identity?.mode);
@@ -75,12 +76,13 @@ export function orderedRules(rules: RuleView[]) {
 }
 
 export function decisionReason(view: InvocationView): string {
-  if (view.assessmentInvalid || view.failure || view.validationIssue || !['validated', 'completed'].includes(view.assessmentStatus)) {
+  if (view.assessmentInvalid || view.failure || view.validationIssue) {
     const reason = view.failure ?? view.validationIssue ?? (view.assessmentInvalid ? 'recorded validation rejected the assessment' : view.reason);
     const reasons: Record<string, string> = { 'not-started': 'The recorded assessment had not started.', 'queue-capacity': 'The assessment queue was full.', 'session-shutdown': 'The session ended before assessment completed.', 'provider-error': 'The evaluator request failed.', 'invalid-response': 'The recorded evaluator response was invalid.', timeout: 'The evaluator did not finish before the deadline.' };
     return reason && reason !== 'unavailable' ? reasons[reason] ?? `Recorded reason: ${reason}.`
       : 'No completed, valid assessment is available. Missing data is not a pass.';
   }
+  if (view.evaluatorState.status !== 'completed') return sharedDecisionReason(view);
   const uncertainty = uncertaintyNotice(view);
   const blocker = orderedRules(view.rules).find(r => r.enforcement === 'BLOCK' && r.gateIds?.length);
   if (view.decision === 'BLOCK' && blocker) {
