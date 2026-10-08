@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "build": "bun ../scripts/check-summary-build.ts && bb plugin build ."
+    "build": "bun ../scripts/check-summary-build.ts && bun run build:server && bb plugin build .",
+    "build:server": "bun build ./server.ts --target=node --external @get-bb/plugin-sdk --external zod --outdir .server-workspace"
   },
   "engines": {
     "bb": ">=0.43",
@@ -15,7 +16,7 @@
     "branding": {
       "icon": "ShieldAlert"
     },
-    "server": "./server.ts",
+    "server": "./.server-workspace/server.js",
     "app": "./app.tsx",
     "host": "./host.ts",
     "skills": [
