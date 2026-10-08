@@ -22,6 +22,7 @@ Other evaluation paths have separate scope and authorization:
 - [Semantic publication replay](semantic-README.md) covers KVG-5096's paired cross-tool evaluation.
 - [The controlled publication demonstration](publication-demo-README.md) adds real host and remote observations only after separate authorization.
 - [The bounded evidence-selection campaign](evidence-selection-live.md) compares fixed synthetic pairs.
+- [The d1-3B Pika trial](d1-pika-results.md) records CPU timing, decision accuracy, and the incomplete test scope.
 
 For a new local-work run, use [the separately authorized live procedure](#run-only-with-new-live-call-authorization). The sections before it retain historical evidence and report definitions; they are not prerequisites for running the offline tests.
 
