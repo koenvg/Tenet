@@ -46,9 +46,13 @@ export async function verifyArchive(archive: string): Promise<void> {
     // Test tools are installed separately, after the production-only imports and HTTP checks.
     const host = join(root, 'host'); await mkdir(host);
     const source = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+    // Pi 1.1.0 requires declarations removed by codemode 1.2.0 despite its broad dependency range.
+    // Reuse the checkout's frozen codemode version for this temporary test host.
+    const codemode = JSON.parse(await readFile(new URL('../node_modules/@earendil-works/pi-codemode/package.json', import.meta.url), 'utf8'));
     await writeFile(join(host, 'package.json'), JSON.stringify({ name: 'isolated-pi-host', private: true, type: 'module',
       dependencies: { tenet: `file:${installation}`, '@earendil-works/pi-coding-agent': source.peerDependencies['@earendil-works/pi-coding-agent'],
-        '@earendil-works/pi-ai': source.devDependencies['@earendil-works/pi-ai'], typebox: source.devDependencies.typebox,
+        '@earendil-works/pi-ai': source.devDependencies['@earendil-works/pi-ai'], '@earendil-works/pi-codemode': codemode.version,
+        typebox: source.devDependencies.typebox,
         typescript: source.devDependencies.typescript, '@types/node': source.devDependencies['@types/node'] } }));
     run('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund'], host);
     // A decoy in the installation must never become the session project policy.
