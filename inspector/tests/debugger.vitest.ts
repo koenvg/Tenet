@@ -11,6 +11,7 @@ let browser: Browser | undefined, context: BrowserContext | undefined, page: Pag
 let app: Awaited<ReturnType<typeof startInspector>> | undefined;
 let directory: string | undefined;
 let externalRequests: string[] = [], pageErrors: string[] = [];
+let apiEvents: Array<{ elapsedMs: number; url: string; status: number }> = [];
 const artifacts = resolve('coverage/inspector-artifacts/playwright');
 const currentPage = () => { if (!page) throw new Error('Browser page unavailable'); return page; };
 const pickCall = async (id: string) => {
@@ -20,6 +21,14 @@ const pickCall = async (id: string) => {
   await reveal(p, '.recorded-disclosure');
   await reveal(p, '.recording-details');
 };
+async function openDebugger(p: Page, origin: string) {
+  await p.goto(origin);
+  // Document load does not finish archive discovery and initial selection.
+  // Use Playwright readiness waits before the unchanged semantic poll.
+  await p.locator('.call-row').first().waitFor();
+  await p.locator('[aria-label="Decision summary"]').waitFor();
+  await expect.poll(() => p.locator('.call-row').count()).toBe(11);
+}
 
 beforeAll(async () => {
   browser = await chromium.launch({ headless: true });
@@ -37,17 +46,37 @@ beforeEach(async () => {
   context = await browser.newContext({ viewport: { width: 2233, height: 1282 } });
   page = await context.newPage();
   pageErrors = []; externalRequests = [];
+  apiEvents = [];
+  const started = Date.now();
+  page.on('response', response => {
+    if (new URL(response.url()).pathname.startsWith('/api/')) apiEvents.push({
+      elapsedMs: Date.now() - started, url: response.url(), status: response.status(),
+    });
+  });
   page.on('pageerror', error => pageErrors.push(error.message));
   await page.route('**/*', route => {
     // The fixture permits only requests to its temporary loopback server.
     if (new URL(route.request().url()).origin === app!.origin) return route.continue();
     externalRequests.push(route.request().url()); return route.abort();
   });
-  await page.goto(app.origin);
-  await expect.poll(() => currentPage().locator('.call-row').count()).toBe(11);
-  await page.locator('[aria-label="Decision summary"]').waitFor();
+  await openDebugger(page, app.origin);
 });
 
+test('initial archive selection can outlast the semantic poll deadline', async () => {
+  const p = currentPage();
+  let delayed = false;
+  await p.route(/\/api\/sessions(?:\?|$)/, async route => {
+    if (!delayed) {
+      delayed = true;
+      // Inject a slow first response, beyond Vitest's default one-second poll.
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    }
+    await route.fallback();
+  });
+  await openDebugger(p, app!.origin);
+  expect(delayed).toBe(true);
+  expect(await p.locator('.call-row').count()).toBe(11);
+});
 for (const width of [1280, 390]) test(`default story and keyboard disclosures at ${width}px`, async () => {
   const p = currentPage(); await p.setViewportSize({ width, height: 844 });
   if (width <= 900) await p.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Calls' }).click();
@@ -74,10 +103,16 @@ for (const width of [1280, 390]) test(`default story and keyboard disclosures at
   expect(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 afterEach(async taskContext => {
-  if (page && (taskContext.task.result?.state === 'fail' || externalRequests.length || pageErrors.length)) {
-    await page.screenshot({ path: join(artifacts, `failure-${taskContext.task.name.replace(/[^a-z0-9]+/gi, '-').slice(0, 100)}.png`), fullPage: true }).catch(() => {});
+  try {
+    if (page && (taskContext.task.result?.state === 'fail' || externalRequests.length || pageErrors.length)) {
+      const failure = await mkdtemp(join(artifacts, `failure-${taskContext.task.name.replace(/[^a-z0-9]+/gi, '-').slice(0, 80)}-`));
+      await writeFile(join(failure, 'requests.json'), JSON.stringify({ apiEvents, externalRequests, pageErrors }, null, 2));
+      await writeFile(join(failure, 'page.html'), await page.content()).catch(() => {});
+      await page.screenshot({ path: join(failure, 'page.png'), fullPage: true }).catch(() => {});
+    }
+  } finally {
+    try { await context?.close(); } finally { context = undefined; page = undefined; }
   }
-  try { await context?.close(); } finally { context = undefined; page = undefined; }
   expect(externalRequests, 'non-local requests must not leave this test').toEqual([]);
   expect(pageErrors, 'uncaught browser errors must not leave this test').toEqual([]);
 });

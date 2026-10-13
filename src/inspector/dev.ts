@@ -7,6 +7,12 @@ export async function startInspectorDev(options: { directory: string; port?: num
   const api = await startInspector({ directory: options.directory });
   const root = fileURLToPath(new URL('../../inspector', import.meta.url));
   let vite: Awaited<ReturnType<typeof createViteServer>> | undefined;
+  const closeVite = async () => {
+    // Finish discovery before closing the resolver used by the scanner.
+    // Canceling a cold scan during close can retain Bun's esbuild service.
+    await vite?.environments.client.depsOptimizer?.scanProcessing;
+    await vite?.close();
+  };
   try {
     vite = await createViteServer({
       root,
@@ -34,10 +40,10 @@ export async function startInspectorDev(options: { directory: string; port?: num
     return {
       origin,
       url: origin,
-      close: async () => { await Promise.all([vite!.close(), api.close()]); },
+      close: async () => { await Promise.all([closeVite(), api.close()]); },
     };
   } catch (error) {
-    await Promise.allSettled([vite?.close(), api.close()]);
+    await Promise.allSettled([closeVite(), api.close()]);
     throw error;
   }
 }
