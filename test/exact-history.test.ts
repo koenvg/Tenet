@@ -26,7 +26,10 @@ test('admission compacts before eviction and final submission round-trips every 
   assert.equal(Object.keys((before as any).values).length, 1);
   assert.ok(before.selection!.exactCompactedBytes > 0);
   const { captured, result } = await submit(history);
-  assert.deepEqual(captured.trajectory, before);
+  // Public JSON copies have ordinary prototypes; admission keeps null-prototype maps.
+  // Compare every serialized byte, including order, references and selector metadata.
+  assert.equal(JSON.stringify(captured.trajectory), JSON.stringify(before));
+  assert.equal(Object.getPrototypeOf(captured.trajectory.values), Object.prototype);
   assert.deepEqual(expandedData(before).map((data: any) => data.content), Array.from({ length: 12 }, (_, i) => ({ text, status: i })));
   assert.deepEqual(before.observations.map(event => [event.origin, event.sessionId, event.callId, event.toolName, event.timestamp]),
     Array.from({ length: 12 }, (_, i) => [i % 2 ? 'host-tool-result' : 'host-tool-call', 'synthetic', `call-${i}`, `unfamiliar-${i}`, 100 - i]));

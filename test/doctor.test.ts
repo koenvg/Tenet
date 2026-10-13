@@ -29,7 +29,8 @@ async function fixture(work: (f: { root: string; project: string; delivery: stri
     await writeFile(join(sdk, 'package.json'), JSON.stringify({ name: '@typesafe-ai/sdk', version: '0.6.0' }));
     await writeFile(join(sdk, 'dist/index.mjs'), 'fixture');
     await writeFile(join(project, 'TENET.md'), policyText);
-    await work({ root, project, delivery, env: { HOME: home, PATH: '', TYPESAFE_API_KEY: canary,
+    // Runtime cache writes must not mask the doctor's unchanged full-tree no-write assertion.
+    await work({ root, project, delivery, env: { HOME: home, PATH: '', BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0', TYPESAFE_API_KEY: canary,
       TENET_CONTROL_PATH: join(home, '.tenet/control.json'), TENET_RECORDING_DIR: join(home, '.tenet/recordings') } });
   } finally { await chmod(project, 0o755).catch(() => {}); await rm(root, { recursive: true, force: true }); }
 }
