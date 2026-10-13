@@ -74,7 +74,7 @@ export function nativeHistory(records: ArchiveRecord[]) {
   const record = records.find(r => validNativeContract(r.data.nativeContract));
   if (!record) return null;
   const responses = records.filter(r => r.stage === 'response' && validNativeContract(r.data.nativeContract));
-  const values = responses.filter(r => r.data.truncated === false && object(r.data.value)).map(r => r.data.value as Record<string, any>);
+  const values = responses.filter(r => r.data.unavailable !== true && r.data.truncated === false && object(r.data.value)).map(r => r.data.value as Record<string, any>);
   return {
     contract: record.data.nativeContract as typeof APUS_V1 | typeof APUS_V2,
     snapshots: responses.map(r => r.data),

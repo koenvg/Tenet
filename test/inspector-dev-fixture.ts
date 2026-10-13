@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { createServer, Server } from 'node:http';
+import { stop } from 'esbuild';
 import { startInspectorDev } from '../src/inspector/dev.js';
 
 const [scenario, directory] = process.argv.slice(2);
@@ -86,4 +87,6 @@ try {
   Server.prototype.listen = nativeListen;
   await app?.close();
   if (fixture.listening) await close(fixture);
+  // This child owns Vite's compiler service; closing its listeners does not stop that service.
+  await stop();
 }
