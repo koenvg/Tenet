@@ -17,7 +17,8 @@ async function consumer() {
   await writeFile(join(pkg, 'package.json'), JSON.stringify({ name: manifest.name, type: 'module', exports: manifest.exports }));
   await writeFile(join(root, 'package.json'), '{"type":"module"}');
   await mkdir(join(root, 'home'));
-  return { root, pkg, env: { ...process.env, HOME: join(root, 'home'), TENET_POLICY: undefined, TYPESAFE_API_KEY: '', NODE_PATH: '', TENET_RECORDING: 'off' },
+  // Disable Bun's own cache writes, not SDK writes. Keep the full no-write snapshot below.
+  return { root, pkg, env: { ...process.env, HOME: join(root, 'home'), TENET_POLICY: undefined, TYPESAFE_API_KEY: '', NODE_PATH: '', TENET_RECORDING: 'off', BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0' },
     close: () => rm(root, { recursive: true, force: true }) };
 }
 
