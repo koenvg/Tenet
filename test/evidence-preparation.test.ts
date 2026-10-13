@@ -5,7 +5,8 @@ import { decide } from '../src/decision/decide.js';
 import { Observations } from '../src/decision/trajectory.js';
 import { nativeHistory } from '../src/pi/history.js';
 import { UNSUPPORTED_ACTION } from '../src/runtime/resolved-action.js';
-import { boundEvidence, judgeState } from '../src/decision/judge-evidence.js';
+import { judgeState, prepareJudgeScopes } from '../src/decision/judge-evidence.js';
+import { boundHistoricalEvidence as boundEvidence } from './historical-evidence-fixture.js';
 import { serializedBytes } from '../src/decision/history-selection.js';
 import { answer, policy as basePolicy } from './helpers.js';
 
@@ -53,7 +54,7 @@ for (const scenario of [
       assert.deepEqual([result.decision, result.reason], ['BLOCK', 'insufficient-evidence']);
       return; // Required source provenance cannot be truncated to fit a legacy-sized cap.
     }
-    assert.deepEqual(requests.map(({ evidenceContext: _context, ...submitted }) => ({ ...submitted, trajectory: (({ selection: _selection, ...history }) => history)(submitted.trajectory!) })), [{ ...baseRequest, trajectory: { observations: scenario.kept, omitted: scenario.omitted,
+    assert.deepEqual(requests.map(({ evidenceContext: _context, judgeScopes: _scopes, ...submitted }) => ({ ...submitted, trajectory: (({ selection: _selection, ...history }) => history)(submitted.trajectory!) })), [{ ...baseRequest, trajectory: { observations: scenario.kept, omitted: scenario.omitted,
       limitations: [...limitations, ...scenario.historyLimitations] } }]);
     assert.deepEqual([result.decision, result.reason], ['ALLOW', 'all-rules-pass']);
     assert.deepEqual(requests[0]!.trajectory!.selection, { version: 'bounded-history-v2',
@@ -82,7 +83,7 @@ test('recovered request matches authored pre-change chronological baseline witho
   const requests: JudgeRequest[] = [];
   const result = await decide({ policy, action, cwd: '/synthetic', trajectory: observations.snapshot(), resolvedAction: UNSUPPORTED_ACTION,
     judge: async request => { requests.push(request); return answer(request.policy, 'APPROVAL_REQUIRED'); } });
-  assert.deepEqual(requests.map(({ evidenceContext: _context, ...submitted }) => ({ ...submitted, trajectory: (({ selection: _selection, ...history }) => history)(submitted.trajectory!) })), [{ ...baseRequest, trajectory: { omitted: 0,
+  assert.deepEqual(requests.map(({ evidenceContext: _context, judgeScopes: _scopes, ...submitted }) => ({ ...submitted, trajectory: (({ selection: _selection, ...history }) => history)(submitted.trajectory!) })), [{ ...baseRequest, trajectory: { omitted: 0,
     limitations: [...limitations, 'host-history-untrusted'], observations: [
       event('0', { content: 'earlier', details: { status: 'authenticated-complete', approval: 'approved' }, isError: false }, 'host-tool-result'),
       { sessionId: 'synthetic', callId: '1', toolName: 'opaque', origin: 'host-tool-call', timestamp: 0,
@@ -201,12 +202,12 @@ test('absent metadata stays unavailable when the other optional field overflows'
 test('required current arguments accept exact equality and reject one byte less without submission', async () => {
   const requiredAction = { ...action, arguments: { exact: '界🙂'.repeat(100) } };
   const expected = { ...baseRequest, action: requiredAction, trajectory: exactHistory([]) };
-  const maxBytes = serializedBytes(judgeState(expected));
+  const maxBytes = prepareJudgeScopes(expected)!.totalStateBytes;
   let calls = 0;
   for (const delta of [0, -1]) {
     const result = await decide({ policy, action: requiredAction, cwd: '/synthetic', resolvedAction: UNSUPPORTED_ACTION,
       trajectory: originalHistory(0), evidenceLimits: { recentEvents: 0, maxBytes: maxBytes + delta },
-      judge: async request => { calls++; assert.deepEqual(judgeState(request), judgeState(expected)); return answer(policy); } });
+      judge: async request => { calls++; assert.equal(request.judgeScopes!.totalStateBytes, maxBytes); assert.deepEqual(request.judgeScopes!.groups, prepareJudgeScopes(expected)!.groups); return answer(policy); } });
     assert.equal(calls, 1);
     assert.equal(result.decision, delta === 0 ? 'ALLOW' : 'BLOCK');
     assert.equal(result.reason, delta === 0 ? 'all-rules-pass' : 'insufficient-evidence');

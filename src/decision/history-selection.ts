@@ -9,11 +9,54 @@ export const EVIDENCE_DEFAULTS: Readonly<EvidenceLimits> = Object.freeze({ recen
 export const serializedBytes = (value: unknown) => Buffer.byteLength(JSON.stringify(value), 'utf8');
 // Runtime provenance never comes from authored marker-shaped values or selector counters.
 const contents = new WeakMap<Observation, HistoryContent>();
+// Encoding is private ingestion provenance, never inferred from a public host name.
+const recoveredCalls = new WeakSet<object>();
 const selections = new WeakMap<Trajectory, HistorySelection>();
 // Preserve observed ambiguity through tightening, compaction and immutable copies.
 const ambiguous = new WeakSet<Observation>();
 export const observationLimitations = (event: Observation): readonly string[] => contents.get(event)?.gaps ?? [];
 
+
+export type PreparedToolCall = { readonly toolName: string; readonly arguments: import('./contracts.js').Json };
+export type PreviousToolCall = PreparedToolCall | null | { readonly status: 'unavailable' };
+// Private lineage follows the latest ingested call through eviction and immutable copies.
+// An older surviving call must never replace a lost latest call.
+const latestCalls = new WeakMap<Trajectory, Observation | null | 'unavailable'>();
+const unavailable = Object.freeze({ status: 'unavailable' as const });
+function latestIn(source: Trajectory, maxEnvelopeBytes = Math.floor(EVIDENCE_DEFAULTS.maxBytes / 3)): Observation | null | 'unavailable' {
+  if (latestCalls.has(source)) return latestCalls.get(source)!;
+  let latest: Observation | null | 'unavailable' = source.omitted || source.observations.length > HISTORY_ADMISSION_SLOTS || source.limitations.some(value =>
+    ['history-unavailable', 'history-admission-window', 'history-omitted'].includes(value)) ? 'unavailable' : null;
+  // A public/raw snapshot has no loss-order provenance. Do not infer the latest
+  // call from its remaining events when any part of the window is unknown.
+  if (latest === 'unavailable') return latest;
+  for (let index = Math.max(0, source.observations.length - HISTORY_ADMISSION_SLOTS); index < source.observations.length; index++) {
+    const event = historySlot(source.observations, index) as Observation;
+    const captured = captureObservation(event, maxEnvelopeBytes);
+    if (captured.status !== 'captured') latest = 'unavailable';
+    else if (captured.envelope.origin.endsWith('-tool-call')) latest = event;
+    else if (!captured.envelope.origin.endsWith('-tool-result') || latest === null) latest = 'unavailable';
+  }
+  return latest;
+}
+
+/** Project expanded runtime-owned content, never interpret authored marker tags. */
+export function previousToolCall(trajectory: Trajectory | undefined, sessionId?: string): PreviousToolCall {
+  if (!trajectory) return unavailable;
+  const latest = latestIn(trajectory);
+  if (latest === null) return null;
+  if (latest === 'unavailable' || !latest.toolName || sessionId !== undefined && latest.sessionId !== sessionId) return unavailable;
+  const content = contents.get(latest);
+  if (!content) return unavailable;
+  const value = (content.data as { content: import('./contracts.js').Json }).content;
+  const live = !recoveredCalls.has(latest);
+  const fields = live ? ownHistoryFields(value, ['arguments']) : null;
+  if (live && (!fields || fields.arguments === undefined)) return unavailable;
+  const path = live ? ['arguments'] : [];
+  if ([...content.excerpts, ...content.omissions].some(entry =>
+    entry.path.every((part, index) => path[index] === part) || path.every((part, index) => entry.path[index] === part))) return unavailable;
+  return freeze({ toolName: latest.toolName, arguments: (live ? fields!.arguments : value) as import('./contracts.js').Json });
+}
 function captureEvent(event: ObservationEnvelope, content: HistoryContent): Observation {
   const captured = freeze({ ...event, data: content.data });
   contents.set(captured, freeze(content));
@@ -24,6 +67,8 @@ function captureEvent(event: ObservationEnvelope, content: HistoryContent): Obse
  * before payload normalization; exact compaction precedes whole-group byte eviction. */
 function selectHistory(source: Trajectory, limits: EvidenceLimits, maxHistoryBytes: number, sensitiveFields: readonly string[] = []): Trajectory {
   const old = selections.get(source);
+  const latest = latestIn(source, maxHistoryBytes);
+  let selectedLatest: Observation | null | 'unavailable' = latest === null ? null : 'unavailable';
   let droppedEvents = old?.droppedEvents ?? 0;
   let priorOmittedEvents = old?.priorOmittedEvents ?? source.omitted;
   const maxEventBytes = Math.floor(maxHistoryBytes / 4);
@@ -60,6 +105,8 @@ function selectHistory(source: Trajectory, limits: EvidenceLimits, maxHistoryByt
         maxEventBytes, sensitiveFields, previous);
       if (!content) break;
       const event = captureEvent(candidate.envelope, content);
+      if (recoveredCalls.has(candidate.source as Observation)) recoveredCalls.add(event);
+      if (candidate.source === latest) selectedLatest = event;
       order.set(event, candidate.index);
       if (candidate.ambiguous) ambiguous.add(event);
       normalized.push(event);
@@ -84,12 +131,15 @@ function selectHistory(source: Trajectory, limits: EvidenceLimits, maxHistoryByt
     const encoded = observations.map((event, index) => {
       const copy = freeze({ ...event, data: compacted.data[index]! });
       contents.set(copy, contents.get(event)!);
+      if (recoveredCalls.has(event)) recoveredCalls.add(copy);
       if (ambiguous.has(event)) ambiguous.add(copy);
       return copy;
     });
     const trajectory = freeze({ observations: encoded, ...envelope, selection,
       ...(compacted.values ? { values: compacted.values } : {}) });
     selections.set(trajectory, selection);
+    const latestIndex = typeof selectedLatest === 'object' && selectedLatest !== null ? observations.indexOf(selectedLatest) : -1;
+    latestCalls.set(trajectory, selectedLatest === null ? null : latestIndex < 0 ? 'unavailable' : encoded[latestIndex]!);
     return trajectory;
   };
   let result = snapshot();
@@ -122,6 +172,7 @@ export class HistoryPreparation {
     private sensitiveFields: string[] = [], limitations: string[] = []) {
     this.trajectory = freeze({ observations: [], omitted: 0,
       limitations: ['untrusted-evidence-not-approval-authority', 'external-state-not-frozen', ...limitations] });
+    latestCalls.set(this.trajectory, limitations.includes('history-unavailable') ? 'unavailable' : null);
     this.retain(this.trajectory);
   }
   private retain(source: Trajectory): void {
@@ -133,6 +184,7 @@ export class HistoryPreparation {
     const old = selections.get(this.trajectory)!;
     const next = { ...this.trajectory, omitted: historyCount(this.trajectory.omitted, count) };
     selections.set(next, { ...old, priorOmittedEvents: historyCount(old.priorOmittedEvents, count) });
+    latestCalls.set(next, count ? 'unavailable' : latestIn(this.trajectory));
     this.retain(next);
   }
   add(origin: string, callId: string | null, toolName: string | null, data: unknown, timestamp: number | null): void {
@@ -146,6 +198,18 @@ export class HistoryPreparation {
     const next = { ...this.trajectory, observations: [...this.trajectory.observations],
       limitations: [...this.trajectory.limitations] };
     for (let index = start; index < length; index++) next.observations.push(historySlot(events, index) as Observation);
+    let latest = priorOmitted || admissionLimited || start ? 'unavailable' as const : latestIn(this.trajectory);
+    for (let index = start; index < length; index++) {
+      const event = historySlot(events, index) as Observation;
+      const captured = captureObservation(event, Math.floor(this.limits.maxBytes / 3));
+      if (captured.status !== 'captured') latest = 'unavailable';
+      else if (captured.envelope.origin.endsWith('-tool-call')) latest = event;
+      else if (!captured.envelope.origin.endsWith('-tool-result') || latest === null) latest = 'unavailable';
+    }
+    // Capture counters have no omission-order provenance. A surviving call in
+    // this recovery batch cannot establish that no newer call was lost.
+    if (priorOmitted || admissionLimited) latest = 'unavailable';
+    latestCalls.set(next, latest);
     const zeroDrops = this.limits.recentEvents === 0 ? start : 0;
     selections.set(next, { ...old, droppedEvents: historyCount(old.droppedEvents, zeroDrops),
       priorOmittedEvents: historyCount(old.priorOmittedEvents, priorOmitted, this.limits.recentEvents ? start : 0) });
@@ -162,18 +226,54 @@ export class HistoryPreparation {
     const events: unknown[] = [];
     for (let index = start; index < length; index++) {
       const event = ownHistoryFields(historySlot(history, index), ['kind', 'callId', 'toolName', 'data', 'timestamp']);
-      events.push(event && ['tool-call', 'tool-result'].includes(event.kind as string)
+      const translated = event && ['tool-call', 'tool-result'].includes(event.kind as string)
         ? { sessionId: this.sessionId, origin: `host-${event.kind}`, callId: event.callId,
-          toolName: event.toolName, data: event.data, timestamp: event.timestamp ?? null } : undefined);
+          toolName: event.toolName, data: event.data, timestamp: event.timestamp ?? null } : undefined;
+      if (translated && event!.kind === 'tool-call') recoveredCalls.add(translated);
+      events.push(translated);
     }
     if (this.limits.recentEvents === 0) {
       const old = selections.get(this.trajectory)!;
       const next = { ...this.trajectory };
       selections.set(next, { ...old, droppedEvents: historyCount(old.droppedEvents, length) });
+      latestCalls.set(next, length ? 'unavailable' : latestIn(this.trajectory));
       this.retain(next);
-    } else this.addBatch(events, start, start > 0);
+    } else {
+      this.addBatch(events, start, start > 0);
+      // The first empty admission above preserves the existing capture counters.
+      // Keep its unordered recovery loss private through the translated batch.
+      if (priorOmitted || admissionLimited) latestCalls.set(this.trajectory, 'unavailable');
+    }
   }
   snapshot(): Trajectory { return this.trajectory; }
+}
+
+/** Scoped preparation reuses bounded admission without serializing history as model state. */
+export function prepareScopedHistory(trajectory: Trajectory | undefined, limits: EvidenceLimits = EVIDENCE_DEFAULTS,
+  sensitiveFields: readonly string[] = []): Trajectory {
+  return selectHistory(trajectory ?? { observations: [], omitted: 0, limitations: ['history-unavailable'] },
+    limits, Math.floor(limits.maxBytes / 3), sensitiveFields);
+}
+
+function copyHistoryProvenance(source: Trajectory, target: Trajectory): void {
+  target.observations.forEach((event, index) => {
+    const original = source.observations[index]!;
+    const content = contents.get(original);
+    if (content) contents.set(event, content);
+    if (recoveredCalls.has(original)) recoveredCalls.add(event);
+    if (ambiguous.has(original)) ambiguous.add(event);
+  });
+  selections.set(target, source.selection!);
+  const latest = latestIn(source);
+  latestCalls.set(target, latest === null || latest === 'unavailable' ? latest
+    : target.observations[source.observations.indexOf(latest)] ?? 'unavailable');
+}
+
+/** Finalize bounded public history without exposing its internal maps or losing provenance. */
+export function canonicalHistory(source: Trajectory): Trajectory {
+  const snapshot = JSON.parse(JSON.stringify(source)) as Trajectory;
+  copyHistoryProvenance(source, snapshot);
+  return freeze(snapshot);
 }
 
 /** Protect current facts. Measurement counts the exact state projection, including integrity. */
@@ -206,11 +306,6 @@ export function prepareRequest(request: JudgeRequest, measureBytes: (request: Ju
   const trajectory = selectHistory(source, limits, allowance);
   if (serializedBytes(trajectory) > allowance) return null;
   const bounded = JSON.parse(JSON.stringify({ ...request, action, trajectory })) as JudgeRequest;
-  bounded.trajectory!.observations.forEach((event, index) => {
-    const content = contents.get(trajectory.observations[index]!);
-    if (content) contents.set(event, content);
-    if (ambiguous.has(trajectory.observations[index]!)) ambiguous.add(event);
-  });
-  selections.set(bounded.trajectory!, trajectory.selection!);
+  copyHistoryProvenance(trajectory, bounded.trajectory!);
   return measureBytes(bounded) <= limits.maxBytes ? freeze(bounded) : null;
 }

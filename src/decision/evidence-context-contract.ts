@@ -4,7 +4,7 @@ export const EVIDENCE_CONTEXT_VERSION = 'evidence-context-v1';
 export const EVIDENCE_SELECTION_VERSION = 'bounded-history-v2';
 export interface Limitations { readonly limitations: readonly string[]; readonly limitationsTruncated: boolean }
 interface EvidenceContextBase {
-  readonly version: typeof EVIDENCE_CONTEXT_VERSION;
+  readonly version: typeof EVIDENCE_CONTEXT_VERSION | 'evidence-context-v2';
   readonly preparation: 'completed' | 'unavailable';
   readonly resolution: Limitations & { readonly status: ResolvedAction['status'] | 'unavailable' };
   readonly current: (Limitations & { readonly redactedFields: number }) | null;
@@ -20,6 +20,9 @@ interface SelectionCounters {
 export type EvidenceContext = EvidenceContextBase & (
   | { readonly selectionVersion: 'bounded-history-v1'; readonly history: (HistoryContext & { readonly [K in keyof SelectionCounters]?: never }) | null }
   | { readonly selectionVersion: typeof EVIDENCE_SELECTION_VERSION; readonly history: (HistoryContext & SelectionCounters) | null }
+  | { readonly selectionVersion: 'judge-input-scopes-v1'; readonly history: null;
+      readonly scopes: readonly { readonly id: string; readonly stateBytes: number; readonly fields: readonly string[] }[];
+      readonly totalStateBytes: number }
 );
 
 const encoder = new TextEncoder();
@@ -32,13 +35,24 @@ function validLimitations(value: Record<string, unknown>): boolean {
 }
 /** Schema and native-history readers validate bounds without deriving coverage from raw evidence. */
 export function validEvidenceContext(value: unknown): value is EvidenceContext {
-  if (!object(value) || !only(value, ['version', 'selectionVersion', 'preparation', 'resolution', 'current', 'history'])
-    || value.version !== EVIDENCE_CONTEXT_VERSION || !['bounded-history-v1', EVIDENCE_SELECTION_VERSION].includes(value.selectionVersion as string)
-    || !['completed', 'unavailable'].includes(value.preparation as string)) return false;
+  if (!object(value) || !['completed', 'unavailable'].includes(value.preparation as string)) return false;
+  const scoped = value.version === 'evidence-context-v2' && value.selectionVersion === 'judge-input-scopes-v1';
+  if (!scoped && (value.version !== EVIDENCE_CONTEXT_VERSION
+    || !['bounded-history-v1', EVIDENCE_SELECTION_VERSION].includes(value.selectionVersion as string))) return false;
+  if (!only(value, ['version', 'selectionVersion', 'preparation', 'resolution', 'current', 'history',
+    ...(scoped ? ['scopes', 'totalStateBytes'] : [])])) return false;
   const r = value.resolution, c = value.current, h = value.history;
   if (!object(r) || !only(r, ['status', 'limitations', 'limitationsTruncated']) || !validLimitations(r)
     || !['unsupported', 'authenticated-partial', 'authenticated-complete', 'unavailable'].includes(r.status as string)) return false;
   if (c !== null && (!object(c) || !only(c, ['redactedFields', 'limitations', 'limitationsTruncated']) || !count(c.redactedFields) || !validLimitations(c))) return false;
+  if (scoped) return h === null && value.preparation === 'completed' && r.status !== 'unavailable' && c !== null
+    && Array.isArray(value.scopes) && value.scopes.length > 0 && value.scopes.length <= 129
+    && value.scopes.every(s => object(s) && only(s, ['id', 'stateBytes', 'fields'])
+      && typeof s.id === 'string' && s.id.length > 0 && s.id.length <= 128 && count(s.stateBytes)
+      && Array.isArray(s.fields) && s.fields.length <= 16 && s.fields.every(f => typeof f === 'string' && f.length <= 128)
+      && new Set(s.fields).size === s.fields.length)
+    && new Set(value.scopes.map(s => s.id)).size === value.scopes.length && count(value.totalStateBytes)
+    && value.totalStateBytes === value.scopes.reduce((n, s) => n + s.stateBytes, 0);
   if (value.preparation === 'unavailable') return h === null;
   const extra = value.selectionVersion === EVIDENCE_SELECTION_VERSION
     ? ['maxHistoryBytes', 'maxEventBytes', 'shortenedEvents', 'droppedEvents', 'priorOmittedEvents', 'exactCompactedBytes'] : [];

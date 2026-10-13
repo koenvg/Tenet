@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readFile, writeFile, realpath } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { homedir } from 'node:os';
 import { createAgentSession, DefaultResourceLoader, ModelRuntime, SessionManager, SettingsManager } from '@earendil-works/pi-coding-agent';
 import { createAssistantMessageEventStream, InMemoryCredentialStore } from '@earendil-works/pi-ai';
 import { Type } from 'typebox';
@@ -10,6 +11,17 @@ import { alias, scriptedNative } from './archive-native.mjs';
 // judge transport are scripted; no alternate guard factory or release path.
 const [installation, project, expectedMode, provider = 'typesafe', roleList = 'project'] = process.argv.slice(2);
 assert.equal(process.env.TENET_MODE ?? 'observe', expectedMode);
+const root = dirname(installation);
+assert.match(root, /\/tenet-relocated-[^/]+$/);
+assert.equal(await realpath(root), root);
+assert.equal(await realpath(process.env.HOME), join(root, 'home'));
+assert.equal(homedir(), join(root, 'home'));
+assert.equal(process.env.PI_CODING_AGENT_DIR, join(root, 'home/pi'));
+assert.equal(await realpath(process.cwd()), join(root, 'host'));
+assert.equal(await realpath(project), join(root, 'owner-project'));
+const roles = roleList.split(',');
+const submissionKeys = roles.flatMap((_, i) => [[`rule_${i}_outcome`, `rule_${i}_evidence`], [`rule_${i}_facts`]])
+  .concat([[`rule_${roles.length}_outcome`, `rule_${roles.length}_evidence`]]);
 const settingsManager = SettingsManager.create(project, process.env.PI_CODING_AGENT_DIR);
 const statuses = [], notifications = [], views = [], confirmations = [];
 let outcome = 'FAIL', approved = false, executed = 0, requests = 0, session;
@@ -45,17 +57,36 @@ const typesafeFetch = async (url, init) => {
   assert.equal(String(url), 'https://api.typesafe.ai/v1/systemone', 'no non-scripted network destination');
   requests++;
   const body = JSON.parse(init.body);
-  assert.equal(body.state.context.cwd, project);
-  assert.equal(body.state.policy.rules[0].text, 'Ask before overwriting owner-demo.txt.');
-  assert.deepEqual(body.state.policy.sources.map(s => s.role), roleList.split(','));
-  assert.deepEqual(body.state.policy.rules.map(r => r.origin.role), roleList.split(','));
-  assert.ok(body.state.policy.rules.every(r => r.id.startsWith(`${r.origin.role}:`)));
-  assert.deepEqual(body.state.action.arguments, { value: 'harmless' });
+  const keys = submissionKeys[(requests - 1) % submissionKeys.length];
+  assert.deepEqual(Object.keys(body.questions), keys, 'each check uses its own submission');
+  const index = Math.floor(((requests - 1) % submissionKeys.length) / 2);
+  const protection = index === roles.length;
+  const exemption = keys[0].endsWith('_facts');
+  const fields = protection ? ['rule', 'proposedToolCall', 'context', 'policy', 'resolvedAction']
+    : exemption ? ['rule', 'proposedToolCall', 'binding', 'resolvedAction', 'allowedFactReferences']
+    : ['rule', 'thinkingTrace', 'previousToolCall', 'proposedToolCall'];
+  assert.deepEqual(Object.keys(body.state), fields);
+  assert.deepEqual(body.state.proposedToolCall, { toolName: 'owner_dummy', arguments: { value: 'harmless' } });
+  if (protection) {
+    assert.equal(body.state.context.cwd, project);
+    assert.deepEqual(body.state.policy.targets.map(s => s.role), roles);
+    for (const target of body.state.policy.targets) {
+      assert.equal(target.source, target.role === 'global' ? join(process.env.HOME, '.tenet/TENET.md') : join(project, 'TENET.md'));
+      assert.equal(target.target, target.source);
+      assert.match(target.digest, /^[a-f0-9]{64}$/);
+    }
+    assert.deepEqual(body.state.policy.candidates.filter(c => c.presence === 'present').map(c => c.role), roles);
+  } else {
+    assert.equal(body.state.rule, 'Ask before overwriting owner-demo.txt.');
+    if (exemption) {
+      assert.equal(body.state.binding.cwd, project);
+      assert.equal(body.state.binding.toolName, 'owner_dummy');
+      assert.equal(body.state.allowedFactReferences, null);
+    } else assert.deepEqual(body.state.thinkingTrace, { status: 'unavailable' });
+  }
   if (expectedMode === 'observe') await assessmentHeld;
-  const outcomeKeys = Object.keys(body.questions).filter(key => key.endsWith('_outcome'));
-  const integrityKey = outcomeKeys.at(-1);
   const answers = Object.fromEntries(Object.entries(body.questions).map(([key, question]) => {
-    const choice = key.endsWith('_facts') ? 'NONE' : key.endsWith('_evidence') ? 'SUFFICIENT' : key === integrityKey ? 'PASS' : outcome;
+    const choice = key.endsWith('_facts') ? 'NONE' : key.endsWith('_evidence') ? 'SUFFICIENT' : protection ? 'PASS' : outcome;
     return [key, { type: 'choice', choice, confidence: 1,
       probabilities: Object.fromEntries(Object.keys(question.criteria).map(label => [label, +(label === choice)])) }];
   }));
@@ -135,7 +166,7 @@ try {
     assert.equal(confirmations.length, 0);
     // Capture opt-out and shared on/off do not select a different mode.
     await session.prompt('/tenet off'); await invoke(); assert.equal(executed, 2);
-    assert.equal(requests, 1);
+    assert.equal(requests, provider === 'typesafe' ? submissionKeys.length : 1);
     await session.prompt('/tenet on');
     assert.ok(statuses.filter(s => s.startsWith('TENET ON') || s.startsWith('TENET OFF')).at(-1).startsWith('TENET ON OBSERVE'));
   } else {
@@ -147,6 +178,15 @@ try {
     await session.prompt('/tenet');
     assert.match(views[1].items.join('\n'), /FAIL|rule-fail/);
     assert.ok(records().some(r => r.stage === 'permission' && r.outcome === 'blocked'));
+  }
+  assert.equal(requests, (expectedMode === 'observe' ? 1 : 4) * (provider === 'typesafe' ? submissionKeys.length : 1));
+  const assessments = records().filter(r => r.stage === 'assessment');
+  assert.equal(assessments.length, expectedMode === 'observe' ? 1 : 4);
+  for (const record of assessments) {
+    assert.deepEqual(record.assessment.rules.slice(0, -1).map(r => r.ruleId.split(':')[0]), roles);
+    assert.equal(record.assessment.rules.length, roles.length + 1);
+    assert.equal(record.assessment.rules.at(-1).outcome.choice, 'PASS');
+    assert.ok(record.assessment.rules.every(r => r.evidence.choice === 'SUFFICIENT'));
   }
   assert.equal(await readFile(join(project, 'owner-demo.txt'), 'utf8'), 'harmless');
   assert.ok(records().some(r => r.stage === 'execution' && r.outcome === 'unknown'), 'native results are not exact execution proof');

@@ -1,17 +1,20 @@
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import type { JudgeRequest } from '../src/decision/contracts.js';
-import { decide } from '../src/decision/decide.js';
+import { historicalAssessment } from './historical-assessment.js';
 import { captureAction, argumentDigest } from '../src/decision/evidence.js';
 import { judgeState } from '../src/decision/judge-evidence.js';
-import { buildQuestions } from '../src/decision/questions.js';
+import { boundHistoricalEvidence, historicalQuestions as buildQuestions, HISTORICAL_QUESTION_VERSION } from './evidence-selection-history.js';
 import { INTEGRITY_ID } from '../src/decision/policy.js';
-import { currentFactReferences, ASSESSMENT_METADATA } from '../src/decision/assessment-contract.js';
+import { currentFactReferences } from '../src/decision/assessment-contract.js';
 import { ruleContributions } from '../src/recording/rules.js';
 import { ActionResolution } from '../src/runtime/resolved-action.js';
 import { applicabilityCorpus, fixtureIdentity, type ApplicabilityFixture } from './applicability-fixtures.js';
 import { compareApplicability, renderApplicabilityReport, type ComparisonObservation, type ComparisonContract } from './applicability-comparison.js';
 import { fixturePolicy } from './generic-rule-fixtures.js';
+
+// Preserve this existing shared-state replay under its frozen v8 contract.
+export const HISTORICAL_REPLAY_METADATA = { profile: 'applicability-v1', questionVersion: HISTORICAL_QUESTION_VERSION };
 
 // Deliberately scripted judgments exercise mechanics, not model semantics.
 async function replay(fixture: ApplicabilityFixture): Promise<ComparisonObservation> {
@@ -40,12 +43,11 @@ async function replay(fixture: ApplicabilityFixture): Promise<ComparisonObservat
   const refs = currentFactReferences(resolved.evidence);
   const selected = fixture.expectedOutcome === 'unavailable' ? 'PASS' : fixture.expectedOutcome;
   const distribution = (choice: string, labels: string[]) => ({ choice, probabilities: Object.fromEntries(labels.map(label => [label, label === choice ? 1 : 0])) });
-  const result = await decide({ policy, action, cwd: '/fixture', resolvedAction: resolved.evidence, trajectory,
-    clock: { now: () => 0, schedule: () => () => {} },
-    evidenceLimits: ordinary && 'maxBytes' in ordinary ? { maxBytes: ordinary.maxBytes, recentEvents: 12 } : undefined,
-    judge: async request => {
+  const limits = ordinary && 'maxBytes' in ordinary ? { maxBytes: ordinary.maxBytes, recentEvents: 12 } : undefined;
+  const historical = boundHistoricalEvidence({ policy, action, cwd: '/fixture', deadlineMs: 2500, resolvedAction: resolved.evidence, trajectory }, limits);
+  const result = historicalAssessment(policy, historical, request => {
       submitted = request;
-      return { ...ASSESSMENT_METADATA, model: 'offline-scripted-not-a-model', rules: [
+      return { ...HISTORICAL_REPLAY_METADATA, model: 'offline-scripted-not-a-model', rules: [
         { ruleId: policy.rules[0]!.id,
           outcome: distribution(selected, ['PASS', 'APPROVAL_REQUIRED', 'FAIL', 'UNKNOWN', 'NOT_APPLICABLE']),
           evidence: selected === 'NOT_APPLICABLE' ? null
@@ -55,21 +57,21 @@ async function replay(fixture: ApplicabilityFixture): Promise<ComparisonObservat
         { ruleId: INTEGRITY_ID, outcome: distribution('expectedIntegrity' in fixture ? fixture.expectedIntegrity : 'PASS', ['PASS', 'APPROVAL_REQUIRED', 'FAIL', 'UNKNOWN']),
           evidence: distribution('SUFFICIENT', ['SUFFICIENT', 'INSUFFICIENT']) },
       ] };
-    } });
+  });
   const state = submitted ? judgeState(submitted) : null;
   const questions = submitted ? buildQuestions(policy, resolved.evidence) : null;
   const omissions = [...(submitted?.action.limitations ?? []), ...(submitted?.trajectory?.limitations ?? []),
     ...(submitted?.trajectory?.omitted ? [`history-omitted:${submitted.trajectory.omitted}`] : [])];
-  return { ...identity, ...ASSESSMENT_METADATA, origin: 'current-inputs-scripted-response',
+  return { ...identity, ...HISTORICAL_REPLAY_METADATA, origin: 'frozen-v8-inputs-scripted-response',
     questionDigest: questions ? argumentDigest(questions) : undefined,
     payloadDigest: state ? argumentDigest({ state, questions }) : undefined, submittedState: state,
-    evidenceCoverage: resolved.evidence.status, omissions, result, contributions: ruleContributions(result, policy) };
+    evidenceCoverage: resolved.evidence.status, omissions, result: { ...result, ...HISTORICAL_REPLAY_METADATA }, contributions: ruleContributions(result, policy) };
 }
 export const BEFORE_CONTRACT = { profile: 'applicability-v1', questionVersion: 'policy-rules-v7-evidence-selection' };
 export async function scriptedApplicabilityComparison(before: { contract: ComparisonContract; observations: readonly ComparisonObservation[] } = { contract: BEFORE_CONTRACT, observations: [] }) {
   const observations: ComparisonObservation[] = [...before.observations];
   for (const fixture of applicabilityCorpus.fixtures) observations.push(await replay(fixture));
-  return compareApplicability(observations, [before.contract, ASSESSMENT_METADATA]);
+  return compareApplicability(observations, [before.contract, HISTORICAL_REPLAY_METADATA]);
 }
 
 // Offline-only output. Unknown flags, including --live, fail before replay.

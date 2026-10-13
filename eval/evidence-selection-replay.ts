@@ -4,10 +4,10 @@ import { pathToFileURL } from 'node:url';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 import type { AssessmentOutcome, JudgeRequest, Outcome, PolicySet, Trajectory } from '../src/decision/contracts.js';
 import { JudgeFailure } from '../src/decision/contracts.js';
-import { decide, DEFAULTS, MODEL, QUESTION_VERSION } from '../src/decision/decide.js';
+import { decide, DEFAULTS, MODEL } from '../src/decision/decide.js';
 import { captureAction, freeze } from '../src/decision/evidence.js';
-import { boundEvidence, judgeState } from '../src/decision/judge-evidence.js';
-import { buildQuestions } from '../src/decision/questions.js';
+import { judgeState } from '../src/decision/judge-evidence.js';
+import { boundHistoricalEvidence as boundEvidence, historicalQuestions as buildQuestions, HISTORICAL_QUESTION_VERSION as QUESTION_VERSION } from './evidence-selection-history.js';
 import { INTEGRITY_ID } from '../src/decision/policy.js';
 import { ActionResolution } from '../src/runtime/resolved-action.js';
 import authored from './evidence-selection/fixtures.json' with { type: 'json' };
@@ -161,8 +161,9 @@ export async function replayEvidence(options: { override?: 'blanket-block' | 'un
 }
 
 export function renderEvidenceReport(report: Awaited<ReturnType<typeof replayEvidence>>) {
+  const questionVersions = [...new Set(report.pairs.flatMap(pair => [pair.baseline.questionVersion, pair.candidate.questionVersion]))].join(', ');
   const lines = ['# Offline evidence comparison', '', 'These results are mechanical verification, not semantic accuracy evidence.', '',
-    'The baseline consists of frozen authored inline snapshots. It is not measured pre-change behavior or a historical selector reconstruction. Both sides use current generic questions and fixed protected evidence, thresholds and current resolver facts. Large authored baselines may exceed current state limits and are not claims that a predecessor runtime admitted them.', '',
+    `The baseline consists of frozen authored inline snapshots. It is not measured pre-change behavior or a historical selector reconstruction. Both sides use frozen shared-input questions. Recorded question identities: ${questionVersions}. Protected evidence, thresholds and current resolver facts remain fixed. Production scoped-v9 questions policy-rules-v9-scoped are not used in this replay. Large authored baselines may exceed current state limits and are not claims that a predecessor runtime admitted them.`, '',
     'No provider was contacted and no fixture action executed. Provider model, token usage and latency are null. Request bytes measure serialized application payloads including model, state and questions, not HTTP framing or provider tokens.', '',
     '| Fixture | Baseline bytes | Candidate bytes | Delta saved | Baseline gate | Candidate gate | Uncertainty | Context lost | Exact saved | Shortened | Dropped | Prior omissions |',
     '| --- | ---: | ---: | ---: | --- | --- | --- | --- | ---: | ---: | ---: | ---: |'];

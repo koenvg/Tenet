@@ -8,7 +8,8 @@ import type { ActionFacts, ActionResolver } from '../src/runtime/resolved-action
 import type { Assessment, JudgeRequest } from '../src/decision/contracts.js';
 import { answer } from './helpers.js';
 import { Observations, serializedBytes } from '../src/decision/trajectory.js';
-import { boundEvidence, judgeState } from '../src/decision/judge-evidence.js';
+import { judgeState } from '../src/decision/judge-evidence.js';
+import { boundHistoricalEvidence as boundEvidence } from './historical-evidence-fixture.js';
 import { guardHarness } from './guard-harness.js';
 
 const capabilities = { host: 'fixture', version: 'contract-only', profile: 'test', interception: true,
@@ -94,7 +95,7 @@ for (const oversizedSchema of [false, true]) {
       assert.equal(h.requests.length, 1);
       const request = h.requests[0]!;
       assert.equal(request.action.description, h.call.description);
-      assert.deepEqual(request.action.parameters, oversizedSchema ? null : h.call.parameters);
+      assert.deepEqual(request.action.parameters, h.call.parameters);
       assert.equal(request.resolvedAction!.status, 'unsupported');
       assert.equal(h.runtime.coverageStatus().adapter.actionResolution, 'unsupported');
       assert.ok(h.events.find(e => e.stage === 'decision')!.data.diagnostics[0].gates.includes('applicability-unresolved'));

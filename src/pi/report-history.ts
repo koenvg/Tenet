@@ -6,7 +6,7 @@ import { validationIssue } from '../decision/response-validation.js';
 import type { BlockingGate, RuleDiagnostic } from '../decision/contracts.js';
 import type { OwnerReport } from './owner-reports.js';
 import { POLICY_LIMITS, INTEGRITY_TEXT } from '../decision/policy.js';
-import { QUESTION_VERSION } from '../decision/assessment-shape.js';
+import { QUESTION_VERSION, HISTORICAL_QUESTION_VERSION } from '../decision/assessment-shape.js';
 
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown): v is string => typeof v === 'string' && v.length <= 256;
@@ -27,7 +27,7 @@ const singularQuestions = new Set(['policy-rules-v5-resolved-action', 'policy-ru
 /** Display only the integrity meaning established by the recorded native/question contract. */
 export function reportIntegrityText(report: Pick<OwnerReport, 'recordVersion' | 'questionVersion'>): string {
   if (report.recordVersion === 3 && singularQuestions.has(report.questionVersion ?? '')) return singularIntegrityText;
-  if (report.recordVersion === 4 && report.questionVersion === QUESTION_VERSION) return INTEGRITY_TEXT;
+  if (report.recordVersion === 4 && [QUESTION_VERSION, HISTORICAL_QUESTION_VERSION].includes(report.questionVersion ?? '')) return INTEGRITY_TEXT;
   return 'Policy integrity text not recorded.';
 }
 

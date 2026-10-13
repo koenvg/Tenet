@@ -5,11 +5,14 @@ const APUS_V1 = {
   version: 'apus-recording-v1', renderingVersion: 'jev.dynamic.prompt.v2',
   rendererRevision: '7389d774472c9e29ddc84fffb392951f0f25de74', protocolVersion: 'llamacpp-b11118-choice-v1',
 } as const;
+// Scoped capture identity shared by active adapters and recorded-version readers.
+export const APUS_V2 = Object.freeze({ ...APUS_V1, version: 'apus-recording-v2' as const });
 const object = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= 256;
 const token = (v: unknown): v is number => Number.isSafeInteger(v) && (v as number) >= 0;
-export function validNativeContract(v: unknown): v is typeof APUS_V1 {
-  return object(v) && Object.keys(v).length === 4 && Object.entries(APUS_V1).every(([k, expected]) => v[k] === expected);
+export function validNativeContract(v: unknown): v is typeof APUS_V1 | typeof APUS_V2 {
+  return object(v) && Object.keys(v).length === 4
+    && [APUS_V1, APUS_V2].some(contract => Object.entries(contract).every(([k, expected]) => v[k] === expected));
 }
 /** Validate diagnostic mapping, not native model output. Invalid output must remain readable. */
 export function validNativeCapture(stage: string, d: Record<string, unknown>): boolean {
@@ -17,11 +20,17 @@ export function validNativeCapture(stage: string, d: Record<string, unknown>): b
   if (!validNativeContract(d.nativeContract)) return false;
   if (stage === 'request') return d.provider === 'apus-llamacpp' && text(d.requestedModel)
     && object(d.payload) && d.payload.model === d.requestedModel
-    && d.renderingVersion === APUS_V1.renderingVersion && d.rendererRevision === APUS_V1.rendererRevision;
+    && d.renderingVersion === APUS_V1.renderingVersion && d.rendererRevision === APUS_V1.rendererRevision
+    && (d.nativeContract.version === APUS_V2.version
+      ? d.inputVersion === 'judge-input-scopes-v1' && d.questionVersion === 'policy-rules-v9-scoped' && !object(d.payload.state)
+      : d.inputVersion === undefined && d.questionVersion !== 'policy-rules-v9-scoped' && object(d.payload.state));
   if (stage === 'validation') return typeof d.valid === 'boolean';
   if (stage !== 'response' || d.untrusted !== true) return false;
   // A bounded omission is not a mapping or an answer. Keep its markers, never infer it.
   if (d.truncated === true || d.unavailable === true) return true;
+  if (d.nativeContract.version === APUS_V2.version && object(d.value)
+    && (d.value.kind === 'native-request' || d.value.kind === 'native-response' || d.value.derivation === 'sole-allowed-facts-selector')
+    && !text(d.value.scopeId)) return false;
   const v = d.value;
   if (!object(v) || v.provider !== 'apus-llamacpp') return false;
   if (v.derivation === 'sole-allowed-facts-selector') return text(v.question)
@@ -67,7 +76,7 @@ export function nativeHistory(records: ArchiveRecord[]) {
   const responses = records.filter(r => r.stage === 'response' && validNativeContract(r.data.nativeContract));
   const values = responses.filter(r => r.data.truncated === false && object(r.data.value)).map(r => r.data.value as Record<string, any>);
   return {
-    contract: record.data.nativeContract as typeof APUS_V1,
+    contract: record.data.nativeContract as typeof APUS_V1 | typeof APUS_V2,
     snapshots: responses.map(r => r.data),
     requests: values.filter(v => v.kind === 'native-request'),
     responses: values.filter(v => v.kind === 'native-response'),

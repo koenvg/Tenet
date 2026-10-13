@@ -53,13 +53,13 @@ test('compiled SDK APUS archives keep canonical capture and an explicit native r
   assert.equal(archive.result.assessment.status, 'completed');
   const request = archive.records.find(r => r.stage === 'request')!.data as any;
   assert.deepEqual(request.nativeContract, {
-    version: 'apus-recording-v1', renderingVersion: 'jev.dynamic.prompt.v2',
+    version: 'apus-recording-v2', renderingVersion: 'jev.dynamic.prompt.v2',
     rendererRevision: '7389d774472c9e29ddc84fffb392951f0f25de74', protocolVersion: 'llamacpp-b11118-choice-v1',
   });
   assert.equal(request.provider, 'apus-llamacpp');
   assert.equal(request.requestedModel, APUS_MODEL);
   assert.equal(request.payload.model, APUS_MODEL);
-  assert.equal(request.payload.state.action.arguments.text, 'canonical-history-canary');
+  assert.equal(request.payload.scopes[0].state.proposedToolCall.arguments.text, 'canonical-history-canary');
   assert.ok(!JSON.stringify(archive).includes('must-not-forward-credential'));
   assert.ok(!JSON.stringify(archive.records).includes('input-credential'));
 }));
@@ -67,12 +67,12 @@ test('compiled SDK APUS archives keep canonical capture and an explicit native r
 test('native histories show every submitted mapping and deterministic selector, not just the final metadata reply', async () => recorded(async (home, cwd) => {
   const archive = await assess(home, cwd);
   const responses = archive.records.filter(r => r.stage === 'response');
-  assert.ok(responses.every(r => (r.data.nativeContract as any)?.version === 'apus-recording-v1'));
+  assert.ok(responses.filter(r => r.data.nativeContract).every(r => (r.data.nativeContract as any)?.version === 'apus-recording-v2'));
   const view = invocationView(archive.records);
   assert.equal(view.judge.provider, 'apus-llamacpp');
   assert.equal(view.judge.requestedModel, APUS_MODEL);
   assert.equal(view.judge.returnedModel, APUS_MODEL);
-  assert.equal(view.native?.contract.version, 'apus-recording-v1');
+  assert.equal(view.native?.contract.version, 'apus-recording-v2');
   assert.equal(view.native?.requests.length, 4);
   assert.equal(view.native?.responses.length, 4);
   assert.deepEqual(view.native?.deterministic.map(d => d.question), ['rule_0_facts']);

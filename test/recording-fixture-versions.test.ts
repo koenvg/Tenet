@@ -15,14 +15,20 @@ import { policyEvidence, policyIntegrity } from '../src/decision/policy-contract
 import { buildQuestions, assessmentEntries } from '../src/decision/questions.js';
 import { QUESTION_VERSION } from '../src/decision/assessment-shape.js';
 
+import { captureScopedPlan } from '../src/recording/scoped-capture.js';
+import { prepareJudgeScopes } from '../src/decision/judge-evidence.js';
+import { captureAction } from '../src/decision/evidence.js';
 const identity = { sessionId: 'recorded', invocationId: 'call', callId: 'call', toolName: 'edit', cwd: '/absent-policy', mode: 'observe' as const };
 const qualified = { ...identity, host: 'pi', contextId: 'main' };
 const request = { payload: { model: 'recorded-model', questions: { original: { instructions: 'recorded instructions' } },
   state: { action: { retained: 'literal' }, policy: { rules: [] }, context: {}, trajectory: {}, integrity: {} } },
   policy: { rules: [] }, mapping: [], questionVersion: 'recorded-question-version' };
-const currentRequest = { ...request, policy: currentPolicy, mapping: assessmentEntries(currentPolicy), questionVersion: QUESTION_VERSION,
-  payload: { ...request.payload, questions: buildQuestions(currentPolicy), state: { ...request.payload.state,
-    policy: policyEvidence(currentPolicy), integrity: policyIntegrity(currentPolicy) } } };
+// This fixture records preparation, not an actual submission. Historical shared requests above remain literal.
+const source = { policy: currentPolicy, action: captureAction({ sessionId: 'recorded', callId: 'call', toolName: 'edit', arguments: {} }),
+  cwd: '/absent-policy', deadlineMs: 2500 };
+let currentRequest: Record<string, unknown> = {};
+captureScopedPlan((_stage, data) => { currentRequest = data; }, source, prepareJudgeScopes(source)!, buildQuestions(currentPolicy),
+  { provider: 'typesafe', model: 'recorded-model' });
 
 async function temporary(run: (directory: string) => Promise<void>) {
   const directory = await realpath(await mkdtemp(join(tmpdir(), 'tenet-fixture-versions-')));

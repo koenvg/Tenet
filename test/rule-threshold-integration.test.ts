@@ -58,14 +58,14 @@ test('SDK semantic state excludes metadata; archive and inspector retain effecti
   const h = await guardHarness({ policy: declaration, env: { TENET_RECORDING: 'on', TENET_RECORDING_DIR: directory },
     createJudge: () => createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => {
       const payload = JSON.parse(init!.body as string); submitted.push(payload);
-      assert.equal(payload.state.policy.rules[0].text, 'Ask before deleting backups.');
+      assert.equal(payload.questions.rule_0_outcome || payload.questions.rule_0_facts ? payload.state.rule : 'Ask before deleting backups.', 'Ask before deleting backups.');
       assert.ok(!JSON.stringify(payload).includes('evidenceThreshold'));
-      const a = answer(payload.state.policy);
-      a.rules[0]!.evidence = { choice: 'SUFFICIENT', probabilities: { SUFFICIENT: submitted.length === 1 ? 0.85 : 0.75, INSUFFICIENT: submitted.length === 1 ? 0.15 : 0.25 } };
-      return Response.json({ model: 'offline', answers: sdkAnswers(a) });
+      const a = answer();
+      a.rules[0]!.evidence = { choice: 'SUFFICIENT', probabilities: { SUFFICIENT: payload.state.proposedToolCall.arguments.scenario === 'pass' ? 0.85 : 0.75, INSUFFICIENT: payload.state.proposedToolCall.arguments.scenario === 'pass' ? 0.15 : 0.25 } };
+      return Response.json({ model: 'offline', answers: sdkAnswers(a, 1, payload.questions) });
     } }) });
   try {
-    await h.start(); await h.call('pass'); await h.assessed('pass'); await h.call('block'); await h.assessed('block'); await h.emit('session_shutdown');
+    await h.start(); await h.call('pass', { scenario: 'pass' }); await h.assessed('pass'); await h.call('block'); await h.assessed('block'); await h.emit('session_shutdown');
     const { records } = await readArchive(directory);
     for (const callId of ['pass', 'block']) {
       const invocation = records.filter(r => r.callId === callId);
@@ -86,7 +86,7 @@ test('SDK semantic state excludes metadata; archive and inspector retain effecti
     const historical = invocationView(records.filter(r => r.callId === 'pass'));
     await import('node:fs/promises').then(fs => fs.writeFile(h.file, 'Rule; BLOCK; evidenceThreshold=0.95; Changed rule.'));
     assert.deepEqual(invocationView(records.filter(r => r.callId === 'pass')), historical);
-    assert.deepEqual(submitted[0].questions, submitted[1].questions);
+    assert.deepEqual(submitted[0].questions, submitted[3].questions);
   } finally { await h.close(); await rm(directory, { recursive: true, force: true }); }
 });
 

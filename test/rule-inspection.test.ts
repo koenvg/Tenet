@@ -59,10 +59,12 @@ test('offline SDK archive and restarted HTTP reader retain all-rule distribution
         assert.equal(calls.length, 7);
         for (const call of calls) {
           const { view } = await get(`/api/sessions/${session}/invocations/${call.id}`);
-          const payload = submitted.find(p => p.state.action.callId === view.identity.callId);
+          const payloads = submitted.filter(p => p.state.proposedToolCall.arguments.scenario === view.identity.callId);
           assert.equal(view.rules.length, 3);
-          assert.deepEqual(view.evidence, payload.state);
+          assert.equal(view.evidence, null);
+          assert.deepEqual(view.inputScopes.map((s: any) => s.state), payloads.map(p => p.state));
           for (const rule of view.rules) {
+            const payload = payloads.find(p => p.questions[rule.mapping.outcomeKey]);
             assert.deepEqual(rule.questions.outcome, payload.questions[rule.mapping.outcomeKey]);
             assert.deepEqual(rule.questions.evidence, payload.questions[rule.mapping.evidenceKey]);
             assert.equal(Object.keys(rule.result.outcome.probabilities).length, rule.builtin ? 4 : 5);

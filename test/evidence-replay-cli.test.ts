@@ -15,7 +15,9 @@ async function fixture(run: (f: { root: string; frozen: string; cli: (args: stri
     const home = join(root, 'home'), project = join(root, 'repository'), frozen = join(project, 'eval/evidence-selection');
     await mkdir(home, { mode: 0o700 }); await mkdir(frozen, { recursive: true });
     for (const name of historyFiles) await cp(join(realHistory, name), join(frozen, name));
-    for (const name of ['evidence-selection-replay.ts', 'generic-rule-fixtures.ts']) await cp(join(repository, 'eval', name), join(project, 'eval', name));
+    for (const name of ['evidence-selection-replay.ts', 'evidence-selection-history.ts', 'generic-rule-fixtures.ts']) await cp(join(repository, 'eval', name), join(project, 'eval', name));
+    await mkdir(join(project, 'test/fixtures/judge-prompts'), { recursive: true });
+    await cp(join(repository, 'test/fixtures/judge-prompts/v8-read-00.json'), join(project, 'test/fixtures/judge-prompts/v8-read-00.json'));
     await symlink(join(repository, 'src'), join(project, 'src'));
     await symlink(join(repository, 'node_modules'), join(project, 'node_modules'));
     const preload = join(root, 'no-live.mjs');
@@ -53,7 +55,12 @@ test('replay CLI creates current JSON and Markdown only in an explicit unused ou
   const report = JSON.parse(await readFile(join(output, 'report.json'), 'utf8'));
   assert.ok(report.pairs.length > 0);
   assert.ok(report.pairs.every((pair: any) => pair.baseline.questionVersion === 'policy-rules-v8-source-set' && pair.candidate.questionVersion === 'policy-rules-v8-source-set'));
-  assert.ok((await readFile(join(output, 'report.md'), 'utf8')).includes('Offline'));
+  const markdown = await readFile(join(output, 'report.md'), 'utf8');
+  assert.ok(markdown.includes('Offline'));
+  assert.match(markdown, /Both sides use frozen shared-input questions/);
+  assert.match(markdown, /Recorded question identities: policy-rules-v8-source-set\./);
+  assert.match(markdown, /Production scoped-v9 questions policy-rules-v9-scoped are not used in this replay/);
+  assert.doesNotMatch(markdown, /Both sides use current generic questions/);
   assert.deepEqual(await Promise.all(historyFiles.map(name => readFile(join(frozen, name)))), before);
 }));
 

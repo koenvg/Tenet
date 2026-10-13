@@ -42,9 +42,7 @@ export async function browserFixture(directory: string) {
   const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
   const { join } = await import('node:path');
   const { loadPolicy } = await import('../../src/decision/policy.js');
-  const { createJevJudge } = await import('../../src/decision/jev.js');
   const { decide } = await import('../../src/decision/decide.js');
-  const { sdkAnswers } = await import('../../test/helpers.js');
   const sourcesRoot = await mkdtemp('/tmp/tenet46-ui-');
   const candidates = ['global', 'project'].map(role => ({ role: role as 'global' | 'project', source: join(sourcesRoot, role + '.md'), selection: 'local' as const, presence: 'present' as const }));
   let currentPolicy;
@@ -53,7 +51,7 @@ export async function browserFixture(directory: string) {
     currentPolicy = await loadPolicy(candidates);
   } finally { await rm(sourcesRoot, { recursive: true, force: true }); }
   if (!currentPolicy.available) throw Error('invalid-current-browser-fixture');
-  // Actual current selector output, not reconstructed from a historical record.
+  // Retained v8 selector output, not reconstructed from a recorded assessment.
   const { Observations } = await import('../../src/decision/trajectory.js');
   const { captureAction } = await import('../../src/decision/evidence.js');
   const { answer } = await import('../../test/helpers.js');
@@ -68,9 +66,18 @@ export async function browserFixture(directory: string) {
   const currentWriter = new CurrentArchiveWriter({ enabled: true, directory });
   const compacted = currentWriter.bind({ host: 'pi', contextId: 'main', sessionId: 's', invocationId: 'compacted', callId: 'compacted', toolName: 'opaque', mode: 'observe', cwd: '/historical' });
   compacted('begin', { profile: 'applicability-v1', policy: currentPolicy, config: { effectThreshold: .9, evidenceThreshold: .9 } });
-  const result = await decide({ policy: currentPolicy, action: captureAction({ sessionId: 's', callId: 'compacted', toolName: 'opaque', arguments: {} }),
-    cwd: '/historical', trajectory: history.snapshot(), recording: compacted,
-    judge: createJevJudge({ apiKey: 'offline', fetch: async () => Response.json({ model: 'offline', answers: sdkAnswers(answer(currentPolicy, 'UNKNOWN')) }) }) });
+  // Exercise the historical shared-state viewer, not the active scoped provider.
+  const { boundHistoricalEvidence, historicalQuestions, HISTORICAL_QUESTION_VERSION } = await import('../../eval/evidence-selection-history.js');
+  const { judgeState } = await import('../../src/decision/judge-evidence.js');
+  const { assessmentEntries } = await import('../../src/decision/assessment-contract.js');
+  const request = boundHistoricalEvidence({ policy: currentPolicy, action: captureAction({ sessionId: 's', callId: 'compacted', toolName: 'opaque', arguments: {} }),
+    cwd: '/historical', trajectory: history.snapshot(), deadlineMs: 5000 })!;
+  compacted('request', { profile: 'applicability-v1', questionVersion: HISTORICAL_QUESTION_VERSION,
+    policy: currentPolicy, mapping: assessmentEntries(currentPolicy), evidenceContext: request.evidenceContext,
+    selectionVersion: 'bounded-history-v2', payload: { model: 'offline-historical-fixture', state: judgeState(request), questions: historicalQuestions(currentPolicy) } });
+  const decision = await decide({ policy: currentPolicy, action: request.action, cwd: request.cwd, trajectory: request.trajectory, judge: async () => answer(currentPolicy, 'UNKNOWN') });
+  const result = { ...decision, questionVersion: HISTORICAL_QUESTION_VERSION, evidenceContext: request.evidenceContext! };
+  compacted('validation', { valid: true, assessment: result.assessment, evidenceContext: result.evidenceContext });
   const { ruleContributions } = await import('../../src/recording/rules.js');
   compacted('assessment', { ...result });
   compacted('decision', { ...result, contributions: ruleContributions(result, currentPolicy) });

@@ -8,6 +8,7 @@ import { evaluatorFailureCodes } from './finding-view.js';
 import { recordedDecisionFacts } from './recorded-decision.js';
 import { recordedOrigin } from '../recording/policy-contract.js';
 import { summarizeBlockingRules } from './summary-explanation.js';
+import { recordedInputs } from '../recording/scoped.js';
 
 // Keep the BB reason allowlist complete when the decision contract changes.
 const decisionReasons = {
@@ -51,7 +52,7 @@ export function projectSummaryDecision(records: ArchiveRecord[], ruleOffset = 0)
   const stage = (s: string) => object(records.findLast(r => r.stage === s)?.data);
   const begin = stage('begin'), request = stage('request'), decision = stage('decision');
   const findings = foldFindingStages(records.map(findingStage));
-  const policy = object(request.policy ?? begin.policy), integrity = object(object(object(request.payload).state).integrity ?? begin.integrity);
+  const policy = object(request.policy ?? begin.policy), integrity = object(recordedInputs(request).integrity ?? begin.integrity);
   const config = object(stage('assessment').config ?? begin.config);
   const assessment = object(stage('assessment').assessment ?? stage('validation').assessment);
   const rules = [...list(policy.rules), ...(typeof integrity.id === 'string' ? [{ ...integrity, enforcement: 'BLOCK', line: null }] : [])];

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { createApusJudge } from '../src/decision/apus.js';
 import { decide } from '../src/decision/decide.js';
 import { captureAction } from '../src/decision/evidence.js';
-import { judgeState, boundEvidence } from '../src/decision/judge-evidence.js';
+import { prepareJudgeScopes } from '../src/decision/judge-evidence.js';
 import { buildQuestions } from '../src/decision/questions.js';
 import { QUESTION_VERSION } from '../src/decision/assessment-contract.js';
 import { APUS_MODEL, scriptedNative, type NativeCall } from './apus-scripted.js';
@@ -34,7 +34,8 @@ test('complete canonical assessment uses sequential native scoring and determini
   assert.deepEqual(fake.calls.slice(-2).map(c => c.path), ['/v1/models', '/props']);
   const captured = records.find(r => r.stage === 'request')!.data;
   assert.deepEqual(captured.payload.questions, buildQuestions(policy));
-  assert.deepEqual(captured.payload.state, judgeState(boundEvidence(request)!));
+  assert.deepEqual(captured.payload.scopes, prepareJudgeScopes(request)!.groups);
+  assert.equal(captured.payload.state, undefined);
   const deterministic = records.filter(r => r.stage === 'response').map(r => r.data.value).find(v => v?.derivation === 'sole-allowed-facts-selector');
   assert.deepEqual(deterministic.answer, { type: 'choice', choice: 'NONE', probabilities: { NONE: 1 }, confidence: 1 });
   assert.equal(deterministic.modelConfidence, false); assert.equal(deterministic.authenticatedCoverage, false);

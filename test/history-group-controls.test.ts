@@ -33,7 +33,7 @@ for (const limit of [4, 2]) test(`authored context-dependent control exposes req
     } });
   assert.equal(result.decision, 'BLOCK');
   assert.equal(result.reason, limit === 4 ? 'rule-failed' : 'insufficient-evidence');
-  assert.equal(result.evidenceContext.history!.omittedEvents, limit === 4 ? 0 : 2);
+  assert.equal(captured.trajectory.selection.droppedEvents + captured.trajectory.selection.priorOmittedEvents, limit === 4 ? 0 : 2);
   assert.equal(result.evidenceContext.resolution.status, 'unsupported');
   assert.deepEqual(captured.action, action);
   assert.equal(expandedData(captured.trajectory).some((data: any) => data.content.destination === 'outside'), limit === 4);
@@ -73,13 +73,13 @@ for (const control of ['mixed', 'opaque', 'forged-reference', 'stale-reference',
       assert.equal(result.permission, 'blocked'); assert.equal(result.execution, 'unknown');
       assert.equal(result.reason, control === 'stale-resolver' ? 'action-resolution-stale' : 'insufficient-evidence');
       assert.deepEqual(captured.trajectory.observations.map((o: any) => o.callId), ['recent', 'recent']);
-      assert.equal(captured.evidenceContext.history.droppedEvents, 2);
+      assert.equal(captured.trajectory.selection.droppedEvents, 2);
       assert.equal(captured.evidenceContext.resolution.status, ['mixed', 'opaque'].includes(control) ? 'authenticated-partial' : 'authenticated-complete');
       assert.deepEqual(captured.action.arguments, call.input);
       assert.equal(captured.resolvedAction.facts.operations.length, ['mixed', 'opaque'].includes(control) ? 2 : 1);
       const permission = events.findLast(e => e.type === 'permission'); assert.ok(permission?.type === 'permission');
       assert.deepEqual(permission.report?.evidenceContext, captured.evidenceContext);
-      assert.ok(Object.isFrozen(captured.evidenceContext.history));
+      assert.ok(Object.isFrozen(captured.evidenceContext.scopes));
     } finally { await guard.close(); await rm(cwd, { recursive: true, force: true }); }
   });
 }

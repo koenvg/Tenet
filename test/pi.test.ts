@@ -83,9 +83,9 @@ test('generic hook captures trusted context, refreshes metadata and records exec
     assert.equal(requests[0].policy.sources[0]!.source, h.file); assert.ok(requests[0].policy.sources[0]!.target);
     assert.ok(Object.isFrozen(requests[0].policy.rules));
     const status = h.records.find(r => r.stage === 'status');
-    assert.equal(status.questionVersion, 'policy-rules-v8-source-set'); assert.equal(status.ruleCount, 1);
-    assert.ok(h.notifications.some(m => m.includes('policy-rules-v8-source-set')));
-    assert.ok(h.statuses.some(m => m.includes('policy-rules-v8-source-set')));
+    assert.equal(status.questionVersion, 'policy-rules-v9-scoped'); assert.equal(status.ruleCount, 1);
+    assert.ok(h.notifications.some(m => m.includes('policy-rules-v9-scoped')));
+    assert.ok(h.statuses.some(m => m.includes('policy-rules-v9-scoped')));
     h.tools.push({ name: 'brand-new', description: 'New tool', parameters: { type: 'object' } });
     assert.equal(await h.call({ odd: [true, 7, { text: 'hi' }] }, 'brand-new', 'c2'), undefined);
     assert.equal(requests[1].action.description, 'New tool'); assert.equal(h.prompts.length, 0);

@@ -29,7 +29,7 @@ for (const outcome of ['PASS', 'FAIL', 'UNKNOWN', 'APPROVAL_REQUIRED', 'NOT_APPL
   const fake = scriptedNative({ winners: ['PASS','APPROVAL_REQUIRED','FAIL','UNKNOWN','NOT_APPLICABLE'].includes(outcome) ? ['ABCDE'[['PASS','APPROVAL_REQUIRED','FAIL','UNKNOWN','NOT_APPLICABLE'].indexOf(outcome)]!, 'A', 'A', 'A'] : undefined });
   const clock = { now:()=>0, schedule:()=>()=>{} };
   const apus = await decide({...base,clock,judge:createApusJudge({...options,fetch:fake.fetch})});
-  const typesafe = await decide({...base,clock,judge:createJevJudge({apiKey:'offline-fixture',fetch:async()=>Response.json({model:APUS_MODEL,answers})})});
+  const typesafe = await decide({...base,clock,judge:createJevJudge({apiKey:'offline-fixture',fetch:async(_url,init)=>Response.json({model:APUS_MODEL,answers:Object.fromEntries(Object.keys(JSON.parse(init!.body as string).questions).map(key=>[key,answers[key]]))})})});
   assert.deepEqual(apus,typesafe); assert.ok(apus.assessment);
   if(outcome === 'NOT_APPLICABLE') { assert.equal(apus.decision,'BLOCK'); assert.ok(apus.diagnostics[0]!.gates.includes('applicability-unresolved')); }
 });
@@ -41,11 +41,11 @@ test('authenticated-reference facts use inference; selected complete reference r
   const resolved=await resolution.capture({host:'offline',contextId:'main',invocationId:'invocation',cwd:'/fixture',sessionId:'s',callId:'c',toolName:action.toolName,argumentDigest:action.argumentDigest},action.arguments,[],new AbortController().signal);
   const refs=currentFactReferences(resolved.evidence)!; assert.ok(refs);
   for(const winner of ['A','B']) {
-    const fake=scriptedNative({winners:['E','A',winner,'A','A']}); const records:any[]=[];
+    const fake=scriptedNative({winners:['E','A',winner,'E','A','A']}); const records:any[]=[];
     const result=await decide({...base,resolvedAction:resolved.evidence,judge:createApusJudge({...options,fetch:fake.fetch}),recording:(stage,data)=>records.push({stage,data})});
-    assert.equal(fake.calls.filter(c=>c.path==='/completion').length,5);
+    assert.equal(fake.calls.filter(c=>c.path==='/completion').length,winner==='B'?6:4);
     assert.equal(result.decision,winner==='B'?'ALLOW':'BLOCK');
-    assert.equal(result.assessment!.rules[0]!.factReferences!.digest,winner==='B'?refs.digest:'NONE');
+    if(winner==='B') assert.equal(result.assessment!.rules[0]!.factReferences!.digest,refs.digest); else {assert.equal(result.assessment,null);assert.equal(result.reason,'invalid-response');}
     assert.ok(!records.some(r=>r.data.value?.derivation==='sole-allowed-facts-selector'));
   }
 });

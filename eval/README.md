@@ -1,6 +1,84 @@
-# Local-work blocking diagnostic
+# Compare judge inputs and read historical diagnostics
 
-Use this developer-checkout guide to find offline replay checks and read the recorded read/list false-block results. This is a bounded diagnostic, not the broader OpenSpec evaluation suite. The historical results do not validate the current question contract.
+Use this developer-checkout guide to compare scoped judge inputs offline and review a separate Pika-only live plan. The later sections retain the historical local-work read/list diagnostic, not the broader OpenSpec evaluation suite. Those historical results do not validate the current question contract.
+
+## Compare scoped judge inputs offline
+
+Use this developer-checkout helper to inspect exact synthetic inputs before reviewing a separate live plan. It compares both wording and data layout. The frozen v8 baseline is test data, not a production prompt option. The candidate uses normal scoped APUS preparation and `createApusJudge`.
+
+1. Complete [development setup](../CONTRIBUTING.md#set-up). Start the [disposable offline shell](../CONTRIBUTING.md#check-a-change) so Bun cannot load credentials, `.env` files or personal policies. No SDK build is needed for this helper.
+2. From the repository root in that shell, choose a new absolute report path and run:
+
+   ```sh
+   bun eval/judge-prompt-comparison.ts --offline --output=/tmp/tenet-judge-comparison.json
+   ```
+
+3. Expect `Saved scripted offline comparison:` and exit zero. Inspect `plan`, `sizeCases` and `report` in the JSON file. To check the scripted runner and approval refusal, run:
+
+   ```sh
+   bun test --isolate --max-concurrency=1 --timeout=30000 test/judge-prompt-comparison.test.ts
+   ```
+
+The command uses scripted transports only. It sends no provider requests, reads no owner policy or recording, executes no fixture tool and grants no enforcement permission. The APUS provider remains experimental. Scripted labels, token IDs and transport latency do not establish live accuracy or speed.
+
+The flow is `frozen fixture -> historical v8 admission / normal scoped preparation -> exact size plan -> scripted report`. The fixed `read-00` pair has unavailable thinking, no previous call, unsupported resolution and identical policy, proposed read and thresholds.
+
+The other three read cases measure authored trace and previous-call presence. V8 has no thinking field. Historical admission adds its recorded bounded-history metadata to the frozen seed; it does not rewrite the seed or any saved campaign report.
+
+### Read complete sizes and results
+
+The plan exports exact application payloads, states, questions, native renderings and SHA-256 digests. Its frozen fixture SHA-256 is `6d335477e3e1517340866efd3d95e2ad69ce3fb41a40a28b8db319ac1e7c0afe`. Baseline identities remain `policy-rules-v8-source-set`, `bounded-history-v2` and `apus-recording-v1`. Candidate identities are `policy-rules-v9-scoped`, `judge-input-scopes-v1` and `apus-recording-v2`. Both retain final profile `applicability-v1` and thresholds 0.90.
+
+- `preparedStateBytes` sums every required scope, including exemption state and duplicated rule/call fields. It is not just the ordinary context.
+- `jevPayloadBytes` sums all complete SDK payloads. The candidate has three submissions, including deterministic `NONE` in its separate exemption submission. The historical shared layout has one.
+- `nativeStateBytes`, `nativeInstructionsBytes`, `nativeApplicationBytes` and `nativeChatBytes` sum all four scored native prompts. State bytes use the native renderer's sorted JSON. Deterministic `NONE` needs no native prompt; its required scope still counts in prepared and JEV totals.
+- Per-scope `submissions` and per-question `prompts` show exact bytes and digests. These are planned inputs, not proof of endpoint processing.
+
+The report separates planned, started, complete, failed and unstarted assessments and prompts. A complete assessment includes native validation and both identity checks. It is not a raw endpoint answer. Labels and probabilities feed the existing pure gates for report-only diagnostics, not tool permission.
+
+`fullLatencyMs` measures the complete runner only when an assessment completes. Failure elapsed time has its own field. Missing latency, scores and provider counters remain `null`. Token observations identify scripted or actual provider fields; they do not substitute character counts for real token measurements. Missing prompt-processing time remains unavailable. A valid mismatch does not trigger retries. A failure stops the pair and leaves later work unstarted.
+
+If the report path exists, choose a new path. If approval is absent or mismatched, the API reports zero requests and two unstarted assessments. If an identity or contract changed, regenerate the offline plan and obtain a new review rather than reuse its digest. Do not lower thresholds to conceal a mismatch.
+
+## Review a separate Pika-only live plan
+
+This section is a proposed plan, not authorization or an executable live command. The helper provides no live CLI and creates no live approval record. A source review, approved OpenSpec source or synthetic approval record in tests cannot authorize a live invocation.
+
+Before any invocation, the operator must authorize the exact exported plan. Explicit standing USER authorization can cover the same bounded workload without a new per-command native approval prompt. The record must name the plan SHA-256, operator, authorization reference, recording time and expiry.
+
+The digest binds the exact payloads, questions/renderings, thresholds, implementation, model/runtime, destination, bounds, capture choice, output directory and retention. `selectApprovedFetch` refuses to select real fetch without that record and a complete matching delivery plan. No native approval reference is required.
+
+The trusted execution entry must verify the actual USER grant and its scope against the sealed command/cwd, code/inputs/source/plan hashes, nonce, expiry, owned backend, output and safety limits. The helper checks the record and plan; it does not attest BB records or provide assessment authenticated facts. Operator authorization does not give a synthetic fixture action permission.
+
+The only proposed first comparison is one fixed `read-00`, first frozen v8 and then normal scoped APUS. It sends reviewed synthetic strings to an already separately approved Pika loopback or forwarded llama.cpp endpoint. It consumes Pika CPU, not TypeSafe quota. It makes no JEV call, executes no read and writes no normal assessment archive. Do not substitute a private policy, real recording, real thinking trace or another case.
+
+### Keep the original runtime and pair bounds
+
+The planned runtime is Pika i5-12500, CPU only, APUS OpenJev v1 4B Q8_0, GGUF architecture `qwen35`, llama.cpp b11118 at `e6ab7c1a41054a888ada952eab4c886444c2f5ad`, six generation threads, six batch threads, one slot and 32768-token context. Backend alias is `apus-openjev-v1-4b-q8`. Reported alias/path/build identity is not weight attestation. The operator must confirm the runtime and approve the exact backend metadata before selecting the endpoint.
+
+| Limit | One side | Fixed pair |
+| --- | ---: | ---: |
+| Complete assessments planned | 1 | 2 |
+| Scored completions planned | 4 | 8 |
+| HTTP request ceiling | 38 | 76 |
+| End-to-end wall-time limit | 240 seconds | 480 seconds |
+| Active CPU-test budget | Within pair budget | 480 active seconds or 2880 CPU-seconds, whichever comes first |
+
+Each side uses four metadata requests and scored-question request totals of 12, 6, 10 and 6. Both sides use deterministic facts `NONE`. Model strings cannot add an authenticated candidate or a confirmation call. Any plan drift requires new approval. Native tokenization, complete token-array scoring, label-boundary checks, before/after model identity and common gates remain required. No retries, fallback or automatic recovery are planned.
+
+### Record the stop method, capture and retention before approval
+
+All prior servers and tunnels are stopped. This plan does not start, restart or configure them. A later invocation can use only an endpoint with separate prior authorization; it cannot create a service or tunnel to satisfy this plan.
+
+The operator must approve a concrete CPU stop method, not rely on client cancellation. Proposed method: from a separate operator shell on Pika, send SIGINT to the exact approved foreground llama-server PID when either wall-time or CPU limit is reached. If that process does not exit, send SIGKILL to the same verified PID.
+
+Confirm that the process has exited and stalled work has terminated before any later separately authorized invocation. Record the PID, operator monitoring method and stop confirmation with the authorization. These actions are not authorized by this document.
+
+Proposed capture is report-only: exact payload digests, size/count metrics, validated model identities, labels/probabilities, pure-gate diagnostics, complete latency, available provider token/timing/cache fields and safe failure categories. Native bodies stay transient. Do not write a normal archive or arbitrary provider-body log. Keep the reviewed synthetic strings in the offline plan.
+
+The exact destination, backend path/build metadata, operator CPU monitoring/stop record, absolute output directory and retention are unresolved in the exported offline plan. Proposed retention is seven days in an operator-selected private directory, followed by operator deletion of the plan/report and transient diagnostic files. The operator must select and approve the exact directory and retention before fetch selection. Plan review is separate from authorization to run it.
+
+For any later result, report agreement with complete-assessment denominators and leave missing metrics unavailable. This tiny fixed-order comparison cannot establish broad accuracy, calibration, cache behavior, enforcement safety or a guaranteed speedup. The earlier raw Pika endpoint result and the single-question trial are not scoped complete-assessment evidence.
 
 ## Check replay offline first
 
@@ -109,22 +187,24 @@ The local-work question digest is `84eb80968c2e2bd8b1bb17538b8f84b1dbfbb07b0a403
 
 Obtain new, separate operator authorization before using this live path. It sends synthetic rule text and evidence to TypeSafe/Jev and consumes API quota. Historical authorization and ordinary `bun test` do not authorize these calls. No fixture action executes.
 
-1. Confirm the authorized set, request count, and new output path. From the repository root, check that the path is writable and does not exist. The CLI writes the report after replay; an occupied path can reject the report after requests have used quota.
+Each completed scoped JEV assessment uses two submissions per user rule plus one policy-protection submission: `2 * userRuleCount + 1` HTTP requests. The budgets below count every submission for the fixed sets and repetitions, not just assessments. Failure can stop requests earlier; it does not reduce the complete-run authorization ceiling.
+
+1. Confirm the authorized set, complete-run HTTP request ceiling, and new output path. From the repository root, check that the path is writable and does not exist. The CLI writes the report after replay; an occupied path can reject the report after requests have used quota.
 2. Supply `TYPESAFE_API_KEY` through the environment, not a command argument. Do not print it or save it with the report.
 3. Run only the separately authorized choice:
 
    ```sh
-   # Six current generic-rule cases, one request each.
+   # Six current generic-rule assessments. Budget: 22 HTTP requests.
    bun eval/local-work-replay.ts --live --set=probe --output=/tmp/tenet-generic-probe.json
    ```
 
    ```sh
-   # Six held-out cases, one request each.
+   # Six held-out assessments. Budget: 18 HTTP requests.
    bun eval/local-work-replay.ts --live --set=holdout --output=/tmp/tenet-generic-holdout.json
    ```
 
    ```sh
-   # Seven local-work cases, three repetitions. Requires authorization for 21 requests.
+   # Seven cases, three repetitions: 21 assessments. Budget: 147 HTTP requests.
    bun eval/local-work-replay.ts --live --set=local-work --repetitions=3 --output=/tmp/tenet-local-work.json
    ```
 

@@ -6,11 +6,14 @@ import { Observations, serializedBytes } from '../src/decision/trajectory.js';
 import { answer, policy } from './helpers.js';
 import { expandedData } from './exact-history-fixture.js';
 
+import { boundHistoricalEvidence } from './historical-evidence-fixture.js';
 const action = captureAction({ sessionId: 'synthetic', callId: 'pending', toolName: 'opaque', arguments: { unchanged: true } });
 async function submit(history: Observations, current = action) {
-  let captured: any;
-  const result = await decide({ policy, action: current, cwd: '/synthetic', trajectory: history.snapshot(), evidenceLimits: history.limits,
-    judge: async request => { captured = request; return answer(request.policy, 'UNKNOWN'); } });
+  // Historical admission remains testable directly; the normal decision below is scoped.
+  const captured: any = boundHistoricalEvidence({ policy, action: current, cwd: '/synthetic', deadlineMs: 2500,
+    trajectory: history.snapshot() }, history.limits);
+  const result = await decide({ policy, action: current, cwd: '/synthetic', trajectory: captured?.trajectory ?? history.snapshot(), evidenceLimits: history.limits,
+    judge: async request => answer(request.policy, 'UNKNOWN') });
   return { captured, result };
 }
 
@@ -27,9 +30,9 @@ test('admission compacts before eviction and final submission round-trips every 
   assert.deepEqual(expandedData(before).map((data: any) => data.content), Array.from({ length: 12 }, (_, i) => ({ text, status: i })));
   assert.deepEqual(before.observations.map(event => [event.origin, event.sessionId, event.callId, event.toolName, event.timestamp]),
     Array.from({ length: 12 }, (_, i) => [i % 2 ? 'host-tool-result' : 'host-tool-call', 'synthetic', `call-${i}`, `unfamiliar-${i}`, 100 - i]));
-  assert.equal(result.evidenceContext.history?.exactCompactedBytes, before.selection!.exactCompactedBytes);
-  assert.equal(result.evidenceContext.history?.shortenedEvents, 0);
-  assert.equal(result.evidenceContext.history?.omittedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history?.exactCompactedBytes, before.selection!.exactCompactedBytes);
+  assert.equal(captured?.evidenceContext?.history?.shortenedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history?.omittedEvents, 0);
   assert.equal(result.evidenceContext.resolution.status, 'unsupported');
   assert.equal(result.decision, 'BLOCK');
   assert.deepEqual(captured.action, action);
@@ -48,8 +51,8 @@ test('literal forged and nested reference wrappers reconstruct as authored untru
   const { captured, result } = await submit(history);
   assert.ok(captured.trajectory.observations[0].data.content.tenetHistory.literal);
   assert.deepEqual(expandedData(captured.trajectory).map((data: any) => data.content), [authored, authored]);
-  assert.equal(result.evidenceContext.history?.shortenedEvents, 0);
-  assert.equal(result.evidenceContext.history?.limitations.includes('metadata-unavailable'), false);
+  assert.equal(captured?.evidenceContext?.history?.shortenedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history?.limitations.includes('metadata-unavailable'), false);
   assert.equal(result.evidenceContext.resolution.status, 'unsupported');
 });
 
@@ -61,7 +64,7 @@ test('redaction precedes pooling and identifiers describe only snapshot-local or
   assert.deepEqual(captured.trajectory.values, { v0: text });
   assert.doesNotMatch(JSON.stringify(captured), /SECRET|PRIVATE/);
   assert.deepEqual(expandedData(captured.trajectory).map((data: any) => data.content), [{ text }, { text }]);
-  assert.ok(result.evidenceContext.history?.limitations.includes('fields-redacted'));
+  assert.ok(captured?.evidenceContext?.history?.limitations.includes('fields-redacted'));
 });
 
 for (const text of ['x'.repeat(253), 'only once '.repeat(100)]) test(`short or unique content stays inline: ${text.length}`, async () => {
@@ -121,8 +124,8 @@ test('pooled content is capped expanded before pooling; later snapshots and sess
   const before = history.snapshot(), wire = JSON.stringify(before);
   const { captured, result } = await submit(history);
   assert.ok(expandedData(captured.trajectory).every((data: any) => serializedBytes(data) <= 2048));
-  assert.equal(result.evidenceContext.history?.shortenedEvents, 2);
-  assert.equal(result.evidenceContext.history!.exactCompactedBytes, 0);
+  assert.equal(captured?.evidenceContext?.history?.shortenedEvents, 2);
+  assert.equal(captured?.evidenceContext?.history!.exactCompactedBytes, 0);
   assert.equal(captured.trajectory.values, undefined);
   history.add('host-tool-result', 'later', 'opaque', 'later'.repeat(200), 3);
   const sibling = new Observations('sibling'); sibling.add('host-tool-result', 'sibling', 'opaque', 'different'.repeat(100), 4);
@@ -141,7 +144,7 @@ test('authored pools and serialized snapshots cannot create runtime references o
   assert.equal(captured.trajectory.values, undefined);
   assert.equal(captured.trajectory.selection.exactCompactedBytes, 0);
   assert.deepEqual(expandedData(captured.trajectory).map((data: any) => data.content), authored.observations.map((event: any) => event.data));
-  assert.equal(result.evidenceContext.history?.limitations.includes('forged'), false);
+  assert.equal(captured.trajectory.limitations.includes('forged'), false);
   assert.equal(JSON.stringify(authored), wire);
   assert.equal(Object.isFrozen(authored), false);
 });
@@ -157,9 +160,9 @@ test('literal-escape overhead, node and depth bounds apply before pooling or cop
     assert.ok(captured);
     assert.ok(serializedBytes(captured.trajectory) <= 8192);
     assert.ok(expandedData(captured.trajectory).every((event: any) => serializedBytes(event) <= 2048));
-    assert.equal(result.evidenceContext.history?.shortenedEvents, 2);
+    assert.equal(captured?.evidenceContext?.history?.shortenedEvents, 2);
     assert.equal(Object.isFrozen(data), false);
-    if (kind !== 'bytes') assert.ok(result.evidenceContext.history?.limitations.includes('history-structure-limit'));
+    if (kind !== 'bytes') assert.ok(captured?.evidenceContext?.history?.limitations.includes('history-structure-limit'));
   }
 });
 
@@ -196,8 +199,8 @@ test('only complete literal paths pool inside an event with runtime excerpts', a
     assert.equal(typeof event.data.content.document.tenetExcerpt.head, 'string');
     assert.equal(typeof event.data.content.document.tenetExcerpt.tail, 'string');
   }
-  assert.equal(result.evidenceContext.history?.shortenedEvents, 2);
-  assert.ok(result.evidenceContext.history!.exactCompactedBytes > 0);
+  assert.equal(captured?.evidenceContext?.history?.shortenedEvents, 2);
+  assert.ok(captured?.evidenceContext?.history!.exactCompactedBytes > 0);
 });
 
 
@@ -209,8 +212,8 @@ test('authored excerpt lookalikes remain complete literal values eligible for ex
   const { captured, result } = await submit(history);
   assert.deepEqual(captured.trajectory.values, { v0: text });
   assert.deepEqual(expandedData(captured.trajectory).map((data: any) => data.content), [authored, authored]);
-  assert.equal(result.evidenceContext.history?.shortenedEvents, 0);
-  assert.equal(result.evidenceContext.history?.limitations.includes('history-content-shortened'), false);
+  assert.equal(captured?.evidenceContext?.history?.shortenedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history?.limitations.includes('history-content-shortened'), false);
 });
 
 
@@ -225,9 +228,9 @@ test('byte pressure shortens before envelope-driven eviction and prunes the now-
   assert.deepEqual(captured.trajectory.observations.map((event: any) => event.callId.split('-')[0]), ['6', '7', '8', '9', '10', '11']);
   assert.ok(retained.every((value: any) => value.tenetExcerpt));
   assert.equal(captured.trajectory.values, undefined, 'generated excerpt fragments cannot remain pooled');
-  assert.equal(result.evidenceContext.history?.shortenedEvents, 6);
-  assert.equal(result.evidenceContext.history?.omittedEvents, 6);
-  assert.equal(result.evidenceContext.history!.exactCompactedBytes, 0);
+  assert.equal(captured?.evidenceContext?.history?.shortenedEvents, 6);
+  assert.equal(captured?.evidenceContext?.history?.omittedEvents, 6);
+  assert.equal(captured?.evidenceContext?.history!.exactCompactedBytes, 0);
 });
 
 
@@ -241,11 +244,11 @@ for (const depth of [62, 63, 64]) test(`complete retained strings obey the data.
   const before = history.snapshot();
   const { captured, result } = await submit(history);
   assert.equal(captured.trajectory.observations.length, 2);
-  assert.equal(result.evidenceContext.history?.shortenedEvents, 0);
-  assert.equal(result.evidenceContext.history?.omittedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history?.shortenedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history?.omittedEvents, 0);
   assert.deepEqual(expandedData(captured.trajectory).map((data: any) => data.content), [data, data]);
   for (const snapshot of [before, captured.trajectory]) for (const event of snapshot.observations) assert.equal(evidenceWithinBudget([event.data.content], 1000000), true);
-  if (depth >= 63) { assert.equal(captured.trajectory.values, undefined); assert.equal(result.evidenceContext.history?.exactCompactedBytes, 0); }
+  if (depth >= 63) { assert.equal(captured.trajectory.values, undefined); assert.equal(captured?.evidenceContext?.history?.exactCompactedBytes, 0); }
 });
 
 test('near-limit data.content-root nodes stay within the guard after reference encoding without new loss', async () => {
@@ -260,8 +263,8 @@ test('near-limit data.content-root nodes stay within the guard after reference e
   const { captured, result } = await submit(history);
   assert.equal(captured.trajectory.observations.length, 1);
   assert.deepEqual(expandedData(captured.trajectory)[0].content, data);
-  assert.equal(result.evidenceContext.history?.shortenedEvents, 0);
-  assert.equal(result.evidenceContext.history?.omittedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history?.shortenedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history?.omittedEvents, 0);
   for (const snapshot of [before, captured.trajectory]) assert.equal(evidenceWithinBudget([snapshot.observations[0].data.content], 1200000), true);
 });
 
@@ -277,8 +280,8 @@ test('mixed deep and shallow occurrences recompute safe counts, savings and dete
   assert.deepEqual(captured.trajectory.values, { v0: eligible });
   assert.deepEqual(expandedData(captured.trajectory).map((data: any) => data.content), [deep, { repeated, a: eligible, b: eligible }]);
   assert.equal(captured.trajectory.observations[1].data.content.repeated, repeated);
-  assert.equal(result.evidenceContext.history?.shortenedEvents, 0);
-  assert.equal(result.evidenceContext.history?.omittedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history?.shortenedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history?.omittedEvents, 0);
   assert.equal(evidenceWithinBudget([captured.trajectory.observations[0].data.content], 1000000), true);
   const again = await submit(history);
   assert.deepEqual(again.captured.trajectory, captured.trajectory);
@@ -297,9 +300,9 @@ test('pooling does not cross whole-trajectory depth limits when the correspondin
   assert.equal(evidenceWithinBudget([inline], 1000000), true);
   assert.equal(evidenceWithinBudget([captured.trajectory], 1000000), true);
   assert.equal(captured.trajectory.values, undefined);
-  assert.equal(result.evidenceContext.history?.exactCompactedBytes, 0);
-  assert.equal(result.evidenceContext.history?.shortenedEvents, 0);
-  assert.equal(result.evidenceContext.history?.omittedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history?.exactCompactedBytes, 0);
+  assert.equal(captured?.evidenceContext?.history?.shortenedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history?.omittedEvents, 0);
 });
 
 test('aggregate non-regression counts reference nodes, pool entries and surrounding trajectory metadata', async () => {
@@ -321,9 +324,9 @@ test('aggregate non-regression counts reference nodes, pool entries and surround
   assert.equal(evidenceWithinBudget([inline], 1200000), true);
   assert.equal(evidenceWithinBudget([captured.trajectory], 1200000), true);
   assert.equal(captured.trajectory.values, undefined);
-  assert.equal(result.evidenceContext.history?.exactCompactedBytes, 0);
-  assert.equal(result.evidenceContext.history?.shortenedEvents, 0);
-  assert.equal(result.evidenceContext.history?.omittedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history?.exactCompactedBytes, 0);
+  assert.equal(captured?.evidenceContext?.history?.shortenedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history?.omittedEvents, 0);
   assert.deepEqual(expandedData(captured.trajectory)[0].content, data);
 });
 
@@ -340,8 +343,8 @@ test('an inline whole-trajectory-over-limit snapshot is not newly evicted or rej
   assert.equal(captured.trajectory.observations.length, 2);
   assert.deepEqual(captured.trajectory.values, { v0: 'eligible'.repeat(40) });
   assert.deepEqual(expandedData(captured.trajectory).map((data: any) => data.content), [data, { a: 'eligible'.repeat(40), b: 'eligible'.repeat(40) }]);
-  assert.equal(result.evidenceContext.history?.shortenedEvents, 0);
-  assert.equal(result.evidenceContext.history?.omittedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history?.shortenedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history?.omittedEvents, 0);
   assert.equal(result.evidenceContext.resolution.status, 'unsupported');
 });
 
@@ -361,9 +364,9 @@ test('safe shallow occurrences can pool while the same complete value stays inli
   assert.equal(evidenceWithinBudget([captured.trajectory.observations[0].data.content], 1000000), true);
   const inline: any = { ...captured.trajectory, observations: captured.trajectory.observations.map((event: any, i: number) => ({ ...event, data: expandedData(captured.trajectory)[i] })) };
   delete inline.values;
-  assert.equal(result.evidenceContext.history?.exactCompactedBytes, serializedBytes(inline) - serializedBytes(captured.trajectory));
-  assert.equal(result.evidenceContext.history?.shortenedEvents, 0);
-  assert.equal(result.evidenceContext.history?.omittedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history?.exactCompactedBytes, serializedBytes(inline) - serializedBytes(captured.trajectory));
+  assert.equal(captured?.evidenceContext?.history?.shortenedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history?.omittedEvents, 0);
 });
 
 
@@ -378,9 +381,9 @@ for (const depth of [59, 60]) test(`literal escapes count toward data.content-ro
   assert.deepEqual(expandedData(captured.trajectory).map((data: any) => data.content), [original, original]);
   for (const event of captured.trajectory.observations) assert.equal(evidenceWithinBudget([event.data.content], 1000000), true);
   assert.equal(Boolean(captured.trajectory.values), depth === 59);
-  assert.equal(result.evidenceContext.history?.shortenedEvents, 0);
-  assert.equal(result.evidenceContext.history?.omittedEvents, 0);
-  if (depth === 60) assert.equal(result.evidenceContext.history?.exactCompactedBytes, 0);
+  assert.equal(captured?.evidenceContext?.history?.shortenedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history?.omittedEvents, 0);
+  if (depth === 60) assert.equal(captured?.evidenceContext?.history?.exactCompactedBytes, 0);
 });
 
 
@@ -400,9 +403,9 @@ test('reference encoding preserves the existing excerpt-admission data-root guar
     assert.equal(evidenceWithinBudget([event.data], 1000000), true, 'references must not invalidate that admission root');
   }
   assert.equal(captured.trajectory.values, undefined);
-  assert.equal(result.evidenceContext.history?.exactCompactedBytes, 0);
-  assert.equal(result.evidenceContext.history?.shortenedEvents, 2);
-  assert.equal(result.evidenceContext.history?.omittedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history?.exactCompactedBytes, 0);
+  assert.equal(captured?.evidenceContext?.history?.shortenedEvents, 2);
+  assert.equal(captured?.evidenceContext?.history?.omittedEvents, 0);
   assert.equal(result.evidenceContext.resolution.status, 'unsupported');
 });
 
@@ -429,10 +432,10 @@ test('excerpt-admission data-root node room includes its redaction and selection
   assert.equal(evidenceWithinBudget([inline], 1200000), true, 'the existing complete data root fits');
   assert.equal(evidenceWithinBudget([event.data], 1200000), true, 'safe references include the complete data root node overhead');
   assert.deepEqual(captured.trajectory.values, { v0: text });
-  assert.ok((result.evidenceContext.history?.exactCompactedBytes ?? 0) > 0);
+  assert.ok((captured?.evidenceContext?.history?.exactCompactedBytes ?? 0) > 0);
   const inlineFrame: any = { ...captured.trajectory, observations: [{ ...event, data: inline }] };
   delete inlineFrame.values;
-  assert.equal(result.evidenceContext.history?.exactCompactedBytes, serializedBytes(inlineFrame) - serializedBytes(captured.trajectory));
-  assert.equal(result.evidenceContext.history?.shortenedEvents, 1);
-  assert.equal(result.evidenceContext.history?.omittedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history?.exactCompactedBytes, serializedBytes(inlineFrame) - serializedBytes(captured.trajectory));
+  assert.equal(captured?.evidenceContext?.history?.shortenedEvents, 1);
+  assert.equal(captured?.evidenceContext?.history?.omittedEvents, 0);
 });

@@ -7,6 +7,7 @@ import { validPolicySnapshot } from '../src/decision/policy-contract.js';
 import { recordedOrigin, recordedPolicyIdentity } from '../src/recording/policy-contract.js';
 import { validRecord } from '../src/recording/contract.js';
 import { ArchiveWriter, readArchive } from '../src/recording/archive.js';
+import { recordedSubmissions } from '../src/recording/scoped.js';
 import { createJevJudge } from '../src/decision/jev.js';
 import { decide } from '../src/decision/decide.js';
 import { ruleContributions } from '../src/recording/rules.js';
@@ -36,13 +37,16 @@ test('current policy validator rejects changed combined identity and mismatched 
 test('source-set archive roundtrip retains independent origins and gates after source deletion', () => fixture(async root => {
   for (const c of candidates(root)) await writeFile(c.source, '# heading\nRule; BLOCK; evidenceThreshold=0.92; Same.');
   const policy = await loadPolicy(candidates(root)); assert.ok(policy.available);
+  // Each fetch observes only one scope. Policy snapshots remain archive-only.
   const writer = new ArchiveWriter({ enabled: true, directory: join(root, 'archive') });
   const record = writer.bind({ host: 'sdk', contextId: 'current', sessionId: 's', callId: 'c', invocationId: 'i', toolName: 'edit', cwd: root, mode: 'enforce' });
   record('begin', { policy, config: { effectThreshold: .9, evidenceThreshold: .9 } });
+  const payloads: any[] = [];
   let submitted: any;
   const judge = createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => {
     submitted = JSON.parse(init!.body as string);
-    return Response.json({ model: 'offline-script', answers: sdkAnswers(answer(policy, 'PASS')) });
+    payloads.push(submitted);
+    return Response.json({ model: 'offline-script', answers: sdkAnswers(answer(policy, 'PASS'), 1, submitted.questions) });
   } });
   const result = await decide({ policy, cwd: root, action: captureAction({ sessionId: 's', callId: 'c', toolName: 'edit', arguments: {} }), judge, recording: record });
   assert.equal(result.decision, 'ALLOW');
@@ -52,10 +56,10 @@ test('source-set archive roundtrip retains independent origins and gates after s
   const archive = await readArchive(join(root, 'archive')); assert.deepEqual(archive.issues, []);
   assert.ok(archive.records.every(r => r.schemaVersion === 5 && validRecord(r)));
   const request = archive.records.find(r => r.stage === 'request')!;
-  assert.deepEqual(request.data.payload, submitted);
-  assert.deepEqual(submitted.state.policy.rules.map((r: any) => r.origin.role), ['global', 'project']);
+  assert.deepEqual(recordedSubmissions(archive.records).filter(s => s.status === 'completed').map((s: any) => s.payload), payloads);
+  assert.deepEqual((request.data.policy as any).rules.map((r: any) => r.origin.role), ['global', 'project']);
   assert.ok(!JSON.stringify(submitted).includes('evidenceThreshold'));
-  const bad = structuredClone(request) as any; bad.data.payload.state.integrity.sources = [];
+  const bad = structuredClone(request) as any; bad.data.payload.scopes.at(-1).state.policy.candidates = [];
   assert.equal(validRecord(bad), false);
   const identity = recordedPolicyIdentity(5, policy);
   const before = invocationView(archive.records);

@@ -38,7 +38,7 @@ for (const width of [1280, 390]) for (const partial of [false, true]) test(`buil
     await reveal(page, '.recorded-disclosure');
     await reveal(page, '.recording-details');
     expect(await page.locator('.recording-details').innerText()).toContain('apus-llamacpp experimental');
-    expect(await page.locator('.recording-details').innerText()).toContain('apus-recording-v1');
+    expect(await page.locator('.recording-details').innerText()).toContain('apus-recording-v2');
     expect(await page.locator('.recording-details').innerText()).toContain('llamacpp-b11118-choice-v1');
     expect(await page.locator('.recording-details').innerText()).toContain(partial ? 'not recorded; no complete returned assessment' : APUS_MODEL);
     await page.getByText('Native scoring mappings', { exact: true }).click();
@@ -46,9 +46,9 @@ for (const width of [1280, 390]) for (const partial of [false, true]) test(`buil
     expect(await mappings.innerText()).toContain(partial ? '2 scoring requests; 1 captured responses' : '4 scoring requests; 4 captured responses');
     if (!partial) expect(await mappings.innerText()).toContain('rule_0_facts: deterministic NONE');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await mkdir('/tmp/tenet-70/screenshots', { recursive: true });
+    await mkdir('coverage/inspector-artifacts/native-preview', { recursive: true });
     await mappings.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: `/tmp/tenet-70/screenshots/native-${partial}-${width}.png` });
+    await page.screenshot({ path: `coverage/inspector-artifacts/native-preview/native-${partial}-${width}.png` });
     await openRecordedData(page, 'Questions');
     const exact = JSON.parse((await page.locator('.exact-rule-data pre').textContent())!);
     const address = new URL(page.url()).searchParams;

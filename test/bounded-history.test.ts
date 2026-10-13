@@ -7,12 +7,15 @@ import { Observations, serializedBytes } from '../src/decision/trajectory.js';
 import { nativeHistory } from '../src/pi/history.js';
 import { answer, policy } from './helpers.js';
 
+import { boundHistoricalEvidence } from './historical-evidence-fixture.js';
 const action = captureAction({ sessionId: 'synthetic', callId: 'pending', toolName: 'zorb', arguments: { target: 7 } });
 async function submit(history: Observations, maxBytes = 24576, current = action) {
-  let captured: any;
-  const result = await decide({ policy, action: current, cwd: '/synthetic', trajectory: history.snapshot(),
-    evidenceLimits: { recentEvents: history.limits.recentEvents, maxBytes },
-    judge: async request => { captured = request; return answer(request.policy, 'UNKNOWN'); } });
+  // Historical byte allocation is distinct from the normal scoped decision metadata.
+  const limits = { recentEvents: history.limits.recentEvents, maxBytes };
+  const captured: any = boundHistoricalEvidence({ policy, action: current, cwd: '/synthetic', deadlineMs: 2500,
+    trajectory: history.snapshot() }, limits);
+  const result = await decide({ policy, action: current, cwd: '/synthetic', trajectory: captured?.trajectory ?? history.snapshot(), evidenceLimits: limits,
+    judge: async request => answer(request.policy, 'UNKNOWN') });
   return { captured, result };
 }
 const content = (event: any) => event.data.content;
@@ -38,10 +41,10 @@ test('large nonidentical documents obey default history and expanded event caps,
   assert.notDeepEqual(content(captured.trajectory.observations[0]), content(captured.trajectory.observations[1]));
   assert.deepEqual(captured.action, action);
   assert.equal(result.evidenceContext.resolution.status, 'unsupported');
-  assert.equal(result.evidenceContext.history?.shortenedEvents, 2);
-  assert.equal(result.evidenceContext.history?.exactCompactedBytes, 0);
+  assert.equal(captured?.evidenceContext?.history?.shortenedEvents, 2);
+  assert.equal(captured?.evidenceContext?.history?.exactCompactedBytes, 0);
   assert.equal(result.decision, 'BLOCK');
-  assert.equal(result.questionVersion, 'policy-rules-v8-source-set');
+  assert.equal(result.questionVersion, 'policy-rules-v9-scoped');
 });
 
 test('unused allowance cannot inflate one event; snapshots isolate excerpts and private gap provenance', async () => {
@@ -67,7 +70,7 @@ test('bounded nested ingestion never invokes getters and redacts before excerpti
   assert.doesNotMatch(JSON.stringify(captured), /SECRET|PRIVATE/);
   assert.match(JSON.stringify(captured), /authored-not-authenticated|unsupported-accessor/);
   assert.ok(serializedBytes(captured.trajectory.observations[0].data) <= 2048);
-  assert.ok(result.evidenceContext.history?.limitations.includes('fields-redacted'));
+  assert.ok(captured?.evidenceContext?.history?.limitations.includes('fields-redacted'));
 });
 
 test('authored excerpt-shaped values stay literal, with no runtime shortening claim', async () => {
@@ -76,8 +79,8 @@ test('authored excerpt-shaped values stay literal, with no runtime shortening cl
   history.add('host-tool-result', 'authored', 'zorb', authored, 0);
   const { captured, result } = await submit(history);
   assert.deepEqual(content(captured.trajectory.observations[0]), authored);
-  assert.equal(result.evidenceContext.history?.shortenedEvents, 0);
-  assert.equal(result.evidenceContext.history?.limitations.includes('history-content-shortened'), false);
+  assert.equal(captured?.evidenceContext?.history?.shortenedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history?.limitations.includes('history-content-shortened'), false);
 });
 
 test('final capacity recomputes the same per-event cap after protected evidence, not current-fact truncation', async () => {
@@ -92,7 +95,7 @@ test('final capacity recomputes the same per-event cap after protected evidence,
   assert.ok(captured.trajectory.observations.every((event: any) => serializedBytes(event.data) <= captured.trajectory.selection.maxEventBytes));
   assert.ok(serializedBytes(judgeState(captured)) <= 24576);
   const impossible = await submit(history, 24576, { ...action, arguments: { untouched: '界'.repeat(10000) } });
-  assert.equal(impossible.captured, undefined);
+  assert.equal(impossible.captured, null);
   assert.equal(impossible.result.reason, 'insufficient-evidence');
   assert.equal(impossible.result.evidenceContext.history, null);
 });
@@ -102,9 +105,9 @@ test('zero history and prior capture omissions have explicit separate counters',
   history.omit(3); history.add('host-tool-result', 'old', 'zorb', 'missing result is not success', 0);
   const { captured, result } = await submit(history);
   assert.deepEqual(captured.trajectory.observations, []);
-  assert.equal(result.evidenceContext.history?.priorOmittedEvents, 3);
-  assert.equal(result.evidenceContext.history?.droppedEvents, 1);
-  assert.equal(result.evidenceContext.history?.omittedEvents, 4);
+  assert.equal(captured?.evidenceContext?.history?.priorOmittedEvents, 3);
+  assert.equal(captured?.evidenceContext?.history?.droppedEvents, 1);
+  assert.equal(captured?.evidenceContext?.history?.omittedEvents, 4);
 });
 
 test('recovery shares large/nested bounds without inferring success from missing content', async () => {
@@ -117,7 +120,7 @@ test('recovery shares large/nested bounds without inferring success from missing
   const { captured, result } = await submit(history);
   assert.equal(captured.trajectory.observations[0].origin, 'host-tool-result');
   assert.ok(serializedBytes(captured.trajectory.observations[0].data) <= 2048);
-  assert.ok(result.evidenceContext.history?.shortenedEvents === 1);
+  assert.ok(captured?.evidenceContext?.history?.shortenedEvents === 1);
   assert.equal(result.evidenceContext.resolution.status, 'unsupported');
 });
 
@@ -151,7 +154,7 @@ for (const kind of ['depth', 'nodes', 'circular', 'sparse'] as const) test(`unsu
   assert.ok(serializedBytes(captured.trajectory) <= 8192);
   assert.ok(serializedBytes(captured.trajectory.observations[0].data) <= 2048);
   assert.match(JSON.stringify(captured.trajectory.observations[0]), /tenetOmission/);
-  assert.equal(result.evidenceContext.history?.shortenedEvents, 1);
+  assert.equal(captured?.evidenceContext?.history?.shortenedEvents, 1);
   assert.equal(result.evidenceContext.resolution.status, 'unsupported');
 });
 

@@ -18,8 +18,8 @@ const cases: [string, (r: any) => void][] = [
 for (const provider of ['injected', 'sdk']) for (const [issue, mutate] of cases) {
   test(`${provider} rejects ${issue} with a bounded diagnostic`, async () => {
     const raw = answer(); mutate(raw.rules[0]!.outcome);
-    const judge = provider === 'injected' ? async () => raw : createJevJudge({ apiKey: 'offline', fetch: async () =>
-      Response.json({ model: 'offline', answers: sdkAnswers(raw), prose: 'secret' }) });
+    const judge = provider === 'injected' ? async () => raw : createJevJudge({ apiKey: 'offline', fetch: async (_url, init) =>
+      Response.json({ model: 'offline', answers: sdkAnswers(raw, 1, JSON.parse(init!.body as string).questions), prose: 'secret' }) });
     const result = await decide({ ...base, judge });
     assert.equal(result.decision, 'BLOCK');
     assert.equal(result.reason, 'invalid-response');
@@ -57,11 +57,11 @@ test('SDK validates evidence and fact distributions and preserves raw response s
     answers[key].probabilities[first] -= 0.01;
     const stages: { stage: string; data: any }[] = [];
     const result = await decide({ ...base, recording: (stage, data) => { stages.push({ stage, data }); },
-      judge: createJevJudge({ apiKey: 'offline', fetch: async () => Response.json({ model: 'offline', answers, prose: 'private-prose' }) }) });
+      judge: createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => Response.json({ model: 'offline', answers: Object.fromEntries(Object.entries(answers).filter(([key]) => Object.hasOwn(JSON.parse(init!.body as string).questions, key))), prose: 'private-prose' }) }) });
     assert.equal(result.validationIssue, 'unit-sum');
     const validation = stages.find(r => r.stage === 'validation')!.data;
     assert.equal(validation.validationIssue, 'unit-sum');
     assert.ok(!JSON.stringify(validation).includes('private-prose'));
-    assert.ok(JSON.stringify(stages.find(r => r.stage === 'response')).includes(String(answers[key].probabilities[first])));
+    assert.ok(JSON.stringify(stages.find(r => r.stage === 'response' && r.data.value?.answers?.[key])).includes(String(answers[key].probabilities[first])));
   }
 });

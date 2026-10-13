@@ -19,7 +19,12 @@ test('paired report is deterministic, retains all authored denominators and sepa
   const projection = (value: typeof report) => ({ ...value,
     pairs: value.pairs.map(pair => ({ ...pair, baseline: mechanics(pair.baseline), candidate: mechanics(pair.candidate) })) });
   assert.deepEqual(projection(report), projection(historical));
-  assert.equal(renderEvidenceReport(historical), readFileSync(new URL('../eval/evidence-selection/report.md', import.meta.url), 'utf8'));
+  const frozenMarkdown = readFileSync(new URL('../eval/evidence-selection/report.md', import.meta.url), 'utf8');
+  const historicalMarkdown = renderEvidenceReport(historical);
+  assert.match(historicalMarkdown, /Recorded question identities: policy-rules-v7-evidence-selection\./);
+  assert.equal(historicalMarkdown, frozenMarkdown.replace(
+    'Both sides use current generic questions and fixed protected evidence, thresholds and current resolver facts.',
+    'Both sides use frozen shared-input questions. Recorded question identities: policy-rules-v7-evidence-selection. Protected evidence, thresholds and current resolver facts remain fixed. Production scoped-v9 questions policy-rules-v9-scoped are not used in this replay.'));
   for (const [i, pair] of report.pairs.entries()) for (const side of ['baseline', 'candidate'] as const) {
     assert.equal(historical.pairs[i][side].questionVersion, 'policy-rules-v7-evidence-selection');
     assert.equal(pair[side].questionVersion, 'policy-rules-v8-source-set');

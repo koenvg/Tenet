@@ -13,7 +13,7 @@ export default function EvidenceCoverage({ context }: { context: InvocationView[
             <div className="record-wide"><dt>History losses</dt><dd>{context.history.shortenedEvents} shortened, {context.history.droppedEvents} dropped, {context.history.priorOmittedEvents} prior omissions</dd></div>
             <div><dt>Exact compaction</dt><dd>{context.history.exactCompactedBytes} bytes saved</dd></div>
           </>}
-        </> : <div className="record-wide"><dt>History</dt><dd>Final history counters unavailable.</dd></div>}
+        </> : <div className="record-wide"><dt>History</dt><dd>{context.selectionVersion === 'judge-input-scopes-v1' ? 'Not part of scoped model inputs.' : 'Final history counters unavailable.'}</dd></div>}
         <div><dt>Current redacted fields</dt><dd>{context.current?.redactedFields ?? 'unavailable'}</dd></div>
       </dl>
       <details className="record-note coverage-notes"><summary>What the coverage data means</summary>

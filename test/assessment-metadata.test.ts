@@ -10,7 +10,7 @@ import { recoverReport } from '../src/pi/report-history.js';
 import { createJevJudge } from '../src/decision/jev.js';
 import { answer, sdkAnswers } from './helpers.js';
 
-const metadata = { profile: 'applicability-v1', questionVersion: 'policy-rules-v8-source-set' };
+const metadata = { profile: 'applicability-v1', questionVersion: 'policy-rules-v9-scoped' };
 for (const scenario of ['pending', 'dropped', 'unavailable', 'pre-assessment'] as const) test(`captured assessment metadata reaches ${scenario} owner callbacks`, async () => {
   const cwd = await realpath(await mkdtemp(join(tmpdir(), 'tenet-profile-')));
   await writeFile(join(cwd, 'TENET.md'), 'Rule; Never commit.');
@@ -56,7 +56,7 @@ test('Pi candidate startup announces its captured profile and question version',
   const h = await guardHarness({ env: { TENET_ASSESSMENT_PROFILE: 'applicability-v1' } });
   try {
     await h.start();
-    assert.ok(h.notifications.some(text => text.includes('Judge questions: policy-rules-v8-source-set')));
+    assert.ok(h.notifications.some(text => text.includes('Judge questions: policy-rules-v9-scoped')));
     assert.ok(h.notifications.some(text => text.includes('applicability-v1')));
   } finally { await h.close(); }
 });
@@ -73,7 +73,7 @@ test('unavailable candidate owner details keep profile metadata live and after r
       await h.commands.get('tenet').handler('', h.ctx);
       const details = h.views[1].items.join('\n');
       assert.match(details, /Assessment profile: applicability-v1/);
-      assert.match(details, /Judge questions: policy-rules-v8-source-set/);
+      assert.match(details, /Judge questions: policy-rules-v9-scoped/);
       assert.doesNotMatch(details, /legacy \(historical\)/);
     }
   } finally { await h.close(); }
@@ -81,8 +81,8 @@ test('unavailable candidate owner details keep profile metadata live and after r
 
 for (const mode of ['observe', 'enforce'] as const) test(`scripted ordinary PASS carries current metadata through ${mode} assessment and owner permission`, async () => {
   const h = await guardHarness({ env: { TENET_MODE: mode }, judge: async (request, signal, recording) =>
-    createJevJudge({ apiKey: 'offline', fetch: async () => Response.json({ model: 'scripted-not-live',
-      answers: sdkAnswers(answer(request.policy)) }) })(request, signal, recording) });
+    createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => Response.json({ model: 'scripted-not-live',
+      answers: sdkAnswers(answer(request.policy), 1, JSON.parse(init!.body as string).questions) }) })(request, signal, recording) });
   try {
     await h.start();
     assert.equal(await h.call(), undefined);

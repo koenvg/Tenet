@@ -1,5 +1,6 @@
 import { validEvidenceContext } from '../decision/evidence-context-contract.js';
 import { validNativeCapture } from './native.js';
+import { SCOPED_INPUT_VERSION, SCOPED_QUESTION_VERSION, validScopedRequest, validScopedSubmission } from './scoped.js';
 import { validPolicySnapshot, policyEvidence, policyIntegrity } from '../decision/policy-contract.js';
 // Recording is a one-way diagnostic channel, never a decision input.
 export const SCHEMA_VERSION = 5;
@@ -61,17 +62,23 @@ function validStage(r: ArchiveRecord): boolean {
   if (!validNativeCapture(r.stage, d)) return false;
   if (r.schemaVersion === 5 && r.stage === 'begin' && !validPolicySnapshot(d.policy)) return false;
   if (r.schemaVersion === 5 && r.stage === 'request') {
-    const state = object(d.payload) ? d.payload.state : null;
-    if (!validPolicySnapshot(d.policy) || !d.policy.available || !object(state)
-      || JSON.stringify(state.policy) !== JSON.stringify(policyEvidence(d.policy))
-      || JSON.stringify(state.integrity) !== JSON.stringify(policyIntegrity(d.policy))
-      || d.questionVersion !== 'policy-rules-v8-source-set') return false;
+    if (d.inputVersion === SCOPED_INPUT_VERSION) {
+      if (!validPolicySnapshot(d.policy) || !d.policy.available || !validScopedRequest(d)
+        || JSON.stringify(d.integrity) !== JSON.stringify(policyIntegrity(d.policy))) return false;
+    } else {
+      const state = object(d.payload) ? d.payload.state : null;
+      if (!validPolicySnapshot(d.policy) || !d.policy.available || !object(state)
+        || JSON.stringify(state.policy) !== JSON.stringify(policyEvidence(d.policy))
+        || JSON.stringify(state.integrity) !== JSON.stringify(policyIntegrity(d.policy))
+        || d.questionVersion !== 'policy-rules-v8-source-set') return false;
+    }
   }
   if (r.schemaVersion >= 4 && ['request', 'assessment', 'decision', 'permission', 'assessment-status'].includes(r.stage)
     && !validEvidenceContext(d.evidenceContext)) return false;
   if (r.schemaVersion >= 4 && r.stage === 'request' && d.selectionVersion !== (d.evidenceContext as { selectionVersion: string }).selectionVersion) return false;
   switch (r.stage) {
     case 'request': {
+      if (d.inputVersion !== undefined || d.questionVersion === SCOPED_QUESTION_VERSION) return validScopedRequest(d);
       const p = d.payload;
       const state = object(p) ? p.state : undefined;
       return object(p) && typeof p.model === 'string' && object(state) && object(p.questions)
@@ -79,8 +86,11 @@ function validStage(r: ArchiveRecord): boolean {
         && object(d.policy) && typeof d.questionVersion === 'string' && Array.isArray(d.mapping)
         && d.mapping.every(m => object(m) && ['id', 'outcomeKey', 'evidenceKey'].every(k => typeof m[k] === 'string'));
     }
-    case 'response': return d.unavailable === true || (Number.isSafeInteger(d.bytes) && (d.bytes as number) >= 0
-      && (d.truncated === true ? typeof d.preview === 'string' : d.truncated === false && Object.hasOwn(d, 'value')));
+    case 'response':
+      if (d.inputVersion !== undefined && (d.inputVersion !== SCOPED_INPUT_VERSION
+        || !(d.unavailable === true || d.truncated === true || validScopedSubmission(d.value)))) return false;
+      return d.unavailable === true || (Number.isSafeInteger(d.bytes) && (d.bytes as number) >= 0
+        && (d.truncated === true ? typeof d.preview === 'string' : d.truncated === false && Object.hasOwn(d, 'value')));
     case 'validation': return typeof d.valid === 'boolean';
     case 'assessment-status': return r.schemaVersion >= 3 && ['pending', 'completed', 'unavailable', 'dropped', 'cancelled'].includes(d.status as string)
       && (d.reason === undefined || (typeof d.reason === 'string' && d.reason.length <= 256))

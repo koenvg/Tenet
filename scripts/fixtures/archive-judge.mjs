@@ -71,6 +71,7 @@ try {
   const fake = scriptedNative({ fail: () => failing }); globalThis.fetch = fake.fetch;
   const { ArchiveWriter, readArchive } = await import(new URL('../recording/archive.js', import.meta.resolve('tenet')));
   const { nativeHistory, recordedJudge } = await import(new URL('../recording/native.js', import.meta.resolve('tenet')));
+  const { recordedInputs, recordedSubmissions } = await import(new URL('../recording/scoped.js', import.meta.resolve('tenet')));
   const { recordedJudgeReport } = await import(new URL('../recording/judge.js', import.meta.resolve('tenet')));
   writer = new ArchiveWriter({ enabled: true, directory: join(home, 'external-archive') });
   const records = [], owner = [];
@@ -100,13 +101,39 @@ try {
   assert.equal(assessment.requestedProvider, 'apus-llamacpp');
   assert.equal(assessment.requestedModel, alias); assert.equal(assessment.assessment.model, alias);
   assert.ok(records.some(r => r.data.value?.derivation === 'sole-allowed-facts-selector'));
-  const contract = { version: 'apus-recording-v1', renderingVersion: 'jev.dynamic.prompt.v2',
+  const contract = { version: 'apus-recording-v2', renderingVersion: 'jev.dynamic.prompt.v2',
     rendererRevision: '7389d774472c9e29ddc84fffb392951f0f25de74', protocolVersion: 'llamacpp-b11118-choice-v1' };
   for (const stage of ['request', 'response', 'validation']) {
-    const captured = records.filter(r => r.stage === stage);
-    assert.ok(captured.length > 0);
+    const captured = records.filter(r => r.stage === stage && (stage !== 'response' || r.data.nativeContract !== undefined));
+    assert.equal(captured.length, stage === 'response' ? 11 : 1);
     for (const record of captured) assert.deepEqual(record.data.nativeContract, contract);
   }
+  const request = records.find(r => r.stage === 'request').data;
+  assert.equal(request.questionVersion, 'policy-rules-v9-scoped');
+  assert.equal(request.inputVersion, 'judge-input-scopes-v1');
+  assert.equal(request.selectionVersion, 'judge-input-scopes-v1');
+  assert.equal(assessment.assessment.profile, 'applicability-v1');
+  const inputs = recordedInputs(request);
+  assert.equal(inputs.layout, 'scoped'); assert.equal(inputs.sharedState, null);
+  assert.deepEqual(inputs.scopes.map(s => s.id), ['ordinary:0', 'exemption:0', 'policy-protection']);
+  const fields = [
+    ['rule', 'thinkingTrace', 'previousToolCall', 'proposedToolCall'],
+    ['rule', 'proposedToolCall', 'binding', 'resolvedAction', 'allowedFactReferences'],
+    ['rule', 'proposedToolCall', 'context', 'policy', 'resolvedAction'],
+  ];
+  for (const [i, scope] of inputs.scopes.entries()) {
+    assert.deepEqual(Object.keys(scope.state), fields[i]);
+    assert.equal(scope.stateBytes, Buffer.byteLength(JSON.stringify(scope.state)));
+    assert.deepEqual(scope.state.proposedToolCall, { toolName: 'inert-fixture', arguments: { text: 'literal data, no executor' } });
+  }
+  assert.deepEqual(inputs.scopes[0].state.thinkingTrace, { status: 'unavailable' });
+  assert.deepEqual(inputs.scopes[0].state.previousToolCall, { status: 'unavailable' });
+  assert.equal(inputs.scopes[1].state.allowedFactReferences, null);
+  assert.equal(inputs.scopes[1].state.binding.cwd, project);
+  assert.deepEqual(inputs.scopes[2].state.policy, { candidates: request.integrity.candidates, targets: request.integrity.targets });
+  assert.deepEqual(request.evidenceContext.scopes, inputs.scopes.map(s => ({ id: s.id, fields: Object.keys(s.state), stateBytes: s.stateBytes })));
+  assert.equal(request.evidenceContext.totalStateBytes, inputs.scopes.reduce((n, s) => n + s.stateBytes, 0));
+  assert.equal(request.evidenceContext.history, null);
   assert.equal(await writer.drain(), true);
   const archived = await readArchive(writer.config.directory);
   assert.deepEqual(archived.issues, []);
@@ -118,6 +145,28 @@ try {
   assert.deepEqual(history.requests[0].nativeRequest, fake.calls.find(c => c.path === '/completion').body);
   assert.equal(history.deterministic[0].modelConfidence, false);
   assert.equal(history.deterministic[0].authenticatedCoverage, false);
+  assert.deepEqual(history.requests.map(r => r.scopeId), ['ordinary:0', 'ordinary:0', 'policy-protection', 'policy-protection']);
+  assert.deepEqual(history.responses.map(r => r.scopeId), history.requests.map(r => r.scopeId));
+  assert.equal(history.deterministic[0].scopeId, 'exemption:0');
+  const scopedResponses = archived.records.filter(r => r.stage === 'response' && r.data.nativeContract === undefined);
+  assert.equal(scopedResponses.length, 9);
+  assert.ok(scopedResponses.every(r => r.data.inputVersion === 'judge-input-scopes-v1'));
+  const submissions = recordedSubmissions(archived.records);
+  assert.deepEqual(submissions.filter(s => s.status === 'unavailable').map(s => [s.scopeId, s.reason]),
+    [['exemption:0', 'deterministic-NONE-no-native-request']]);
+  for (const status of ['attempted', 'completed']) {
+    const submitted = submissions.filter(s => s.status === status);
+    assert.equal(submitted.length, 4);
+    for (const submission of submitted) {
+      const scope = inputs.scopes.find(s => s.id === submission.scopeId);
+      assert.deepEqual(submission.payload.state, scope.state);
+      assert.deepEqual(Object.keys(submission.payload.questions), submission.questionKeys);
+      for (const key of submission.questionKeys) {
+        assert.equal(request.payload.questionScopes[key], scope.id);
+        assert.deepEqual(submission.payload.questions[key], request.payload.questions[key]);
+      }
+    }
+  }
   assert.deepEqual(recordedJudge(archived.records), { provider: 'apus-llamacpp', requestedModel: alias,
     returnedModel: alias, experimental: true });
   const report = owner.find(e => e.type === 'permission').report;

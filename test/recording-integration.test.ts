@@ -118,7 +118,7 @@ test('timeout capture remains partial and cannot release an enforcement decision
     recording: (stage, data) => events.push({ stage, data }) });
   assert.equal(result.reason, 'timeout'); assert.equal(result.decision, 'BLOCK');
   assert.ok(events.some(e => e.stage === 'request'));
-  assert.ok(!events.some(e => e.stage === 'response'));
+  assert.ok(!events.some(e => e.stage === 'response' && (e.data.value as any)?.kind !== 'scope-submission'));
   assert.ok(!JSON.stringify(events).includes('private-transport-error'));
 });
 
@@ -129,17 +129,17 @@ test('concurrent SDK completions stay bound to their invocation IDs across a ses
   const h = await guardHarness({ env: { TENET_RECORDING: 'on', TENET_RECORDING_DIR: dir },
     createJudge: () => createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => {
       const payload = JSON.parse(init!.body as string);
-      if (payload.state.action.callId === 'old') { started(); await held; }
-      const result = answer(payload.state.policy);
-      return Response.json({ model: 'offline', answers: sdkAnswers(result) });
+      if (payload.state.proposedToolCall.arguments.scenario === 'old') { started(); await held; }
+      const result = answer();
+      return Response.json({ model: 'offline', answers: sdkAnswers(result, 1, payload.questions) });
     } }) });
   try {
-    await h.start(); const old = h.call('old'); await ready;
-    await h.call('parallel');
+    await h.start(); const old = h.call('old', { scenario: 'old' }); await ready;
+    await h.call('parallel', { scenario: 'parallel' });
     await h.assessed('parallel');
     await h.emit('session_before_switch');
     h.ctx.sessionManager.getSessionId = () => 'new-session';
-    await h.start(); await h.call('new');
+    await h.start(); await h.call('new', { scenario: 'new' });
     await h.assessed('new');
     release(); await old; await h.emit('session_shutdown');
     const { records } = await readArchive(dir);
@@ -147,7 +147,7 @@ test('concurrent SDK completions stay bound to their invocation IDs across a ses
     assert.equal(requests.length, 3);
     assert.equal(new Set(requests.map(r => r.invocationId)).size, 3);
     for (const request of requests) {
-      assert.equal((request.data.payload as any).state.action.callId, request.callId);
+      assert.equal((request.data.payload as any).scopes[0].state.proposedToolCall.arguments.scenario, request.callId);
       assert.equal(request.sessionId, request.callId === 'new' ? 'new-session' : 's');
       assert.ok(records.filter(r => r.invocationId === request.invocationId).every(r => r.sessionId === request.sessionId && r.callId === request.callId));
     }

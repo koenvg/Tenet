@@ -131,8 +131,10 @@ for (const recording of ['off', 'on']) test(`Pi actual recovery batches only ass
     assert.equal(traversed, 0);
     assert.deepEqual(request!.trajectory!.observations.map(o => [o.callId, o.origin]), [['c', 'host-tool-call'], ['c', 'host-tool-result']]);
     assert.equal(request!.trajectory!.selection!.droppedEvents, 4);
-    assert.equal(request!.trajectory!.selection!.priorOmittedEvents, 1);
-    assert.equal(request!.trajectory!.omitted, 5);
+    // The rejected message and latest excluded pending call are two known losses.
+    assert.equal(request!.trajectory!.selection!.priorOmittedEvents, 2);
+    assert.equal(request!.trajectory!.omitted, 6);
+    assert.deepEqual((request!.judgeScopes!.groups[0]!.state as { previousToolCall: unknown }).previousToolCall, { status: 'unavailable' });
     assert.ok(request!.trajectory!.limitations.includes('host-reported-capture-slots-not-tool-event-counts'));
     assert.doesNotMatch(JSON.stringify(request), /owner-only-canary|other-session|decision-only|approval-only|unassessed|pending/);
     const live = h.records.filter(row => row.callId === 'current' && ['assessment', 'decision', 'permission'].includes(row.stage));

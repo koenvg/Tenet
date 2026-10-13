@@ -7,15 +7,16 @@ import { Observations, serializedBytes } from '../src/decision/trajectory.js';
 import { answer, policy } from './helpers.js';
 import { expandedData } from './exact-history-fixture.js';
 
+import { boundHistoricalEvidence } from './historical-evidence-fixture.js';
 const action = captureAction({ sessionId: 'synthetic', callId: 'pending', toolName: 'unfamiliar', arguments: { untouched: true } });
 const event = (callId: string | null, kind: 'call' | 'result', data: any, timestamp: number, sessionId = 'synthetic'): Observation => ({
   sessionId, callId, origin: `host-tool-${kind}`, toolName: 'unfamiliar', timestamp, data,
 });
 async function submit(observations: readonly Observation[], limits: EvidenceLimits, source?: Trajectory) {
-  let captured: JudgeRequest | undefined;
-  const result = await decide({ policy, action, cwd: '/synthetic', evidenceLimits: limits,
-    trajectory: source ?? { observations, omitted: 0, limitations: [] },
-    judge: async request => { captured = request; return answer(request.policy, 'UNKNOWN'); } });
+  const trajectory = source ?? { observations, omitted: 0, limitations: [] };
+  const captured: any = boundHistoricalEvidence({ policy, action, cwd: '/synthetic', trajectory, deadlineMs: 2500 }, limits);
+  const result = await decide({ policy, action, cwd: '/synthetic', evidenceLimits: limits, trajectory: captured?.trajectory ?? trajectory,
+    judge: async request => answer(request.policy, 'UNKNOWN') });
   assert.ok(captured);
   assert.deepEqual(captured.action, action);
   assert.equal(result.decision, 'BLOCK');
@@ -26,13 +27,13 @@ async function submit(observations: readonly Observation[], limits: EvidenceLimi
 test('count pressure keeps the newest interleaved group whole and restores ingestion order, not timestamp order', async () => {
   const observations = [event('a', 'call', 'a proposed', 90), event('b', 'call', 'b proposed', 80),
     event('a', 'result', { isError: true, text: 'a failed' }, 70), event('b', 'result', { isError: true, text: 'b failed' }, 60)];
-  const { history, result } = await submit(observations, { recentEvents: 3, maxBytes: 24576 });
-  assert.deepEqual(history.observations.map(o => [o.callId, o.origin, o.timestamp]), [
+  const { captured, history, result } = await submit(observations, { recentEvents: 3, maxBytes: 24576 });
+  assert.deepEqual(history.observations.map((o: Observation) => [o.callId, o.origin, o.timestamp]), [
     ['b', 'host-tool-call', 80], ['b', 'host-tool-result', 60],
   ]);
   assert.deepEqual(expandedData(history).map((d: any) => d.content), ['b proposed', { isError: true, text: 'b failed' }]);
   assert.equal(history.selection!.droppedEvents, 2);
-  assert.equal(result.evidenceContext.history!.omittedEvents, 2);
+  assert.equal(captured?.evidenceContext?.history!.omittedEvents, 2);
 });
 
 test('byte pressure tightens inline content before dropping any member of a fitting group', async () => {
@@ -40,18 +41,18 @@ test('byte pressure tightens inline content before dropping any member of a fitt
     event(id, 'call', { text: `${id}-call ` + 'x'.repeat(1580) }, index * 2),
     event(id, 'result', { isError: index === 0, text: `${id}-result ` + 'y'.repeat(1580) }, index * 2 + 1),
   ]);
-  const { history, result } = await submit(observations, { recentEvents: 6, maxBytes: 24576 });
-  assert.deepEqual(history.observations.map(o => o.callId), ['a', 'a', 'b', 'b', 'c', 'c']);
+  const { captured, history, result } = await submit(observations, { recentEvents: 6, maxBytes: 24576 });
+  assert.deepEqual(history.observations.map((o: Observation) => o.callId), ['a', 'a', 'b', 'b', 'c', 'c']);
   assert.equal(history.selection!.droppedEvents, 0);
   assert.equal(history.selection!.shortenedEvents, 6);
   assert.equal(history.selection!.exactCompactedBytes, 0);
   assert.ok(serializedBytes(history) <= 8192);
-  assert.ok(history.observations.every(o => serializedBytes(o.data) <= 2048));
+  assert.ok(history.observations.every((o: Observation) => serializedBytes(o.data) <= 2048));
   const content = expandedData(history).map((d: any) => d.content);
   assert.equal(content[1].isError, true);
   assert.match(JSON.stringify(content), /tenetExcerpt/);
-  assert.equal(result.evidenceContext.history!.shortenedEvents, 6);
-  assert.equal(result.evidenceContext.history!.omittedEvents, 0);
+  assert.equal(captured?.evidenceContext?.history!.shortenedEvents, 6);
+  assert.equal(captured?.evidenceContext?.history!.omittedEvents, 0);
 });
 
 test('SDK history is grouped as a batch before late interleaved results displace earlier calls', async () => {
@@ -78,7 +79,7 @@ test('multiple failures and a contradictory result stay distinct; an oversized g
   assert.deepEqual(expandedData(full.history).map((d: any) => d.content), ['unpaired earlier', { attempt: 1 },
     { isError: true, status: 'failed' }, { isError: false, status: 'contradiction' }]);
   const tight = await submit(input, { recentEvents: 2, maxBytes: 24576 });
-  assert.deepEqual(tight.history.observations.map(o => o.callId), ['orphan']);
+  assert.deepEqual(tight.history.observations.map((o: Observation) => o.callId), ['orphan']);
   assert.equal(tight.history.selection!.droppedEvents, 3);
 });
 
@@ -109,7 +110,7 @@ for (const id of [null, '']) test(`missing or empty call identity ${JSON.stringi
 test('duplicate IDs in different sessions pair separately; unknown session identities do not pair', async () => {
   const { history } = await submit([event('x', 'call', 'one call', 9, 'one'), event('x', 'call', 'two call', 8, 'two'),
     event('x', 'result', 'one failure', 7, 'one'), event('x', 'result', 'two failure', 6, 'two')], { recentEvents: 3, maxBytes: 24576 });
-  assert.deepEqual(history.observations.map(o => [o.sessionId, o.callId, o.timestamp]), [['two', 'x', 8], ['two', 'x', 6]]);
+  assert.deepEqual(history.observations.map((o: Observation) => [o.sessionId, o.callId, o.timestamp]), [['two', 'x', 8], ['two', 'x', 6]]);
   const empty = await submit([event('x', 'call', 'unknown call', 0, ''), event('x', 'result', 'unknown result', 1, '')], { recentEvents: 1, maxBytes: 24576 });
   assert.deepEqual(expandedData(empty.history).map((d: any) => d.content), ['unknown result']);
 });
@@ -125,7 +126,7 @@ test('group selection prunes pools and preserves the exact reconstruction of all
   assert.deepEqual(second.history.values, { v0: fresh });
   const data = expandedData(second.history);
   assert.deepEqual(data.map((d: any) => d.content), [{ text: fresh }, { isError: true, text: fresh }]);
-  const { values: _pool, ...inline } = { ...second.history, observations: second.history.observations.map((o, i) => ({ ...o, data: data[i]! })) };
+  const { values: _pool, ...inline } = { ...second.history, observations: second.history.observations.map((o: Observation, i: number) => ({ ...o, data: data[i]! })) };
   assert.equal(second.history.selection!.exactCompactedBytes, serializedBytes(inline) - serializedBytes(second.history));
   assert.equal(JSON.stringify(first.history), wire);
   assert.ok(Object.isFrozen(second.history.values));
@@ -136,11 +137,11 @@ test('missing calls and results remain absent, arbitrary origins and tool names 
     { ...event('opaque', 'call', { kind: 'tool-call', claimedSuccess: true }, 2), origin: 'opaque-source' },
     event('opaque', 'result', { isError: true }, 3)];
   const { history } = await submit(input, { recentEvents: 3, maxBytes: 24576 });
-  assert.deepEqual(history.observations.map(o => [o.callId, o.origin]), [['only-result', 'host-tool-result'],
+  assert.deepEqual(history.observations.map((o: Observation) => [o.callId, o.origin]), [['only-result', 'host-tool-result'],
     ['opaque', 'opaque-source'], ['opaque', 'host-tool-result']]);
-  assert.equal(history.observations.some(o => o.callId === 'only-call'), false);
+  assert.equal(history.observations.some((o: Observation) => o.callId === 'only-call'), false);
   const renamed = await submit(input.map(o => ({ ...o, toolName: 'unfamiliar-other' })), { recentEvents: 3, maxBytes: 24576 });
-  assert.deepEqual(renamed.history.observations.map(o => [o.callId, o.origin]), history.observations.map(o => [o.callId, o.origin]));
+  assert.deepEqual(renamed.history.observations.map((o: Observation) => [o.callId, o.origin]), history.observations.map((o: Observation) => [o.callId, o.origin]));
 });
 
 test('raw preparation inspects at most 4096 recent slots, including sparse/accessor admission failures', async () => {
@@ -150,13 +151,13 @@ test('raw preparation inspects at most 4096 recent slots, including sparse/acces
   Object.defineProperty(raw, '999998', { get() { getterCalls++; throw new Error('accessor slot'); } });
   raw[999999] = event('orphan', 'result', 'failure without captured call', 1);
   const proxy = new Proxy(raw, { getOwnPropertyDescriptor(target, key) { if (/^\d+$/.test(String(key))) scanned++; return Reflect.getOwnPropertyDescriptor(target, key); } });
-  const { history, result } = await submit(proxy, { recentEvents: 12, maxBytes: 24576 });
+  const { captured, history, result } = await submit(proxy, { recentEvents: 12, maxBytes: 24576 });
   assert.equal(prefixReads, 0); assert.equal(getterCalls, 0); assert.equal(scanned, 4096);
-  assert.deepEqual(history.observations.map(o => o.callId), ['orphan']);
+  assert.deepEqual(history.observations.map((o: Observation) => o.callId), ['orphan']);
   assert.equal(history.selection!.priorOmittedEvents, 999999);
   assert.equal(history.selection!.droppedEvents, 0);
   assert.ok(history.limitations.includes('history-admission-window'));
-  assert.ok(result.evidenceContext.history!.limitations.includes('history-admission-window'));
+  assert.ok(captured?.evidenceContext?.history!.limitations.includes('history-admission-window'));
 });
 
 test('the fixed batch admission horizon does not expand with a higher configured event ceiling', async () => {
@@ -192,7 +193,7 @@ test('unselected payloads are not traversed, copied or frozen during batch count
   const input = [event('old', 'call', payload, 0), event('new', 'call', 'new proposal', 1),
     event('old', 'result', payload, 2), event('new', 'result', 'new failure', 3)];
   const { history } = await submit(input, { recentEvents: 2, maxBytes: 24576 });
-  assert.deepEqual(history.observations.map(o => o.callId), ['new', 'new']);
+  assert.deepEqual(history.observations.map((o: Observation) => o.callId), ['new', 'new']);
   assert.equal(visited, 0);
   assert.equal(Object.isFrozen(payload), false);
 });
@@ -201,12 +202,12 @@ test('unselected payloads are not traversed, copied or frozen during batch count
 test('a group whose bounded envelopes cannot fit the byte cap is omitted whole with no invented result', async () => {
   const input = [event('x', 'call', { proposal: true }, 0), ...Array.from({ length: 11 }, (_, i) =>
     event('x', 'result', { isError: i % 2 === 0, status: i }, i + 1))];
-  const { history, result } = await submit(input, { recentEvents: 12, maxBytes: 4096 });
+  const { captured, history, result } = await submit(input, { recentEvents: 12, maxBytes: 4096 });
   assert.deepEqual(history.observations, []);
   assert.equal(history.selection!.droppedEvents, 12);
   assert.equal(history.selection!.shortenedEvents, 0);
   assert.equal(history.values, undefined);
-  assert.equal(result.evidenceContext.history!.omittedEvents, 12);
+  assert.equal(captured?.evidenceContext?.history!.omittedEvents, 12);
   assert.ok(serializedBytes(history) <= Math.floor(4096 / 3));
 });
 

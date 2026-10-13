@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { join } from 'node:path';
 import { createGuard, type Guard, type Judge, type JudgeRequest } from 'tenet';
 import { createJevJudge } from '../src/decision/jev.js';
-import { judgeState } from '../src/decision/judge-evidence.js';
+import { recordedSubmissions } from '../src/recording/scoped.js';
 import { serializedBytes } from '../src/decision/history-selection.js';
 import { readArchive } from '../src/recording/archive.js';
 import { invocationView } from '../src/inspector/view.js';
@@ -20,15 +20,17 @@ for (const host of ['pi', 'compiled-sdk'] as const) for (const tier of ['full', 
       }),
       parameters: tier === 'full' ? { type: 'object', properties: { text: { type: 'string' } } } : { large: 's'.repeat(30000) },
     };
+    const submittedPayloads: any[] = [];
     let prepared!: JudgeRequest, outbound: any;
     let entered!: () => void, finish!: () => void;
     const started = new Promise<void>(resolve => { entered = resolve; });
     const wait = new Promise<void>(resolve => { finish = resolve; });
     const transport = createJevJudge({ apiKey: 'offline-transport-secret', fetch: async (_url, init) => {
       outbound = JSON.parse(init!.body as string);
+      submittedPayloads.push(outbound);
       entered();
       await wait;
-      return Response.json({ model: 'scripted-offline', answers: sdkAnswers(answer(prepared.policy)) });
+      return Response.json({ model: 'scripted-offline', answers: sdkAnswers(answer(prepared.policy), 1, outbound.questions) });
     } });
     const judge: Judge = async (request, signal, recording) => {
       prepared = request;
@@ -73,9 +75,9 @@ for (const host of ['pi', 'compiled-sdk'] as const) for (const tier of ['full', 
       assert.equal(JSON.stringify(outbound), submitted);
       assert.equal(JSON.stringify({ metadata, input }), original);
       assert.deepEqual(prepared.action.arguments, { text: input.text });
-      assert.equal(prepared.action.description, tier === 'both omitted' ? null : metadata.description ?? null);
-      assert.deepEqual(prepared.action.parameters, tier === 'full' ? metadata.parameters : null);
-      assert.equal(prepared.action.limitations.includes('tool-metadata-omitted'), tier !== 'full');
+      assert.equal(prepared.action.description, metadata.description ?? null);
+      assert.deepEqual(prepared.action.parameters, metadata.parameters ?? null);
+      assert.equal(prepared.action.limitations.includes('tool-metadata-omitted'), false);
       assert.equal(prepared.action.limitations.includes('description-unavailable'), tier === 'description unavailable');
       assert.equal(prepared.resolvedAction!.status, 'unsupported');
       assert.ok(serializedBytes(outbound.state) <= 8192);
@@ -92,10 +94,11 @@ for (const host of ['pi', 'compiled-sdk'] as const) for (const tier of ['full', 
       assert.deepEqual(issues, []);
       const request = records.find(row => row.stage === 'request' && row.callId === 'pending')!;
       assert.ok(request);
-      assert.deepEqual(request.data.payload, outbound);
-      assert.deepEqual(outbound.state, judgeState(prepared));
+      const rows = records.filter(row => row.callId === 'pending');
+      assert.deepEqual(recordedSubmissions(rows).filter(s => s.status === 'completed').map((s: any) => s.payload), submittedPayloads);
+      assert.ok(submittedPayloads.every(p => !('description' in p.state) && !('parameters' in p.state) && !('trajectory' in p.state)));
       assert.deepEqual(request.data.evidenceContext, prepared.evidenceContext);
-      assert.deepEqual(invocationView(records.filter(row => row.callId === 'pending')).evidence, outbound.state);
+      assert.equal(invocationView(rows).evidence, null);
       assert.ok(!JSON.stringify(records).includes('synthetic-canary'));
       assert.ok(!JSON.stringify(records).includes('offline-transport-secret'));
     } finally { finish(); await guard?.close(); await h.close(); }

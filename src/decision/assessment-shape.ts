@@ -2,8 +2,14 @@ import type { ValidationIssue } from './response-validation.js';
 import { choiceIssue, object } from './response-validation.js';
 
 export const ASSESSMENT_PROFILE = 'applicability-v1';
-export const QUESTION_VERSION = 'policy-rules-v8-source-set';
+export const HISTORICAL_QUESTION_VERSION = 'policy-rules-v8-source-set';
+export const SCOPED_QUESTION_VERSION = 'policy-rules-v9-scoped';
+export const QUESTION_VERSION = SCOPED_QUESTION_VERSION;
+export const SCOPED_INPUT_VERSION = 'judge-input-scopes-v1';
 export type AssessmentProfile = typeof ASSESSMENT_PROFILE;
+export const SCOPED_ASSESSMENT_METADATA = Object.freeze({ profile: ASSESSMENT_PROFILE,
+  questionVersion: SCOPED_QUESTION_VERSION, inputVersion: SCOPED_INPUT_VERSION });
+// Input identity describes a submitted layout, not every response or final assessment.
 export const ASSESSMENT_METADATA = Object.freeze({ profile: ASSESSMENT_PROFILE, questionVersion: QUESTION_VERSION });
 export type AssessmentMetadata = typeof ASSESSMENT_METADATA;
 

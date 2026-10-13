@@ -91,6 +91,8 @@ export interface HistoryEvent {
 }
 export interface Config { effectThreshold: number; evidenceThreshold: number; deadlineMs: number }
 export interface JudgeRequest {
+  /** Frozen internal plan. Not an SDK ingestion field or model-visible envelope. */
+  judgeScopes?: import('./judge-evidence.js').JudgeScopes;
   /** Owner-only preparation diagnostic, excluded from judgeState. */
   evidenceContext?: import('./evidence-context.js').EvidenceContext;
   profile?: import('./assessment-contract.js').AssessmentProfile;

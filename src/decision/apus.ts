@@ -1,21 +1,16 @@
 import { JudgeFailure, type Judge, type Json } from './contracts.js';
-import { assembleAssessment } from './assessment-answers.js';
-import { judgeState } from './judge-evidence.js';
-import { assessmentEntries, buildQuestions } from './questions.js';
+import { assembleScopedAssessment, validateGroupAnswers, validateConfirmation, groupQuestions, type Answer } from './assessment-answers.js';
+import { prepareJudgeScopes } from './judge-evidence.js';
+import { buildQuestions } from './questions.js';
 import { APUS_RENDERING_VERSION, APUS_REVISION, renderApus, sortedJson } from './apus-renderer.js';
 import { backendIdentity, nativeTokens, scoreCompletion } from './apus-native.js';
 import { NativeFailure, nativeTransport } from './apus-transport.js';
 import { validLocalBaseUrl } from '../runtime/settings.js';
 import { capture, responseSnapshot } from '../recording/contract.js';
-import { freeze } from './evidence.js';
-import { ASSESSMENT_METADATA } from './assessment-contract.js';
-import { UNAVAILABLE_EVIDENCE_CONTEXT } from './evidence-context.js';
+import { captureScopedPlan, captureScopedSubmission } from '../recording/scoped-capture.js';
+import { APUS_V2 } from '../recording/native.js';
 
-/** Additive native capture contract. Semantic questions and archive schema stay unchanged. */
-export const APUS_RECORDING_CONTRACT = Object.freeze({
-  version: 'apus-recording-v1', renderingVersion: APUS_RENDERING_VERSION,
-  rendererRevision: APUS_REVISION, protocolVersion: 'llamacpp-b11118-choice-v1',
-});
+export const APUS_RECORDING_CONTRACT = APUS_V2;
 
 /** Lazy, text-only APUS native choice scoring. No TypeSafe client, runtime download or fallback. */
 export function createApusJudge(options: { baseUrl: string; model: string; fetch?: typeof fetch }): Judge {
@@ -27,14 +22,10 @@ export function createApusJudge(options: { baseUrl: string; model: string; fetch
     const nativeSnapshot = (value: unknown) => ({ nativeContract: APUS_RECORDING_CONTRACT, ...responseSnapshot(value) });
     try {
       transport.check();
-      const entries = assessmentEntries(request.policy), questions = buildQuestions(request.policy, request.resolvedAction) as Record<string, { type: 'choice'; instructions: string; criteria: Record<string, string> }>;
-      const payload = freeze({ model, state: judgeState(request), questions });
-      const state = sortedJson(payload.state as Json);
-      capture(recording, 'request', () => ({ payload, policy: request.policy, mapping: entries, ...ASSESSMENT_METADATA,
-        provider: 'apus-llamacpp', requestedModel: model, nativeContract: APUS_RECORDING_CONTRACT,
-        renderingVersion: APUS_RENDERING_VERSION, rendererRevision: APUS_REVISION,
-        evidenceContext: request.evidenceContext ?? UNAVAILABLE_EVIDENCE_CONTEXT,
-        selectionVersion: (request.evidenceContext ?? UNAVAILABLE_EVIDENCE_CONTEXT).selectionVersion }));
+      const plan = request.judgeScopes ?? prepareJudgeScopes(request);
+      if (!plan) throw new JudgeFailure('insufficient-evidence');
+      const entries = plan.entries, questions = buildQuestions(request.policy, request.resolvedAction);
+      captureScopedPlan(recording, request, plan, questions, { provider: 'apus-llamacpp', model, nativeContract: APUS_RECORDING_CONTRACT });
       const metadata = async (phase: 'before' | 'after') => {
         submitted = true;
         const models = await transport.json('/v1/models'), props = await transport.json('/props');
@@ -44,20 +35,32 @@ export function createApusJudge(options: { baseUrl: string; model: string; fetch
         return identity;
       };
       const identity = await metadata('before');
-      const answers: Record<string, unknown> = Object.create(null);
+      const answers: Record<string, Answer> = Object.create(null);
       let previousTokens: number[] = [];
       const tokenize = async (content: string) => nativeTokens(await transport.json('/tokenize', { content, add_special: false, parse_special: true, with_pieces: false }), identity.vocab);
-      for (const [key, question] of Object.entries(questions)) {
+      for (const group of plan.groups) {
         transport.check();
+        const selected = groupQuestions(plan, group, questions, answers);
+        for (const [key, question] of Object.entries(selected.questions)) {
+        transport.check();
+        const scopeId = group.id;
+        const submission = { submissionId: key, scopeId, questionKeys: [key],
+          payloadJson: JSON.stringify({ model, state: group.state, questions: { [key]: question } }),
+          ...(selected.confirmation?.confirmationQuestion === key ? { confirmation: selected.confirmation } : {}) };
+        const state = sortedJson(group.state as unknown as Json);
+        try {
         const criteria = Object.entries(question.criteria).map(([id, description]) => ({ id, description }));
         if (criteria.length === 1) {
           if (!entries.some(e => e.factsKey === key) || criteria[0]!.id !== 'NONE') throw new NativeFailure('single-candidate');
           const answer = { type: 'choice', choice: 'NONE', probabilities: { NONE: 1 }, confidence: 1 };
           answers[key] = answer;
-          capture(recording, 'response', () => nativeSnapshot({ provider: 'apus-llamacpp', question: key, answer,
+          captureScopedSubmission(recording, { submissionId: key, scopeId, questionKeys: [key],
+            status: 'unavailable', reason: 'deterministic-NONE-no-native-request' });
+          capture(recording, 'response', () => nativeSnapshot({ provider: 'apus-llamacpp', question: key, scopeId, answer,
             derivation: 'sole-allowed-facts-selector', criteria, modelConfidence: false, authenticatedCoverage: false, nativeScoringRequests: 0 }));
           continue;
         }
+        captureScopedSubmission(recording, { ...submission, status: 'attempted' });
         const rendered = renderApus({ state, instructions: question.instructions, criteria });
         const tokens = await tokenize(rendered.chat);
         // b11118 generation checks prompt.n_tokens()+1 >= n_ctx. Reserve one
@@ -77,19 +80,28 @@ export function createApusJudge(options: { baseUrl: string; model: string; fetch
         const nativeRequest = { model, prompt: tokens, stream: false, n_predict: 1, n_probs: 1024,
           temperature: 0, cache_prompt: true, post_sampling_probs: false, return_tokens: true };
         transport.check();
-        capture(recording, 'response', () => nativeSnapshot({ provider: 'apus-llamacpp', kind: 'native-request', question: key,
+        capture(recording, 'response', () => nativeSnapshot({ provider: 'apus-llamacpp', kind: 'native-request', question: key, scopeId,
           renderingVersion: APUS_RENDERING_VERSION, chat: rendered.chat, mapping: rendered.mapping, labelIds,
           nativeRequest, contextCapacity: identity.context, sharedPrefixTokens, cacheReuseAssumed: false }));
         const raw = await transport.json('/completion', nativeRequest);
         transport.check();
-        capture(recording, 'response', () => nativeSnapshot({ provider: 'apus-llamacpp', kind: 'native-response', question: key, raw }));
+        capture(recording, 'response', () => nativeSnapshot({ provider: 'apus-llamacpp', kind: 'native-response', question: key, scopeId, raw }));
         answers[key] = scoreCompletion(raw, rendered.mapping, labelIds, tokens.length, identity);
         previousTokens = tokens;
+        validateGroupAnswers({ model: identity.model, answers: { [key]: answers[key] } }, { [key]: question });
+        if (selected.confirmation?.confirmationQuestion === key) validateConfirmation(selected.confirmation, answers, group.questionKeys[0]!);
+        captureScopedSubmission(recording, { ...submission, status: 'completed' });
+        } catch (error) {
+          captureScopedSubmission(recording, { ...submission, status: 'unavailable',
+            reason: error instanceof JudgeFailure ? error.reason : 'provider-error' });
+          throw error;
+        }
+        }
       }
       const finalIdentity = await metadata('after');
       if (JSON.stringify(finalIdentity) !== JSON.stringify(identity)) throw new NativeFailure('backend-changed');
       transport.check();
-      const assessment = assembleAssessment({ model: finalIdentity.model, answers }, request);
+      const assessment = assembleScopedAssessment(finalIdentity.model, answers, request, plan, questions);
       transport.check();
       capture(recording, 'validation', () => ({ nativeContract: APUS_RECORDING_CONTRACT, valid: true, assessment, provider: 'apus-llamacpp', renderingVersion: APUS_RENDERING_VERSION }));
       return assessment;
