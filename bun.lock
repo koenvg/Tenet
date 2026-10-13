@@ -20,6 +20,7 @@
         "@vitest/browser-playwright": "5.0.1",
         "class-variance-authority": "0.7.1",
         "clsx": "2.1.1",
+        "esbuild": "0.28.1",
         "marked": "18.0.13",
         "playwright": "1.63.0",
         "react": "19.3.0",
