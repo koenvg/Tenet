@@ -127,12 +127,18 @@ System One SHALL require `auth` to be either `{"type":"none"}` for literal loopb
 - **THEN** no authorization header is sent and those credentials are not copied into capture or diagnostics
 
 ### Requirement: Fixed System One wire contract
-Tenet SHALL POST JSON to the selected origin's `/v1/systemone` with explicit `model`, current prepared `state` and `questions`. It SHALL accept only the existing canonical model/choice-answer contract through common assembly and validation. There SHALL be no protocol detection, arbitrary response mapper or vendor-specific prompt/scoring branch.
+Tenet SHALL POST JSON to the selected origin's `/v1/systemone` with explicit `model` and each current prepared scope's own `state` and `questions`. All required scopes SHALL complete under one assessment budget before acceptance; one scope failure SHALL prevent later submissions and any passing partial result. It SHALL accept only the existing canonical model/choice-answer contract through common assembly and validation. There SHALL be no protocol detection, arbitrary response mapper or vendor-specific prompt/scoring branch.
 
 #### Scenario: Compatible Jev and Kev fixtures
 - **WHEN** scripted transports for official Jev and local Kev return the same valid answer set and returned alias
 - **THEN** canonical assessments, gates and decisions match for identical prepared inputs and settings
 - **AND** each request body uses its selected requested model rather than a hard-coded Jev alias
+
+#### Scenario: Current scoped submission isolation
+- **WHEN** the current scoped input contract prepares one unsupported user rule
+- **THEN** System One submits separate ordinary, exemption and policy-protection groups, with ordinary state containing only `rule`, `thinkingTrace`, `previousToolCall` and `proposedToolCall`
+- **AND** protected confirmation remains conditional on a current authenticated candidate and ordinary NOT_APPLICABLE, with stable returned model identity across all groups
+- **AND** request capture retains `policy-rules-v9-scoped` and `judge-input-scopes-v1`; historical payloads are not regenerated with these current inputs
 
 #### Scenario: Incompatible reply
 - **WHEN** a response lacks required answers, has extra answer keys, unknown labels, invalid scores, a malformed returned model or an unsupported answer type

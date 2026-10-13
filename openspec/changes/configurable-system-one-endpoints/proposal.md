@@ -27,7 +27,7 @@ This is a planning-only change for reviewers of this developer checkout. It does
 
 - `judge-configuration`: replace owner-only selection with private project overrides for every JSON setting, version 2 protocol selection, per-project snapshots and selected-source diagnostics. `configurable-policy-enforcement` remains unchanged.
 
-The `add-configurable-judge` baseline is now synced to main specs and archived at `../archive/2026-10-09-add-configurable-judge/`. Its owner-only/version 1 contract remains the current implemented baseline, not the proposed behavior. [Design reconciliation](design.md#existing-work-and-specification-reconciliation) identifies the full MODIFIED delta still needed before apply. That delta file does not exist yet; creating it is a separate planning step, not part of this existing-artifact revision. Main and archived specs remain unchanged.
+The `add-configurable-judge` baseline is synced to main specs and archived at `../archive/2026-10-09-add-configurable-judge/`. Its owner-only/version 1 contract remains the current implemented baseline, not the proposed behavior. The full [judge-configuration delta](specs/judge-configuration/spec.md) now supplies the six MODIFIED requirements identified by [design reconciliation](design.md#existing-work-and-specification-reconciliation). Main and archived specs remain unchanged. [The pinned scoped-input baseline](design.md#current-scoped-input-integration-baseline) records the current integration path; later implementation must recheck it without restoring legacy shared-state prompts.
 
 ## Impact
 

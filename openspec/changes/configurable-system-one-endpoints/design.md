@@ -144,7 +144,7 @@ Rejected alternatives: SDK environment/default credential lookup can leak creden
 
 Create `src/decision/system-one.ts` and retire the fixed `createJevJudge` live implementation. Both the absent-file official default and explicit hosted/local selection call `createSystemOneJudge` through the existing lazy factory. Do not retain a compatibility switch or alternate Jev live adapter. The TypeSafe SDK remains for its existing `choice` question constructor; no new dependency is required.
 
-Use direct fetch with explicit method, destination, headers, serialized payload and abort signal. This permits anonymous local operation and explicit redirect refusal without depending on SDK credential defaults. Reuse current `buildQuestions`, `judgeState`, mapping, capture and `assembleAssessment`; do not move gate logic into transport. Keep the SDK-tested wire envelope and canonical choice answer shape: returned `model`, `answers[questionKey]` with `type`, `choice`, `confidence` and `probabilities`.
+Use direct fetch with explicit method, destination, headers, serialized payload and abort signal. This permits anonymous local operation and explicit redirect refusal without depending on SDK credential defaults. Reuse the current `prepareJudgeScopes`, `buildQuestions`, group selection/validation, scoped capture and `assembleScopedAssessment` path described in [the pinned integration baseline](#current-scoped-input-integration-baseline). Do not use `judgeState` for live submissions or move gate logic into transport. Keep the SDK-tested wire envelope per scoped submission and canonical choice answer shape: returned `model`, `answers[questionKey]` with `type`, `choice`, `confidence` and `probabilities`.
 
 Migrate direct and dynamic imports in the current replay utilities, Claude prototype and scripted test fixtures to the same adapter. Keep those utilities' explicit official Jev selection and disclosure opt-ins; owner or project JSON must not silently redirect an authorized historical/official replay. The Claude prototype remains unverified and gains no new host-coverage or configuration-support claim. Preserve the separate version-routed historical replay utility and its pinned submitted payloads; that is historical contract support, not a parallel legacy live guard.
 
@@ -162,7 +162,7 @@ Classify non-2xx/redirect/network failures as `provider-error`, oversized reques
 
 Returned model aliases can differ from the requested alias, as Jev already does. Record the complete validated returned identity; do not require alias equality or claim weight provenance. No metadata, tokenizer, model-list or calibration requests are added to System One. APUS keeps its existing native identity checks.
 
-If scoped prompt work lands first, use its single current prepared-input/submission path and recorded versions. Do not restore shared-state requests or create a second prompt mode. Multiple scoped submissions, if required by that work, still use the same System One adapter and whole-assessment budget; no partial result can pass.
+Scoped prompt work has landed at the pinned planning revision below. Use its single current prepared-input/submission path and recorded versions. Do not restore shared-state requests or create a second prompt mode. All scoped submissions use the same System One adapter and whole-assessment budget; no partial result can pass.
 
 Rejected alternatives: retaining SDK and direct-fetch live paths duplicates behavior; generic mapping masks incompatibility; reusing APUS scoring for Kev changes the protocol and is out of scope.
 
@@ -170,7 +170,7 @@ Rejected alternatives: retaining SDK and direct-fetch live paths duplicates beha
 
 Keep the existing public `provider`/`requestedProvider` identity fields, adding `system-one` to the current implementation union alongside `apus-llamacpp`, `injected` and `unknown`. New official-default reports identify `system-one`, not a separate TypeSafe implementation. Historical `typesafe` stays a valid historical `judge-report-v1` value only.
 
-Introduce `judge-report-v2` with existing requested/returned model fields plus `requestedDestination`, `transportContract` and `authentication`. Destination is the validated canonical origin or null for injected/unknown selection. Authentication is `none`, `bearer-env` or null. Transport identity is `system-one-v1`, the existing APUS `llamacpp-b11118-choice-v1`, or null for injection/unknown. APUS's separate `apus-recording-v1` contract remains unchanged.
+Introduce `judge-report-v2` with existing requested/returned model fields plus `requestedDestination`, `transportContract` and `authentication`. Destination is the validated canonical origin or null for injected/unknown selection. Authentication is `none`, `bearer-env` or null. Transport identity is `system-one-v1`, the existing APUS `llamacpp-b11118-choice-v1`, or null for injection/unknown. Preserve current `apus-recording-v2` scoped capture and historical `apus-recording-v1` interpretation.
 
 Propagate that descriptor into SDK owner reports, begin/assessment-status/decision/permission records, runtime consequences, Pi startup/status and bounded owner reports. Retain it on unavailable work without fabricating a returned model. Invalid configuration exposes null destination rather than the rejected raw URL. Returned model appears only after complete common validation. Sanitization must cover the chosen credential, not just `TYPESAFE_API_KEY`.
 
@@ -178,7 +178,7 @@ Keep outer archive schema 5 because canonical request/state and stages are uncha
 
 Update doctor JSON to schema version 3 for selected authentication diagnostics rather than its unconditional TypeSafe presence check. Anonymous/APUS presence is `not-required`; bearer presence is `present` or `missing`, with validity/connectivity unverified. Doctor does not construct clients, perform HTTP, write files, start models or open tunnels. Existing inspector/BB views expose the additive recorded transport identity and destination only; no new UI flow is included.
 
-Do not change `applicability-v1`, `policy-rules-v8-source-set`, question wording or archived semantic records for this transport-only change. If concurrent prompt work changes those versions, retain its current contracts and old reader branches rather than reuse old identities for new inputs.
+Do not change current `applicability-v1`, `policy-rules-v9-scoped`, `judge-input-scopes-v1`, `apus-recording-v2` or question wording for this transport-only change. Retain historical `policy-rules-v8-source-set`/APUS v1 reader branches and pinned replay payloads. Recheck these identities at the later authorized implementation revision rather than restoring the earlier baseline.
 
 Rejected alternative: extending `judge-report-v1` to redefine TypeSafe as any endpoint makes historical destination interpretation false. Bumping all archive stages is unnecessary for additive identity metadata.
 
@@ -194,7 +194,7 @@ UI development can use the existing injected `Judge` seam separately. A live una
 
 The `add-configurable-judge` baseline has been synced to `openspec/specs/judge-configuration/spec.md` and `openspec/specs/local-judge-assessment/spec.md`, then archived at `openspec/changes/archive/2026-10-09-add-configurable-judge/`. Preserve that implemented baseline and its archive; this proposal does not make project overrides active.
 
-Before apply, create a full MODIFIED delta in this change for these existing `judge-configuration` requirements:
+The full MODIFIED delta in this change covers these existing `judge-configuration` requirements:
 
 1. `Owner-wide settings source`: permit only the canonical project's `.tenet/config.json` to override every JSON setting; keep no parent search and separate activation control. Replace the scenario that currently forbids project override with project precedence and isolation scenarios.
 2. `Bounded private settings validation`: require version 2, the project partial-override schema and the same safety/size checks per file; invalid project sources do not fall back.
@@ -205,9 +205,24 @@ Before apply, create a full MODIFIED delta in this change for these existing `ju
 
 Copy the full main-spec requirement blocks and retain every unaffected scenario before modifying them. Keep APUS private local destination and whole-assessment bounds. `local-judge-assessment` remains the distinct APUS native contract.
 
-The required `specs/judge-configuration/spec.md` delta is still missing. This existing-artifact update does not create new files; run `openspec instructions specs --change configurable-system-one-endpoints --json` in a separate planning step to create it. Do not start apply or claim the proposal is fully reconciled until that artifact exists and strict validation passes. Applying only `system-one-judge` would leave contradictory owner-only main requirements.
+The full six-block [judge-configuration delta](specs/judge-configuration/spec.md) now reconciles the proposed contract without syncing main specs or rewriting the archive. It retains unaffected scenarios; `Private local destination` and `Whole-assessment and queue limits` remain unchanged in main. Apply remains unauthorized. Before later implementation, verify both deltas with `openspec validate configurable-system-one-endpoints --strict` and recheck the integration baseline below.
 
 `coding-agent-first-sdk` still owns shipped SDK/doctor/host guarantees. `simplify-default-judge-prompts` and TENET-104 children still own prompt/input changes; no edits to their artifacts. TENET-117 is the confirmed existing documentation defect. Coordinate its current-guide correction without duplicating it or changing status here.
+
+### Current scoped-input integration baseline
+
+This planning inspection is pinned to commit `50612acc7ee4ae106c064cb94507baad274b841a`. Commit `872e9e8af4b83f28a9a60af12114ed98f276eb7b`, which implements scoped default inputs for APUS and JEV, is an ancestor. The source change remains unarchived with manual checkboxes open; code presence does not establish owner acceptance or authorize implementation. The earlier Context observations describe the historical inspection, not the current submission layout.
+
+Current code establishes these integration assumptions:
+
+- [`boundEvidence` and `prepareJudgeScopes`](../../../src/decision/judge-evidence.ts) freeze a scoped plan into `request.judgeScopes`; live adapters consume that plan, with `prepareJudgeScopes` as their direct-call preparation fallback. `judgeState` still exists but is not the live adapter input. Required scoped-input overflow fails before submission.
+- Ordinary scope state has exactly `rule`, `thinkingTrace`, `previousToolCall` and `proposedToolCall`. Exemption and policy-protection state remain separate protected groups. Do not add history, host facts or sibling scopes to ordinary state, or add trace ingestion to this change.
+- [`createJevJudge`](../../../src/decision/jev.ts) uses `buildQuestions`, then `groupQuestions` for each prepared group, `validateGroupAnswers` and `validateConfirmation`, followed by `assembleScopedAssessment` only after all groups succeed. One unsupported rule currently produces three System One submissions. A supported NOT_APPLICABLE candidate can add a protected confirmation question to the exemption submission. Preserve the exact group/question mapping and confirmation behavior, not a flattened all-question request.
+- The JEV loop shares one `assessmentBudget`, checks remaining time/cancellation between submissions, validates stable returned model identity across groups and stops after a failure. System One replacement must keep these boundaries while applying the proposed byte limits and credential sanitization. One attempt per necessary scope is not a retry; a scope failure must prevent later submissions and complete assessment.
+- [`assessment-shape.ts`](../../../src/decision/assessment-shape.ts) defines profile `applicability-v1`, question version `policy-rules-v9-scoped` and input version `judge-input-scopes-v1`. [`captureScopedPlan` and `captureScopedSubmission`](../../../src/recording/scoped-capture.ts) record the prepared scopes/mapping and exact normalized application payload JSON, with attempted/completed/unavailable submission status. Keep capture optional and do not record credentials or unused full history.
+- [`createApusJudge`](../../../src/decision/apus.ts) uses the same scoped plan and assembly with its existing per-question native transport. Its active capture contract is `apus-recording-v2`; [`native.ts`](../../../src/recording/native.ts) still interprets historical `apus-recording-v1`. Native transport remains `llamacpp-b11118-choice-v1`, rendering remains `jev.dynamic.prompt.v2`, and archive schema remains 5. No native renderer/scoring change belongs to this transport work.
+
+Tasks 3.1–3.4 must preserve this one current live path and its recorded identities. Historical replay must remain routed by recorded versions, not rebuilt with current questions. Task 1.2 still requires a fresh check at the later authorized implementation revision. Do not edit `simplify-default-judge-prompts` or TENET-104 artifacts, reopen prompt design, mark checkboxes or infer live accuracy from source inspection.
 
 ## Risks / Trade-offs
 
