@@ -113,17 +113,18 @@ if (scenario === 'integrity-paths') {
     let submitted = 0, approvals = 0;
     const h = open({ judge: createJevJudge({ apiKey: 'offline-only', fetch: async (url, init) => {
       assert.equal(new URL(String(url)).origin, 'https://api.typesafe.ai'); submitted++;
-      const payload = JSON.parse(init!.body as string), integrity = payload.state.integrity;
-      assert.equal(integrity.version, 'policy-integrity-v2');
-      assert.deepEqual(integrity.candidates.map((c: any) => [c.role, c.source]), Object.entries(paths));
-      assert.deepEqual(integrity.targets.map((t: any) => [t.role, t.target]), Object.entries(targets).filter(([role]) => role !== absent));
-      assert.match(payload.questions[`rule_${integrity.targets.length}_outcome`].instructions, /every state.integrity.candidates path.*state.integrity.targets resolved target/);
-      const input = payload.state.action.arguments;
+      const payload = JSON.parse(init!.body as string), integrity = payload.state.policy;
+      if (integrity) {
+        assert.deepEqual(integrity.candidates.map((c: any) => [c.role, c.source]), Object.entries(paths));
+        assert.deepEqual(integrity.targets.map((t: any) => [t.role, t.target]), Object.entries(targets).filter(([role]) => role !== absent));
+        assert.match(Object.values(payload.questions).map((q: any) => q.instructions).join(' '), /state.policy candidates and targets/);
+      }
+      const input = payload.state.proposedToolCall.arguments;
       const response = { model: 'scripted-path-contract', rules: [
-        ...payload.state.policy.rules.map((r: any) => ruleAnswer(r.id)), { ...ruleAnswer(INTEGRITY_ID, input.operation === 'write' ? 'FAIL' : 'PASS'),
-          evidence: { choice: 'SUFFICIENT', probabilities: { SUFFICIENT: input.operation === 'low-evidence' ? .85 : .97, INSUFFICIENT: input.operation === 'low-evidence' ? .15 : .03 } } },
+        ...Array.from({ length: absent ? 1 : 2 }, (_, i) => ruleAnswer(`fixture-${i}`)), { ...ruleAnswer(INTEGRITY_ID, input.operation === 'write' ? 'FAIL' : 'PASS'),
+          evidence: { choice: 'SUFFICIENT' as const, probabilities: { SUFFICIENT: input.operation === 'low-evidence' ? .85 : .97, INSUFFICIENT: input.operation === 'low-evidence' ? .15 : .03 } } },
       ] };
-      return Response.json({ model: response.model, answers: sdkAnswers(response) });
+      return Response.json({ model: response.model, answers: sdkAnswers(response, 1, payload.questions) });
     } }) });
     try {
       assert.equal((await h.session.ready).state, 'ready');

@@ -11,6 +11,7 @@ import { captureAction } from '../src/decision/evidence.js';
 import { answer, policy, sdkAnswers } from './helpers.js';
 import { SCHEMA_VERSION } from '../src/recording/contract.js';
 
+import { recordedSubmissions } from '../src/recording/scoped.js';
 const identity = { host: 'pi', contextId: 'main', sessionId: '../session', invocationId: 'invocation', callId: 'call', toolName: 'edit', cwd: '/project', mode: 'observe' as const };
 async function temporary(run: (dir: string) => Promise<void>) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'tenet-archive-')));
@@ -70,12 +71,14 @@ test('config opt-out and invalid path disable only recording; unsafe storage and
 
 test('SDK submitted payload is captured exactly after redaction, with response and validation but no credential', () => temporary(async dir => {
   const writer = new ArchiveWriter({ enabled: true, directory: dir });
+  const submitted: any[] = [];
   let outbound: any;
   const assessment = answer(policy);
   const answers = sdkAnswers(assessment);
   const judge = createJevJudge({ apiKey: 'transport-secret', fetch: async (_url, init) => {
     outbound = JSON.parse(init!.body as string);
-    return Response.json({ model: 'scripted', answers });
+    submitted.push(outbound);
+    return Response.json({ model: 'scripted', answers: sdkAnswers(assessment, 1, outbound.questions) });
   } });
   const result = await decide({ policy, cwd: '/project',
     action: captureAction({ sessionId: identity.sessionId, callId: 'call', toolName: 'edit', arguments: { token: 'hidden', text: '<script>hostile</script>' } }),
@@ -88,10 +91,10 @@ test('SDK submitted payload is captured exactly after redaction, with response a
   const captured = records.find(r => r.stage === 'request')!;
   assert.deepEqual((await readArchive(dir)).issues, []);
   assert.ok(records.length > 0 && records.every(record => record.schemaVersion === SCHEMA_VERSION), 'Current SDK capture must use the production contract');
-  assert.deepEqual(captured.data.payload, outbound);
-  assert.equal(outbound.state.trajectory.observations.length, 1);
-  assert.equal(outbound.state.trajectory.omitted, 2);
-  assert.ok(outbound.state.trajectory.limitations.includes('history-omitted'));
+  assert.equal(captured.data.inputVersion, 'judge-input-scopes-v1');
+  assert.deepEqual(recordedSubmissions(records).filter(s => s.status === 'completed').map((s: any) => s.payload), submitted);
+  assert.ok(submitted.every(p => !('trajectory' in p.state)));
+  assert.deepEqual(Object.keys(submitted[0].state), ['rule', 'thinkingTrace', 'previousToolCall', 'proposedToolCall']);
   assert.ok(records.some(r => r.stage === 'response'));
   assert.ok(records.some(r => r.stage === 'validation'));
   const failing = await decide({ policy, cwd: '/project',

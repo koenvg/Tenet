@@ -12,15 +12,15 @@ import { qualifiedSessionKey } from '../src/recording/archive.js';
 // Public integration seams: Pi lifecycle, scripted SDK HTTP, and standalone read API.
 test('closed inspector capture survives reader restart and same-session live resumption', async () => {
   const directory = await realpath(await mkdtemp(join(tmpdir(), 'tenet-workflow-')));
-  const submitted = new Map<string, any>();
+  const submitted = new Map<string, any[]>();
   const h = await guardHarness({ env: { TENET_RECORDING_DIR: directory, TENET_RECORDING: 'on' },
     createJudge: () => createJevJudge({ apiKey: 'workflow-transport-secret', fetch: async (_url, init) => {
       const payload = JSON.parse(init!.body as string);
-      const id = payload.state.action.callId;
-      submitted.set(id, payload);
+      const id = payload.state.proposedToolCall.arguments.scenario;
+      submitted.set(id, [...(submitted.get(id) ?? []), payload]);
       if (id === 'failure') return new Response('private-provider-body', { status: 503 });
-      const assessment = answer(payload.state.policy, id === 'concern' ? 'FAIL' : 'PASS');
-      return Response.json({ model: 'offline-workflow', answers: sdkAnswers(assessment) });
+      const assessment = answer(undefined, id === 'concern' ? 'FAIL' : 'PASS');
+      return Response.json({ model: 'offline-workflow', answers: sdkAnswers(assessment, 1, payload.questions) });
     } }) });
   let app: Awaited<ReturnType<typeof startInspector>> | undefined;
   const get = async (path: string) => {
@@ -41,7 +41,7 @@ test('closed inspector capture survives reader restart and same-session live res
   try {
     await h.start();
     for (const id of ['pass', 'concern', 'failure']) {
-      assert.equal(await h.call(id, { text: '<script>window.hostile=true</script>', token: 'workflow-redacted-secret' }), undefined);
+      assert.equal(await h.call(id, { scenario: id, text: '<script>window.hostile=true</script>', token: 'workflow-redacted-secret' }), undefined);
       await h.assessed(id);
       await h.captured();
     }
@@ -55,12 +55,17 @@ test('closed inspector capture survives reader restart and same-session live res
     for (const call of calls) {
       const { view } = await detail(call.id);
       historical.set(call.id, view);
-      const payload = submitted.get(view.identity.callId);
-      assert.deepEqual(view.evidence, payload.state);
-      assert.equal(view.rules.length, payload.state.policy.rules.length + 1);
+      const payloads = submitted.get(view.identity.callId)!;
+      assert.equal(view.evidence, null);
+      assert.deepEqual(view.inputScopes[0].state, payloads[0].state);
+      assert.equal(view.rules.length, 2);
+      assert.equal(payloads.length, view.identity.callId === 'failure' ? 1 : 3);
       for (const rule of view.rules) {
-        assert.deepEqual(rule.questions.outcome, payload.questions[rule.mapping.outcomeKey]);
-        assert.deepEqual(rule.questions.evidence, payload.questions[rule.mapping.evidenceKey]);
+        const body = payloads.find(p => p.questions[rule.mapping.outcomeKey]);
+        if (body) {
+          assert.deepEqual(rule.questions.outcome, body.questions[rule.mapping.outcomeKey]);
+          assert.deepEqual(rule.questions.evidence, body.questions[rule.mapping.evidenceKey]);
+        } else assert.equal(view.identity.callId, 'failure', 'No fabricated submission after provider failure');
       }
       assert.equal(view.decision, view.identity.callId === 'pass' ? 'ALLOW' : view.identity.callId === 'failure' ? 'unavailable' : 'BLOCK');
       assert.equal(view.permission, 'released');
@@ -73,7 +78,7 @@ test('closed inspector capture survives reader restart and same-session live res
     for (const [id, view] of historical) assert.deepEqual((await detail(id)).view, view);
 
     await h.start();
-    await h.call('resumed');
+    await h.call('resumed', { scenario: 'resumed' });
     await h.assessed('resumed');
     let resumed: any;
     await eventually(async () => {
@@ -83,7 +88,7 @@ test('closed inspector capture survives reader restart and same-session live res
     assert.equal((await detail(resumed.id)).view.execution, 'unknown');
     await h.emit('tool_result', { toolCallId: 'resumed', toolName: 'edit', content: [], isError: false });
     await eventually(async () => (await detail(resumed.id)).view.execution === 'unknown' && (await detail(resumed.id)).view.missing.includes('execution') === false);
-    assert.deepEqual((await detail(resumed.id)).view.evidence, submitted.get('resumed').state);
+    assert.equal((await detail(resumed.id)).view.evidence, null); assert.deepEqual((await detail(resumed.id)).view.inputScopes[0].state, submitted.get('resumed')![0].state);
     assert.equal((await get('/api/sessions')).sessions.length, 1);
     assert.equal((await get(`/api/sessions?project=${encodeURIComponent(await realpath(h.cwd))}`)).sessions.length, 1);
     assert.equal((await get('/api/sessions?project=/different-project')).sessions.length, 0);

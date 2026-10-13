@@ -113,7 +113,7 @@ for (const failed of [false, true]) test(`live CLI reports its explicit hosted s
   globalThis.fetch = async (_input, init) => {
     submittedModels.push(JSON.parse(String(init?.body)).model);
     if (failed) throw Error('offline transport failure');
-    return Response.json({ model: 'offline-hosted-response', answers: sdkAnswers(answer()) });
+    return Response.json({ model: 'offline-hosted-response', answers: sdkAnswers(answer(), 1, JSON.parse(String(init?.body)).questions) });
   };
   try {
     await main(['--live', '--authorize-evidence-disclosure', '--output', output], { TYPESAFE_API_KEY: 'offline-test-key' });

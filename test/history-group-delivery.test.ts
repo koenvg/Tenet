@@ -12,18 +12,21 @@ import { guardHarness } from './guard-harness.js';
 import { answer, sdkAnswers } from './helpers.js';
 import { expandedData } from './exact-history-fixture.js';
 
+import { recordedSubmissions } from '../src/recording/scoped.js';
+
 for (const mode of ['enforce', 'observe'] as const) for (const recording of ['on', 'off']) for (const pooled of [false, true]) {
   test(`compiled SDK grouped shortened ${pooled ? 'pooled' : 'inline'} history parity: ${mode}, recording ${recording}`, async () => {
     const cwd = await realpath(await mkdtemp(join(tmpdir(), 'group-delivery-')));
     await writeFile(join(cwd, 'TENET.md'), 'Rule; BLOCK; Keep authored content local.');
     const events: OwnerEvent[] = [], records: OwnerRecord[] = [];
+    const submitted: any[] = [];
     let payload: any, entered!: () => void, release!: () => void;
     const ready = new Promise<void>(r => { entered = r; }), wait = new Promise<void>(r => { release = r; });
     const guard = createGuard({ host: 'offline', env: { TENET_MODE: mode, TENET_RECORDING: recording, TENET_RECENT_EVENTS: '3', TENET_RECORDING_DIR: join(cwd, 'archive') },
       controlPath: join(cwd, 'control.json'), onOwnerEvent: e => events.push(e), onOwnerRecord: r => records.push(r),
       judge: createJevJudge({ apiKey: 'synthetic-offline', fetch: async (_url, init) => {
-        payload = JSON.parse(init!.body as string); entered(); await wait;
-        return Response.json({ model: 'offline', answers: sdkAnswers(answer(payload.state.policy, 'UNKNOWN')) });
+        payload = JSON.parse(init!.body as string); submitted.push(payload); entered(); await wait;
+        return Response.json({ model: 'offline', answers: sdkAnswers(answer(undefined, 'UNKNOWN'), 1, payload.questions) });
       } }) });
     try {
       const session = guard.openSession({ sessionId: 's', contextId: 'main' }, cwd); await session.ready;
@@ -37,24 +40,13 @@ for (const mode of ['enforce', 'observe'] as const) for (const recording of ['on
       const call = { callId: 'current', toolName: 'opaque-current', input: { reference: 'synthetic-r9' } };
       const pending = session.beforeTool({ ...call, current: () => ({ ...call, sessionId: 's', contextId: 'main' }) });
       await ready;
-      const wire = JSON.stringify(payload.state.trajectory);
+      const wire = JSON.stringify(payload.state);
       session.afterTool({ callId: 'late', toolName: 'another-name', content: 'late sibling contradiction', isError: true });
-      assert.equal(JSON.stringify(payload.state.trajectory), wire);
-      assert.deepEqual(payload.state.trajectory.observations.map((o: any) => [o.callId, o.origin]), [['fresh', 'host-tool-call'], ['fresh', 'host-tool-result']]);
-      const data = expandedData(payload.state.trajectory);
-      assert.deepEqual(data[0]!.content, { label, proposal: true });
-      assert.equal((data[1]!.content as any).isError, true);
-      assert.ok((data[1]!.content as any).text.tenetExcerpt);
-      assert.deepEqual(payload.state.action.arguments, call.input);
-      assert.equal(payload.state.resolvedAction.status, 'unsupported');
-      const instructions = payload.questions.rule_0_outcome.instructions;
-      assert.match(instructions, /recorded call identity and ingestion order/);
-      assert.match(instructions, /reused identities.*not authenticated/);
-      assert.match(instructions, /missing result.*unknown/i);
-      const selection = payload.state.trajectory.selection;
-      assert.equal(selection.droppedEvents, 2); assert.equal(selection.shortenedEvents, 1);
-      assert.equal(!!payload.state.trajectory.values, pooled);
-      assert.equal(selection.exactCompactedBytes > 0, pooled);
+      assert.equal(JSON.stringify(payload.state), wire);
+      assert.deepEqual(payload.state.previousToolCall, { toolName: 'unknown-name', arguments: { label, proposal: true } });
+      assert.deepEqual(payload.state.proposedToolCall.arguments, call.input);
+      assert.deepEqual(Object.keys(payload.state), ['rule', 'thinkingTrace', 'previousToolCall', 'proposedToolCall']);
+      assert.doesNotMatch(JSON.stringify(payload), /tenetHistory|tenetExcerpt|old failure|isError|ingestion order/);
       release();
       const result = await pending;
       assert.equal(result.permission, mode === 'observe' ? 'released' : 'blocked'); assert.equal(result.execution, 'unknown');
@@ -62,24 +54,26 @@ for (const mode of ['enforce', 'observe'] as const) for (const recording of ['on
       const completed = mode === 'observe' ? events.findLast(e => e.type === 'assessment' && e.assessment.status === 'completed') : events.findLast(e => e.type === 'permission');
       assert.ok(completed?.type === 'assessment' || completed?.type === 'permission');
       const context = (completed.type === 'assessment' ? completed.assessment : completed.result.assessment).evidenceContext!;
-      assert.equal(context.history!.retainedEvents, 2); assert.equal(context.history!.omittedEvents, 2);
-      assert.equal(context.history!.shortenedEvents, 1);
+      assert.equal(context.selectionVersion, 'judge-input-scopes-v1');
+      assert.equal(context.history, null);
+      assert.equal(submitted.length, 3);
+      assert.ok(submitted.slice(1).every(p => !('thinkingTrace' in p.state) && !('previousToolCall' in p.state)));
       assert.deepEqual(context, completed.report?.evidenceContext);
       for (const row of records.filter(r => ['assessment', 'decision', 'permission'].includes(r.stage) && r.data.callId === 'current')) {
         if ((row.data.evidenceContext as typeof context | undefined)?.preparation === 'completed') assert.deepEqual(row.data.evidenceContext, context);
       }
-      assert.ok(Object.isFrozen(context.history));
+      assert.ok(Object.isFrozen(context.scopes));
       assert.equal(await guard.close(), true);
       const archive = await readArchive(join(cwd, 'archive')); assert.deepEqual(archive.issues, []);
       if (recording === 'off') assert.equal(archive.records.length, 0);
       else {
         const rows = archive.records.filter(r => r.callId === 'current');
         assert.ok(rows.every(r => r.schemaVersion === 5 && validRecord(r)));
-        assert.deepEqual(rows.find(r => r.stage === 'request')!.data.payload, payload);
+        assert.deepEqual(recordedSubmissions(rows).filter(s => s.status === 'completed').map((s: any) => s.payload), submitted);
         const view = invocationView(rows);
-        assert.deepEqual(view.evidenceContext, context); assert.deepEqual(view.evidence, payload.state);
+        assert.deepEqual(view.evidenceContext, context); assert.equal(view.evidence, null); assert.deepEqual(view.inputScopes.map(s => s.state), submitted.map(p => p.state));
         assert.equal(view.execution, 'unknown');
-        assert.equal(view.questionVersion, 'policy-rules-v8-source-set');
+        assert.equal(view.questionVersion, 'policy-rules-v9-scoped');
       }
     } finally { release(); await guard.close(); await rm(cwd, { recursive: true, force: true }); }
   });

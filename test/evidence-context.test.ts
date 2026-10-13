@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { decide } from '../src/decision/decide.js';
 import { captureAction } from '../src/decision/evidence.js';
 import { judgeState } from '../src/decision/judge-evidence.js';
+import { evidenceContext as historicalContext } from '../src/decision/evidence-context.js';
 import { Observations } from '../src/decision/trajectory.js';
 import { answer, policy } from './helpers.js';
 
@@ -18,15 +19,15 @@ test('coverage is immutable request context, not a model rationale or evaluator 
     return answer(r.policy, 'UNKNOWN');
   } });
   const context = result.evidenceContext;
-  assert.equal(context.version, 'evidence-context-v1');
-  assert.equal(context.selectionVersion, 'bounded-history-v2');
+  assert.equal(context.version, 'evidence-context-v2');
+  assert.equal(context.selectionVersion, 'judge-input-scopes-v1');
   assert.equal(context.preparation, 'completed');
   assert.equal(context.resolution.status, 'unsupported');
   assert.equal(context.current?.redactedFields, 1);
-  assert.equal(context.history?.retainedEvents, 1);
-  assert.equal(context.history?.omittedEvents, 1);
+  assert.equal(request.trajectory.selection.retainedEvents, 1);
+  assert.equal(request.trajectory.omitted, 1);
   assert.deepEqual(context, request.evidenceContext);
-  assert.ok(Object.isFrozen(context.history));
+  assert.ok(Object.isFrozen(context.scopes));
   assert.ok(Object.isFrozen(context.resolution.limitations));
   assert.ok(!JSON.stringify(context).includes('secret'));
   assert.ok(!Object.hasOwn(judgeState(request), 'evidenceContext'));
@@ -54,7 +55,7 @@ test('diagnostic bounds UTF-8 limitations without promoting partial or unsupport
   assert.equal(result.evidenceContext.resolution.limitations.length, 16);
   assert.equal(result.evidenceContext.resolution.limitationsTruncated, true);
   assert.ok(result.evidenceContext.resolution.limitations.every(s => Buffer.byteLength(s) <= 128 && !s.includes('\uFFFD')));
-  assert.equal(result.questionVersion, 'policy-rules-v8-source-set');
+  assert.equal(result.questionVersion, 'policy-rules-v9-scoped');
   assert.equal(result.profile, 'applicability-v1');
 });
 
@@ -68,9 +69,9 @@ for (const scenario of [
   let captured: any;
   const result = await decide({ policy, action, cwd: '/synthetic', trajectory: history.snapshot(), judge: async request => { captured = request; return answer(request.policy); } });
   assert.deepEqual(captured.trajectory.observations[0].data.content, scenario.content);
-  assert.equal(result.evidenceContext.history?.retainedEvents, 1);
-  assert.equal(result.evidenceContext.history?.omittedEvents, 0, 'content loss does not omit the whole event');
-  assert.ok(result.evidenceContext.history?.limitations.includes(scenario.gap));
+  assert.equal(captured.trajectory.selection.retainedEvents, 1);
+  assert.equal(captured.trajectory.omitted, 0, 'content loss does not omit the whole event');
+  assert.ok(historicalContext(captured, undefined, true).history!.limitations.includes(scenario.gap));
   assert.deepEqual(result.evidenceContext, captured.evidenceContext);
   assert.equal(Object.hasOwn(judgeState(captured), 'evidenceContext'), false);
 });
@@ -82,6 +83,6 @@ test('authored omission-shaped content is not promoted to runtime provenance; ex
   let captured: any;
   const result = await decide({ policy, action, cwd: '/synthetic', trajectory: history.snapshot(), judge: async request => { captured = request; return answer(request.policy); } });
   assert.deepEqual(captured.trajectory.observations[0].data.content, authored);
-  assert.equal(result.evidenceContext.history?.omittedEvents, 1);
-  assert.equal(result.evidenceContext.history?.limitations.includes('unsupported-image'), false);
+  assert.equal(captured.trajectory.omitted, 1);
+  assert.equal(captured.trajectory.limitations.includes('unsupported-image'), false);
 });

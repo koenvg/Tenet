@@ -1,3 +1,4 @@
+import { recordedInputs } from '../recording/scoped.js';
 import { type FindingCategory } from '../decision/finding-triage.js';
 import { findingStage, foldFindingStages, type FindingStage, type EvaluatorState, type EvaluatorFailureCode } from './finding-view.js';
 import { lstat, opendir } from 'node:fs/promises';
@@ -63,7 +64,7 @@ function bbFacts(record: ArchiveRecord): Pick<Metadata, 'valid' | 'policyRuleIds
   const payload = stage === 'request' && data.payload && typeof data.payload === 'object'
     ? data.payload as { state?: unknown } : null;
   const state = payload?.state && typeof payload.state === 'object' ? payload.state as { integrity?: unknown } : null;
-  const integrity = stage === 'begin' ? data.integrity : stage === 'request' ? state?.integrity : undefined;
+  const integrity = stage === 'begin' ? data.integrity : stage === 'request' ? recordedInputs(data).integrity : undefined;
   const integrityRuleId = integrity === undefined || integrity === null ? undefined
     : typeof integrity === 'object' && !Array.isArray(integrity) && typeof (integrity as { id?: unknown }).id === 'string'
       && (integrity as { id: string }).id.length <= 256 ? (integrity as { id: string }).id : null;
@@ -335,7 +336,7 @@ export class ArchiveIndex {
             const { data, ...metadata } = record;
             entry.metadata = { ...metadata, finding: findingStage(record), ...bbFacts(record),
               assessmentInvalid: recordedAssessmentInvalid(record),
-              actionPreview: record.stage === 'request' ? recordedActionPreview(data.payload) : undefined,
+              actionPreview: record.stage === 'request' ? recordedActionPreview(data) : undefined,
               rulePreviews: recordedRulePreviews(data, record.stage),
               decision: record.stage === 'decision' ? String(data.decision) : undefined,
               health: captureHealth([record])[0] };

@@ -18,10 +18,11 @@ export function answer(selected: PolicySet = policy, outcome: Outcome = 'PASS', 
 }
 
 /** Scripted SDK response for ordinary outcomes without resolved action facts. */
-export function sdkAnswers(assessment: Assessment, confidence = 1): Record<string, any> {
-  return Object.fromEntries(assessment.rules.flatMap((rule, i) => [
+export function sdkAnswers(assessment: Assessment, confidence = 1, questions?: Record<string, unknown>): Record<string, any> {
+  const answers = Object.fromEntries(assessment.rules.flatMap((rule, i) => [
     [`rule_${i}_outcome`, { type: 'choice', ...rule.outcome, confidence }],
     [`rule_${i}_evidence`, { type: 'choice', ...rule.evidence, confidence }],
     ...(rule.ruleId === INTEGRITY_ID ? [] : [[`rule_${i}_facts`, { type: 'choice', choice: 'NONE', probabilities: { NONE: 1 }, confidence }]]),
   ]));
+  return questions ? Object.fromEntries(Object.keys(questions).map(key => [key, answers[key]])) : answers;
 }

@@ -2,6 +2,7 @@ import { recordedOrigin } from '../recording/policy-contract.js';
 import { validationIssue } from '../decision/response-validation.js';
 import { findingStage, foldFindingStages } from './finding-view.js';
 import { nativeHistory, recordedJudge, validNativeContract } from '../recording/native.js';
+import { recordedInputs, recordedSubmissions } from '../recording/scoped.js';
 import type { ArchiveRecord } from '../recording/contract.js';
 import { validEvidenceContext } from '../decision/evidence-context-contract.js';
 import { freeze } from '../decision/immutable.js';
@@ -25,12 +26,15 @@ export function recordedAssessmentInvalid(record: Pick<ArchiveRecord, 'stage' | 
 export function invocationView(records: ArchiveRecord[]) {
   const findings = foldFindingStages(records.map(findingStage));
   const stage = (name: string) => object(records.findLast(r => r.stage === name)?.data);
-  const begin = stage('begin'), request = stage('request'), response = stage('response');
+  const begin = stage('begin'), request = stage('request');
+  // Scope submission status is provenance, not a returned provider response.
+  const response = object(records.findLast(r => r.stage === 'response' && object(r.data.value).kind !== 'scope-submission')?.data);
   const assessment = object(stage('assessment').assessment ?? stage('validation').assessment);
   const decision = stage('decision'), permission = stage('permission');
-  const payload = object(request.payload), state = object(payload.state);
+  const payload = object(request.payload), inputs = recordedInputs(request), state = object(inputs.sharedState);
+  const submissions = recordedSubmissions(records);
   const policy = object(request.policy ?? begin.policy);
-  const integrity = object(state.integrity ?? begin.integrity);
+  const integrity = object(inputs.integrity ?? begin.integrity);
   const config = object(stage('assessment').config ?? begin.config);
   const rules = [...list(policy.rules), ...(typeof integrity.id === 'string' ? [{ ...integrity, enforcement: 'BLOCK', line: null }] : [])];
   const validation = stage('validation');
@@ -61,18 +65,20 @@ export function invocationView(records: ArchiveRecord[]) {
     validationIssue: validationIssue(decision.validationIssue ?? stage('assessment').validationIssue ?? validation.validationIssue ?? lifecycle.validationIssue),
     queueWaitMs: typeof lifecycle.queueWaitMs === 'number' ? lifecycle.queueWaitMs : null,
     providerDurationMs: typeof lifecycle.providerDurationMs === 'number' ? lifecycle.providerDurationMs : null,
-    requestStatus: validNativeContract(request.nativeContract) ? 'captured canonical payload; native exchanges are separate'
+    requestStatus: inputs.layout === 'scoped' ? submissions.some(s => ['attempted', 'completed', 'failed'].includes(s.status))
+      ? 'scoped submissions attempted; processing is not inferred' : 'prepared scopes captured; submission unavailable'
+      : validNativeContract(request.nativeContract) ? 'captured canonical payload; native exchanges are separate'
       : request.payload ? 'submitted application payload' : submitted ? 'submitted; payload unavailable'
       : notSubmitted ? 'not submitted' : 'payload unavailable; capture incomplete',
     captureHealth: captureHealth(records),
     coverage: 'Best-effort capture. Missing stages are unknown, not proof of success.',
-    missing: ['begin', 'request', 'response', 'validation', 'assessment', 'decision', 'permission', 'execution'].filter(name => !records.some(r => r.stage === name)),
-    policy, evidence: payload.state ?? null, response: Object.keys(response).length ? response : null,
+    missing: ['begin', 'request', 'response', 'validation', 'assessment', 'decision', 'permission', 'execution'].filter(name => !records.some(r => r.stage === name && (name !== 'response' || object(r.data.value).kind !== 'scope-submission'))),
+    policy, evidence: inputs.sharedState, inputLayout: inputs.layout, inputScopes: inputs.scopes, submissions, response: Object.keys(response).length ? response : null,
     validation: stage('validation'),
     rules: rules.map(rule => {
       const result = list(assessment.rules).find(r => r.ruleId === rule.id);
       const mapping = list(request.mapping).find(m => m.id === rule.id);
-      const questions = object(payload.questions);
+      const questions = object(inputs.questions);
       const diagnostic = list(decision.diagnostics).find(r => r.ruleId === rule.id);
       const contribution = list(decision.contributions).find(r => r.ruleId === rule.id);
       const recorded = contribution ?? diagnostic;

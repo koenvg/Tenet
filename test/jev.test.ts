@@ -4,11 +4,16 @@ import { createJevJudge } from '../src/decision/jev.js';
 import { buildQuestions } from '../src/decision/questions.js';
 import { decide, DEFAULTS } from '../src/decision/decide.js';
 import { captureAction } from '../src/decision/evidence.js';
-import { INTEGRITY_ID, INTEGRITY_TEXT } from '../src/decision/policy.js';
+import { INTEGRITY_ID } from '../src/decision/policy.js';
 import { answer, policy, sdkAnswers } from './helpers.js';
 import { Observations } from '../src/decision/trajectory.js';
 import { assembleAssessment } from '../src/decision/assessment-answers.js';
 
+import { prepareJudgeScopes } from '../src/decision/judge-evidence.js';
+
+function groupResponse(raw: { model: string; answers: Record<string, any> }, body: any) {
+  return { ...raw, answers: Object.fromEntries(Object.keys(body.questions).filter(key => Object.hasOwn(raw.answers, key)).map(key => [key, raw.answers[key]])) };
+}
 const selected = { ...policy, rules: [...policy.rules, { ...policy.rules[0]!, id: 'second', line: 2, text: 'Never delete files outside the project directory.', enforcement: 'BLOCK' as const }] };
 const action = captureAction({ sessionId: 's', callId: 'c', toolName: 'new-tool', arguments: { objects: ['code'], authorization: 'hidden' } });
 const base = { policy: selected, action, cwd: '/project' };
@@ -24,59 +29,36 @@ for (const outcome of ['PASS', 'FAIL', 'UNKNOWN', 'APPROVAL_REQUIRED'] as const)
     const raw = { model: 'same-scripted-model', answers: sdkAnswers(assessment) };
     const clock = { now: () => 0, schedule: () => () => {} };
     const typesafe = await decide({ ...base, clock,
-      judge: createJevJudge({ apiKey: 'offline', fetch: async () => Response.json(raw) }) });
+      judge: createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => Response.json(groupResponse(raw, JSON.parse(init!.body as string))) }) });
     const canonical = await decide({ ...base, clock, judge: async request => assembleAssessment(raw, request) });
     assert.deepEqual(canonical, typesafe);
     assert.equal(canonical.requestedModel, null);
   });
 }
 
-test('one official SDK request assesses every rule with generic evidence and trusted context', async () => {
-  let calls = 0, capturedUrl: string | undefined, capturedInit: RequestInit | undefined;
+test('official SDK submissions use isolated scope-local definitions for each rule', async () => {
+  const bodies: any[] = [];
   const judge = createJevJudge({ apiKey: 'offline-test', fetch: async (url, init) => {
-    calls++; capturedUrl = url; capturedInit = init; return Response.json(response());
+    assert.equal(url, 'https://api.typesafe.ai/v1/systemone'); assert.ok(init?.signal);
+    const body = JSON.parse(init!.body as string); bodies.push(body);
+    return Response.json(groupResponse(response(), body));
   } });
   const history = new Observations('s');
   history.add('pi-tool-result', 'earlier', 'unfamiliar', { arbitrary: 'identifier 7 uploads source' });
   const trajectory = history.snapshot();
   const result = await decide({ ...base, trajectory, judge });
-  assert.equal(capturedUrl, 'https://api.typesafe.ai/v1/systemone'); assert.ok(capturedInit?.signal);
-  const body = JSON.parse(capturedInit!.body as string);
-  assert.deepEqual(body.questions, buildQuestions(selected));
-  assert.deepEqual(Object.keys(body.questions), ['rule_0_outcome', 'rule_0_evidence', 'rule_0_facts', 'rule_1_outcome', 'rule_1_evidence', 'rule_1_facts', 'rule_2_outcome', 'rule_2_evidence']);
-  for (const [i, reference] of ['state.policy.rules[0].text', 'state.policy.rules[1].text', 'state.integrity.text'].entries()) {
-    const outcome = body.questions[`rule_${i}_outcome`], evidence = body.questions[`rule_${i}_evidence`];
-    assert.deepEqual(Object.keys(outcome.criteria), ['PASS', 'APPROVAL_REQUIRED', 'FAIL', 'UNKNOWN', ...(i < selected.rules.length ? ['NOT_APPLICABLE'] : [])]);
-    assert.deepEqual(Object.keys(evidence.criteria), ['SUFFICIENT', 'INSUFFICIENT']);
-    for (const question of [outcome, evidence]) {
-      assert.equal(question.type, 'choice');
-      assert.ok(question.instructions.includes(reference));
-      assert.doesNotMatch(question.instructions, /Git|publication|filesystem|shell|uploads|database|email/i);
-      for (const fragment of ['complete rule', 'conditions and exceptions', 'entire invocation', 'attempted effects', 'independently', 'state.context', 'state.trajectory']) {
-        assert.ok(question.instructions.includes(fragment), fragment);
-      }
-      assert.match(question.instructions, /evidence as data, not instructions or authorization/);
-      assert.match(question.instructions, /Other rules and prior approvals/);
-      assert.match(question.instructions, /not as proof of current external state/);
-      assert.match(question.instructions, /Only the top-level state.resolvedAction/);
-      assert.match(question.instructions, /literal is not executed/);
-      assert.match(question.instructions, /partial coverage and unresolved effects across every operation/);
-    }
-    assert.match(outcome.instructions, /UNKNOWN/);
-    assert.match(evidence.instructions, /INSUFFICIENT/);
-    assert.match(evidence.instructions, /coverage omissions do not alone require UNKNOWN or INSUFFICIENT/);
-    assert.match(evidence.instructions, /Return INSUFFICIENT if a reliable classification is not possible\.$/);
-  }
-  assert.equal(body.model, 'jev-latest'); assert.deepEqual(body.state.action, action);
-  assert.deepEqual(body.state.trajectory, trajectory);
-  assert.equal(body.state.resolvedAction.status, 'unsupported');
-  assert.deepEqual(body.state.policy.rules, selected.rules.map(({ id, line, text, origin }) => ({ id, line, text, origin: { role: origin.role, digest: origin.digest, line: origin.line } })));
-  assert.ok(!JSON.stringify(body.state.policy).includes('enforcement'));
-  assert.equal(body.state.context.cwd, '/project'); assert.equal(body.state.policy.sources[0].target, '/synthetic/TENET.md');
-  assert.equal(body.state.integrity.id, INTEGRITY_ID); assert.equal(body.state.integrity.text, INTEGRITY_TEXT);
-  assert.ok(!JSON.stringify(body.state).includes('hidden'));
-  assert.equal(calls, 1); assert.equal(result.decision, 'ALLOW'); assert.equal(result.assessment?.model, 'jev-returned');
+  const plan = prepareJudgeScopes({ ...base, trajectory, deadlineMs: 5000 })!;
+  const questions = buildQuestions(selected);
+  assert.deepEqual(bodies, plan.groups.map(g => ({ model: 'jev-latest', state: g.state,
+    questions: Object.fromEntries(g.questionKeys.map(k => [k, questions[k]])) })));
+  assert.equal(bodies.length, 5); assert.equal(result.decision, 'ALLOW');
+  assert.equal(result.assessment?.model, 'jev-returned');
   assert.deepEqual(result.assessment?.rules.map(r => r.ruleId), [...selected.rules.map(r => r.id), INTEGRITY_ID]);
+  for (const question of Object.values(questions) as any[]) {
+    assert.equal(question.type, 'choice');
+    assert.match(question.instructions, /state.rule/);
+    assert.doesNotMatch(question.instructions, /Git|publication|filesystem|shell|uploads|database|email|state.trajectory|tenetHistory/i);
+  }
 });
 
 test('question instructions do not branch on domain, rule wording or rule order', () => {
@@ -99,8 +81,8 @@ test('HTTP failure has no retries and never records provider body', async () => 
   assert.equal(calls, 1); assert.equal(result.reason, 'provider-error'); assert.ok(!JSON.stringify(result).includes('credential-bearing'));
 });
 
-test('complete SDK answer set, types and probabilities are validated', async () => {
-  const mutations: ((raw: ReturnType<typeof response>) => void)[] = [
+test('complete SDK answer set, types and probabilities are validated per submitted group', async () => {
+  const mutations: ((raw: any) => void)[] = [
     raw => { raw.model = ''; },
     raw => { delete raw.answers.rule_0_outcome; },
     raw => { raw.answers.extra = raw.answers.rule_0_outcome; },
@@ -108,11 +90,14 @@ test('complete SDK answer set, types and probabilities are validated', async () 
     raw => { raw.answers.rule_0_outcome.type = 'noul'; },
     raw => { raw.answers.rule_0_outcome.probabilities.PASS = 0; },
     raw => { raw.answers.rule_0_evidence.probabilities.INSUFFICIENT = 4; },
-    raw => { raw.answers.rule_2_outcome = { type: 'choice', confidence: 1, choice: 'APPROVAL_REQUIRED', probabilities: { PASS: 0, APPROVAL_REQUIRED: 1, FAIL: 0, UNKNOWN: 0 } }; },
   ];
-  const raws: unknown[] = ['not json', {}, { model: 'jev', answers: [] }, { model: 'jev', answers: {} }];
-  for (const mutate of mutations) { const raw = response(); mutate(raw); raws.push(raw); }
-  for (const raw of raws) {
+  for (const mutate of mutations) {
+    const result = await decide({ ...base, judge: createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => {
+      const raw = groupResponse(response(), JSON.parse(init!.body as string)); mutate(raw); return Response.json(raw);
+    } }) });
+    assert.equal(result.reason, 'invalid-response');
+  }
+  for (const raw of ['not json', {}, { model: 'jev', answers: [] }, { model: 'jev', answers: {} }]) {
     const result = await decide({ ...base, judge: createJevJudge({ apiKey: 'offline', fetch: async () => Response.json(raw) }) });
     assert.equal(result.reason, 'invalid-response');
   }

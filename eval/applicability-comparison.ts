@@ -50,7 +50,7 @@ export function compareApplicability(observations: readonly ComparisonObservatio
     const result = observation?.result;
     const rules = result?.assessment?.rules ?? [];
     const identity = fixtureIdentity(fixture);
-    const userRuleId = contract.questionVersion === 'policy-rules-v8-source-set'
+    const userRuleId = ['policy-rules-v8-source-set', 'policy-rules-v9-scoped'].includes(contract.questionVersion)
       ? `project:${createHash('sha256').update(fixture.policy).digest('hex')}:1` : `${identity.policyDigest}:1`;
     const expectedRuleIds = [userRuleId, INTEGRITY_ID];
     const missingRuleIds = expectedRuleIds.filter(id => !rules.some(r => r.ruleId === id));

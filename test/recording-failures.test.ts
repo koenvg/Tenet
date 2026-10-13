@@ -43,7 +43,7 @@ test('persisted provider failures and absent submissions remain distinct after r
   for (const kind of ['credentials', 'provider', 'invalid']) {
     const view = invocationView(records.filter(r => r.invocationId === kind));
     assert.equal(view.failure, kind === 'credentials' ? 'missing-credentials' : kind === 'provider' ? 'provider-error' : 'invalid-response');
-    assert.equal(view.requestStatus, kind === 'credentials' ? 'not submitted' : 'submitted application payload');
+    assert.equal(view.requestStatus, kind === 'credentials' ? 'not submitted' : 'scoped submissions attempted; processing is not inferred');
     assert.equal(view.execution, 'unknown');
     assert.equal(view.validation.valid, false);
     if (kind === 'invalid') assert.ok(JSON.stringify(view.response).includes('untrusted'));
@@ -51,7 +51,7 @@ test('persisted provider failures and absent submissions remain distinct after r
   for (const secret of ['private-api-key', 'private-error-body', 'private-header']) assert.ok(!JSON.stringify(records).includes(secret));
   const app = await startInspector({ directory: dir });
   try {
-    const detail: any = await (await fetch(`${app.origin}/api/sessions/${qualifiedSessionKey(identity.host, identity.sessionId, identity.contextId)}/invocations/${recordInvocationKey({ ...identity, schemaVersion: 4, invocationId: 'credentials' })}`)).json();
+    const detail: any = await (await fetch(`${app.origin}/api/sessions/${qualifiedSessionKey(identity.host, identity.sessionId, identity.contextId)}/invocations/${recordInvocationKey({ ...identity, schemaVersion: 5, invocationId: 'credentials' })}`)).json();
     assert.equal(detail.view.failure, 'missing-credentials');
     assert.equal(detail.view.requestStatus, 'not submitted');
   } finally { await app.close(); }
@@ -177,8 +177,8 @@ test('process exit after submission preserves incomplete API state and exposes a
   assert.equal(child.status, 23, child.stderr);
   const app = await startInspector({ directory: dir });
   try {
-    const detail: any = await (await fetch(`${app.origin}/api/sessions/${qualifiedSessionKey('pi', 'interrupted', 'main')}/invocations/${recordInvocationKey({ ...identity, schemaVersion: 4, sessionId: 'interrupted', invocationId: 'call' })}`)).json();
-    assert.equal(detail.view.requestStatus, 'submitted application payload');
+    const detail: any = await (await fetch(`${app.origin}/api/sessions/${qualifiedSessionKey('pi', 'interrupted', 'main')}/invocations/${recordInvocationKey({ ...identity, schemaVersion: 5, sessionId: 'interrupted', invocationId: 'call' })}`)).json();
+    assert.equal(detail.view.requestStatus, 'scoped submissions attempted; processing is not inferred');
     assert.equal(detail.view.assessmentStatus, 'incomplete');
     assert.equal(detail.view.response, null);
     assert.equal(detail.view.decision, 'unavailable');
@@ -227,7 +227,7 @@ test('recorded deadline remains timeout when transport cancellation follows it',
   assert.equal(result.reason, 'timeout');
   const view = invocationView((await readArchive(dir)).records);
   assert.equal(view.failure, 'timeout');
-  assert.equal(view.requestStatus, 'submitted application payload');
+  assert.equal(view.requestStatus, 'scoped submissions attempted; processing is not inferred');
   assert.equal(view.response, null);
 }));
 

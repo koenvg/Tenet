@@ -28,7 +28,7 @@ for (const roles of [['global'], ['project'], ['global', 'project']] as const) {
       sink('begin', { policy, config: { effectThreshold: .91, evidenceThreshold: .92 } });
       const result = await decide({ policy, action: captureAction({ sessionId: 's', callId: 'c', toolName: 'fixture', arguments: {} }),
         cwd: root, recording: sink, config: { effectThreshold: .91, evidenceThreshold: .92 },
-        judge: createJevJudge({ apiKey: 'offline', fetch: async () => Response.json({ model: 'scripted', answers: sdkAnswers(answer(policy, 'FAIL')) }) }) });
+        judge: createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => Response.json({ model: 'scripted', answers: sdkAnswers(answer(policy, 'FAIL'), 1, JSON.parse(init!.body as string).questions) }) }) });
       sink('assessment', { ...result }); sink('decision', { ...result, contributions: ruleContributions(result, policy) });
       sink('permission', { outcome: 'released' }); sink('execution', { outcome: 'unknown' }); await writer.close();
       const before = await readArchive(directory); assert.deepEqual(before.issues, []);

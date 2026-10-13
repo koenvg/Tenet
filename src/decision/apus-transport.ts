@@ -1,4 +1,4 @@
-import { performance } from 'node:perf_hooks';
+import { assessmentBudget } from './assessment-budget.js';
 import { JudgeFailure } from './contracts.js';
 
 export class NativeFailure extends JudgeFailure {
@@ -9,32 +9,8 @@ export const NATIVE_REQUEST_LIMIT = 8 * 1024 * 1024;
 
 /** One budget for the entire assessment, including stalled noncooperative readers. */
 export function nativeTransport(baseUrl: string, deadlineMs: number, parent: AbortSignal, fetcher: typeof fetch) {
-  const controller = new AbortController();
-  const end = performance.now() + deadlineMs;
-  let failure: JudgeFailure | undefined;
-  const abort = (reason: 'cancelled' | 'timeout') => { failure ??= new JudgeFailure(reason); controller.abort(); };
-  const cancelled = () => abort('cancelled');
-  parent.addEventListener('abort', cancelled, { once: true });
-  if (parent.aborted) cancelled();
-  const timer = setTimeout(() => abort('timeout'), deadlineMs);
-  const check = () => {
-    if (parent.aborted) cancelled();
-    if (performance.now() >= end) abort('timeout');
-    if (failure) throw failure;
-  };
-  async function bounded<T>(work: () => Promise<T>): Promise<T> {
-    check();
-    let stop = () => {};
-    try {
-      const interrupted = new Promise<never>((_resolve, reject) => {
-        stop = () => reject(failure ?? new JudgeFailure('cancelled'));
-        controller.signal.addEventListener('abort', stop, { once: true });
-      });
-      const result = await Promise.race([interrupted, Promise.resolve().then(() => { check(); return work(); })]);
-      check();
-      return result;
-    } finally { controller.signal.removeEventListener('abort', stop); }
-  }
+  const budget = assessmentBudget(deadlineMs, parent);
+  const { check, bounded } = budget;
   async function json(path: '/v1/models' | '/props' | '/tokenize' | '/completion', body?: Record<string, unknown>): Promise<unknown> {
     check();
     const serialized = body === undefined ? undefined : JSON.stringify(body);
@@ -43,8 +19,8 @@ export function nativeTransport(baseUrl: string, deadlineMs: number, parent: Abo
     const response = await bounded(() => fetcher(baseUrl.replace(/\/$/, '') + path, {
       method: body === undefined ? 'GET' : 'POST', redirect: 'error', credentials: 'omit',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      ...(serialized === undefined ? {} : { body: serialized }), signal: controller.signal,
-    }).then(value => { if (controller.signal.aborted) discard(value); return value; }));
+      ...(serialized === undefined ? {} : { body: serialized }), signal: budget.signal,
+    }).then(value => { if (budget.signal.aborted) discard(value); return value; }));
     if (!response.ok || response.redirected) { discard(response); throw new NativeFailure('http', 'provider-error'); }
     const length = response.headers.get('content-length');
     if (length !== null && (!/^\d+$/.test(length) || Number(length) > NATIVE_BODY_LIMIT)) { discard(response); throw new NativeFailure('body-limit'); }
@@ -67,5 +43,5 @@ export function nativeTransport(baseUrl: string, deadlineMs: number, parent: Abo
       void reader.cancel().catch(() => {});
     }
   }
-  return { json, check, signal: controller.signal, close: () => { clearTimeout(timer); parent.removeEventListener('abort', cancelled); } };
+  return { json, check, signal: budget.signal, close: budget.close };
 }

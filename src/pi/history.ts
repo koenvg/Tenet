@@ -21,6 +21,9 @@ export function nativeHistory(sessionId: string, branch: readonly unknown[] | un
   const assessed = new Set<string>();
   const history: ObservedHistory[] = [];
   let remaining = HISTORY_ADMISSION_SLOTS, priorOmittedEvents = 0, admissionLimited = false;
+  // Only the newest observed call can establish reliable previous-call context.
+  // undefined means none observed; null means its identity is unavailable.
+  let latestCallId: string | null | undefined;
   const identity = (id: unknown): id is string => typeof id === 'string' && id.length <= Math.floor(limits.maxBytes / 3);
   const omit = (count = 1) => { priorOmittedEvents = historyCount(priorOmittedEvents, count); };
   for (let index = length - 1; index >= 0; index--) {
@@ -54,6 +57,7 @@ export function nativeHistory(sessionId: string, branch: readonly unknown[] | un
         remaining--;
         const block = ownHistoryFields(historySlot(blocks, blockIndex), ['type', 'id', 'name', 'arguments']);
         if (!block) { omit(); continue; }
+        if (block.type === 'toolCall' && latestCallId === undefined) latestCallId = identity(block.id) ? block.id : null;
         if (block.type === 'toolCall' && identity(block.id)) {
           history.push({ kind: 'tool-call', callId: block.id, toolName: block.name as string ?? null, data: block.arguments, timestamp });
         }
@@ -62,5 +66,8 @@ export function nativeHistory(sessionId: string, branch: readonly unknown[] | un
   }
   // Discover assessed IDs only inside the same inspected window, then filter. Never
   // scan an older prefix just to authorize recovery or normalize ineligible payloads.
+  // Exclude unassessed content as before, but report loss of the latest call.
+  // Older ineligible calls cannot obscure a newer, intact assessed call.
+  if (latestCallId === null || latestCallId !== undefined && !assessed.has(latestCallId)) omit();
   return { history: history.reverse().filter(event => assessed.has(event.callId!)), capture: { priorOmittedEvents, admissionLimited } };
 }

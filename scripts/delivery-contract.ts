@@ -6,12 +6,12 @@ import { dirname, join, posix } from 'node:path';
 export const runtimeModules = [
   'sdk/index', 'sdk/types', 'sdk/capabilities',
   'cli/index', 'doctor/doctor', 'doctor/installation',
-  ...['apus', 'apus-native', 'apus-renderer', 'apus-transport', 'assessment-answers', 'typesafe-contract', 'assessment-contract', 'assessment-shape', 'contracts', 'decide', 'diagnostics', 'evidence', 'evidence-budget',
+  ...['apus', 'apus-native', 'apus-renderer', 'apus-transport', 'assessment-answers', 'assessment-budget', 'typesafe-contract', 'assessment-contract', 'assessment-shape', 'contracts', 'decide', 'diagnostics', 'evidence', 'evidence-budget',
     'evidence-context', 'evidence-context-contract', 'filesystem-presence', 'finding-triage', 'history-capture', 'history-content',
     'history-envelope', 'history-groups', 'history-selection', 'immutable', 'jev', 'judge-evidence', 'policy', 'policy-contract', 'policy-origin',
     'questions', 'response-validation', 'thresholds', 'trajectory'].map(n => `decision/${n}`),
   ...['activation', 'approval', 'config', 'configuration', 'judge', 'settings', 'consequences', 'guard', 'invocation-authorization', 'observation-queue', 'owner-record', 'policy-selection', 'resolved-action', 'resources'].map(n => `runtime/${n}`),
-  ...['archive', 'contract', 'files', 'judge', 'native', 'policy-contract', 'rules'].map(n => `recording/${n}`),
+  ...['archive', 'contract', 'files', 'judge', 'native', 'policy-contract', 'rules', 'scoped', 'scoped-capture'].map(n => `recording/${n}`),
   ...['approval', 'boundary', 'config', 'extension', 'guard', 'history', 'inspector-command', 'owner-reports', 'report-history'].map(n => `pi/${n}`),
   ...['action-preview', 'archive-index', 'assessment-completeness', 'bb-findings', 'bb-summary', 'summary-model', 'summary-explanation', 'finding-view', 'recorded-assessment', 'recorded-decision', 'serve-cli', 'server', 'view'].map(n => `inspector/${n}`),
 ];

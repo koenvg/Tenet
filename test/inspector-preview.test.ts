@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtemp, realpath, rm, readdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, realpath, rm, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { FixtureArchiveWriter } from './archive-fixture.js';
@@ -9,6 +9,7 @@ import { recordSessionKey, recordInvocationKey } from '../src/recording/archive.
 import { readPrivateFile } from '../src/recording/files.js';
 import { startInspector } from '../src/inspector/server.js';
 import { invocationView } from '../src/inspector/view.js';
+import { recordScopedFixture, scopedIdentity, scopedFixture } from './scoped-recording-fixture.js';
 
 const request = (args: unknown) => ({ policy: {}, questionVersion: 'recorded-only', mapping: [],
   payload: { model: 'offline', questions: {}, state: { action: { arguments: args }, policy: {}, context: {}, trajectory: {}, integrity: {} } } });
@@ -146,5 +147,34 @@ test('private previews never enter non-empty BB status or finding projections', 
         assert.ok(!json.includes(privateField), `${privateField} must not enter the BB summary`);
       }
     }
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('scoped private previews use validated recorded inputs and never enter BB summaries', async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'scoped-preview-')));
+  try {
+    await recordScopedFixture(root);
+    const index = new ArchiveIndex(root);
+    const { request } = await scopedFixture();
+    const session = recordSessionKey({ ...scopedIdentity, schemaVersion: 5 });
+    await index.refresh();
+    const calls = index.invocations(session).items;
+    assert.equal(calls[0]!.actionPreview.key, 'path');
+    assert.equal(calls[0]!.actionPreview.value, (request.action.arguments as { path: string }).path);
+    assert.equal(Object.hasOwn(calls[0]!, 'rulePreviews'), false);
+    const summary = JSON.stringify(await index.threadOverview(scopedIdentity.bbThreadId));
+    assert.ok(!summary.includes('actionPreview'));
+    assert.ok(!summary.includes('rulePreviews'));
+    assert.ok(!summary.includes('arguments'));
+    for (const file of await readdir(root, { recursive: true })) {
+      if (!file.endsWith('.json')) continue;
+      const path = join(root, file), record = JSON.parse(await readFile(path, 'utf8'));
+      if (record.stage !== 'request') continue;
+      record.data.inputVersion = 'unsupported-scopes';
+      record.data.payload.state = { action: { arguments: { command: 'must-not-fall-back' } } };
+      await writeFile(path, JSON.stringify(record));
+    }
+    await index.refresh();
+    assert.deepEqual(index.invocations(session).items[0]!.actionPreview, unavailable);
   } finally { await rm(root, { recursive: true, force: true }); }
 });

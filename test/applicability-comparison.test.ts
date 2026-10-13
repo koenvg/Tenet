@@ -28,7 +28,7 @@ test('scripted comparisons retain independent denominators, profile identities a
   assert.equal(report.fixtureActionsExecuted, false);
   assert.equal(report.semanticAccuracy, 'unverified');
   assert.equal(report.rows.length, applicabilityCorpus.fixtures.length * 2);
-  const candidate = report.summaries.find(r => r.questionVersion === ASSESSMENT_METADATA.questionVersion && r.split === 'canonical')!;
+  const candidate = report.summaries.find(r => r.questionVersion === 'policy-rules-v8-source-set' && r.split === 'canonical')!;
   assert.equal(candidate.falseBlocks.denominator, 11);
   assert.equal(candidate.unsafeAllows.denominator, 6);
   assert.equal(candidate.falseBlocks.numerator, 0);
@@ -128,7 +128,7 @@ test('historical expectations are absent and incomplete allows never earn correc
   const fixture = applicabilityCorpus.fixtures.find(f => f.id === 'unsupported-read')!;
   const historical = { profile: 'applicability-v1', questionVersion: 'policy-rules-v6-applicability' };
   const current = { ...ASSESSMENT_METADATA, questionDigest: 'current-question-digest' };
-  const result = supplied.rows.find(r => r.fixtureId === fixture.id && r.questionVersion === current.questionVersion)!.assessment;
+  const result = supplied.rows.find(r => r.fixtureId === fixture.id && r.questionVersion === 'policy-rules-v8-source-set')!.assessment;
   const decision = { ...ASSESSMENT_METADATA, config: DEFAULTS, decision: 'ALLOW' as const, reason: 'all-rules-pass' as const,
     assessment: result, diagnostics: [], ruleIds: [], durationMs: 0, requestedModel: 'offline' };
   const rows: ComparisonObservation[] = [
@@ -155,7 +155,7 @@ test('protected unsafe allows and opposing changes remain separate from benign r
   const historical = { profile: 'applicability-v1', questionVersion: 'policy-rules-v6-applicability' };
   const make = (id: string, contract: typeof historical, decision: 'ALLOW' | 'BLOCK' | 'ASK'): ComparisonObservation => {
     const fixture = applicabilityCorpus.fixtures.find(f => f.id === id)!;
-    const recorded = supplied.rows.find(r => r.fixtureId === id && r.questionVersion === ASSESSMENT_METADATA.questionVersion)!;
+    const recorded = supplied.rows.find(r => r.fixtureId === id && r.questionVersion === 'policy-rules-v8-source-set')!;
     return { ...fixtureIdentity(fixture), ...contract, evidenceCoverage: recorded.evidenceCoverage, omissions: [], result: {
       ...contract, config: DEFAULTS, decision, reason: 'all-rules-pass', assessment: contract.questionVersion === ASSESSMENT_METADATA.questionVersion ? recorded.assessment
         : { ...recorded.assessment!, rules: recorded.assessment!.rules.map((r, i) => ({ ...r, ruleId: i === 0 ? `${fixtureIdentity(fixture).policyDigest}:1` : r.ruleId })) },
@@ -183,7 +183,7 @@ test('offline replay captures revised current evidence and never requests a prov
     const json = await runApplicabilityComparison([]);
     assert.equal(await runApplicabilityComparison([]), json);
     const report = JSON.parse(json);
-    const current = report.rows.filter((r: any) => r.questionVersion === ASSESSMENT_METADATA.questionVersion);
+    const current = report.rows.filter((r: any) => r.questionVersion === 'policy-rules-v8-source-set');
     const pressure = current.find((r: any) => r.fixtureId === 'metadata-history-pressure');
     assert.equal(pressure.submittedState.action.description, 'Read one file and return literal content.');
     assert.deepEqual(pressure.submittedState.action.parameters, { type: 'object' });

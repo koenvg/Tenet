@@ -1,4 +1,5 @@
 import { POLICY_LIMITS } from '../decision/policy.js';
+import { recordedInputs } from '../recording/scoped.js';
 
 /** Private recorded display metadata, never a resolved target or proof of execution. */
 export type TextPreview = { value: string | null; shortened: boolean };
@@ -22,8 +23,12 @@ function recordedTextPreview(text: unknown): TextPreview {
   return { value, shortened: false };
 }
 
-export function recordedActionPreview(payload: unknown): ActionPreview {
-  const args = object(object(object(object(payload).state).action).arguments);
+export function recordedActionPreview(data: Record<string, unknown>): ActionPreview {
+  const inputs = recordedInputs(data);
+  const action = inputs.layout === 'scoped'
+    ? object(inputs.scopes.find(scope => scope.kind === 'ordinary')?.state).proposedToolCall
+    : object(inputs.sharedState).action;
+  const args = object(object(action).arguments);
   for (const key of ['command', 'path', 'file_path'] as const) {
     const preview = recordedTextPreview(args[key]);
     if (preview.value !== null) return { key, value: preview.value, shortened: preview.shortened };
@@ -35,8 +40,7 @@ export function recordedActionPreview(payload: unknown): ActionPreview {
 export function recordedRulePreviews(data: Record<string, unknown>, stage: string): { id: string; preview: TextPreview }[] | undefined {
   if (stage !== 'begin' && stage !== 'request') return undefined;
   const policy = object(data.policy);
-  const state = object(object(data.payload).state);
-  const integrity = object(stage === 'begin' ? data.integrity : state.integrity);
+  const integrity = object(stage === 'begin' ? data.integrity : recordedInputs(data).integrity);
   const rules = Array.isArray(policy.rules) ? policy.rules.slice(0, POLICY_LIMITS.rules) : [];
   return [...rules, ...(typeof integrity.id === 'string' ? [integrity] : [])].flatMap(value => {
     const rule = object(value);

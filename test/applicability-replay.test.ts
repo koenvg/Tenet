@@ -35,7 +35,7 @@ test('offline supplied observations retain their identity and missing evaluation
 test('missing integrity and malformed report status cannot become complete classification', async () => {
   const supplied = await scriptedApplicabilityComparison();
   const fixture = applicabilityCorpus.fixtures.find(f => f.id === 'unsupported-read')!;
-  const current = supplied.rows.find(r => r.fixtureId === fixture.id && r.questionVersion === ASSESSMENT_METADATA.questionVersion)!;
+  const current = supplied.rows.find(r => r.fixtureId === fixture.id && r.questionVersion === 'policy-rules-v8-source-set')!;
   const observation: ComparisonObservation = { ...fixtureIdentity(fixture), ...ASSESSMENT_METADATA,
     evaluationStatus: 'complete', evidenceCoverage: 'unsupported', omissions: [], result: {
       ...ASSESSMENT_METADATA, config: DEFAULTS, decision: 'ALLOW', reason: 'all-rules-pass', diagnostics: [],
@@ -55,7 +55,7 @@ test('wrong user-rule identity on either side earns no classification or reducti
   const historical = { profile: 'applicability-v1', questionVersion: 'policy-rules-v6-applicability' };
   const make = (id: string, contract: typeof historical, decision: 'ALLOW' | 'BLOCK'): ComparisonObservation => {
     const fixture = applicabilityCorpus.fixtures.find(f => f.id === id)!;
-    const row = supplied.rows.find(r => r.fixtureId === id && r.questionVersion === ASSESSMENT_METADATA.questionVersion)!;
+    const row = supplied.rows.find(r => r.fixtureId === id && r.questionVersion === 'policy-rules-v8-source-set')!;
     return { ...fixtureIdentity(fixture), ...contract, evidenceCoverage: row.evidenceCoverage, omissions: [],
       evaluationStatus: 'complete', result: { ...contract, config: DEFAULTS, decision, reason: 'all-rules-pass',
         assessment: structuredClone(row.assessment), diagnostics: row.diagnostics!, ruleIds: [], durationMs: 0, requestedModel: 'script' } };

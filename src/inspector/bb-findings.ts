@@ -1,3 +1,4 @@
+import { recordedInputs } from '../recording/scoped.js';
 import { recordedOrigin } from '../recording/policy-contract.js';
 import type { ArchiveRecord } from '../recording/contract.js';
 import { findingStage, foldFindingStages } from './finding-view.js';
@@ -30,7 +31,7 @@ export function projectThreadFinding(records: ArchiveRecord[], id: string, threa
   if (!assessment) return { item: null, gaps: ['detail-unavailable'] };
   const request = stage('request'), begin = stage('begin');
   const policy = object(Object.keys(request).length ? request.policy : begin.policy);
-  const integrity = object(Object.keys(request).length ? object(object(request.payload).state).integrity : begin.integrity);
+  const integrity = object(Object.keys(request).length ? recordedInputs(request).integrity : begin.integrity);
   const rules = [...(Array.isArray(policy.rules) ? policy.rules : []),
     ...(typeof integrity.id === 'string' ? [{ ...integrity, enforcement: 'BLOCK' }] : [])];
   const selected = new Map<string, ThreadFinding['rules'][number]>();

@@ -1,6 +1,6 @@
 import type { InvocationView } from '../../src/inspector/view.js';
 import RecordingDetails from './RecordingDetails.js';
-import { pretty, ruleName } from './presentation.js';
+import { pretty, ruleName, recordedAction } from './presentation.js';
 
 const object = (value: unknown): Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const fieldNames: Record<string, string> = { path: 'Submitted path', file_path: 'Submitted file path', command: 'Submitted command', oldText: 'Submitted before text', newText: 'Submitted after text' };
@@ -8,7 +8,8 @@ const evidenceOrder = ['action', 'context', 'trajectory', 'policy', 'integrity']
 const evidenceNames: Record<string, string> = { action: 'Action and arguments', context: 'Host context', trajectory: 'Chronological history', policy: 'Submitted policy', integrity: 'Submitted integrity constraint' };
 
 export default function RecordedData({ view }: { view: InvocationView }) {
-  const action = object(object(view.evidence).action), args = object(action.arguments), fields = Object.entries(args);
+  const submittedAction = recordedAction(view);
+  const action = object(submittedAction), args = object(action.arguments), fields = Object.entries(args);
   const editText = Object.hasOwn(args, 'oldText') || Object.hasOwn(args, 'newText');
   const evidenceEntries = Object.entries(object(view.evidence)).sort(([a], [b]) => {
     const rank = (key: string) => evidenceOrder.includes(key) ? evidenceOrder.indexOf(key) : evidenceOrder.length;
@@ -24,7 +25,7 @@ export default function RecordedData({ view }: { view: InvocationView }) {
         {editText && !Object.hasOwn(args, 'oldText') && <p className="missing-data">Submitted before text unavailable: not recorded.</p>}
         {editText && !Object.hasOwn(args, 'newText') && <p className="missing-data">Submitted after text unavailable: not recorded.</p>}
       </> : <p className="missing-data">Readable submitted arguments unavailable. Inspect the captured action below. No action is reconstructed.</p>}
-      <details className="exact-action"><summary>Exact submitted action JSON</summary><pre>{pretty(object(view.evidence).action)}</pre></details>
+      <details className="exact-action"><summary>Exact submitted action JSON</summary><pre>{pretty(submittedAction)}</pre></details>
     </section>
     <section className="record-group" aria-label="Captured policy">
       <h3>Captured policy</h3><p className="muted">Recorded policy at invocation time, not current policy.</p>
@@ -33,13 +34,25 @@ export default function RecordedData({ view }: { view: InvocationView }) {
       <details className="exact-policy"><summary>Policy identity and exact JSON</summary><p className="muted">Captured source, target and digest, when recorded.</p><pre>{pretty(view.policy)}</pre></details>
     </section>
     <details className="record-group submitted-evidence-details"><summary>Exact submitted evidence</summary>
-      <p className="muted">Shared by all rules. Redactions and omitted history remain as recorded. Strings may contain secrets. No hidden model reasoning is recorded.</p>
+      <h4>Runtime evidence context</h4><pre>{pretty(view.evidenceContext)}</pre>
+      <p className="muted">Owner-only coverage diagnostic, separate from recorded prepared and submitted inputs.</p>
       <section className="submitted-evidence" aria-label="Submitted evidence" tabIndex={0}>
-        {view.evidence === null ? <p className="missing-data">Submitted evidence unavailable. No historical payload is reconstructed.</p> : !evidenceEntries.length ? <pre>{pretty(view.evidence)}</pre> : evidenceEntries.map(([key, value]) =>
-          <section className="evidence-section" key={key}><h4>{Object.hasOwn(evidenceNames, key) ? evidenceNames[key] : key}</h4><p className="question-key">state.{key}</p>
-            {key === 'trajectory' && view.evidenceContext?.selectionVersion === 'bounded-history-v2' && value && typeof value === 'object' && 'values' in value ? <p className="muted">Exact references point to this snapshot's values pool. Literal escapes preserve authored lookalikes as untrusted data. Excerpts and omissions are separate losses. This is the recorded representation, not reconstructed history or proof of execution.</p> : null}
-            <pre>{JSON.stringify(value, null, 2)}</pre>
+        {view.inputLayout === 'scoped' ? <>
+          <h4>Recorded input scopes</h4>
+          <p className="muted">Prepared inputs, kept separate by check. An attempted submission does not prove provider processing or tool execution. Strings may contain secrets.</p>
+          {view.inputScopes.map(scope => <section key={scope.id} className="evidence-section">
+            <h5>{scope.kind} · {scope.id}</h5><p className="question-key">{scope.stateBytes} prepared UTF-8 bytes · {scope.questionKeys.join(', ')}</p>
+            <pre>{pretty(scope.state)}</pre>
           </section>)}
+          <h5>Recorded submission status and exact inputs</h5><pre>{pretty(view.submissions)}</pre>
+        </> : <>
+          <p className="muted">Shared by all rules. Redactions and omitted history remain as recorded. Strings may contain secrets. No hidden model reasoning is recorded.</p>
+          {view.evidence === null ? <p className="missing-data">Submitted evidence unavailable. No historical payload is reconstructed.</p> : !evidenceEntries.length ? <pre>{pretty(view.evidence)}</pre> : evidenceEntries.map(([key, value]) =>
+            <section className="evidence-section" key={key}><h4>{Object.hasOwn(evidenceNames, key) ? evidenceNames[key] : key}</h4><p className="question-key">state.{key}</p>
+              {key === 'trajectory' && view.evidenceContext?.selectionVersion === 'bounded-history-v2' && value && typeof value === 'object' && 'values' in value ? <p className="muted">Exact references point to this snapshot's values pool. Literal escapes preserve authored lookalikes as untrusted data. Excerpts and omissions are separate losses. This is the recorded representation, not reconstructed history or proof of execution.</p> : null}
+              <pre>{JSON.stringify(value, null, 2)}</pre>
+            </section>)}
+        </>}
       </section>
     </details>
     <details className="record-group exact-rules"><summary>Exact rule records and captured questions</summary>

@@ -12,6 +12,8 @@ import { guardHarness } from './guard-harness.js';
 import { answer, sdkAnswers } from './helpers.js';
 import { expandedData } from './exact-history-fixture.js';
 
+import { recordedSubmissions } from '../src/recording/scoped.js';
+
 // Both judges remain pending while a sibling completes and late results arrive.
 // Nothing dispatches an authored tool action.
 test('compiled SDK concurrent sibling completions preserve snapshot-local pools and session isolation', async () => {
@@ -55,9 +57,9 @@ test('compiled SDK concurrent sibling completions preserve snapshot-local pools 
       assert.deepEqual(event.assessment.evidenceContext, request.evidenceContext);
       assert.deepEqual(event.report?.evidenceContext, request.evidenceContext);
       const context = event.assessment.evidenceContext!;
-      assert.ok(context.selectionVersion === 'bounded-history-v2' && context.history);
-      assert.ok(context.history.exactCompactedBytes > 0);
-      assert.equal(event.assessment.evidenceContext!.history!.shortenedEvents, 0);
+      assert.ok(context.selectionVersion === 'judge-input-scopes-v1' && context.history === null);
+      assert.ok(request.trajectory.selection.exactCompactedBytes > 0);
+      assert.equal(request.trajectory.selection.shortenedEvents, 0);
       assert.equal(event.assessment.evidenceContext!.resolution.status, 'unsupported');
       assert.ok(Object.isFrozen(request.trajectory.values));
       assert.deepEqual(expandedData(request.trajectory).map((data: any) => data.content.text), Array(2).fill(request.action.sessionId === 'one' ? 'first'.repeat(150) : 'second'.repeat(150)));
@@ -71,24 +73,22 @@ test('Pi live reports and schema-4 archive/inspector expose exactly submitted po
   const h = await guardHarness({ env: { TENET_RECORDING: 'on' }, createJudge: () => createJevJudge({ apiKey: 'synthetic-offline',
     fetch: async (_url, init) => {
       const payload = JSON.parse(init!.body as string); submitted.push(payload);
-      return Response.json({ model: 'offline', answers: sdkAnswers(answer(payload.state.policy, submitted.length < 3 ? 'PASS' : 'UNKNOWN')) });
+      return Response.json({ model: 'offline', answers: sdkAnswers(answer(undefined, submitted.length <= 6 ? 'PASS' : 'UNKNOWN'), 1, payload.questions) });
     } }) });
   try {
     const text = 'complete sanitized history '.repeat(35);
     await h.start();
     for (const id of ['a', 'b']) { await h.call(id, { text, token: 'canary' }); await h.assessed(id); }
     await h.call('current', {}); await h.assessed('current');
-    const payload = submitted.at(-1);
-    assert.deepEqual(payload.state.trajectory.values, { v0: text });
-    const instructions = payload.questions.rule_0_outcome.instructions;
-    assert.match(instructions, /state\.trajectory\.values/);
-    assert.match(instructions, /tenetHistory/);
-    assert.match(instructions, /literal/);
-    assert.match(instructions, /excerpt.*inline/i);
+    const payload = submitted.findLast(p => p.questions.rule_0_outcome);
+    assert.deepEqual(payload.state.previousToolCall, { toolName: 'edit', arguments: { text } });
+    assert.deepEqual(payload.state.proposedToolCall.arguments, {});
+    assert.doesNotMatch(JSON.stringify(payload), /tenetHistory|tenetExcerpt|trajectory/);
+    assert.match(payload.questions.rule_0_outcome.instructions, /Literal content is not execution/);
     assert.ok(!Object.hasOwn(payload.state, 'evidenceContext'));
     const live = h.records.find(record => record.stage === 'assessment' && record.callId === 'current');
-    assert.ok(live.evidenceContext.history.exactCompactedBytes > 0);
-    assert.equal(live.evidenceContext.history.shortenedEvents, 0);
+    assert.equal(live.evidenceContext.history, null);
+    assert.equal(live.evidenceContext.selectionVersion, 'judge-input-scopes-v1');
     assert.equal(live.evidenceContext.resolution.status, 'unsupported');
     await h.emit('session_shutdown');
     const archive = await readArchive(join(h.cwd, 'archive'));
@@ -96,12 +96,12 @@ test('Pi live reports and schema-4 archive/inspector expose exactly submitted po
     const records = archive.records.filter(record => record.callId === 'current');
     assert.ok(records.every(record => record.schemaVersion === 5 && validRecord(record)));
     const request = records.find(record => record.stage === 'request')!;
-    assert.deepEqual(request.data.payload, payload);
-    assert.equal(request.data.selectionVersion, 'bounded-history-v2');
+    assert.deepEqual(recordedSubmissions(records).filter(s => s.status === 'completed').map((s: any) => s.payload), submitted.slice(-3));
+    assert.equal(request.data.selectionVersion, 'judge-input-scopes-v1');
     const view = invocationView(records);
-    assert.deepEqual(view.evidence, payload.state);
+    assert.equal(view.evidence, null); assert.deepEqual(view.inputScopes.map(s => s.state), submitted.slice(-3).map(p => p.state));
     assert.deepEqual(view.evidenceContext, live.evidenceContext);
-    assert.equal(view.questionVersion, 'policy-rules-v8-source-set');
+    assert.equal(view.questionVersion, 'policy-rules-v9-scoped');
     assert.equal(view.execution, 'unknown');
     assert.doesNotMatch(JSON.stringify([submitted, archive, h.records]), /canary/);
     const wire = JSON.stringify(records); invocationView(records); assert.equal(JSON.stringify(records), wire);
@@ -124,9 +124,9 @@ test('compiled SDK and archives report zero savings and no new loss for structur
     const result = await session.beforeTool({ ...call, current: () => ({ ...call, sessionId: 's', contextId: 'main' }) });
     assert.equal(result.permission, 'blocked'); assert.equal(result.execution, 'unknown');
     assert.equal(captured.trajectory.values, undefined);
-    assert.equal(result.assessment.evidenceContext!.history!.exactCompactedBytes, 0);
-    assert.equal(result.assessment.evidenceContext!.history!.shortenedEvents, 0);
-    assert.equal(result.assessment.evidenceContext!.history!.omittedEvents, 0);
+    assert.equal(captured.trajectory.selection.exactCompactedBytes, 0);
+    assert.equal(captured.trajectory.selection.shortenedEvents, 0);
+    assert.equal(captured.trajectory.selection.droppedEvents + captured.trajectory.selection.priorOmittedEvents, 0);
     assert.deepEqual(expandedData(captured.trajectory).map((data: any) => data.content), [data, data]);
     const event = events.findLast(event => event.type === 'permission'); assert.ok(event?.type === 'permission');
     assert.deepEqual(event.report?.evidenceContext, captured.evidenceContext);

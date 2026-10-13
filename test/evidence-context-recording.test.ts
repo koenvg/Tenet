@@ -94,7 +94,7 @@ for (const recording of ['on', 'off', 'failed'] as const) for (const unavailable
       const context: any = decision.data.evidenceContext;
       assert.equal(context.preparation, unavailable ? 'unavailable' : 'completed');
       assert.equal(context.resolution.status, 'unsupported');
-      assert.equal(context.history === null, unavailable);
+      assert.equal(context.history, null);
       assert.ok(Object.isFrozen(context));
       assert.ok(Object.isFrozen(context.resolution.limitations));
       assert.deepEqual(live.find(r => r.stage === 'permission')?.data.evidenceContext, context);
@@ -111,7 +111,7 @@ for (const recording of ['on', 'off', 'failed'] as const) for (const unavailable
 }
 
 test('prepared request, assessment and final archive stages carry identical diagnostics without modifying payloads', async () => {
-  const { recordFixture } = await import('./recording-fixture.js');
+  const { recordFixture, fixtureSubmissions } = await import('./recording-fixture.js');
   const root = await realpath(await mkdtemp(join(tmpdir(), 'coverage-request-')));
   try {
     const { records, submitted } = await recordFixture(root);
@@ -120,11 +120,11 @@ test('prepared request, assessment and final archive stages carry identical diag
       const invocation = records.filter(r => r.invocationId === request.invocationId);
       for (const stage of invocation.filter(r => ['assessment', 'decision'].includes(r.stage)
         || r.stage === 'assessment-status' && r.data.status === 'completed')) assert.deepEqual(stage.data.evidenceContext, request.data.evidenceContext);
-      assert.equal(request.data.selectionVersion, 'bounded-history-v2');
+      assert.equal(request.data.selectionVersion, 'judge-input-scopes-v1');
       assert.deepEqual(invocationView(invocation).evidenceContext, request.data.evidenceContext);
-      assert.ok(!Object.hasOwn((request.data.payload as any).state, 'evidenceContext'));
+      assert.ok((request.data.payload as any).scopes.every((s: any) => !Object.hasOwn(s.state, 'evidenceContext')));
     }
-    assert.deepEqual(records.filter(r => r.stage === 'request').map(r => r.data.payload), submitted);
+    assert.deepEqual(fixtureSubmissions(records).filter(s => s.status === 'completed').map((s: any) => s.payload), submitted);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 

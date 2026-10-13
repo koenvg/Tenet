@@ -141,8 +141,13 @@ export const decisionLabel = (decision: string, mode?: string) => {
     : { BLOCK: 'Block', ALLOW: 'Allow', ASK: 'Approval required' };
   return labels[decision] ?? 'Decision unavailable';
 };
+export function recordedAction(view: InvocationView) {
+  if (view.inputLayout !== 'scoped') return view.evidence?.action;
+  const submission = view.submissions.find(s => ['attempted', 'completed'].includes(s.status) && 'payload' in s);
+  return submission && 'payload' in submission ? submission.payload?.state?.proposedToolCall : undefined;
+}
 export function actionPreview(view: InvocationView): string | null {
-  const args = view.evidence?.action?.arguments;
+  const args = recordedAction(view)?.arguments;
   if (!args || typeof args !== 'object' || Array.isArray(args)) return null;
   for (const key of ['command', 'path', 'file_path']) {
     if (typeof args[key] === 'string' && args[key].trim()) return args[key];

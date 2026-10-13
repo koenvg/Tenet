@@ -73,6 +73,6 @@ test('compiled SDK adds host-reported capture slots without granting evidence au
     assert.equal(result.permission, 'blocked');
     assert.equal(result.execution, 'unknown');
     assert.equal(result.assessment.evidenceContext?.resolution.status, 'unsupported');
-    assert.equal(result.assessment.evidenceContext?.history?.priorOmittedEvents, 5);
+    assert.equal(requests[0]!.trajectory!.selection!.priorOmittedEvents, 5);
   } finally { await guard.close(); await rm(cwd, { recursive: true, force: true }); }
 });
