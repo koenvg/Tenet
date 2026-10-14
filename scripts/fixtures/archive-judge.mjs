@@ -19,8 +19,10 @@ await fsp.mkdir(join(home, '.tenet'), { mode: 0o700 });
 const file = join(home, '.tenet/config.json');
 const guide = await fsp.readFile(join(installation, 'docs/judge.md'), 'utf8');
 const examples = [...guide.matchAll(/```json\n([\s\S]*?)\n```/g)].map(m => JSON.parse(m[1]));
-assert.equal(examples.length, 2);
-const settings = examples.find(v => v.judge.provider === 'apus-llamacpp');
+assert.equal(examples.length, 4, 'official, anonymous local, partial project and APUS examples');
+const settings = examples.find(v => v.judge?.protocol === 'apus-llamacpp');
+const official = examples.find(v => v.judge?.protocol === 'system-one' && v.judge.baseUrl === 'https://api.typesafe.ai');
+assert.ok(settings); assert.ok(official);
 await fsp.writeFile(file, JSON.stringify(settings), { mode: 0o600 });
 let guard, traps, writer;
 const originals = [];
@@ -61,10 +63,12 @@ try {
   assert.deepEqual(fs.readdirSync(home, { recursive: true }).sort(), before);
   traps.assertNoAttempts(); traps.restore();
 
-  const { readOwnerSettings } = await import(new URL('../runtime/settings.js', import.meta.resolve('tenet')));
+  const { readOwnerSettings, readProjectSettings } = await import(new URL('../runtime/settings.js', import.meta.resolve('tenet')));
   for (const value of examples) {
     await fsp.writeFile(file, JSON.stringify(value), { mode: 0o600 });
-    assert.equal(readOwnerSettings().state, 'valid', 'ACTUAL archive reader must accept shipped examples');
+    assert.equal(readProjectSettings(home).state, 'valid', 'ACTUAL archive project reader must accept every shipped example');
+    assert.equal(readOwnerSettings().state, value.judge ? 'valid' : 'invalid',
+      'ACTUAL archive owner reader must require a complete judge, rejecting partial project examples');
   }
   await fsp.writeFile(file, JSON.stringify(settings), { mode: 0o600 });
   let failing = false;
@@ -88,7 +92,7 @@ try {
   const session = guard.openSession(identity, project);
   assert.equal((await session.ready).state, 'ready'); assert.equal(fake.calls.length, 0);
   // Change settings while the guard exists. It must retain the initial immutable snapshot.
-  await fsp.writeFile(file, JSON.stringify({ version: 1, judge: { provider: 'typesafe' } }), { mode: 0o600 });
+  await fsp.writeFile(file, JSON.stringify(official), { mode: 0o600 });
   const invoke = async callId => {
     const call = { callId, toolName: 'inert-fixture', input: { text: 'literal data, no executor' } };
     return session.beforeTool({ ...call, current: () => ({ ...identity, ...call }) });
