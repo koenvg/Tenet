@@ -2,7 +2,7 @@
 import type { AssessmentStatus, BeforeToolResult, Guard, GuardSession, OwnerEvent, EvidenceContext, GuardOptions, JudgeIdentity, JudgeStatus, Policy, PolicySet, PolicyRole, PolicyCandidate, PolicySource, RuleOrigin } from 'tenet';
 const judgeIdentity: JudgeIdentity = { requestedModel: 'offline-script' };
 const options: GuardOptions = { host: 'offline', judgeIdentity, judge: async () => ({}) };
-const judgeStatus: JudgeStatus = { provider: 'injected', requestedModel: null, availability: 'ready', connectivity: 'unverified' };
+const judgeStatus: JudgeStatus = { provider: 'injected', requestedModel: null, requestedDestination: null, transportContract: null, authentication: null, availability: 'ready', connectivity: 'unverified' };
 // @ts-expect-error explicit identities require a model string
 const invalidIdentity: JudgeIdentity = { requestedModel: null };
 void [options, judgeStatus, invalidIdentity];
@@ -113,7 +113,7 @@ export async function useStatus(guard: Guard, session: GuardSession, event: Owne
   status.capabilities.limitations.push('new');
   const health = guard.status();
   const requestedModel: string | null = health.projects[0]!.judge.requestedModel;
-  const provider: 'typesafe' | 'apus-llamacpp' | 'injected' | 'unknown' = status.judge.provider;
+  const provider: 'system-one' | 'apus-llamacpp' | 'injected' | 'unknown' = status.judge.provider;
   const deadline: number | null = status.configuration.deadlineMs;
   // @ts-expect-error effective configuration is immutable
   status.configuration.deadlineMs = 5;

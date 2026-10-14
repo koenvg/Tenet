@@ -1,3 +1,4 @@
+import { judgeReport } from '../recording/judge.js';
 import { randomUUID } from 'node:crypto';
 import { selectPolicies } from './policy-selection.js';
 import type { Action, Decision, Judge, Policy } from '../decision/contracts.js';
@@ -128,7 +129,7 @@ class SessionGuard {
     data = { ...data, ...this.metadata };
     if (['assessment', 'decision', 'permission', 'assessment-status'].includes(stage)) data = { evidenceContext: UNAVAILABLE_EVIDENCE_CONTEXT, ...data };
     if (['assessment', 'decision', 'assessment-status', 'permission'].includes(stage)) data = {
-      judgeReportVersion: 'judge-report-v1', requestedProvider: this.options.judgeStatus?.provider ?? 'injected', requestedModel: this.options.judgeStatus?.requestedModel ?? null, ...data };
+      ...judgeReport(this.options.judgeStatus), configuration: this.options.configuration?.status, ...data };
     if (!this.eligible || this.options.activation.read() !== 'on') return;
     if (typeof data.invocationId === 'string' && STAGES.includes(stage as Stage)) {
       capture(this.recordings.get(data.invocationId)?.sink, stage as Stage, () => ({ ...data, ...archiveData }));
@@ -282,7 +283,7 @@ class SessionGuard {
     this.recordings.set(identity.invocationId, { sink: recording, assessmentDone: false, executionDone: false });
     capture(recording, 'begin', () => ({ policy: selectedPolicy, config: selectedConfig?.decision ?? null,
       integrity: { id: INTEGRITY_ID, text: INTEGRITY_TEXT }, evidenceLimits: selectedConfig?.evidence ?? null,
-      requestedProvider: this.options.judgeStatus?.provider ?? 'injected', requestedModel: this.options.judgeStatus?.requestedModel ?? null,
+      ...judgeReport(this.options.judgeStatus), configuration: this.options.configuration?.status,
       ...this.metadata, request: 'not-yet-submitted', adapterCoverage: this.capabilities }));
     const authorization = this.authorizations.begin(invocationContext, {
       call, identity, policy: selectedPolicy,
@@ -396,6 +397,7 @@ class SessionGuard {
           if (!await fresh()) return 'unavailable';
           if (!current()) return 'unavailable';
           this.record('assessment', { ...identity, assessment: result.assessment, reason: result.reason,
+            ...judgeReport(this.options.judgeStatus, result.assessment?.model),
             evidenceContext: result.evidenceContext,
             ...(result.validationIssue ? { validationIssue: result.validationIssue } : {}),
             durationMs: result.durationMs, requestedModel: result.requestedModel, requestedProvider: result.requestedProvider, questionVersion: result.questionVersion,
@@ -408,6 +410,7 @@ class SessionGuard {
             return 'unavailable';
           }
           this.record('decision', { ...identity, decision: result.decision, reason: result.reason, ruleIds: result.ruleIds,
+            ...judgeReport(this.options.judgeStatus, result.assessment?.model),
             evidenceContext: result.evidenceContext,
             diagnostics: result.diagnostics, questionVersion: result.questionVersion }, { contributions: ruleContributions(result, selectedPolicy) });
           const outcome = new Consequences('observe', selectedPolicy); outcome.assessed(result);
@@ -423,11 +426,13 @@ class SessionGuard {
       try { call.onDecision?.(result); } catch { /* Owner reporting cannot change authorization. */ }
       if (!current()) return block('guard-state-changed');
       this.record('assessment', { ...identity, assessment: result.assessment, reason: result.reason,
+        ...judgeReport(this.options.judgeStatus, result.assessment?.model),
         evidenceContext: result.evidenceContext,
         ...(result.validationIssue ? { validationIssue: result.validationIssue } : {}),
         durationMs: result.durationMs, requestedModel: result.requestedModel, requestedProvider: result.requestedProvider, questionVersion: result.questionVersion,
         config: result.config, evidenceLimits: selectedConfig.evidence, redactedFields: action.redactedFields, limitations: action.limitations, resolvedAction: resolved.evidence });
       this.record('decision', { ...identity, decision: result.decision, reason: result.reason, ruleIds: result.ruleIds,
+        ...judgeReport(this.options.judgeStatus, result.assessment?.model),
         evidenceContext: result.evidenceContext,
         ...(result.validationIssue ? { validationIssue: result.validationIssue } : {}),
         diagnostics: result.diagnostics, questionVersion: result.questionVersion }, { contributions: ruleContributions(result, selectedPolicy) });

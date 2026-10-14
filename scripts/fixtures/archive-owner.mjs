@@ -9,7 +9,7 @@ import { alias, scriptedNative } from './archive-native.mjs';
 
 // A fresh process loads the registered production entry. Only model output and
 // judge transport are scripted; no alternate guard factory or release path.
-const [installation, project, expectedMode, provider = 'typesafe', roleList = 'project'] = process.argv.slice(2);
+const [installation, project, expectedMode, provider = 'system-one', roleList = 'project'] = process.argv.slice(2);
 assert.equal(process.env.TENET_MODE ?? 'observe', expectedMode);
 const root = dirname(installation);
 assert.match(root, /\/tenet-relocated-[^/]+$/);
@@ -166,7 +166,7 @@ try {
     assert.equal(confirmations.length, 0);
     // Capture opt-out and shared on/off do not select a different mode.
     await session.prompt('/tenet off'); await invoke(); assert.equal(executed, 2);
-    assert.equal(requests, provider === 'typesafe' ? submissionKeys.length : 1);
+    assert.equal(requests, provider === 'system-one' ? submissionKeys.length : 1);
     await session.prompt('/tenet on');
     assert.ok(statuses.filter(s => s.startsWith('TENET ON') || s.startsWith('TENET OFF')).at(-1).startsWith('TENET ON OBSERVE'));
   } else {
@@ -179,7 +179,7 @@ try {
     assert.match(views[1].items.join('\n'), /FAIL|rule-fail/);
     assert.ok(records().some(r => r.stage === 'permission' && r.outcome === 'blocked'));
   }
-  assert.equal(requests, (expectedMode === 'observe' ? 1 : 4) * (provider === 'typesafe' ? submissionKeys.length : 1));
+  assert.equal(requests, (expectedMode === 'observe' ? 1 : 4) * (provider === 'system-one' ? submissionKeys.length : 1));
   const assessments = records().filter(r => r.stage === 'assessment');
   assert.equal(assessments.length, expectedMode === 'observe' ? 1 : 4);
   for (const record of assessments) {
@@ -194,8 +194,10 @@ try {
     assert.ok(records().some(r => r.stage === 'assessment' && r.requestedProvider === provider && r.requestedModel === alias));
     const findings = records().filter(r => ['assessment', 'permission', 'assessment-status'].includes(r.stage));
     assert.ok(findings.length > 0);
-    assert.ok(findings.every(r => r.version === 4 && r.judgeReportVersion === 'judge-report-v1'
-      && r.requestedProvider === provider && r.requestedModel === alias));
+    assert.ok(findings.every(r => r.version === 4 && r.judgeReportVersion === 'judge-report-v2'
+      && r.requestedProvider === provider && r.requestedModel === alias
+      && r.requestedDestination === 'http://127.0.0.1:8088' && r.transportContract === 'llamacpp-b11118-choice-v1'
+      && r.authentication === 'none' && r.configuration.sources.judge === 'owner'));
     assert.ok(findings.some(r => r.returnedModel === alias), 'validated owner findings retain returned identity');
     assert.equal(native.calls.filter(c => c.path === '/completion').length, (expectedMode === 'observe' ? 2 : 8) * (roleList.split(',').length + 1));
     assert.ok(!records().some(r => r.stage === 'request' || r.stage === 'response'), 'capture-off must not store native payloads');

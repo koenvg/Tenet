@@ -43,7 +43,8 @@ test('doctor reports policy identity, local readiness and honest verification li
   assert.match(report.policy.sources[0]!.digest!, /^[a-f0-9]{64}$/); assert.equal(report.policy.ruleCount, 1);
   assert.equal(report.mode, 'observe'); assert.equal(report.control, 'on');
   assert.deepEqual(report.credentials, { presence: 'present', validity: 'unverified' });
-  assert.deepEqual(report.judge, { provider: 'typesafe', requestedModel: 'jev-latest', availability: 'ready', connectivity: 'unverified' });
+  assert.deepEqual(report.judge, { provider: 'system-one', requestedModel: 'jev-latest', requestedDestination: 'https://api.typesafe.ai',
+    transportContract: 'system-one-v1', authentication: 'bearer-env', availability: 'ready', connectivity: 'unverified' });
   assert.equal(report.capture.state, 'local-archive'); assert.equal(report.capture.writability, 'unverified');
   assert.equal(report.compatibility.status, 'unknown'); assert.equal(report.hooks, 'unverified');
   assert.equal(report.provider, 'unverified'); assert.equal(report.assessment, 'not-requested');
@@ -263,7 +264,12 @@ syncBuiltinESMExports();`);
             { env: f.env, cwd: f.root, encoding: 'utf8', timeout: 10000 });
           assert.equal(child.status, exitCode, child.stderr || child.stdout);
           assert.ok(!child.stdout.includes(canary)); assert.ok(!child.stdout.includes('Private policy content'));
-          assert.ok(!child.stdout.includes('private-settings-canary')); assert.ok(!child.stdout.includes('http://127.0.0.1:8088'));
+          assert.ok(!child.stdout.includes('private-settings-canary'));
+          if (json) {
+            const identity = JSON.parse(child.stdout).judge;
+            assert.equal(identity.requestedDestination, identity.provider === 'apus-llamacpp' ? 'http://127.0.0.1:8088'
+              : identity.provider === 'system-one' ? 'https://api.typesafe.ai' : null);
+          }
           assert.ok(!child.stdout.includes('Never publish')); assert.equal(child.stderr, '');
           if (json) {
             const report = JSON.parse(child.stdout);

@@ -100,7 +100,7 @@ bun run typecheck
 
 Both import checks print `alpha-1`. The build produces ESM and declarations in `dist/` and compiles the scripted host. After building, you can also run it with `node examples/dist/sdk.js` or `bun examples/dist/sdk.js`.
 
-A local-package consumer needs no Pi, Svelte, inspector assets or source transpilation. The TypeSafe production dependency is needed only for the normal live judge.
+A local-package consumer needs no Pi, Svelte, inspector assets or source transpilation. The `@typesafe-ai/sdk` production dependency supplies question definitions. The live System One transport uses `fetch`.
 
 The production archive includes ESM, declarations and a production dependency lock. It does not publish a package or change owner installations. Archive installation is documented in the repository-only [archive installation guide](https://github.com/koenvg/Tenet/blob/main/docs/INSTALL-ARCHIVE.md); the delivered archive has that guide as its root `README.md`.
 
@@ -141,15 +141,17 @@ A judge can be wrong. An assessment does not grant permission, and permission do
 
 By default, opening an eligible session enables local capture. A global-only policy makes a session eligible. The default judge submits global and project rule text, tool arguments, metadata and bounded recent host observations to TypeSafe.
 
-Configured APUS submits the complete assessment to the owner-operated loopback backend, or Pika through owner forwarding. APUS probabilities are normalized but UNCALIBRATED; it is not general chat-model support.
+Configured System One submits the same selected policy and evidence to its validated origin. This can be another hosted service or a loopback connection forwarded to Kev on Pika. Check that project's `judge.requestedDestination` before live use.
+
+Configured APUS submits native assessment inputs to the owner-operated loopback backend, or Pika through owner forwarding. APUS probabilities are normalized but UNCALIBRATED; it is not general chat-model support.
 
 An injected judge receives the same assessment request; its SDK caller controls any further disclosure.
 
-Default live use sends this data to TypeSafe and uses API quota. APUS backend logs and resource use remain the owner's responsibility.
+Default live use sends this data to TypeSafe and uses API quota. Other hosted services can charge quota or cost. Pika and APUS backend logging and resource use remain the owner's responsibility. Loopback does not prevent onward disclosure.
 
 Obtain separate authorization before live evaluation. Source and secrets can remain in submitted strings and recordings despite field redaction.
 
-Default capture lives in `~/.tenet/recordings`; cooperative owner control lives in `~/.tenet/control.json`. Set `TENET_RECORDING=off` before construction to disable local capture. This does not stop provider disclosure.
+Default capture lives in `~/.tenet/recordings`; cooperative owner control lives in `~/.tenet/control.json`. Set `TENET_RECORDING=off` before construction to disable local capture. This does not stop provider disclosure or backend logs.
 
 Owner control `off` stops new assessment and capture, but does not erase old archives or recall dispatched work.
 
@@ -195,13 +197,16 @@ This is a name list, not a copyable import. The shipped `dist/sdk/index.d.ts` an
 
 `session.status().judge` gives that project's frozen `JudgeStatus`. `guard.status().projects` lists each initialized canonical `directory` with its `judge`, `configuration` and `observations` health. Before a project opens, the list is empty. `session.status().directory` identifies the session's project entry. There is no guard-wide effective judge or queue.
 
-`provider` is `typesafe`, `apus-llamacpp`, `injected` or `unknown` for invalid settings without a selected provider. The current report contract labels System One selections `typesafe`; see the [judge settings reference](judge.md) for endpoint and authentication selection. `requestedModel` is the selected alias or `null` for unknown. Injected judges never inherit configured identity.
+`requestedModel` is the selected alias or `null` for unknown. `requestedDestination` is the validated canonical origin, without a path or trailing slash. `transportContract` is `system-one-v1` or `llamacpp-b11118-choice-v1`. `authentication` is `none` or `bearer-env`; it never contains the credential reference name or value. Injected and unknown selections have `null` destination, transport and authentication. Injected judges never inherit configured identity.
+`provider` is `system-one`, `apus-llamacpp`, `injected` or `unknown` for invalid settings without a selected provider. The official TypeSafe default is a `system-one` implementation. Historical `typesafe` is a v1 recorded identity, not the name of every System One destination. See the [judge settings reference](judge.md) for endpoint and authentication selection.
 
 `availability` is local readiness, not a provider check. Unavailable reasons are `missing-credentials` and `configuration`. Valid APUS settings report `ready` and `experimental: true` without a TypeSafe key. APUS uses complete canonical assessments and existing decision gates; it never falls back to TypeSafe. An injected judge still overrides valid provider settings.
 
 `connectivity` stays `unverified`. Status does not construct a client, validate a key, attest weights or prove assessment accuracy. Policy eligibility, activation and host coverage remain separate.
 
-Session status and each project entry expose frozen `configuration` with source, settings state, availability, an optional safe failure category, effective `deadlineMs` and `observation` limits. Invalid effective configuration reports `null` limits.
+Session status, each project entry and SDK owner reports expose frozen `configuration`. It contains source, settings state, availability, an optional safe failure category, effective `deadlineMs` and `observation` limits. Invalid effective configuration reports `null` limits.
+
+`configuration.sources` records the source of `judge`, `deadlineMs` and each observation limit as `owner`, `project`, `default`, `environment` or `sdk`. Invalid settings have unknown sources represented by `null`; explicit judge injection records `sdk`. A project judge replaces the complete owner judge, including authentication. Sources identify precedence, not credential references or settings contents.
 
 The guard freezes owner settings and environment at construction. It reads `<project>/.tenet/config.json` at the first session in each canonical project directory and caches valid or invalid results. Later sessions reuse that project's judge, credential, deadline and queue limits, even after file edits. Closing a session cancels only its own work. Closing the guard cancels all project work and closes the shared control watcher and archive. One injected factory remains guard-owned and lazy across projects.
 
@@ -209,11 +214,15 @@ Use an existing absolute project directory with `openSession`; aliases resolve t
 
 Set `judgeIdentity` in trusted SDK code, not agent input. The requested model must contain non-whitespace text, have at most 256 characters and contain no terminal control characters. Invalid identities throw `invalid-judge-identity`. The guard copies the identity at construction; later edits do not change it.
 
-Owner permission and assessment reports use `judgeReportVersion: 'judge-report-v1'`. They keep `requestedProvider` and `requestedModel` on failure or pending work. `returnedModel` is present only after a complete validated assessment, never copied from the requested alias or partial backend metadata. This contract records APUS as experimental.
+Owner permission and assessment reports use `judgeReportVersion: 'judge-report-v2'`. They retain requested provider, model, canonical destination, transport and authentication on failure or pending work.
 
-Historical records keep their recorded fields, schema and question contracts; no reader substitutes today's identity. These additive assessment fields do not change archive schema 4 or the semantic question version.
+`returnedModel` is present only after a complete validated assessment, never copied from the requested alias or partial backend metadata. A returned alias can differ from the requested alias. Neither alias attests physical weights or accuracy.
 
-APUS archives separately record `nativeContract.version: 'apus-recording-v1'`, rendering `jev.dynamic.prompt.v2`, the pinned renderer revision and protocol `llamacpp-b11118-choice-v1`. The canonical request remains separate from bounded native exchanges.
+Begin, assessment, decision, permission and assessment-status records carry the same requested descriptor and effective configuration. Invalid settings expose a `null` destination, not the rejected URL. New archives remain schema 5 with `applicability-v1`, `policy-rules-v9-scoped` and `judge-input-scopes-v1` unchanged. These identity fields do not change assessment gates or permission.
+
+Historical schemas 1 through 5 retain their recorded fields and contracts. Readers accept `judge-report-v1` and identity-absent records without inserting today's destination or authentication. A missing historical destination remains not recorded. See the repository-only [recorded judge identity and provenance reference](https://github.com/koenvg/Tenet/blob/main/docs/cross-host-recordings.md#recorded-judge-identity-and-provenance).
+
+Current APUS archives separately record `nativeContract.version: 'apus-recording-v2'`, rendering `jev.dynamic.prompt.v2`, the pinned renderer revision and protocol `llamacpp-b11118-choice-v1`. Historical `apus-recording-v1` retains its original shared-input meaning. The canonical request remains separate from bounded native exchanges.
 
 Deterministic NONE probability one is not model confidence or authenticated coverage. See the repository-only [native recording contract](https://github.com/koenvg/Tenet/blob/main/docs/assessment-contract.md#native-recording-contract) for fields and historical reader rules.
 
@@ -334,7 +343,7 @@ A provider failure can have completed preparation and an unavailable assessment.
 | --- | --- |
 | Diagnostic | `evidence-context-v1` |
 | History selection | `bounded-history-v2` |
-| Questions | `policy-rules-v8-source-set` |
+| Questions | `policy-rules-v9-scoped` |
 | Assessment | `applicability-v1` |
 
 Completed v2 history includes effective history/event byte allowances, shortened events, selector-dropped events, prior capture omissions and exact-compacted bytes. Defaults cap complete history at 8 KiB and each event's data at 2 KiB. Shortening loses content; it is not lossless compaction.

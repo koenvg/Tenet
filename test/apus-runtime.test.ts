@@ -77,7 +77,7 @@ test('compiled SDK selects APUS lazily without credentials, captures only on opt
   const g=createGuard({host:'offline',env:{TENET_MODE:'enforce',TENET_RECORDING:'off'},controlPath:join(home,'.tenet/control.json'),bindRecording:()=>((stage,data)=>records.push({stage,data}))});
   try {
     const s=g.openSession(identity,cwd);assert.equal((await s.ready).state,'ready');assert.equal(fake.calls.length,0);
-    assert.deepEqual(g.status().projects[0]!.judge,{provider:'apus-llamacpp',requestedModel:APUS_MODEL,availability:'ready',experimental:true,connectivity:'unverified'});
+    assert.deepEqual(g.status().projects[0]!.judge,{provider:'apus-llamacpp',requestedModel:APUS_MODEL,requestedDestination:new URL(options.baseUrl).origin,transportContract:'llamacpp-b11118-choice-v1',authentication:'none',availability:'ready',experimental:true,connectivity:'unverified'});
     const c=call();const result=await s.beforeTool({...c,current:()=>({...identity,...c})});assert.equal(result.permission,'released');assert.equal(result.assessment.status,'completed');assert.equal(result.execution,'unknown');
     assert.ok(records.some(r=>r.stage==='request'));assert.ok(records.some(r=>r.data.value?.derivation==='sole-allowed-facts-selector'));
     assert.equal(records.find(r=>r.stage==='assessment')!.data.requestedProvider,'apus-llamacpp');

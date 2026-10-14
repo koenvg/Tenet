@@ -64,7 +64,7 @@ User distributions must include all five outcomes. Integrity uses its four-outco
 
 ## Check-specific input preparation
 
-For checkout contributors, `prepareJudgeScopes` prepares the four checks below from existing bounded host inputs. APUS and JEV submit these separate scopes by default under `policy-rules-v9-scoped` and `judge-input-scopes-v1`.
+For checkout contributors, `prepareJudgeScopes` prepares the four checks below from existing bounded host inputs. APUS and System One submit these separate scopes by default under `policy-rules-v9-scoped` and `judge-input-scopes-v1`.
 
 | Check | Prepared input | Meaning |
 | --- | --- | --- |
@@ -160,9 +160,11 @@ Snapshots remain untrusted and bounded to 1 MiB. Credential/header fields and fi
 
 The native transport separately rejects oversized bodies before capture; invalid parsed output can remain inspectable without becoming a valid assessment.
 
-Owner reports use additive `judgeReportVersion: judge-report-v1` within current owner report version 4; historical native transcript version 3 retains its recorded version. They retain requested provider/model on failure.
+Current owner reports use additive `judgeReportVersion: judge-report-v2` within owner report version 4. Historical judge-report-v1 and native transcript version 3 retain their recorded meanings.
 
-Only a complete validated assessment supplies `returnedModel`. Partial backend metadata or a conflicting raw model cannot supply that field. This version records APUS as experimental.
+New reports retain requested provider, model, canonical destination, transport and authentication on failure. See [recorded judge identity and provenance](cross-host-recordings.md#recorded-judge-identity-and-provenance) for fields, effective configuration and historical absence rules.
+
+Only a complete validated assessment supplies `returnedModel`. Partial backend metadata or a conflicting raw model cannot supply that field. Both known judge-report versions record APUS as experimental.
 
 Historical readers use these recorded contracts, not current settings or current renderers. Unknown or malformed native contracts produce `corrupt-record` issues; absent historical native contracts and provider fields stay absent. Old questions, model identities and scores are not rewritten.
 
@@ -170,7 +172,7 @@ Capture-off suppresses local payload archives, not provider disclosure or owner-
 
 ### Prepared scoped capture and recorded inputs
 
-Use these active contracts to interpret scoped APUS and JEV recordings: `policy-rules-v9-scoped`, `judge-input-scopes-v1` and native `apus-recording-v2`. They preserve `applicability-v1`, schema 5, the native renderer and probability protocol. Historical v8 and native v1 records retain their shared-input meaning.
+Use these active contracts to interpret scoped APUS and System One recordings: `policy-rules-v9-scoped`, `judge-input-scopes-v1` and native `apus-recording-v2`. They preserve `applicability-v1`, schema 5, the native renderer and probability protocol. Historical v8 and native v1 records retain their shared-input meaning.
 
 Capture can contain secrets despite redaction. The scoped capture caller must supply already-normalized, redacted application input; capture does not authorize provider disclosure. Existing recording controls apply, and no sink means no new scoped snapshots. Capture-off does not erase older archives or prevent provider disclosure.
 

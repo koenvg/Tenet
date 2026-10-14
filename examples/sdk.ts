@@ -44,7 +44,7 @@ try {
   assert.equal(session.status().state, 'uninitialized');
   assert.equal((await session.beforeTool({ ...invocation, current })).assessment.status, 'unavailable');
   assert.equal((await session.ready).state, 'ready');
-  assert.deepEqual(session.status().judge, { provider: 'injected', requestedModel: null, availability: 'ready', connectivity: 'unverified' });
+  assert.deepEqual(session.status().judge, { provider: 'injected', requestedModel: null, requestedDestination: null, transportContract: null, authentication: null, availability: 'ready', connectivity: 'unverified' });
   assert.deepEqual(enforce.status().projects, []);
   const permission = await session.beforeTool({ ...invocation, current });
   assert.equal(permission.permission, 'released'); assert.equal(permission.assessment.status, 'pending');

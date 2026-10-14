@@ -7,7 +7,7 @@ const guard: Guard = createGuard(options);
 const status = guard.status();
 for (const project of status.projects) {
   const directory: string = project.directory;
-  const provider: 'typesafe' | 'apus-llamacpp' | 'injected' | 'unknown' = project.judge.provider;
+  const provider: 'system-one' | 'apus-llamacpp' | 'injected' | 'unknown' = project.judge.provider;
   const model: string | null = project.judge.requestedModel;
   const deadline: number | null = project.configuration.deadlineMs;
   const running: number | undefined = project.configuration.observation?.running;

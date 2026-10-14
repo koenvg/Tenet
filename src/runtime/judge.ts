@@ -2,7 +2,7 @@ import { JudgeFailure, type Judge, type JudgeIdentity, type RequestedJudgeIdenti
 import { DEFAULT_JUDGE, prepareConfiguration, type PreparedConfiguration } from './configuration.js';
 
 /** Local preparation only. No client construction, credential validity or connectivity check. */
-export interface JudgeStatus extends RequestedJudgeIdentity {
+export interface JudgeStatus extends Required<RequestedJudgeIdentity> {
   readonly availability: 'ready' | 'unavailable';
   readonly reason?: 'missing-credentials' | 'configuration';
   readonly connectivity: 'unverified';
@@ -15,12 +15,13 @@ export function prepareJudge(options: {
   judgeIdentity?: JudgeIdentity;
   configuration?: PreparedConfiguration;
 }): { status: JudgeStatus; judge: Judge; configuration: PreparedConfiguration } {
-  const configuration = options.configuration ?? prepareConfiguration({ env: options.env });
+  const prepared = options.configuration ?? prepareConfiguration({ env: options.env });
+  const configuration = options.judge || options.createJudge ? { ...prepared,
+    status: Object.freeze({ ...prepared.status, sources: Object.freeze({ ...prepared.status.sources, judge: 'sdk' as const }) }) } : prepared;
   const injected = !!(options.judge || options.createJudge);
   const selected = configuration.settings.state === 'valid' ? configuration.settings.value.judge
     : configuration.settings.state === 'absent' ? DEFAULT_JUDGE : undefined;
-  // Report identity migration belongs to judge-report-v2 delivery, not settings preparation.
-  const providerName = injected ? 'injected' : selected?.protocol === 'system-one' ? 'typesafe' : selected?.protocol ?? 'unknown';
+  const providerName = injected ? 'injected' : selected?.protocol ?? 'unknown';
   const requestedModel = injected ? options.judgeIdentity?.requestedModel ?? null : selected?.model ?? null;
   if (requestedModel !== null && (typeof requestedModel !== 'string' || !requestedModel.trim()
     || requestedModel.length > 256 || /[\x00-\x1f\x7f-\x9f]/.test(requestedModel))) throw new Error('invalid-judge-identity');
@@ -30,6 +31,9 @@ export function prepareJudge(options: {
   const reason = configuration.status.availability === 'unavailable' ? 'configuration'
     : auth?.type === 'bearer-env' && (typeof token !== 'string' || !/^[\x21-\x7e]+$/.test(token)) ? 'missing-credentials' : undefined;
   const status: JudgeStatus = Object.freeze({ provider: providerName, requestedModel,
+    requestedDestination: injected || !selected ? null : new URL(selected.baseUrl).origin,
+    transportContract: injected || !selected ? null : selected.protocol === 'system-one' ? 'system-one-v1' : 'llamacpp-b11118-choice-v1',
+    authentication: injected || !selected ? null : selected.protocol === 'system-one' ? selected.auth.type : 'none',
     availability: reason ? 'unavailable' : 'ready', ...(reason ? { reason } : {}), connectivity: 'unverified',
     ...(providerName === 'apus-llamacpp' ? { experimental: true as const } : {}) });
   // Snapshot dependencies now. The caller cannot change selection after preparation.

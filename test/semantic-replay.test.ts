@@ -122,7 +122,7 @@ for (const failed of [false, true]) test(`live CLI reports its explicit hosted s
     assert.ok(submittedModels.every(model => model === 'jev-latest'));
     assert.equal(report.requestedModel, 'jev-latest');
     assert.ok(report.rows.every(r => r.result?.requestedModel === 'jev-latest'));
-    assert.ok(report.rows.every(r => r.result?.requestedProvider === 'typesafe'));
+    assert.ok(report.rows.every(r => r.result?.requestedProvider === 'system-one'));
     assert.equal(report.summary.providerFailures.count, failed ? report.rows.length : 0);
     assert.equal(report.summary.assessed.count, failed ? 0 : report.rows.length);
     assert.deepEqual(report.returnedModels, failed ? [] : ['offline-hosted-response']);

@@ -20,6 +20,34 @@ Schema 5 validates source metadata, aggregate limits, combined identity and agre
 
 The inspector shows capabilities recorded at invocation time, not today's installed configuration. Stock Pi and Claude have unsupported authenticated action resolution. The Claude prototype has no verified pinned host or stock trusted live owner approval UI. Attribution does not establish either kind of coverage.
 
+## Recorded judge identity and provenance
+
+Current SDK captures use `judge-report-v2` inside archive schema 5. Begin, assessment, decision, permission and assessment-status records retain the effective project's requested identity and `configuration`. These are recorded facts, not a request to connect to the destination.
+
+| Field | Recorded meaning |
+| --- | --- |
+| `requestedProvider` | `system-one`, `apus-llamacpp`, `injected` or `unknown`. The official TypeSafe default uses `system-one`. |
+| `requestedModel` | Selected alias, or `null` when unknown. |
+| `requestedDestination` | Validated canonical origin. Injected judges and invalid selections record `null`, never a rejected raw URL. |
+| `transportContract` | `system-one-v1`, `llamacpp-b11118-choice-v1`, or `null` for injected/unknown selection. |
+| `authentication` | `none`, `bearer-env`, or `null` for injected/unknown selection. No credential reference name or value. |
+| `returnedModel` | Backend alias from a complete validated assessment only. Absent on failed or pending assessment. |
+| `configuration` | Frozen settings state, safe failure category, effective deadline and observation limits. `sources` identifies the source of judge, deadline and each observation limit. |
+
+Sources are `owner`, `project`, `default`, `environment` or `sdk`, with `null` for unknown settings provenance. A project judge replaces the whole owner judge.
+
+Environment deadline and SDK observation overrides retain their precedence. Later settings edits and sessions do not change this captured selection.
+
+Historical `judge-report-v1` retains `typesafe`, APUS, injected and unknown identities with the recorded requested/returned aliases. Identity-absent records still use their original request and assessment fields where available.
+
+Schemas 1 through 5 remain readable without consulting current settings or rewriting files. Missing destination, transport, authentication or source provenance means not recorded, never today's default.
+
+Assessment versions remain `applicability-v1`, `policy-rules-v9-scoped` and `judge-input-scopes-v1`. Current APUS native capture is `apus-recording-v2`. Historical `apus-recording-v1` keeps its shared-input meaning, renderer and transport identities. See the [native recording contract](assessment-contract.md#native-recording-contract) for both versions.
+
+A model alias is not proof of weights, calibration or accuracy. A transport match does not establish connectivity or permission.
+
+Hosted calls disclose selected policy and evidence and can use quota. A loopback connection can forward those strings to Kev on Pika. Capture-off does not stop that disclosure or backend logs; Pika logging remains the owner's responsibility. See the [SDK disclosure warning](sdk.md#disclosure-before-use) before live use.
+
 ## Read assessment, permission and execution separately
 
 ```text

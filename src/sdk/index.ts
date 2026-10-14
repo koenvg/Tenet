@@ -1,3 +1,4 @@
+import { judgeReport } from '../recording/judge.js';
 import { isAbsolute } from 'node:path';
 import { freeze } from '../decision/evidence.js';
 import { Observations } from '../decision/trajectory.js';
@@ -26,8 +27,10 @@ const assessmentStatus = (status: AssessmentStatus['status'], permission?: Permi
 };
 const text = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 256;
 const ownerReport = (binding: Pick<OwnerReport, 'invocationId' | 'callId' | 'toolName'>, permission: Permission,
-  mode: OwnerReport['mode'], assessmentStatus: OwnerReport['assessmentStatus'], judge: import('../runtime/judge.js').JudgeStatus): OwnerReport => ({
-  judgeReportVersion: 'judge-report-v1', requestedProvider: judge.provider, requestedModel: judge.requestedModel,
+  mode: OwnerReport['mode'], assessmentStatus: OwnerReport['assessmentStatus'], judge: import('../runtime/judge.js').JudgeStatus,
+  configuration: import('../runtime/configuration.js').ConfigurationStatus): OwnerReport => ({
+  ...judgeReport(judge),
+  configuration,
   ...permission, mode, invocationId: binding.invocationId, callId: binding.callId, toolName: binding.toolName, assessmentStatus,
 });
 
@@ -51,7 +54,7 @@ export function createGuard(options: GuardOptions): Guard {
       if (!session || session.closed || closed) return;
       deliver({ type: 'assessment', identity: session.identity, invocationId: id.invocationId, callId: id.callId,
         assessment: assessmentStatus(status, permission, reason),
-        report: permission ? ownerReport(id, permission, resources.mode, status, session.project.judgeStatus) : undefined });
+        report: permission ? ownerReport(id, permission, resources.mode, status, session.project.judgeStatus, session.project.configurationStatus) : undefined });
     },
     emit: (stage, data) => {
       deliverOwnerRecord(options.onOwnerRecord, stage, data, resources.mode);
@@ -164,7 +167,7 @@ export function createGuard(options: GuardOptions): Guard {
           const report = () => {
             if (!entry.closed && !closed && activation.read() === 'on') deliver({ type: 'permission', identity: id, callId: invocation.callId, result,
               report: permission && reportBinding ? ownerReport(reportBinding, { ...permission, outcome: result.permission, reason: result.reason }, runtime.mode,
-                result.assessment.status === 'not-requested' ? undefined : result.assessment.status, project.judgeStatus) : undefined });
+                result.assessment.status === 'not-requested' ? undefined : result.assessment.status, project.judgeStatus, project.configurationStatus) : undefined });
           };
           report();
           // Owner delivery and the runtime await can both revoke a prepared release.

@@ -382,7 +382,7 @@ test('SDK freezes valid and invalid owner snapshots across work and new sessions
     controlPath: join(home, '.tenet/control.json'), ...extra }); guards.push(g); return g; };
   try {
     const absent = make(); const initial = absent.openSession({ sessionId: 'default', contextId: 'main' }, cwd);
-    assert.equal((await initial.ready).judge.provider, 'typesafe');
+    assert.equal((await initial.ready).judge.provider, 'system-one');
     put(file, apus); const unavailable = make(); const selected = unavailable.openSession({ sessionId: 'u', contextId: 'main' }, cwd);
     assert.equal((await selected.ready).state, 'ready');
     assert.equal(unavailable.status().projects[0]!.judge.provider, 'apus-llamacpp'); assert.equal(unavailable.status().projects[0]!.judge.requestedModel, apus.judge.model);

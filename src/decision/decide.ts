@@ -73,6 +73,9 @@ export async function decide(options: {
     decision, reason, assessment, ruleIds, diagnostics, evidenceContext: context, durationMs: Math.max(0, clock.now() - start), config,
     ...ASSESSMENT_METADATA, requestedModel: options.judgeIdentity?.requestedModel ?? null,
     requestedProvider: options.judgeIdentity?.provider ?? 'injected',
+    requestedDestination: options.judgeIdentity?.requestedDestination ?? null,
+    transportContract: options.judgeIdentity?.transportContract ?? null,
+    authentication: options.judgeIdentity?.authentication ?? null,
   });
   if (!policy.available) return result('BLOCK', policy.reason);
   if (!validConfig(config) || typeof cwd !== 'string' || !cwd.trim()) return result('BLOCK', 'configuration');
