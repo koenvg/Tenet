@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
-import { createJevJudge } from '../src/decision/jev.js';
+import { createSystemOneJudge } from '../src/decision/system-one.js';
 import { decide, DEFAULTS, QUESTION_VERSION } from '../src/decision/decide.js';
 import { captureAction } from '../src/decision/evidence.js';
 import { FIXTURES, FIXTURE_CWD, fixturePolicy, REPORTED_FIXTURES } from '../eval/generic-rule-fixtures.js';
@@ -31,7 +31,7 @@ for (const fixture of Object.values(FIXTURES).flat()) {
     const action = captureAction({ ...fixture.input, sessionId: 'offline', callId: fixture.id }, fixture.sensitiveFields);
     const outcomes = [...fixture.outcomes, fixture.integrity];
     let requests = 0;
-    const judge = createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => {
+    const judge = createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'offline-transport-key' }, fetch: async (_url, init) => {
       requests++;
       const body = JSON.parse(init!.body as string);
       assert.deepEqual(body.state.proposedToolCall, { toolName: action.toolName, arguments: action.arguments });
@@ -86,7 +86,7 @@ for (const [set, repetitions, assessments, budget] of [
       const fixture = FIXTURES[set].find(f => input.action.callId?.startsWith(`${f.id}:`));
       assert.ok(fixture);
       const outcomes = [...fixture.outcomes, fixture.integrity];
-      return createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => {
+      return createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'offline-transport-key' }, fetch: async (_url, init) => {
         requests++;
         const body = JSON.parse(init!.body as string);
         const answers = sdkAnswers({ model: 'scripted-not-live', rules: outcomes.map((outcome, i) =>

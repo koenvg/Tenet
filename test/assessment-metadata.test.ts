@@ -7,7 +7,7 @@ import { GuardRuntime } from '../src/runtime/guard.js';
 import type { Permission } from '../src/runtime/consequences.js';
 import { guardHarness } from './guard-harness.js';
 import { recoverReport } from '../src/pi/report-history.js';
-import { createJevJudge } from '../src/decision/jev.js';
+import { createSystemOneJudge } from '../src/decision/system-one.js';
 import { answer, sdkAnswers } from './helpers.js';
 
 const metadata = { profile: 'applicability-v1', questionVersion: 'policy-rules-v9-scoped' };
@@ -81,7 +81,7 @@ test('unavailable candidate owner details keep profile metadata live and after r
 
 for (const mode of ['observe', 'enforce'] as const) test(`scripted ordinary PASS carries current metadata through ${mode} assessment and owner permission`, async () => {
   const h = await guardHarness({ env: { TENET_MODE: mode }, judge: async (request, signal, recording) =>
-    createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => Response.json({ model: 'scripted-not-live',
+    createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'offline-transport-key' }, fetch: async (_url, init) => Response.json({ model: 'scripted-not-live',
       answers: sdkAnswers(answer(request.policy), 1, JSON.parse(init!.body as string).questions) }) })(request, signal, recording) });
   try {
     await h.start();

@@ -13,7 +13,7 @@ export const DELIVERY_FILES = Object.freeze([
   'dist/decision/apus.js', 'dist/decision/apus-native.js', 'dist/decision/apus-renderer.js', 'dist/decision/apus-transport.js',
   'dist/decision/assessment-answers.js', 'dist/decision/typesafe-contract.js',
   'docs/judge.md', 'third-party/apus/LICENSE', 'third-party/apus/NOTICE',
-  'dist/decision/policy.js', 'dist/decision/jev.js', 'dist/recording/archive.js',
+  'dist/decision/policy.js', 'dist/decision/system-one.js', 'dist/recording/archive.js',
   'inspector/dist/index.html', 'docs/doctor.md',
 ]);
 

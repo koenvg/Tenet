@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { readArchive, qualifiedSessionKey } from '../src/recording/archive.js';
 import { ArchiveWriter } from '../src/recording/archive.js';
 import { responseSnapshot } from '../src/recording/contract.js';
-import { createJevJudge } from '../src/decision/jev.js';
+import { createSystemOneJudge } from '../src/decision/system-one.js';
 import { decide } from '../src/decision/decide.js';
 import { captureAction } from '../src/decision/evidence.js';
 import { policy } from './helpers.js';
@@ -17,9 +17,11 @@ export async function recordFailureFixture(directory: string) {
     sink('begin', { policy });
     const result = await decide({ policy, cwd: identity.cwd,
       action: captureAction({ sessionId: identity.sessionId, callId: kind, toolName: 'edit', arguments: {} }),
-      judge: createJevJudge({ apiKey: kind === 'missing-credentials' ? '' : 'fixture-transport-secret', fetch: async () => kind === 'provider-error'
+      judge: createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: kind === 'missing-credentials' ? '' : 'fixture-transport-secret' }, fetch: async () => kind === 'provider-error'
         ? new Response('private-provider-body', { status: 503 })
-        : Response.json({ model: 'invalid', answers: {}, text: '<script>window.hostile = true</script>' + (kind === 'truncated-response' ? 'x'.repeat(1024 * 1024) : '') }) }),
+        : kind === 'truncated-response'
+          ? new Response('{"model":"invalid","answers":{},"text":"<script>window.hostile = true</script>","telemetry":[' + '1e20,'.repeat(59999) + '1e20]}', { headers: { 'Content-Type': 'application/json' } })
+          : Response.json({ model: 'invalid', answers: {}, text: '<script>window.hostile = true</script>' }) }),
       recording: (stage, data) => {
         if (kind === 'interrupted' && stage !== 'request') return;
         if (kind === 'missing-payload' && stage === 'request') return;

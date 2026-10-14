@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { createJevJudge } from '../decision/jev.js';
+import { createSystemOneJudge } from '../decision/system-one.js';
 import { ActivationStore } from '../runtime/activation.js';
 import { readMode } from '../runtime/config.js';
 import { defaultDirectory, exchange, MAX_FRAME, startBridge, type BridgeRequest } from './bridge.js';
@@ -31,7 +31,7 @@ function input(limit: number, deadline: number): Promise<string> {
 const directory = process.env.TENET_CLAUDE_DIR ?? defaultDirectory();
 if (process.argv[2] === 'bridge') {
   try {
-    const server = await startBridge({ directory, env: process.env, judge: createJevJudge({ apiKey: process.env.TYPESAFE_API_KEY }), hasJudge: !!process.env.TYPESAFE_API_KEY?.trim() });
+    const server = await startBridge({ directory, env: process.env, judge: createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: process.env.TYPESAFE_API_KEY } }), hasJudge: !!process.env.TYPESAFE_API_KEY?.trim() });
     const stop = () => { void server.close().then(() => process.exit(0)); };
     process.once('SIGINT', stop); process.once('SIGTERM', stop);
     console.error('TENET Claude bridge running. Host coverage unverified.');

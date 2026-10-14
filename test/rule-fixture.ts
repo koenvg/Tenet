@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { writeFile } from 'node:fs/promises';
 import { guardHarness } from './guard-harness.js';
-import { createJevJudge } from '../src/decision/jev.js';
+import { createSystemOneJudge } from '../src/decision/system-one.js';
 import { answer, sdkAnswers } from './helpers.js';
 import { readArchive } from '../src/recording/archive.js';
 
@@ -21,7 +21,7 @@ export async function recordRuleFixture(directory: string) {
   const submitted: any[] = [];
   const h = await guardHarness({ policy: 'Rule; Never commit. <img src=x onerror="window.hostile=true">\nRule; WARN; Never publish.',
     env: { TENET_RECORDING: 'on', TENET_RECORDING_DIR: directory },
-    createJudge: () => createJevJudge({ apiKey: 'offline-only', fetch: async (_url, init) => {
+    createJudge: () => createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'offline-only' }, fetch: async (_url, init) => {
       const payload = JSON.parse(init!.body as string); submitted.push(payload);
       const kind = payload.state.proposedToolCall.arguments.scenario;
       const assessment = answer({ rules: [{ id: 'first' }, { id: 'second' }] } as any);

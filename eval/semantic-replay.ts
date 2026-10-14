@@ -116,7 +116,7 @@ export async function replaySemantic(options: {
   const expectedIds = semanticCases.map(c => c.id).sort();
   const completeDataset = digest(options.cases) === digest(semanticCases) && digest(options.cases.map(c => c.id).sort()) === digest(expectedIds);
   const questions = buildQuestions(policy);
-  const sourceFiles = ['contracts.ts', 'decide.ts', 'diagnostics.ts', 'evidence.ts', 'judge-evidence.ts', 'trajectory.ts', 'questions.ts', 'policy.ts', 'jev.ts'];
+  const sourceFiles = ['contracts.ts', 'decide.ts', 'diagnostics.ts', 'evidence.ts', 'judge-evidence.ts', 'trajectory.ts', 'questions.ts', 'policy.ts', 'system-one.ts'];
   return { versions: { report: 'semantic-report-v1', fixtures: FIXTURE_VERSION, fixtureDigest: digest(options.cases),
       decisionModule: digest(sourceFiles.map(file => [file, readFileSync(new URL(`../src/decision/${file}`, import.meta.url), 'utf8')])),
       questions: QUESTION_VERSION, questionDigest: digest(questions), evidence: 'bounded-trajectory-v1', thresholds: 'defaults-v1' },

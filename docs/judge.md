@@ -34,13 +34,48 @@ Current Pi and Claude paths supply no thinking text. Missing material context ca
 
 APUS renders each question with its assigned state. One unsupported user rule needs exactly four scored native prompts plus deterministic facts `NONE`. A current candidate adds a scored facts selector. Ordinary `NOT_APPLICABLE` with a supported current candidate adds one protected outcome confirmation, for six scored prompts in that case.
 
-JEV submits each rule's ordinary and exemption groups separately, then the policy protection group. One unsupported user rule needs three SDK submissions. Conditional confirmation joins its exemption submission, not a new shared-state request. Every response must match that group's exact questions/criteria and the returned model identity must stay consistent.
+System One submits each rule's ordinary and exemption groups separately, then the policy protection group. One unsupported user rule needs three POST requests to `/v1/systemone`. Conditional confirmation joins its exemption submission, not a new shared-state request. Every response must match that group's exact questions/criteria and the returned model identity must stay consistent.
 
 Only protected `NOT_APPLICABLE` confirmation and the exact current reference can supply a verified exemption distribution. Conflicts fail; low protected scores and unsupported, stale or partial facts cannot bypass common gates. Other ordinary outcomes are not repaired by the exemption check.
 
-All groups share the configured whole-assessment deadline and cancellation. Each JEV call uses remaining time. Failure stops later submissions without retry or fallback. Default deadlines, model settings, thresholds and approval controls do not change. Separate JEV requests can increase latency; smaller inputs do not guarantee faster or more accurate assessments.
+All groups share the configured whole-assessment deadline and cancellation. Every fetch and body read uses that same budget. Failure stops later submissions without retry or fallback. Default deadlines, model settings, thresholds and approval controls do not change. Separate requests add transport work; smaller inputs do not guarantee lower latency or greater accuracy.
 
 Across the groups, real assessments still disclose selected rule text, paths, tool arguments and required protected data to the selected provider. Capture is on by default and can retain those strings despite redaction. `TENET_RECORDING=off` stops new local capture, not disclosure or backend logs. An assessment is neither permission by itself nor proof of execution.
+
+## System One transport and compatibility
+
+TypeSafe uses one System One adapter with the explicit origin `https://api.typesafe.ai`, requested alias `jev-latest` and the already-resolved TypeSafe bearer key. Version `1` settings below remain the owner interface. They do not accept a custom endpoint, local Kev model or new authentication fields.
+
+Custom endpoint selection and changed provider/report identities require later configuration delivery. Current records retain `typesafe` and `judge-report-v1`; they are not endpoint or weight attestations.
+
+The adapter's internal `createSystemOneJudge` boundary takes an origin, model and either explicit bearer authentication or explicit `none`. It does not read credentials from the environment.
+
+Anonymous transport is restricted to numeric loopback HTTP with a nonzero explicit port, such as `http://127.0.0.1:18091` or `http://[::1]:18091`. Hosted transport requires HTTPS and bearer authentication. Paths beyond an optional trailing slash, user information, queries, fragments, whitespace, escaped hosts and noncanonical numeric HTTP addresses are rejected before fetch.
+
+A supplied token must be nonempty, whitespace-free, printable ASCII; it is sent only in `Authorization`, never in the JSON body.
+
+Each POST body is the exact serialized `{ model, state, questions }` submission. The adapter omits ambient HTTP credentials, refuses redirects and performs no protocol detection, retries or fallback. APUS keeps its native protocol and failure categories; a System One endpoint is not an APUS endpoint.
+
+- A serialized request may be at most 8 MiB (8,388,608 UTF-8 bytes). An additional byte fails before network submission.
+- A response may be at most 1 MiB (1,048,576 bytes). Reading is byte-bounded even without `Content-Length` or with an understated value. Malformed or oversized advertised lengths fail before body reading. Exact limits are accepted; a multibyte character counts by bytes, not JavaScript string length.
+- Missing bodies, invalid UTF-8/JSON, malformed answers and changing or invalid returned aliases fail the assessment. HTTP/network failures do not return a provider body, URL, credential or raw exception as a diagnostic.
+- Cancellation and the whole-assessment deadline also bound noncooperative fetches and readers. Late work cannot publish an assessment or trigger another submission. Stream cleanup does not wait for a noncooperative cancellation promise.
+
+Responses must contain exactly the requested answer keys and complete criterion labels, finite probabilities in `[0, 1]`, valid confidence and a highest-probability selected label. The absolute unit-sum tolerance remains `0.000001`. Tenet does not round, renormalize, clamp or repair scores to make an endpoint compatible.
+
+For a five-label outcome, these fixtures illustrate score validation only; all evidence, exemption and permission gates still apply:
+
+| Five probabilities | Sum | Score validation |
+| --- | --- | --- |
+| `0.9000, 0.0250, 0.0250, 0.0250, 0.0250` | `1.0000` | Accepted |
+| `0.9000, 0.0250, 0.0250, 0.0250, 0.0249` | `0.9999` | Rejected |
+| `0.9000, 0.0250, 0.0250, 0.0250, 0.0251` | `1.0001` | Rejected |
+
+Four-decimal Kev replies are not automatically compatible. Offline hosted/loopback fixtures verify this contract, not a live Kev release, model calibration or assessment accuracy. No live Kev endpoint has been verified by those fixtures.
+
+A selected destination receives the scoped rule, action and protected material described above. Loopback does not prove that a separately operated service avoids forwarding or logging it.
+
+Capture redacts credential-shaped fields and echoed credential strings before bounded serialization. A credential-bearing returned identity or canonical assessment is rejected rather than rewritten. Other rule/action content can still be retained; capture off does not prevent destination disclosure.
 
 ## Source and private file requirements
 

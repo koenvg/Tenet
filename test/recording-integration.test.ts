@@ -9,7 +9,7 @@ import { readArchive, qualifiedSessionKey } from '../src/recording/archive.js';
 import { ArchiveWriter } from '../src/recording/archive.js';
 import { responseSnapshot } from '../src/recording/contract.js';
 import { recordFixture } from './recording-fixture.js';
-import { createJevJudge } from '../src/decision/jev.js';
+import { createSystemOneJudge } from '../src/decision/system-one.js';
 import { decide } from '../src/decision/decide.js';
 import { captureAction } from '../src/decision/evidence.js';
 import { policy } from './helpers.js';
@@ -93,7 +93,7 @@ test('SDK failures record bounded untrusted responses and safe categories, never
   const base = { policy, cwd: '/project', action: captureAction({ sessionId: 's', callId: 'c', toolName: 'edit', arguments: {} }) };
   for (const kind of ['invalid', 'provider', 'credentials']) {
     const events: any[] = [];
-    const judge = createJevJudge({ apiKey: kind === 'credentials' ? '' : 'transport-secret', fetch: async () => kind === 'provider'
+    const judge = createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: kind === 'credentials' ? '' : 'transport-secret' }, fetch: async () => kind === 'provider'
       ? new Response('transport-private-body', { status: 500 }) : Response.json({ model: 'bad', answers: {}, text: 'untrusted-response' }) });
     const result = await decide({ ...base, judge, recording: (stage, data) => events.push({ stage, data }) });
     assert.equal(result.reason, kind === 'invalid' ? 'invalid-response' : kind === 'provider' ? 'provider-error' : 'missing-credentials');
@@ -110,7 +110,7 @@ test('SDK failures record bounded untrusted responses and safe categories, never
 
 test('timeout capture remains partial and cannot release an enforcement decision', async () => {
   const events: { stage: string; data: Record<string, unknown> }[] = [];
-  const judge = createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => new Promise((_resolve, reject) => {
+  const judge = createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'offline-transport-key' }, fetch: async (_url, init) => new Promise((_resolve, reject) => {
     init?.signal?.addEventListener('abort', () => reject(new Error('private-transport-error')), { once: true });
   }) });
   const result = await decide({ policy, cwd: '/project', config: { deadlineMs: 20 }, judge,
@@ -127,7 +127,7 @@ test('concurrent SDK completions stay bound to their invocation IDs across a ses
   const ready = new Promise<void>(resolve => { started = resolve; });
   const held = new Promise<void>(resolve => { release = resolve; });
   const h = await guardHarness({ env: { TENET_RECORDING: 'on', TENET_RECORDING_DIR: dir },
-    createJudge: () => createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => {
+    createJudge: () => createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'offline-transport-key' }, fetch: async (_url, init) => {
       const payload = JSON.parse(init!.body as string);
       if (payload.state.proposedToolCall.arguments.scenario === 'old') { started(); await held; }
       const result = answer();

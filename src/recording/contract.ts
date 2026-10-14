@@ -26,8 +26,9 @@ export function capture(sink: RecordingSink | undefined, stage: Stage, data: () 
   try { sink?.(stage, data()); } catch { /* A diagnostic callback cannot affect the caller. */ }
 }
 // Only application JSON is eligible. Never invoke toJSON/accessors or serialize Error instances.
-function applicationJson(value: unknown, state: { nodes: number; omittedFields: number }, depth = 0): unknown {
+function applicationJson(value: unknown, state: { nodes: number; omittedFields: number; credential?: string }, depth = 0): unknown {
   if (++state.nodes > 100000 || depth > 64) throw new Error('snapshot-limit');
+  if (typeof value === 'string' && state.credential && value.includes(state.credential)) return '[redacted]';
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (!value || typeof value !== 'object' || (!Array.isArray(value) && ![Object.prototype, null].includes(Object.getPrototypeOf(value)))) throw new Error('non-json-response');
@@ -36,14 +37,15 @@ function applicationJson(value: unknown, state: { nodes: number; omittedFields: 
   const result: Record<string, unknown> = Object.create(null);
   for (const [key, descriptor] of entries) {
     if (!Object.hasOwn(descriptor, 'value')) throw new Error('response-accessor');
+    if (state.credential && key.includes(state.credential)) { state.omittedFields++; continue; }
     if (/^(headers|requestheaders|responseheaders|authorization|proxyauthorization|cookie|setcookie|apikey|xapikey|token|accesstoken|refreshtoken|idtoken|password|passwd|secret|clientsecret|privatekey|credentials|awsaccesskeyid|awssecretaccesskey|awssessiontoken)$/.test(key.toLowerCase().replace(/[-_\s]/g, ''))) { state.omittedFields++; continue; }
     result[key] = applicationJson(descriptor.value, state, depth + 1);
   }
   return Array.isArray(value) ? Object.values(result) : result;
 }
-export function responseSnapshot(value: unknown): Record<string, unknown> {
+export function responseSnapshot(value: unknown, credential?: string): Record<string, unknown> {
   try {
-    const state = { nodes: 0, omittedFields: 0 };
+    const state = { nodes: 0, omittedFields: 0, credential };
     const text = JSON.stringify(applicationJson(value, state));
     const bytes = Buffer.byteLength(text);
     const limit = 1024 * 1024;

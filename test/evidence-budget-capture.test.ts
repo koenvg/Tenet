@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { join } from 'node:path';
 import { createGuard, type Guard, type Judge, type JudgeRequest } from 'tenet';
-import { createJevJudge } from '../src/decision/jev.js';
+import { createSystemOneJudge } from '../src/decision/system-one.js';
 import { recordedSubmissions } from '../src/recording/scoped.js';
 import { serializedBytes } from '../src/decision/history-selection.js';
 import { readArchive } from '../src/recording/archive.js';
@@ -25,7 +25,7 @@ for (const host of ['pi', 'compiled-sdk'] as const) for (const tier of ['full', 
     let entered!: () => void, finish!: () => void;
     const started = new Promise<void>(resolve => { entered = resolve; });
     const wait = new Promise<void>(resolve => { finish = resolve; });
-    const transport = createJevJudge({ apiKey: 'offline-transport-secret', fetch: async (_url, init) => {
+    const transport = createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'offline-transport-secret' }, fetch: async (_url, init) => {
       outbound = JSON.parse(init!.body as string);
       submittedPayloads.push(outbound);
       entered();

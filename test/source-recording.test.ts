@@ -8,7 +8,7 @@ import { recordedOrigin, recordedPolicyIdentity } from '../src/recording/policy-
 import { validRecord } from '../src/recording/contract.js';
 import { ArchiveWriter, readArchive } from '../src/recording/archive.js';
 import { recordedSubmissions } from '../src/recording/scoped.js';
-import { createJevJudge } from '../src/decision/jev.js';
+import { createSystemOneJudge } from '../src/decision/system-one.js';
 import { decide } from '../src/decision/decide.js';
 import { ruleContributions } from '../src/recording/rules.js';
 import { captureAction } from '../src/decision/evidence.js';
@@ -43,7 +43,7 @@ test('source-set archive roundtrip retains independent origins and gates after s
   record('begin', { policy, config: { effectThreshold: .9, evidenceThreshold: .9 } });
   const payloads: any[] = [];
   let submitted: any;
-  const judge = createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => {
+  const judge = createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'offline-transport-key' }, fetch: async (_url, init) => {
     submitted = JSON.parse(init!.body as string);
     payloads.push(submitted);
     return Response.json({ model: 'offline-script', answers: sdkAnswers(answer(policy, 'PASS'), 1, submitted.questions) });

@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile, readdir } from 'node:fs/promis
 import { join } from 'node:path';
 import { createGuard } from '../dist/sdk/index.js';
 import { createApusJudge } from '../src/decision/apus.js';
-import { createJevJudge } from '../src/decision/jev.js';
+import { createSystemOneJudge } from '../src/decision/system-one.js';
 import { captureAction } from '../src/decision/evidence.js';
 import { decide } from '../src/decision/decide.js';
 import { buildQuestions } from '../src/decision/questions.js';
@@ -18,7 +18,10 @@ const action = captureAction({ sessionId: 's', callId: 'c', toolName: 'fixture-o
 const base = { policy, action, cwd: '/fixture', deadlineMs: 5000 };
 const options = { baseUrl: 'http://127.0.0.1:8088', model: APUS_MODEL };
 
-for (const outcome of ['PASS', 'FAIL', 'UNKNOWN', 'APPROVAL_REQUIRED', 'NOT_APPLICABLE'] as const) test(`APUS and TypeSafe ${outcome} have identical canonical assessments and gates`, async () => {
+for (const selection of [
+  { baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'offline-fixture' } },
+  { baseUrl: 'http://127.0.0.1:18091', model: 'kev-latest', auth: { type: 'none' } },
+] as const) for (const outcome of ['PASS', 'FAIL', 'UNKNOWN', 'APPROVAL_REQUIRED', 'NOT_APPLICABLE'] as const) test(`APUS and ${selection.model} ${outcome} have identical canonical assessments and gates`, async () => {
   const questions = buildQuestions(policy) as Record<string, { criteria: Record<string,string> }>;
   const answers = Object.fromEntries(Object.entries(questions).map(([key,question]) => {
     const ids = Object.keys(question.criteria);
@@ -29,7 +32,7 @@ for (const outcome of ['PASS', 'FAIL', 'UNKNOWN', 'APPROVAL_REQUIRED', 'NOT_APPL
   const fake = scriptedNative({ winners: ['PASS','APPROVAL_REQUIRED','FAIL','UNKNOWN','NOT_APPLICABLE'].includes(outcome) ? ['ABCDE'[['PASS','APPROVAL_REQUIRED','FAIL','UNKNOWN','NOT_APPLICABLE'].indexOf(outcome)]!, 'A', 'A', 'A'] : undefined });
   const clock = { now:()=>0, schedule:()=>()=>{} };
   const apus = await decide({...base,clock,judge:createApusJudge({...options,fetch:fake.fetch})});
-  const typesafe = await decide({...base,clock,judge:createJevJudge({apiKey:'offline-fixture',fetch:async(_url,init)=>Response.json({model:APUS_MODEL,answers:Object.fromEntries(Object.keys(JSON.parse(init!.body as string).questions).map(key=>[key,answers[key]]))})})});
+  const typesafe = await decide({...base,clock,judge:createSystemOneJudge({...selection,fetch:async(_url,init)=>Response.json({model:APUS_MODEL,answers:Object.fromEntries(Object.keys(JSON.parse(init!.body as string).questions).map(key=>[key,answers[key]]))})})});
   assert.deepEqual(apus,typesafe); assert.ok(apus.assessment);
   if(outcome === 'NOT_APPLICABLE') { assert.equal(apus.decision,'BLOCK'); assert.ok(apus.diagnostics[0]!.gates.includes('applicability-unresolved')); }
 });

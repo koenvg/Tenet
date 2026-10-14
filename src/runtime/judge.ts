@@ -42,8 +42,8 @@ export function prepareJudge(options: {
         const { createApusJudge } = await import('../decision/apus.js');
         provider ??= createApusJudge({ baseUrl: selected.baseUrl, model: selected.model });
       } else {
-        const { createJevJudge } = await import('../decision/jev.js');
-        provider ??= createJevJudge({ apiKey });
+        const { createSystemOneJudge } = await import('../decision/system-one.js');
+        provider ??= createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: MODEL, auth: { type: 'bearer', token: apiKey } });
       }
     }
     return provider(request, signal, recording);

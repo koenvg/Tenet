@@ -5,7 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 import { createGuard, type GuardOptions, type OwnerEvent, type ApprovalRequest } from '../dist/sdk/index.js';
 import { answer, ruleAnswer, sdkAnswers } from './helpers.js';
 import { INTEGRITY_ID } from '../src/decision/policy.js';
-import { createJevJudge } from '../src/decision/jev.js';
+import { createSystemOneJudge } from '../src/decision/system-one.js';
 import { diagnoseProject } from '../src/doctor/doctor.js';
 
 const [scenario, selectedMode, root] = process.argv.slice(2);
@@ -111,7 +111,7 @@ if (scenario === 'integrity-paths') {
   for (const absent of [undefined, 'global', 'project'] as const) {
     if (absent) await unlink(paths[absent]);
     let submitted = 0, approvals = 0;
-    const h = open({ judge: createJevJudge({ apiKey: 'offline-only', fetch: async (url, init) => {
+    const h = open({ judge: createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'offline-only' }, fetch: async (url, init) => {
       assert.equal(new URL(String(url)).origin, 'https://api.typesafe.ai'); submitted++;
       const payload = JSON.parse(init!.body as string), integrity = payload.state.policy;
       if (integrity) {

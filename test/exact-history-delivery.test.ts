@@ -4,7 +4,7 @@ import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createGuard, type OwnerEvent } from 'tenet';
-import { createJevJudge } from '../src/decision/jev.js';
+import { createSystemOneJudge } from '../src/decision/system-one.js';
 import { readArchive } from '../src/recording/archive.js';
 import { invocationView } from '../src/inspector/view.js';
 import { validRecord } from '../src/recording/contract.js';
@@ -70,7 +70,7 @@ test('compiled SDK concurrent sibling completions preserve snapshot-local pools 
 
 test('Pi live reports and schema-4 archive/inspector expose exactly submitted pooling and generic instructions', async () => {
   const submitted: any[] = [];
-  const h = await guardHarness({ env: { TENET_RECORDING: 'on' }, createJudge: () => createJevJudge({ apiKey: 'synthetic-offline',
+  const h = await guardHarness({ env: { TENET_RECORDING: 'on' }, createJudge: () => createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'synthetic-offline' },
     fetch: async (_url, init) => {
       const payload = JSON.parse(init!.body as string); submitted.push(payload);
       return Response.json({ model: 'offline', answers: sdkAnswers(answer(undefined, submitted.length <= 6 ? 'PASS' : 'UNKNOWN'), 1, payload.questions) });

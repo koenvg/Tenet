@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { guardHarness } from './guard-harness.js';
 import { answer, sdkAnswers } from './helpers.js';
-import { createJevJudge } from '../src/decision/jev.js';
+import { createSystemOneJudge } from '../src/decision/system-one.js';
 import { startInspector } from '../src/inspector/server.js';
 import { qualifiedSessionKey } from '../src/recording/archive.js';
 
@@ -14,7 +14,7 @@ test('closed inspector capture survives reader restart and same-session live res
   const directory = await realpath(await mkdtemp(join(tmpdir(), 'tenet-workflow-')));
   const submitted = new Map<string, any[]>();
   const h = await guardHarness({ env: { TENET_RECORDING_DIR: directory, TENET_RECORDING: 'on' },
-    createJudge: () => createJevJudge({ apiKey: 'workflow-transport-secret', fetch: async (_url, init) => {
+    createJudge: () => createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'workflow-transport-secret' }, fetch: async (_url, init) => {
       const payload = JSON.parse(init!.body as string);
       const id = payload.state.proposedToolCall.arguments.scenario;
       submitted.set(id, [...(submitted.get(id) ?? []), payload]);

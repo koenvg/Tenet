@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { guardHarness } from './guard-harness.js';
 import { answer, sdkAnswers } from './helpers.js';
-import { createJevJudge } from '../src/decision/jev.js';
+import { createSystemOneJudge } from '../src/decision/system-one.js';
 import { readArchive } from '../src/recording/archive.js';
 import { invocationView } from '../src/inspector/view.js';
 import { runReplay } from '../eval/replay.js';
@@ -56,7 +56,7 @@ test('SDK semantic state excludes metadata; archive and inspector retain effecti
   const directory = await realpath(await mkdtemp(join(tmpdir(), 'tenet-threshold-archive-')));
   const submitted: any[] = [];
   const h = await guardHarness({ policy: declaration, env: { TENET_RECORDING: 'on', TENET_RECORDING_DIR: directory },
-    createJudge: () => createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => {
+    createJudge: () => createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'offline-transport-key' }, fetch: async (_url, init) => {
       const payload = JSON.parse(init!.body as string); submitted.push(payload);
       assert.equal(payload.questions.rule_0_outcome || payload.questions.rule_0_facts ? payload.state.rule : 'Ask before deleting backups.', 'Ask before deleting backups.');
       assert.ok(!JSON.stringify(payload).includes('evidenceThreshold'));
