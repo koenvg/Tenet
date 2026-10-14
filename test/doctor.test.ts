@@ -309,7 +309,7 @@ syncBuiltinESMExports();`);
   await mkdir(join(f.env.HOME!, '.tenet'), { mode: 0o700 });
   await writeFile(f.env.TENET_CONTROL_PATH!, '{"version":1,"activation":"off"}', { mode: 0o600 });
   const settings = join(f.env.HOME!, '.tenet/config.json');
-  await writeFile(settings, JSON.stringify({ version: 1, judge: { provider: 'apus-llamacpp', baseUrl: 'http://127.0.0.1:8088', model: 'apus-openjev-v1-4b-q8' },
+  await writeFile(settings, JSON.stringify({ version: 2, judge: { protocol: 'apus-llamacpp', baseUrl: 'http://127.0.0.1:8088', model: 'apus-openjev-v1-4b-q8' },
     decision: { deadlineMs: 120000 }, observation: { running: 1, waiting: 8, bytes: 1048576, ageMs: 120000 } }), { mode: 0o600 });
   await check('off', 0);
   await rm(f.env.TENET_CONTROL_PATH!);
@@ -337,8 +337,8 @@ syncBuiltinESMExports();`);
 
 test('offline doctor names APUS experimental and separates execution, label matching and calibration', async () => fixture(async f => {
   await mkdir(join(f.env.HOME!, '.tenet'), { mode: 0o700 });
-  await writeFile(join(f.env.HOME!, '.tenet/config.json'), JSON.stringify({ version: 1,
-    judge: { provider: 'apus-llamacpp', baseUrl: 'http://127.0.0.1:8088', model: 'apus-openjev-v1-4b-q8' } }), { mode: 0o600 });
+  await writeFile(join(f.env.HOME!, '.tenet/config.json'), JSON.stringify({ version: 2,
+    judge: { protocol: 'apus-llamacpp', baseUrl: 'http://127.0.0.1:8088', model: 'apus-openjev-v1-4b-q8' } }), { mode: 0o600 });
   delete f.env.TYPESAFE_API_KEY;
   const before = globalThis.fetch;
   const oldHome = process.env.HOME; process.env.HOME = f.env.HOME;

@@ -65,7 +65,7 @@ for(const [name,winners,reason] of [
 async function owner(work:(home:string,cwd:string)=>Promise<void>) {
   const home=await realpath(await mkdtemp('/tmp/tenet-apus-owner-')); const previous=process.env.HOME; const priorFetch=globalThis.fetch;
   process.env.HOME=home; const cwd=join(home,'project');await mkdir(cwd); await writeFile(join(cwd,'TENET.md'),'Rule; Keep work local.');
-  await mkdir(join(home,'.tenet'),{mode:0o700}); await writeFile(join(home,'.tenet/config.json'),JSON.stringify({version:1,judge:{provider:'apus-llamacpp',...options},decision:{deadlineMs:5000}}),{mode:0o600});
+  await mkdir(join(home,'.tenet'),{mode:0o700}); await writeFile(join(home,'.tenet/config.json'),JSON.stringify({version:2,judge:{protocol:'apus-llamacpp',...options},decision:{deadlineMs:5000}}),{mode:0o600});
   try { await work(home,cwd); } finally {globalThis.fetch=priorFetch;if(previous===undefined)delete process.env.HOME;else process.env.HOME=previous;await rm(home,{recursive:true,force:true});}
 }
 const identity={sessionId:'s',contextId:'main'};

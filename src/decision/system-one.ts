@@ -7,6 +7,7 @@ import { freeze, jsonCopy } from './evidence.js';
 import { captureScopedPlan, captureScopedSubmission } from '../recording/scoped-capture.js';
 import { assessmentBudget } from './assessment-budget.js';
 
+import { systemOneOrigin } from './system-one-origin.js';
 export type SystemOneAuth = Readonly<{ type: 'none' }> | Readonly<{ type: 'bearer'; token: string | undefined }>;
 const REQUEST_LIMIT = 8 * 1024 * 1024;
 const RESPONSE_LIMIT = 1024 * 1024;
@@ -14,21 +15,6 @@ type Budget = ReturnType<typeof assessmentBudget>;
 const validModel = (value: unknown): value is string => typeof value === 'string' && !!value.trim()
   && value.length <= 256 && !/[\x00-\x1f\x7f-\x9f]/.test(value);
 
-function origin(value: string): string | undefined {
-  if (typeof value !== 'string' || value.length > 2048) return;
-  const match = /^(https?):\/\/(\[[0-9a-fA-F:.]+\]|[A-Za-z0-9.-]+)(?::([0-9]+))?\/?$/.exec(value);
-  if (!match) return;
-  const [, scheme, host, port] = match;
-  if (port !== undefined && (!Number.isInteger(Number(port)) || Number(port) < 1 || Number(port) > 65535)) return;
-  if (scheme === 'http' && (!['127.0.0.1', '[::1]'].includes(host!) || port === undefined)) return;
-  if (!host!.startsWith('[') && !host!.replace(/\.$/, '').split('.').every(label =>
-    label.length <= 63 && /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/.test(label))) return;
-  try {
-    const url = new URL(value);
-    if (url.hostname.toLowerCase() !== host!.toLowerCase()) return;
-    return url.origin;
-  } catch { return; }
-}
 function discard(response: Response): void {
   try { void response.body?.cancel().catch(() => {}); } catch {}
 }
@@ -70,7 +56,7 @@ function credentialEcho(value: unknown, token: string): boolean {
 }
 
 export function createSystemOneJudge(options: Readonly<{ baseUrl: string; model: string; auth: SystemOneAuth; fetch?: typeof fetch }>): Judge {
-  const baseUrl = origin(options.baseUrl), model = options.model, fetcher = options.fetch ?? globalThis.fetch;
+  const baseUrl = systemOneOrigin(options.baseUrl), model = options.model, fetcher = options.fetch ?? globalThis.fetch;
   const authType = options.auth.type, token = authType === 'bearer' ? options.auth.token : undefined;
   const loopback = baseUrl !== undefined && ['127.0.0.1', '[::1]'].includes(new URL(baseUrl).hostname);
   const unavailable = !baseUrl || !validModel(model) || !['none', 'bearer'].includes(authType) || authType === 'none' && !loopback

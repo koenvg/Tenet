@@ -9,9 +9,17 @@ import { answer } from './helpers.js';
 import { closeSync, constants, fstatSync, lstatSync, openSync, readSync } from 'node:fs';
 import { guardHarness } from './guard-harness.js';
 import { scriptedNative } from './apus-scripted.js';
+import * as settingsReader from '../src/runtime/settings.js';
+import * as configurationReader from '../src/runtime/configuration.js';
+import { prepareJudge } from '../src/runtime/judge.js';
+import { policy } from './helpers.js';
+import { captureAction } from '../src/decision/evidence.js';
+const request = (): import('../src/decision/contracts.js').JudgeRequest => ({ policy, cwd: '/offline', deadlineMs: 2500,
+  action: captureAction({ sessionId: 's', callId: 'c', toolName: 'offline-only', arguments: {} }) });
 
-const typesafe = { version: 1, judge: { provider: 'typesafe' } };
-const apus = { version: 1, judge: { provider: 'apus-llamacpp', baseUrl: 'http://127.0.0.1:8088', model: 'apus-openjev-v1-4b-q8' },
+const typesafe = { version: 2, judge: { protocol: 'system-one', baseUrl: 'https://api.typesafe.ai', model: 'jev-latest',
+  auth: { type: 'bearer-env', name: 'TYPESAFE_API_KEY' } } };
+const apus = { version: 2, judge: { protocol: 'apus-llamacpp', baseUrl: 'http://127.0.0.1:8088', model: 'apus-openjev-v1-4b-q8' },
   decision: { deadlineMs: 120000 }, observation: { running: 1, waiting: 8, bytes: 1048576, ageMs: 120000 } };
 function fixture(work: (home: string, file: string) => void) {
   const home = realpathSync(mkdtempSync('/tmp/tenet-settings-'));
@@ -20,20 +28,24 @@ function fixture(work: (home: string, file: string) => void) {
 }
 const put = (file: string, value: unknown) => writeFileSync(file, JSON.stringify(value), { mode: 0o600 });
 const changed = (info: ReturnType<typeof lstatSync>, values: object) => Object.assign(Object.create(Object.getPrototypeOf(info)), info, values);
-test('absent settings and both closed providers', () => fixture((home, file) => {
-  assert.equal(readOwnerSettings(home).state, 'absent');
+for (const source of ['owner', 'project'] as const) {
+const readSettings = (root: string, io?: Parameters<typeof readOwnerSettings>[1]) => source === 'owner'
+  ? readOwnerSettings(root, io) : settingsReader.readProjectSettings(root, io);
+const settingsTest = (name: string, work: () => void) => test(`${source}: ${name}`, work);
+settingsTest('absent settings and both closed providers', () => fixture((home, file) => {
+  assert.equal(readSettings(home).state, 'absent');
   for (const value of [typesafe, apus]) {
-    put(file, value); const selected = readOwnerSettings(home);
+    put(file, value); const selected = readSettings(home);
     assert.equal(selected.state, 'valid');
     if (selected.state === 'valid') { assert.deepEqual(selected.value, value); assert.ok(Object.isFrozen(selected.value.judge)); }
   }
   rmSync(file); rmSync(join(home, '.tenet'), { recursive: true });
-  assert.equal(readOwnerSettings(home).state, 'absent');
+  assert.equal(readSettings(home).state, 'absent');
   assert.throws(() => lstatSync(join(home, '.tenet')), { code: 'ENOENT' });
 }));
 for (const state of ['absent', 'valid'] as const) {
   for (const churn of ['creation', 'removal'] as const) {
-    test(`unrelated sibling directory ${churn} preserves ${state} owner settings`, () => fixture((home, file) => {
+    settingsTest(`unrelated sibling directory ${churn} preserves ${state} owner settings`, () => fixture((home, file) => {
       if (state === 'valid') put(file, typesafe);
       const sibling = join(home, 'sibling');
       if (churn === 'removal') mkdirSync(sibling);
@@ -48,14 +60,14 @@ for (const state of ['absent', 'valid'] as const) {
         // Model child-directory link counts on filesystems that do not report them.
         return path === home && churned ? changed(info, { nlink: before.nlink + (churn === 'creation' ? 1 : -1) }) : info;
       }) as typeof lstatSync };
-      assert.deepEqual(readOwnerSettings(home, io), state === 'absent' ? { state: 'absent' } : { state: 'valid', value: typesafe });
+      assert.deepEqual(readSettings(home, io), state === 'absent' ? { state: 'absent' } : { state: 'valid', value: typesafe });
       assert.ok(churned);
     }));
   }
 }
 for (const state of ['absent', 'valid'] as const) {
   for (const replacement of ['directory', 'symlink'] as const) {
-    test(`ancestor ${replacement} replacement rejects ${state} owner settings`, () => fixture((home, file) => {
+    settingsTest(`ancestor ${replacement} replacement rejects ${state} owner settings`, () => fixture((home, file) => {
       if (state === 'valid') put(file, typesafe);
       const root = join(home, '.tenet'), retired = join(home, 'retired');
       let replaced = false;
@@ -68,11 +80,11 @@ for (const state of ['absent', 'valid'] as const) {
         }
         return lstatSync(path);
       }) as typeof lstatSync };
-      assert.deepEqual(readOwnerSettings(home, io), { state: 'invalid', reason: 'unsafe' });
+      assert.deepEqual(readSettings(home, io), { state: 'invalid', reason: 'unsafe' });
       assert.ok(replaced);
     }));
   }
-  test(`ancestor security metadata changes reject ${state} owner settings`, () => fixture((home, file) => {
+  settingsTest(`ancestor security metadata changes reject ${state} owner settings`, () => fixture((home, file) => {
     if (state === 'valid') put(file, typesafe);
     for (const target of [home, join(home, '.tenet')]) {
       const before = lstatSync(target);
@@ -83,13 +95,13 @@ for (const state of ['absent', 'valid'] as const) {
           const info = lstatSync(path);
           return selected && path === target ? changed(info, change) : info;
         }) as typeof lstatSync };
-        assert.deepEqual(readOwnerSettings(home, io), { state: 'invalid', reason: 'unsafe' });
+        assert.deepEqual(readSettings(home, io), { state: 'invalid', reason: 'unsafe' });
       }
     }
   }));
 }
 for (const stage of ['before open', 'during read', 'final path lookup'] as const) {
-  test(`config-file hard-link race ${stage} is rejected`, () => fixture((home, file) => {
+  settingsTest(`config-file hard-link race ${stage} is rejected`, () => fixture((home, file) => {
     put(file, typesafe);
     let linked = false, lookups = 0, closed = 0;
     const link = () => { if (!linked) { linkSync(file, join(home, 'hard')); linked = true; } };
@@ -103,12 +115,12 @@ for (const stage of ['before open', 'during read', 'final path lookup'] as const
       readSync: ((...args: Parameters<typeof readSync>) => { if (stage === 'during read') link(); return readSync(...args); }) as typeof readSync,
       closeSync: (fd: number) => { closed++; closeSync(fd); },
     };
-    assert.deepEqual(readOwnerSettings(home, io), { state: 'invalid', reason: 'unsafe' });
+    assert.deepEqual(readSettings(home, io), { state: 'invalid', reason: 'unsafe' });
     assert.ok(linked); assert.equal(closed, 1);
   }));
 }
-test('strict types, keys, aliases, destination and timer bounds', () => fixture((home, file) => {
-  const bad = [null, [], {}, { ...typesafe, version: 2 }, { ...typesafe, version: '1' }, { version: 1 },
+settingsTest('strict types, keys, aliases, destination and timer bounds', () => fixture((home, file) => {
+  const bad = [null, [], {}, { ...typesafe, version: 1 }, { ...typesafe, version: '1' }, { version: 1 },
     ...['credentials', 'activation', 'mode', 'policy', 'thresholds', 'capture'].map(key => ({ ...typesafe, [key]: 'forbidden' })),
     { ...typesafe, judge: { provider: 'typesafe', baseUrl: 'http://127.0.0.1:8088' } },
     { ...typesafe, judge: { provider: 'typesafe', apiKey: 'fixture-secret' } },
@@ -123,44 +135,44 @@ test('strict types, keys, aliases, destination and timer bounds', () => fixture(
     ...[0, -1, 1.5, '1', null, Number.MAX_SAFE_INTEGER + 1].flatMap(n => ['running', 'waiting', 'bytes'].map(key => ({ ...typesafe, observation: { [key]: n } }))),
     { ...typesafe, decision: { extra: 1 } }, { ...typesafe, observation: { extra: 1 } },
     { ...typesafe, decision: [] }, { ...typesafe, observation: null }];
-  for (const value of bad) { put(file, value); assert.equal(readOwnerSettings(home).state, 'invalid'); }
+  for (const value of bad) { put(file, value); assert.equal(readSettings(home).state, 'invalid'); }
   for (const baseUrl of ['http://127.0.0.1:80/', 'http://[::1]:65535']) {
-    put(file, { ...apus, judge: { ...apus.judge, baseUrl } }); assert.equal(readOwnerSettings(home).state, 'valid');
+    put(file, { ...apus, judge: { ...apus.judge, baseUrl } }); assert.equal(readSettings(home).state, 'valid');
   }
 }));
-test('byte boundary, malformed JSON and UTF-8', () => fixture((home, file) => {
+settingsTest('byte boundary, malformed JSON and UTF-8', () => fixture((home, file) => {
   const json = JSON.stringify(typesafe);
   for (const bytes of [32768, 32769]) {
     writeFileSync(file, json + ' '.repeat(bytes - Buffer.byteLength(json)), { mode: 0o600 });
-    assert.equal(readOwnerSettings(home).state, bytes === 32768 ? 'valid' : 'invalid');
+    assert.equal(readSettings(home).state, bytes === 32768 ? 'valid' : 'invalid');
   }
   for (const value of ['{secret', Buffer.from([0xff])]) {
-    writeFileSync(file, value); assert.equal(readOwnerSettings(home).state, 'invalid');
+    writeFileSync(file, value); assert.equal(readSettings(home).state, 'invalid');
   }
 }));
-test('unsafe files, directories, ancestors and hard links do not get repaired', () => fixture((home, file) => {
+settingsTest('unsafe files, directories, ancestors and hard links do not get repaired', () => fixture((home, file) => {
   put(file, typesafe); const bytes = readFileSync(file);
-  chmodSync(file, 0o644); assert.equal(readOwnerSettings(home).state, 'invalid'); assert.deepEqual(readFileSync(file), bytes);
-  chmodSync(file, 0o000); assert.equal(readOwnerSettings(home).state, 'invalid'); chmodSync(file, 0o600);
-  chmodSync(join(home, '.tenet'), 0o000); assert.equal(readOwnerSettings(home).state, 'invalid'); chmodSync(join(home, '.tenet'), 0o700);
-  chmodSync(join(home, '.tenet'), 0o755); assert.equal(readOwnerSettings(home).state, 'invalid'); chmodSync(join(home, '.tenet'), 0o700);
-  linkSync(file, join(home, 'hard')); assert.equal(readOwnerSettings(home).state, 'invalid'); rmSync(join(home, 'hard'));
-  rmSync(file); mkdirSync(file); assert.equal(readOwnerSettings(home).state, 'invalid'); rmSync(file, { recursive: true });
-  symlinkSync(join(home, 'missing-target'), file); assert.equal(readOwnerSettings(home).state, 'invalid'); rmSync(file);
-  put(join(home, 'target'), typesafe); symlinkSync(join(home, 'target'), file); assert.equal(readOwnerSettings(home).state, 'invalid');
-  rmSync(file); rmSync(join(home, '.tenet'), { recursive: true }); symlinkSync(home, join(home, '.tenet')); assert.equal(readOwnerSettings(home).state, 'invalid');
-  rmSync(join(home, '.tenet')); symlinkSync(home, join(home, 'ancestor')); assert.equal(readOwnerSettings(join(home, 'ancestor')).state, 'invalid');
+  chmodSync(file, 0o644); assert.equal(readSettings(home).state, 'invalid'); assert.deepEqual(readFileSync(file), bytes);
+  chmodSync(file, 0o000); assert.equal(readSettings(home).state, 'invalid'); chmodSync(file, 0o600);
+  chmodSync(join(home, '.tenet'), 0o000); assert.equal(readSettings(home).state, 'invalid'); chmodSync(join(home, '.tenet'), 0o700);
+  chmodSync(join(home, '.tenet'), 0o755); assert.equal(readSettings(home).state, 'invalid'); chmodSync(join(home, '.tenet'), 0o700);
+  linkSync(file, join(home, 'hard')); assert.equal(readSettings(home).state, 'invalid'); rmSync(join(home, 'hard'));
+  rmSync(file); mkdirSync(file); assert.equal(readSettings(home).state, 'invalid'); rmSync(file, { recursive: true });
+  symlinkSync(join(home, 'missing-target'), file); assert.equal(readSettings(home).state, 'invalid'); rmSync(file);
+  put(join(home, 'target'), typesafe); symlinkSync(join(home, 'target'), file); assert.equal(readSettings(home).state, 'invalid');
+  rmSync(file); rmSync(join(home, '.tenet'), { recursive: true }); symlinkSync(home, join(home, '.tenet')); assert.equal(readSettings(home).state, 'invalid');
+  rmSync(join(home, '.tenet')); symlinkSync(home, join(home, 'ancestor')); assert.equal(readSettings(join(home, 'ancestor')).state, 'invalid');
 }));
-test('internal IO seam rejects wrong owners, unreadability, races and growing reads; descriptors are bounded and closed', () => fixture((home, file) => {
+settingsTest('internal IO seam rejects wrong owners, unreadability, races and growing reads; descriptors are bounded and closed', () => fixture((home, file) => {
   put(file, typesafe);
   const io = { closeSync, fstatSync, lstatSync, openSync, readSync };
   for (const target of [file, join(home, '.tenet')]) {
     const wrongOwner = { ...io, lstatSync: ((path: string) => changed(lstatSync(path), path === target ? { uid: (process.getuid?.() ?? 0) + 1 } : {})) as typeof lstatSync };
-    assert.equal(readOwnerSettings(home, wrongOwner).state, 'invalid');
+    assert.equal(readSettings(home, wrongOwner).state, 'invalid');
   }
   for (const method of ['openSync', 'readSync'] as const) {
     const failure = { ...io, [method]: () => { throw Object.assign(new Error('private-error-canary'), { code: 'EACCES' }); } };
-    const result = readOwnerSettings(home, failure);
+    const result = readSettings(home, failure);
     assert.deepEqual(result, { state: 'invalid', reason: 'unreadable' });
     assert.ok(!JSON.stringify(result).includes('private-error-canary'));
   }
@@ -168,16 +180,183 @@ test('internal IO seam rejects wrong owners, unreadability, races and growing re
   const recorded = { ...io, openSync: ((path: string, mode: number) => { flags = mode; return openSync(path, mode); }) as typeof openSync,
     readSync: ((...args: Parameters<typeof readSync>) => { reads++; return readSync(...args); }) as typeof readSync,
     closeSync: (fd: number) => { closed++; closeSync(fd); } };
-  assert.equal(readOwnerSettings(home, recorded).state, 'valid');
+  assert.equal(readSettings(home, recorded).state, 'valid');
   assert.ok(flags & constants.O_NOFOLLOW); assert.ok(flags & constants.O_NONBLOCK); assert.equal(flags & 3, constants.O_RDONLY);
   assert.equal(closed, 1); assert.equal(reads, 2);
   const race = { ...recorded, fstatSync: ((fd: number) => changed(fstatSync(fd), { ino: fstatSync(fd).ino + 1 })) as typeof fstatSync };
-  assert.deepEqual(readOwnerSettings(home, race), { state: 'invalid', reason: 'unsafe' }); assert.equal(closed, 2);
+  assert.deepEqual(readSettings(home, race), { state: 'invalid', reason: 'unsafe' }); assert.equal(closed, 2);
   const growth = { ...io, readSync: ((fd: number, buffer: Buffer, offset: number, length: number) => {
     buffer.fill(32, offset, offset + length); return length;
   }) as typeof readSync };
-  assert.deepEqual(readOwnerSettings(home, growth), { state: 'invalid', reason: 'oversized' });
+  assert.deepEqual(readSettings(home, growth), { state: 'invalid', reason: 'oversized' });
 }));
+}
+
+const local = { protocol: 'system-one', baseUrl: 'http://127.0.0.1:18091', model: 'kev-latest', auth: { type: 'none' } };
+for (const source of ['owner', 'project'] as const) {
+  test(`${source} version 2 System One origins and explicit auth syntax`, () => fixture((root, file) => {
+    const read = () => source === 'owner' ? readOwnerSettings(root) : settingsReader.readProjectSettings(root);
+    for (const baseUrl of ['https://API.example:443/', 'https://192.0.2.1', 'https://[::1]:8443',
+      'http://127.0.0.1:1', 'http://[::1]:65535/']) {
+      put(file, { version: 2, judge: { ...typesafe.judge, baseUrl } }); assert.equal(read().state, 'valid', baseUrl);
+    }
+    for (const baseUrl of ['http://localhost:80', 'http://192.0.2.1:80', 'https://127.1', 'https://2130706433',
+      'https://0x7f000001', 'https://0177.0.0.1', 'https://[0:0:0:0:0:0:0:1]', 'https://%65xample.com',
+      'https://user@example.com', 'https://example.com?', 'https://example.com#', 'https://example.com/v1',
+      'https://example.com/../', 'https://example.com:0', 'https://example.com:65536', 'https://éxample.com',
+      ' https://example.com', 'https://example.com\\', 'https://example.com\n', 'https://' + 'x'.repeat(2049)]) {
+      put(file, { version: 2, judge: { ...typesafe.judge, baseUrl } }); assert.equal(read().state, 'invalid', baseUrl);
+    }
+    for (const auth of [null, {}, { type: 'bearer-env' }, { type: 'none', name: 'KEY' }, { type: 'bearer', token: 'secret' },
+      ...['', '1KEY', 'K-EY', 'K EY', 'K\n', 'K'.repeat(129)].map(name => ({ type: 'bearer-env', name }))]) {
+      put(file, { version: 2, judge: { ...local, auth } }); assert.equal(read().state, 'invalid');
+    }
+    for (const name of ['_', 'KEY_123', 'K'.repeat(128)]) {
+      put(file, { version: 2, judge: { ...local, auth: { type: 'bearer-env', name } } }); assert.equal(read().state, 'valid');
+    }
+    put(file, { version: 2, judge: { ...local, baseUrl: 'https://hosted.example' } }); assert.equal(read().state, 'invalid');
+    put(file, { ...apus, judge: { ...apus.judge, auth: { type: 'none' } } }); assert.equal(read().state, 'invalid');
+    for (const key of ['protocol', 'baseUrl', 'model', 'auth']) {
+      const judge: Record<string, unknown> = { ...local }; delete judge[key];
+      put(file, { version: 2, judge }); assert.equal(read().state, 'invalid');
+    }
+    put(file, { version: 2 }); assert.equal(read().state, source === 'owner' ? 'invalid' : 'valid');
+  }));
+}
+
+test('exact canonical project lookup, partial inheritance and every-field precedence', () => fixture((home, file) => {
+  const project = join(home, 'project'); mkdirSync(project); mkdirSync(join(project, '.tenet'), { mode: 0o700 });
+  const projectFile = join(project, '.tenet/config.json');
+  put(file, { ...typesafe, decision: { deadlineMs: 90000 }, observation: apus.observation });
+  put(join(project, 'config.json'), { version: 2, judge: local }); // Generic config is ignored.
+  const owner = configurationReader.snapshotOwnerConfiguration({ env: {}, home });
+  const prepare = () => prepareConfiguration({ owner, project });
+  assert.equal(prepare().settings.state, 'valid'); assert.equal(prepare().status.deadlineMs, 90000);
+  put(projectFile, { version: 2 }); assert.deepEqual(prepare().status.observation, apus.observation);
+  put(projectFile, { version: 2, observation: { running: 3 } });
+  assert.deepEqual(prepare().status.observation, { ...apus.observation, running: 3 });
+  put(projectFile, { version: 2, judge: local, decision: { deadlineMs: 80000 },
+    observation: { running: 4, waiting: 5, bytes: 6000, ageMs: 70000 } });
+  const merged = prepare(); assert.equal(merged.status.deadlineMs, 80000);
+  assert.deepEqual(merged.status.observation, { running: 4, waiting: 5, bytes: 6000, ageMs: 70000 });
+  assert.deepEqual(merged.settings.state === 'valid' && merged.settings.value.judge, local);
+  const overridden = prepareConfiguration({ owner: configurationReader.snapshotOwnerConfiguration({ home,
+    env: { TENET_JUDGE_DEADLINE_MS: '60000', TENET_POLICY: '../elsewhere.md' } }), project, observationLimits: { running: 2 } });
+  assert.equal(overridden.status.deadlineMs, 60000); assert.equal(overridden.status.observation?.running, 2);
+  const child = join(project, 'child'); mkdirSync(child);
+  assert.equal(prepareConfiguration({ owner, project: child }).status.deadlineMs, 90000); // No parent search.
+  const absentHome = join(home, 'absent-owner'); mkdirSync(absentHome);
+  const noOwner = prepareConfiguration({ env: {}, home: absentHome, project });
+  assert.equal(noOwner.status.deadlineMs, 80000);
+  put(projectFile, { version: 2, observation: { running: 1 } });
+  const partialDefault = prepareConfiguration({ env: {}, home: absentHome, project });
+  assert.equal(partialDefault.status.deadlineMs, 2500);
+  assert.deepEqual(partialDefault.status.observation, { running: 1, waiting: 32, bytes: 1048576, ageMs: 5000 });
+  assert.deepEqual(partialDefault.settings.state === 'valid' && partialDefault.settings.value.judge, typesafe.judge);
+  rmSync(projectFile); assert.equal(prepareConfiguration({ env: {}, home: absentHome, project }).status.deadlineMs, 2500);
+  assert.equal(prepareConfiguration({ owner, project, observationLimits: { bytes: 0 } }).status.availability, 'unavailable');
+  assert.equal(prepareConfiguration({ env: { TENET_JUDGE_DEADLINE_MS: 'bad' }, home, project }).status.availability, 'unavailable');
+}));
+
+test('invalid sources never fall back or get excused by SDK injection', () => fixture((home, file) => {
+  const project = join(home, 'project'); mkdirSync(project); mkdirSync(join(project, '.tenet'), { mode: 0o700 });
+  const projectFile = join(project, '.tenet/config.json'); put(file, typesafe);
+  for (const invalid of [{ version: 1 }, { version: 2, judge: { baseUrl: local.baseUrl } }, { version: 2, judge: null },
+    { version: 2, observation: { bytes: 0 } }, { version: 2, decision: null }]) {
+    put(projectFile, invalid); const config = prepareConfiguration({ env: { TYPESAFE_API_KEY: 'unused' }, home, project });
+    assert.equal(config.status.availability, 'unavailable');
+    assert.equal(prepareJudge({ env: {}, configuration: config, judge: async () => { throw new Error('must not run'); } }).status.reason, 'configuration');
+  }
+  put(projectFile, { version: 2, judge: local }); put(file, { version: 1, judge: { provider: 'typesafe' } });
+  assert.equal(prepareConfiguration({ env: {}, home, project }).status.availability, 'unavailable');
+}));
+
+test('prepared valid/invalid projects retain selection and credentials after file/env edits', async () => {
+  await isolatedOwner(async (home, file) => {
+    put(file, typesafe); const project = join(home, 'project'); mkdirSync(project); mkdirSync(join(project, '.tenet'), { mode: 0o700 });
+    const projectFile = join(project, '.tenet/config.json');
+    const env = { CUSTOM_KEY: 'startup-canary' }; const owner = configurationReader.snapshotOwnerConfiguration({ env, home });
+    env.CUSTOM_KEY = 'later-canary';
+    put(projectFile, { version: 2, judge: { ...local, auth: { type: 'bearer-env', name: 'CUSTOM_KEY' } } });
+    const config = prepareConfiguration({ owner, project }); const prepared = prepareJudge({ env: owner.env, configuration: config });
+    put(projectFile, { version: 1 }); const invalid = prepareConfiguration({ owner, project });
+    put(projectFile, { version: 2, judge: apus.judge });
+    assert.equal(invalid.status.availability, 'unavailable'); assert.equal(config.status.availability, 'ready');
+    assert.equal(prepareJudge({ env: owner.env, configuration: prepareConfiguration({ owner, project }) }).status.provider, 'apus-llamacpp');
+    const prior = globalThis.fetch; let calls = 0;
+    globalThis.fetch = (async (_url, init) => {
+      calls++; assert.equal(new Headers(init?.headers).get('authorization'), 'Bearer startup-canary');
+      return new Response('{}', { status: 503 });
+    }) as typeof fetch;
+    try {
+      await assert.rejects(prepared.judge(request(), new AbortController().signal)); assert.equal(calls, 1);
+      const bad = prepareJudge({ env: owner.env, configuration: invalid });
+      await assert.rejects(bad.judge(request(), new AbortController().signal)); assert.equal(calls, 1);
+    } finally { globalThis.fetch = prior; }
+    const displaced = { get TYPESAFE_API_KEY(): string { throw new Error('displaced source must not resolve'); } };
+    for (const judge of [local, apus.judge]) {
+      put(projectFile, { version: 2, judge });
+      const config = prepareConfiguration({ owner, project });
+      assert.equal(prepareJudge({ env: displaced, configuration: config }).status.availability, 'ready');
+    }
+  });
+});
+
+test('owner/env snapshot is frozen before project read; preparation makes no network requests', () => fixture((home, file) => {
+  put(file, apus); const env = { TENET_JUDGE_DEADLINE_MS: '60000' };
+  const owner = configurationReader.snapshotOwnerConfiguration({ env, home });
+  env.TENET_JUDGE_DEADLINE_MS = '1'; put(file, typesafe);
+  const project = join(home, 'project'); mkdirSync(project); mkdirSync(join(project, '.tenet'), { mode: 0o700 });
+  put(join(project, '.tenet/config.json'), { version: 2, observation: { running: 3 } });
+  const prior = globalThis.fetch; let calls = 0; globalThis.fetch = (() => { calls++; throw new Error('network-trap'); }) as typeof fetch;
+  try {
+    const config = prepareConfiguration({ owner, project });
+    assert.equal(config.status.deadlineMs, 60000); assert.equal(config.status.observation?.waiting, 8);
+    assert.equal(config.status.observation?.running, 3); assert.ok(Object.isFrozen(config.settings));
+    assert.equal(prepareJudge({ env: owner.env, configuration: config }).status.provider, 'apus-llamacpp');
+    assert.equal(calls, 0);
+  } finally { globalThis.fetch = prior; }
+}));
+
+test('only the final project credential is resolved and routed to its selected destination', async () => {
+  await isolatedOwner(async (home, file) => {
+    const project = join(home, 'project'); mkdirSync(project); mkdirSync(join(project, '.tenet'), { mode: 0o700 });
+    const projectFile = join(project, '.tenet/config.json'); put(file, typesafe);
+    const prior = globalThis.fetch; const calls: { url: string; authorization: string | null; model: string }[] = [];
+    globalThis.fetch = (async (url, init) => {
+      const payload = JSON.parse(String(init?.body));
+      calls.push({ url: String(url), authorization: new Headers(init?.headers).get('authorization'), model: payload.model });
+      return new Response('{}', { status: 503 }); // Stop after one scripted request, no live service.
+    }) as typeof fetch;
+    try {
+      for (const [judge, env, expected] of [
+        [local, {}, null],
+        [local, { TYPESAFE_API_KEY: 'displaced-canary' }, null],
+        [{ ...local, baseUrl: 'http://127.0.0.1:80/' }, {}, null],
+        [{ ...local, baseUrl: 'https://[::1]/' }, {}, null],
+        [{ ...local, baseUrl: 'https://CUSTOM.example:443/', auth: { type: 'bearer-env', name: 'CUSTOM_KEY' } },
+          { CUSTOM_KEY: 'selected-canary' }, 'Bearer selected-canary'],
+        [{ ...local, baseUrl: 'https://custom.example', auth: { type: 'bearer-env', name: 'CUSTOM_KEY' } },
+          { TYPESAFE_API_KEY: 'displaced-canary', CUSTOM_KEY: 'selected-canary' }, 'Bearer selected-canary'],
+      ] as const) {
+        put(projectFile, { version: 2, judge });
+        const config = prepareConfiguration({ env, home, project }); const prepared = prepareJudge({ env, configuration: config });
+        assert.equal(prepared.status.availability, 'ready'); const before = calls.length;
+        await assert.rejects(prepared.judge(request(), new AbortController().signal));
+        assert.equal(calls.length, before + 1); assert.deepEqual(calls.at(-1), {
+          url: new URL(judge.baseUrl).origin + '/v1/systemone', authorization: expected, model: judge.model });
+        assert.ok(!JSON.stringify(prepared.status).includes('canary')); assert.ok(!JSON.stringify(config.status).includes('CUSTOM_KEY'));
+      }
+      put(projectFile, { version: 2, judge: { ...local, auth: { type: 'bearer-env', name: 'CUSTOM_KEY' } } });
+      for (const token of [undefined, '', ' ', 'a b', 'a\n', 'é', '\x7f']) {
+        const env = { TYPESAFE_API_KEY: 'displaced-canary', CUSTOM_KEY: token }; const config = prepareConfiguration({ env, home, project });
+        const prepared = prepareJudge({ env, configuration: config }); const before = calls.length;
+        assert.equal(prepared.status.reason, 'missing-credentials');
+        await assert.rejects(prepared.judge(request(), new AbortController().signal)); assert.equal(calls.length, before);
+      }
+    } finally { globalThis.fetch = prior; }
+  });
+});
 test('effective defaults, overrides, invalid common configuration', () => fixture((home, file) => {
   const defaults = prepareConfiguration({ env: {}, home });
   assert.equal(defaults.status.deadlineMs, 2500);
@@ -194,7 +373,7 @@ test('effective defaults, overrides, invalid common configuration', () => fixtur
   assert.equal(prepareConfiguration({ env: {}, home }).status.availability, 'ready');
 }));
 
-test('SDK freezes valid and invalid owner snapshots across work and new sessions; project settings have no effect', async () => {
+test('SDK freezes valid and invalid owner snapshots across work and new sessions before project runtime routing delivery', async () => {
   const home = realpathSync(mkdtempSync('/tmp/tenet-settings-sdk-')); const prior = process.env.HOME; process.env.HOME = home;
   mkdirSync(join(home, '.tenet'), { mode: 0o700 }); const file = join(home, '.tenet/config.json');
   const cwd = join(home, 'project'); mkdirSync(cwd); writeFileSync(join(cwd, 'TENET.md'), 'Rule; Keep work local.');
@@ -305,8 +484,11 @@ test('SDK factory overrides APUS without credentials but cannot excuse invalid s
 test('maintained guide JSON examples match the closed reader', () => fixture((home, file) => {
   const guide = readFileSync(join(import.meta.dirname, '../docs/judge.md'), 'utf8');
   const examples = [...guide.matchAll(/```json\n([\s\S]*?)\n```/g)].map(match => JSON.parse(match[1]!));
-  assert.deepEqual(examples, [typesafe, apus]);
-  for (const example of examples) { put(file, example); assert.equal(readOwnerSettings(home).state, 'valid'); }
+  assert.deepEqual(examples, [typesafe, { version: 2, judge: local }, { version: 2, observation: { running: 1, waiting: 8 } }, apus]);
+  for (const example of examples) {
+    put(file, example); assert.equal(settingsReader.readProjectSettings(home).state, 'valid');
+    assert.equal(readOwnerSettings(home).state, 'judge' in example ? 'valid' : 'invalid');
+  }
 }));
 test('fake Pi reports selected APUS and effective settings only to owner diagnostics', async () => isolatedOwner(async (home, file) => {
   put(file, apus); const priorFetch = globalThis.fetch; const fake = scriptedNative(); globalThis.fetch = fake.fetch;

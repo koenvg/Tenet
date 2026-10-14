@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { readOwnerSettings } from '../src/runtime/settings.js';
+import { readOwnerSettings, readProjectSettings } from '../src/runtime/settings.js';
 
 const guide = readFileSync(new URL('../docs/judge.md', import.meta.url), 'utf8');
 test('shipped judge guide has parsed private settings and consistent experimental budgets', () => {
@@ -10,11 +10,12 @@ test('shipped judge guide has parsed private settings and consistent experimenta
   try {
     mkdirSync(join(home, '.tenet'), { mode: 0o700 });
     const examples = [...guide.matchAll(/```json\n([\s\S]*?)\n```/g)].map(m => JSON.parse(m[1]!));
-    assert.equal(examples.length, 2, 'one TypeSafe rollback and one APUS example');
+    assert.equal(examples.length, 4, 'official, anonymous local, partial project and APUS examples');
     for (const value of examples) {
       writeFileSync(join(home, '.tenet/config.json'), JSON.stringify(value), { mode: 0o600 });
-      assert.equal(readOwnerSettings(home).state, 'valid');
-      if (value.judge.provider === 'apus-llamacpp') {
+      assert.equal(readProjectSettings(home).state, 'valid');
+      assert.equal(readOwnerSettings(home).state, value.judge ? 'valid' : 'invalid');
+      if (value.judge?.protocol === 'apus-llamacpp') {
         assert.equal(value.judge.baseUrl, 'http://127.0.0.1:8088');
         assert.equal(value.judge.model, 'apus-openjev-v1-4b-q8');
         assert.equal(value.decision.deadlineMs, 120000);

@@ -4,7 +4,7 @@ Use this guide to configure a built developer checkout. Archive owners should us
 
 ## Apply and check a setting
 
-Before owner-file changes or live launch, obtain separate authorization for disclosure of full policy, paths, tool evidence and bounded observations. TypeSafe uses API quota; APUS through forwarding sends the data to Pika and uses its CPU.
+Before owner-file changes or live launch, obtain separate authorization for disclosure of full policy, paths, tool evidence and bounded observations. TypeSafe uses API quota; a selected local judge through forwarding sends the data to Pika and uses its CPU.
 
 Secrets can survive redaction and enter local recordings or backend logs. `TENET_RECORDING=off` stops only new local capture.
 
@@ -38,12 +38,9 @@ For Mac Pi with a Pika evaluator, keep the file on the Mac. APUS `baseUrl` names
 Mac Pi + owner config -> Mac loopback -> private SSH forwarding -> Pika APUS
 ```
 
-Version 1 requires numeric `version: 1` and `judge`; optional fields are `decision.deadlineMs` and `observation.running`, `waiting`, `bytes`, `ageMs`. Unknown fields and wrong types are invalid. Policy, mode, credentials and capture use separate controls.
+Version 2 requires a complete owner judge. Select `judge.protocol: "system-one"` with an explicit origin, model and auth source, or `"apus-llamacpp"` with its native loopback origin and expected model. TypeSafe is the official System One default, not the only supported destination. Optional deadline and queue fields retain their bounds. Version 1, unknown fields and wrong types fail without migration or fallback.
 
-| Provider | Required `judge` fields | Requirements |
-| --- | --- | --- |
-| Supported TypeSafe | `provider: "typesafe"` only | `TYPESAFE_API_KEY` in the environment |
-| Experimental APUS | `provider: "apus-llamacpp"`, `baseUrl`, `model` | Literal HTTP loopback `127.0.0.1` or `[::1]`, explicit port, expected model alias; no TypeSafe key or quota |
+Single-project preparation also validates partial `<project>/.tenet/config.json` overrides. Runtime routing and project-aware doctor diagnostics follow separately; current SDK/Pi callers still use owner-wide settings. Do not use a project file as a live destination switch yet. Review cloned configuration before future use because it can select both the recipient of evidence and a credential source. Private permissions are not a sandbox.
 
 Use private, same-owner `.tenet` and `config.json`, normally `0700` and `0600` on POSIX. The file must be owner-readable, regular, single-link, valid UTF-8 JSON and at most 32768 bytes, with no symlinks anywhere in its path. Tenet neither creates, repairs nor watches it.
 
@@ -51,7 +48,7 @@ The deadline uses the environment override, then the file value, then `2500` ms.
 
 Confirmed file absence selects TypeSafe with built-in limits, subject to environment overrides. Invalid input makes assessment unavailable, not a provider fallback. Global/project `TENET.md` files supply policy rules; `control.json` supplies live cooperative on/off.
 
-For offline JSON examples and field validation, read [the settings schema](judge.md#version-1-schema). For queue defaults, numeric bounds and SDK overrides, read [limits and precedence](judge.md#defaults-limits-and-precedence). For separately authorized deployment, use [the unverified private Pika plan](judge.md#plan-private-pika-setup).
+For offline JSON examples and field validation, read [the settings schema](judge.md#version-2-schema). For queue defaults, numeric bounds and SDK overrides, read [limits and precedence](judge.md#defaults-limits-and-precedence). For separately authorized deployment, use [the unverified private Pika plan](judge.md#plan-private-pika-setup).
 
 APUS scores do not establish calibration or enforcement safety.
 
@@ -61,7 +58,7 @@ APUS scores do not establish calibration or enforcement safety.
 | --- | --- | --- |
 | `TENET_MODE` | `observe` | Exact `observe` or `enforce`; only `enforce` blocks. Invalid values select observe and report `invalid-mode`. |
 | `TENET_POLICY` | Unset | Project policy path, absolute or session-relative. Empty/whitespace values are invalid; missing or unusable selected files have no fallback. |
-| `TYPESAFE_API_KEY` | None | Nonblank key for TypeSafe only. Use your secret manager, never JSON, policy, source, chat or command arguments. APUS does not send it. |
+| `TYPESAFE_API_KEY` | None | Printable ASCII key without whitespace, used by the official default or an explicit source selection. Use your secret manager, never JSON, policy, source, chat or command arguments. APUS does not send it. |
 
 Optional owner `~/.tenet/TENET.md` applies alongside session `TENET.md`. `TENET_POLICY` replaces only the project candidate. Both implicit files absent without an override means dormant; unusable sources invalidate the whole set. For selection, stale sources and reload rules, read [policy selection](policy.md#choose-the-policy-file).
 
@@ -128,7 +125,7 @@ Invalid setup takes precedence over unavailable and bypass states; doctor off ta
 
 ## Provider settings that are not switches
 
-TypeSafe fixes `https://api.typesafe.ai`, `jev-latest`, disabled SDK logging and no retries. `jev-latest` is an alias, not an immutable release. Records preserve requested/returned model identity; late responses cannot change blocked decisions.
+The absent-file default selects `https://api.typesafe.ai`, `jev-latest` and the `TYPESAFE_API_KEY` source. Explicit System One settings can replace all three. A selected compatible endpoint receives scoped policy/evidence and only its selected bearer credential, if any. The adapter has no client logging or retries. Aliases and current `judge-report-v1` records do not attest a destination or weights; late responses cannot change blocked decisions.
 
 Neither provider has a live-mode mock fallback. For APUS protocol and cancellation limits, read [the native contract](judge.md#pinned-native-assessment-contract).
 

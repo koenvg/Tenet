@@ -3,22 +3,26 @@ import { homedir } from 'node:os';
 import { dirname, isAbsolute, join } from 'node:path';
 import { freeze } from '../decision/evidence.js';
 import type { ObservationLimits } from './observation-queue.js';
+import { systemOneOrigin } from '../decision/system-one-origin.js';
 
 // Resolve at guard construction, not import. Never derive the owner home from project cwd.
 export const ownerHome = () => process.env.HOME ?? homedir();
 export const SETTINGS_MAX_BYTES = 32768;
 export type SettingsFailure = 'unsafe' | 'unreadable' | 'oversized' | 'malformed' | 'schema';
-export interface OwnerSettings {
-  version: 1;
-  judge: { provider: 'typesafe' } | { provider: 'apus-llamacpp'; baseUrl: string; model: string };
+export type JudgeSettings =
+  | { protocol: 'system-one'; baseUrl: string; model: string; auth: { type: 'none' } | { type: 'bearer-env'; name: string } }
+  | { protocol: 'apus-llamacpp'; baseUrl: string; model: string };
+export interface ProjectSettings {
+  version: 2;
+  judge?: JudgeSettings;
   decision?: { deadlineMs?: number };
   observation?: Partial<ObservationLimits>;
 }
-export type SettingsSnapshot =
+export interface OwnerSettings extends ProjectSettings { judge: JudgeSettings }
+export type SettingsSnapshot<T = OwnerSettings> =
   | { readonly state: 'absent' }
-  | { readonly state: 'valid'; readonly value: Readonly<OwnerSettings> }
+  | { readonly state: 'valid'; readonly value: Readonly<T> }
   | { readonly state: 'invalid'; readonly reason: SettingsFailure };
-
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const keys = (value: Record<string, unknown>, allowed: string[]) => Object.keys(value).every(key => allowed.includes(key));
 export const positiveInteger = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) > 0;
@@ -33,13 +37,21 @@ export function validLocalBaseUrl(value: unknown): value is string {
   try { const url = new URL(value); return url.protocol === 'http:' && !url.username && !url.password && !url.search && !url.hash && url.pathname === '/'; }
   catch { return false; }
 }
-function validSettings(value: unknown): value is OwnerSettings {
-  if (!object(value) || !keys(value, ['version', 'judge', 'decision', 'observation']) || value.version !== 1 || !object(value.judge)) return false;
-  const judge = value.judge;
-  if (judge.provider === 'typesafe') { if (!keys(judge, ['provider'])) return false; }
-  else if (judge.provider === 'apus-llamacpp') {
-    if (!keys(judge, ['provider', 'baseUrl', 'model']) || !validLocalBaseUrl(judge.baseUrl) || !alias(judge.model)) return false;
-  } else return false;
+function validJudge(judge: unknown): judge is JudgeSettings {
+  if (!object(judge) || !alias(judge.model)) return false;
+  if (judge.protocol === 'system-one') {
+    const origin = systemOneOrigin(judge.baseUrl);
+    if (!keys(judge, ['protocol', 'baseUrl', 'model', 'auth']) || !origin || !object(judge.auth)) return false;
+    const auth = judge.auth;
+    if (auth.type === 'none') return keys(auth, ['type']) && ['127.0.0.1', '[::1]'].includes(new URL(origin).hostname);
+    return auth.type === 'bearer-env' && keys(auth, ['type', 'name']) && typeof auth.name === 'string'
+      && /^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(auth.name);
+  }
+  return judge.protocol === 'apus-llamacpp' && keys(judge, ['protocol', 'baseUrl', 'model']) && validLocalBaseUrl(judge.baseUrl);
+}
+function validSettings(value: unknown, requireJudge: boolean): value is ProjectSettings {
+  if (!object(value) || !keys(value, ['version', 'judge', 'decision', 'observation']) || value.version !== 2) return false;
+  if (requireJudge || 'judge' in value) { if (!validJudge(value.judge)) return false; }
   if ('decision' in value && (!object(value.decision) || !keys(value.decision, ['deadlineMs'])
     || ('deadlineMs' in value.decision && !timerInteger(value.decision.deadlineMs)))) return false;
   if ('observation' in value && (!object(value.observation) || !keys(value.observation, ['running', 'waiting', 'bytes', 'ageMs'])
@@ -56,11 +68,17 @@ const sameDirectoryIdentity = (a: Stats, b: Stats) => a.dev === b.dev && a.ino =
 const sameFileIdentity = (a: Stats, b: Stats) => sameDirectoryIdentity(a, b) && a.nlink === b.nlink;
 const missing = (error: unknown) => (error as NodeJS.ErrnoException)?.code === 'ENOENT';
 
-/** Read-only, bounded owner configuration. No project search, repair, watcher or content diagnostics. */
+/** Both sources use the same bounded, no-follow reader. No search, repair or watcher. */
 export function readOwnerSettings(home = ownerHome(), io = filesystem): SettingsSnapshot {
-  const invalid = (reason: SettingsFailure): SettingsSnapshot => Object.freeze({ state: 'invalid', reason });
-  if (!isAbsolute(home)) return invalid('unsafe');
-  const root = join(home, '.tenet'), path = join(root, 'config.json');
+  return readSettings(home, true, io) as SettingsSnapshot;
+}
+export function readProjectSettings(project: string, io = filesystem): SettingsSnapshot<ProjectSettings> {
+  return readSettings(project, false, io);
+}
+function readSettings(directory: string, requireJudge: boolean, io: typeof filesystem): SettingsSnapshot<ProjectSettings> {
+  const invalid = (reason: SettingsFailure): SettingsSnapshot<ProjectSettings> => Object.freeze({ state: 'invalid', reason });
+  if (!isAbsolute(directory)) return invalid('unsafe');
+  const root = join(directory, '.tenet'), path = join(root, 'config.json');
   let fd: number | undefined;
   try {
     const ancestors = new Map<string, Stats | undefined>();
@@ -108,7 +126,7 @@ export function readOwnerSettings(home = ownerHome(), io = filesystem): Settings
     let parsed: unknown;
     try { parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(0, count))); }
     catch { return invalid('malformed'); }
-    return validSettings(parsed) ? freeze({ state: 'valid' as const, value: parsed }) : invalid('schema');
+    return validSettings(parsed, requireJudge) ? freeze({ state: 'valid' as const, value: parsed }) : invalid('schema');
   } catch { return invalid('unreadable'); }
   finally { if (fd !== undefined) { try { io.closeSync(fd); } catch { /* No raw filesystem errors leave this boundary. */ } } }
 }

@@ -1,8 +1,10 @@
-# Configure the judge for all projects
+# Configure the judge
 
-Use this guide to select a judge, check private settings offline, and plan owner-operated Pika setup. It applies to a production archive or a built developer checkout. Settings apply to every project launched by that owner on the machine. Start with no settings file if TypeSafe defaults meet your needs.
+Use this guide to select an owner-wide judge, check private version 2 settings offline, and plan owner-operated Pika setup. It applies to a production archive or a built developer checkout. Start with no settings file if official TypeSafe defaults meet your needs.
 
-TypeSafe is supported. APUS OpenJev v1 through llama.cpp is experimental and needs no TypeSafe key. Valid settings can be locally ready with connectivity unverified. A selected provider never falls back to another provider. No live setup is authorized by this guide or by an offline package check.
+System One selects an explicit HTTPS or literal loopback destination. APUS OpenJev v1 through llama.cpp remains experimental and needs no TypeSafe key. Local readiness does not verify connectivity. Neither implementation falls back to another judge.
+
+Project overrides are available at the internal single-project preparation boundary and have offline fixture coverage. SDK/Pi runtime routing and project-aware doctor diagnostics are not delivered in this step. Those callers still use owner-wide settings. Do not rely on a project file to redirect live assessments until project runtime support is delivered. No live setup is authorized by this guide or an offline package check.
 
 ## Check settings offline
 
@@ -18,6 +20,8 @@ For an archive, first install its locked production dependencies as described in
 3. If settings are invalid, inspect and correct them yourself outside the guarded agent path. After any edit, fully stop and restart the host process. Pi `/reload` and a new session are not supported settings reload procedures.
 
 An absent file reports TypeSafe and the defaults below. TypeSafe without its key reports `missing-credentials`. Valid APUS settings report the selected alias and local `ready` availability, not verified connectivity or a missing TypeSafe key. Doctor exits `1` for invalid or active unavailable setup; coherent off or dormant setup can exit `0` with the provider limitation visible. See [doctor states and fixes](doctor.md#states-and-exits).
+
+Until the report/doctor delivery, System One still appears under the legacy `typesafe` label, and doctor's credential-presence row checks `TYPESAFE_API_KEY`. The judge availability check uses the selected source. For custom auth, check the source named in your reviewed file rather than treating that legacy row or guidance as selected-credential verification.
 
 Local availability is not connectivity, model provenance, calibration, active hooks or assessment accuracy. An alias names the requested model, not proof of loaded weights.
 
@@ -44,13 +48,11 @@ Across the groups, real assessments still disclose selected rule text, paths, to
 
 ## System One transport and compatibility
 
-TypeSafe uses one System One adapter with the explicit origin `https://api.typesafe.ai`, requested alias `jev-latest` and the already-resolved TypeSafe bearer key. Version `1` settings below remain the owner interface. They do not accept a custom endpoint, local Kev model or new authentication fields.
-
-Custom endpoint selection and changed provider/report identities require later configuration delivery. Current records retain `typesafe` and `judge-report-v1`; they are not endpoint or weight attestations.
+The official default uses one System One adapter with origin `https://api.typesafe.ai`, alias `jev-latest` and the explicitly selected TypeSafe bearer source. Version 2 settings can select a different compatible destination and model. Current records still use `typesafe` and `judge-report-v1` for System One, including custom selections. They do not record or attest the destination; project-aware v2 reports follow in a separate delivery.
 
 The adapter's internal `createSystemOneJudge` boundary takes an origin, model and either explicit bearer authentication or explicit `none`. It does not read credentials from the environment.
 
-Anonymous transport is restricted to numeric loopback HTTP with a nonzero explicit port, such as `http://127.0.0.1:18091` or `http://[::1]:18091`. Hosted transport requires HTTPS and bearer authentication. Paths beyond an optional trailing slash, user information, queries, fragments, whitespace, escaped hosts and noncanonical numeric HTTP addresses are rejected before fetch.
+Anonymous transport is restricted to literal loopback. HTTP requires a nonzero explicit port, such as `http://127.0.0.1:18091` or `http://[::1]:18091`. Hosted transport requires HTTPS and bearer authentication. Paths beyond an optional trailing slash, user information, queries, fragments, whitespace, escaped hosts and noncanonical numeric HTTP addresses are rejected before fetch.
 
 A supplied token must be nonempty, whitespace-free, printable ASCII; it is sent only in `Authorization`, never in the JSON body.
 
@@ -79,7 +81,7 @@ Capture redacts credential-shaped fields and echoed credential strings before bo
 
 ## Source and private file requirements
 
-The only source is `~/.tenet/config.json`, resolved from the launching owner's home, not the project's working directory. Project files, parent-directory files, `TENET_POLICY` and an SDK `env.HOME` value cannot redirect settings. Tests use a canonical temporary process `HOME` or internal read seams, never real owner files.
+Owner settings come only from `~/.tenet/config.json`, resolved from the launching owner's home, not the project's working directory. Single-project preparation reads overrides only from the supplied canonical project's `.tenet/config.json`. It does not search parents, use generic `config.json`, or infer a project from policy paths. `TENET_POLICY` and an SDK `env.HOME` cannot redirect the owner source. Tests use canonical temporary homes and project directories, never real owner files.
 
 The settings directory must be private and owned by the launching user. The file must be owner-readable, private, same-owner, regular and single-link. On POSIX, `0700` for `.tenet` and `0600` for `config.json` meet these requirements. Symlink ancestors, directory/file links, public permissions, unreadability and a changing file identity are failures. Tenet does not create, repair, chmod or watch settings.
 
@@ -87,37 +89,73 @@ The file limit is 32768 bytes, including whitespace. Exactly 32768 bytes is allo
 
 Settings do not select a policy or turn Tenet on. The separate `~/.tenet/control.json` and existing control-path override retain their live on/off behavior. Owner permissions are cooperative same-user controls, not an OS sandbox.
 
-## Version 1 schema
+Both sources have the same private-file and directory requirements. A cloned project file can select a destination and the environment source whose credential goes to it. Review the complete selection before use. Private permissions reduce accidental changes but do not stop a same-user agent from writing settings; they are not a sandbox. Tenet never repairs an unsafe or invalid source, and a valid project cannot excuse an invalid owner file.
 
-The root must be an object with required `version: 1` and `judge`. Only `version`, `judge`, `decision` and `observation` are allowed. Every nested object also rejects unknown fields and wrong types. Optional `decision` and `observation` objects can omit individual limits.
+## Version 2 schema
+
+Both roots allow only `version`, `judge`, `decision` and `observation`, and require `version: 2`. The owner file requires a complete `judge`. Project overrides can omit any override object. Every nested object rejects unknown fields and wrong types. Null is an error, not deletion syntax.
 
 | Object | Allowed fields |
 | --- | --- |
-| `judge`, TypeSafe | Required `provider: "typesafe"` only. No destination, model or credential fields. The destination remains official TypeSafe and the model remains `jev-latest`. |
-| `judge`, APUS | Required `provider: "apus-llamacpp"`, `baseUrl` and `model` strings. No other fields. |
+| `judge`, System One | Required `protocol: "system-one"`, `baseUrl`, `model`, and `auth`. |
+| `judge`, APUS | Required `protocol: "apus-llamacpp"`, `baseUrl` and `model`. No auth fields. |
 | `decision` | Optional `deadlineMs`. |
 | `observation` | Optional `running`, `waiting`, `bytes`, `ageMs`. |
 
-APUS `baseUrl` must be exact HTTP syntax at literal `127.0.0.1` or `[::1]`, with an explicit decimal port from 1 to 65535. A trailing root `/` is allowed. HTTPS, DNS names, alternate IP spellings, URL user information, query, fragment, backslashes and non-root paths are not allowed.
+System One `baseUrl` is an HTTPS origin or exact HTTP syntax at literal `127.0.0.1` or `[::1]` with an explicit decimal port from 1 to 65535. APUS accepts only that HTTP loopback form. An optional trailing root `/` is allowed. User information, query, fragment, backslashes, whitespace, escaped hosts, non-root paths and alternate numeric IP spellings are invalid. HTTPS DNS case, default port and trailing slash can be canonicalized, but parsing cannot turn an invalid raw host into a valid one. The URL limit is 2048 characters for System One.
 
-The expected `model` alias must contain non-whitespace text, have at most 256 characters and contain no terminal control characters. It is not a download instruction.
+The `model` alias must contain non-whitespace text, have at most 256 characters and contain no C0/C1 control characters. It is not a download instruction or proof of weights.
 
-JSON cannot contain credentials, activation, mode, executable paths, module names, policy selection, thresholds, approval controls, evidence controls or capture controls. Keep TypeSafe credentials in the existing secret-manager environment path. Do not add them to JSON, policy or a command argument.
+System One auth is exactly `{"type":"none"}` or `{"type":"bearer-env","name":"ENV_NAME"}`. Anonymous auth requires literal loopback, including HTTPS loopback. Hosted origins require bearer auth. The environment name must match `[A-Za-z_][A-Za-z0-9_]{0,127}`. Only the final selected source supplies a nonempty, whitespace-free printable ASCII credential. A missing or unsafe value makes the judge unavailable; an ambient TypeSafe key cannot replace it.
 
-This minimal supported TypeSafe configuration is an offline schema example, not a live assessment:
+JSON cannot contain secret values, activation, mode, executable paths, module names, policy selection, thresholds, approval, evidence or capture controls. Supply bearer secrets through your secret-manager environment path, never policy, JSON or command arguments. Selecting a destination is a disclosure choice, not native action approval.
+
+This official hosted selection is an offline owner schema example, not a live assessment:
 
 ```json
 {
-  "version": 1,
-  "judge": { "provider": "typesafe" }
+  "version": 2,
+  "judge": {
+    "protocol": "system-one",
+    "baseUrl": "https://api.typesafe.ai",
+    "model": "jev-latest",
+    "auth": { "type": "bearer-env", "name": "TYPESAFE_API_KEY" }
+  }
 }
 ```
+
+This unverified local selection is an offline owner or complete project-judge example. A separately operated loopback service can forward the selected policy and evidence to Pika. Tenet does not set up that service or forward:
+
+```json
+{
+  "version": 2,
+  "judge": {
+    "protocol": "system-one",
+    "baseUrl": "http://127.0.0.1:18091",
+    "model": "kev-latest",
+    "auth": { "type": "none" }
+  }
+}
+```
+
+A supplied project `judge` replaces the entire owner/default judge, including auth. It must be complete. Changing only an endpoint fails rather than inheriting a credential. An omitted judge inherits the complete selection. Anonymous and APUS replacements do not resolve a displaced TypeSafe source.
+
+This offline project schema example changes two limits and inherits the whole judge, deadline and other limits. It is invalid as an owner file because it omits the judge:
+
+```json
+{
+  "version": 2,
+  "observation": { "running": 1, "waiting": 8 }
+}
+```
+
+A project file containing only `version: 2` inherits everything. Partial `decision` and `observation` objects override only supplied fields. Each present source must validate even if later values override it.
 
 ## Defaults, limits and precedence
 
 | Setting | Absent-file default | JSON range |
 | --- | --- | --- |
-| Provider and requested model | TypeSafe, `jev-latest` | Closed provider schema above |
+| Provider and requested model | TypeSafe, `jev-latest` | Version 2 judge schema above |
 | `decision.deadlineMs` | 2500 ms | Positive safe integer, at most 2147483647 ms |
 | `observation.running` | 2 | Positive safe integer |
 | `observation.waiting` | 32 | Positive safe integer |
@@ -127,14 +165,20 @@ This minimal supported TypeSafe configuration is an offline schema example, not 
 A safe integer is an exact JavaScript integer no greater than 9007199254740991. Numeric strings, fractions, zero, negatives and nonfinite values are not valid JSON limits. The merged SDK queue has the same positive integer and age timer bounds. Existing environment deadline validation remains in force.
 
 ```text
-Provider: built-in TypeSafe -> JSON -> explicit SDK dependency
-Deadline: 2500 ms -> JSON -> TENET_JUDGE_DEADLINE_MS
-Queue:    defaults -> JSON -> SDK observationLimits
+Judge:    official defaults -> owner JSON -> whole project judge -> SDK dependency
+Deadline: 2500 ms -> owner JSON -> project JSON -> TENET_JUDGE_DEADLINE_MS
+Queue:    defaults -> owner JSON -> supplied project fields -> SDK observationLimits
 ```
 
 Each arrow means the value on the right overrides the earlier value. SDK `judge` takes precedence over lazy `createJudge`; either overrides the JSON provider and its credential requirement. Its requested identity is unknown unless the caller supplies `judgeIdentity`. Injection does not excuse invalid JSON or invalid common effective settings. An invalid environment deadline is a failure, not permission to use the JSON deadline.
 
-Policy selection, mode, thresholds, approval timeout, evidence bounds and recording stay on their existing paths. Every guard freezes settings and effective configuration once at construction, including invalid results. Pending work and new sessions in that guard keep the snapshot. A new guard can read changes; the supported owner procedure is a full process restart.
+Policy selection, mode, thresholds, approval timeout, evidence bounds and recording stay on their existing paths. Owner settings and the startup environment freeze once. Single-project preparation overlays its first project-file read on that snapshot and resolves only the selected credential. Prepared valid and invalid results do not change after file edits. Runtime project caching follows separately; current guards retain their owner snapshot across work and new sessions.
+
+## Migrate version 1 manually
+
+Version 1 is rejected, not silently upgraded or replaced by defaults. Obtain separate owner-file authorization before changing a real settings file. Outside the intercepted agent path, replace a TypeSafe `provider` judge with the complete official System One example above. For APUS, change `version` to `2` and `judge.provider` to `judge.protocol`; keep its reviewed URL, model and limits and add no auth.
+
+Validate the new owner file with offline doctor. Then fully stop and restart the host process before using it. Pi `/reload` and a new session cannot apply settings or environment changes. Do not infer live connectivity from doctor. A binary rollback also needs a manually restored matching settings schema and another full restart; it must not rewrite historical records or select a fallback destination automatically.
 
 ## Failure and queue behavior
 
@@ -153,9 +197,9 @@ This JSON is an offline schema example. Do not write it into actual owner settin
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "judge": {
-    "provider": "apus-llamacpp",
+    "protocol": "apus-llamacpp",
     "baseUrl": "http://127.0.0.1:8088",
     "model": "apus-openjev-v1-4b-q8"
   },
@@ -258,7 +302,7 @@ Observe releases before assessment and never vetoes or opens approval. Pending, 
 
 Before editing owner settings or relaunching TypeSafe, obtain separate authorization. TypeSafe receives full policy and selected evidence, including secret-bearing strings despite redaction, and uses API quota. Capture-off does not stop disclosure or all backend logs. Do not reuse Pika approval as TypeSafe consent.
 
-1. Outside the agent path, restore the minimal valid TypeSafe JSON under Version 1 schema, or remove the optional settings file after reviewing it. Removing only `judge` leaves invalid settings; absence and invalidity are different.
+1. Outside the agent path, restore the minimal valid TypeSafe JSON under Version 2 schema, or remove the optional settings file after reviewing it. Removing only `judge` leaves invalid settings; absence and invalidity are different.
 2. Supply a usable `TYPESAFE_API_KEY` through the existing secret-manager environment path, never JSON or command arguments. Without it, TypeSafe remains unavailable. Clear obsolete APUS deadline overrides or knowingly choose new limits; absence restores built-in limits, but environment overrides still apply.
 3. Run doctor offline, then fully restart in observe mode only with the separate live authorization above. Existing guards retain their APUS snapshot until stopped. Stop the owner-managed tunnel and service separately. Preserve historical recordings and their recorded contract versions; rollback does not erase them or undo released actions.
 
