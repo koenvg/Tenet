@@ -6,6 +6,7 @@ import { GuardBoundary } from './boundary.js';
 import { OwnerReports } from './owner-reports.js';
 import { nativeHistory } from './history.js';
 import { readConfig } from '../runtime/config.js';
+import { OBSERVATION_LIMITS } from '../runtime/observation-queue.js';
 
 type Options = Pick<GuardOptions, 'judge' | 'createJudge' | 'judgeIdentity' | 'actionResolver' | 'env' | 'controlPath'> & { onEligible?: (eligible: (ctx: ExtensionContext) => boolean) => void };
 
@@ -54,9 +55,10 @@ export function registerGuard(pi: ExtensionAPI, options: Options = {}): void {
       if (!adapter) return 'uninitialized';
       const missing = [!adapter.resultCorrelation && 'result correlation', !adapter.argumentStability && 'argument stability',
         !adapter.lifecycleInvalidation && 'lifecycle', !adapter.interception && 'interception', !adapter.trustedApproval && 'trusted approval'].filter(Boolean).join(', ');
-      const judge = guard.status().judge;
-      return `${adapter.host} ${adapter.version ?? 'version unverified'} (${adapter.profile ?? 'profile unverified'}); coverage ${missing || 'declared'}; limits ${adapter.limitations.join(', ')}; judge ${judge.provider}${judge.experimental ? ' experimental' : ''}, requested model ${display(judge.requestedModel ?? 'unknown')}, local availability ${judge.availability}, connectivity unverified; settings ${guard.status().configuration.source}, ${guard.status().configuration.settings}; deadline ${guard.status().configuration.deadlineMs ?? 'unavailable'}ms; queue ${JSON.stringify(guard.status().configuration.observation)}`;
-    }, () => guard.status().observations);
+      const { judge, configuration } = session!.status();
+      return `${adapter.host} ${adapter.version ?? 'version unverified'} (${adapter.profile ?? 'profile unverified'}); coverage ${missing || 'declared'}; limits ${adapter.limitations.join(', ')}; judge ${judge.provider}${judge.experimental ? ' experimental' : ''}, requested model ${display(judge.requestedModel ?? 'unknown')}, local availability ${judge.availability}, connectivity unverified; settings ${configuration.source}, ${configuration.settings}; deadline ${configuration.deadlineMs ?? 'unavailable'}ms; queue ${JSON.stringify(configuration.observation)}`;
+    }, () => guard.status().projects.find(p => p.directory === session?.status().directory)?.observations
+      ?? { completed: 0, unavailable: 0, dropped: 0, cancelled: 0, limits: OBSERVATION_LIMITS });
   const approvals = new ApprovalQueue();
   let commandsRegistered = false;
   let opening = 0;

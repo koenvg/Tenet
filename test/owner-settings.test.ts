@@ -377,15 +377,15 @@ test('SDK freezes valid and invalid owner snapshots across work and new sessions
   const home = realpathSync(mkdtempSync('/tmp/tenet-settings-sdk-')); const prior = process.env.HOME; process.env.HOME = home;
   mkdirSync(join(home, '.tenet'), { mode: 0o700 }); const file = join(home, '.tenet/config.json');
   const cwd = join(home, 'project'); mkdirSync(cwd); writeFileSync(join(cwd, 'TENET.md'), 'Rule; Keep work local.');
-  mkdirSync(join(cwd, '.tenet')); put(join(cwd, '.tenet/config.json'), apus);
   const guards: ReturnType<typeof createGuard>[] = [];
   const make = (extra = {}) => { const g = createGuard({ host: 'offline', env: { TENET_RECORDING: 'off', TENET_MODE: 'enforce' },
     controlPath: join(home, '.tenet/control.json'), ...extra }); guards.push(g); return g; };
   try {
-    const absent = make(); assert.equal(absent.status().judge.provider, 'typesafe');
+    const absent = make(); const initial = absent.openSession({ sessionId: 'default', contextId: 'main' }, cwd);
+    assert.equal((await initial.ready).judge.provider, 'typesafe');
     put(file, apus); const unavailable = make(); const selected = unavailable.openSession({ sessionId: 'u', contextId: 'main' }, cwd);
     assert.equal((await selected.ready).state, 'ready');
-    assert.equal(unavailable.status().judge.provider, 'apus-llamacpp'); assert.equal(unavailable.status().judge.requestedModel, apus.judge.model);
+    assert.equal(unavailable.status().projects[0]!.judge.provider, 'apus-llamacpp'); assert.equal(unavailable.status().projects[0]!.judge.requestedModel, apus.judge.model);
     let calls = 0; let release!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; });
     const injected = make({ judge: async (r: Parameters<import('../src/decision/contracts.js').Judge>[0]) => { calls++; await gate; return answer(r.policy); },
@@ -396,9 +396,9 @@ test('SDK freezes valid and invalid owner snapshots across work and new sessions
     while (!calls) await new Promise(resolve => setTimeout(resolve, 1));
     put(file, { ...typesafe, decision: { deadlineMs: 12 } }); release();
     assert.equal((await pending).assessment.status, 'completed');
-    assert.equal(injected.status().configuration.deadlineMs, 120000);
+    assert.equal(injected.status().projects[0]!.configuration.deadlineMs, 120000);
     assert.equal((await injected.openSession({ sessionId: 's2', contextId: 'main' }, cwd).ready).configuration.deadlineMs, 120000);
-    assert.equal(make().status().configuration.deadlineMs, 12);
+    assert.equal((await make().openSession({ sessionId: 'new', contextId: 'main' }, cwd).ready).configuration.deadlineMs, 12);
     writeFileSync(file, 'invalid-private-canary'); const invalid = make({ judge: async () => { throw new Error('must not run'); } });
     put(file, typesafe);
     const bad = invalid.openSession({ sessionId: 'bad', contextId: 'main' }, cwd); assert.equal((await bad.ready).reason, 'configuration');
@@ -433,8 +433,8 @@ test('JSON queue releases first, freezes retained input, drops capacity and age,
     await new Promise(resolve => setTimeout(resolve, 70));
     assert.equal(requests.length, 1); assert.equal((requests[0]!.action.arguments as { text: string }).text, 'before'); assert.ok(Object.isFrozen(requests[0]!.action));
     assert.ok(events.some(e => e.type === 'assessment' && e.callId === 'two' && e.assessment.reason === 'queue-expired'));
-    assert.equal(guard.status().configuration.deadlineMs, 1000); assert.equal(guard.status().observations.limits.running, 1);
-    s.invalidate('fixture-cancel'); assert.equal(guard.status().observations.cancelled, 1); assert.equal(guard.status().observations.retainedBytes, 0);
+    assert.equal(guard.status().projects[0]!.configuration.deadlineMs, 1000); assert.equal(guard.status().projects[0]!.observations.limits.running, 1);
+    s.invalidate('fixture-cancel'); assert.equal(guard.status().projects[0]!.observations.cancelled, 1); assert.equal(guard.status().projects[0]!.observations.retainedBytes, 0);
   } finally { await guard.close(); }
 }));
 for (const mode of ['observe', 'enforce'] as const) {
@@ -471,14 +471,18 @@ test('SDK factory overrides APUS without credentials but cannot excuse invalid s
     controlPath: join(home, '.tenet/control.json'), createJudge: () => { constructions++; return async request => answer(request.policy); } });
   const g = create();
   try {
-    assert.equal(g.status().judge.provider, 'injected'); assert.equal(constructions, 0); assert.equal(g.status().configuration.deadlineMs, 120000);
+    assert.deepEqual(g.status().projects, []); assert.equal(constructions, 0);
     const s = g.openSession({ sessionId: 's', contextId: 'main' }, cwd); assert.equal((await s.ready).state, 'ready');
+    assert.equal(s.status().judge.provider, 'injected'); assert.equal(s.status().configuration.deadlineMs, 120000);
     const call = { callId: 'c', toolName: 'fixture-only', input: {} };
     assert.equal((await s.beforeTool({ ...call, current: () => ({ sessionId: 's', contextId: 'main', ...call }) })).assessment.status, 'completed');
     assert.equal(constructions, 1);
   } finally { await g.close(); }
   put(file, { ...apus, observation: { running: 0 } }); const bad = create();
-  try { assert.equal(bad.status().judge.reason, 'configuration'); assert.equal(bad.status().configuration.observation, null); assert.equal(constructions, 1); }
+  try {
+    const s = bad.openSession({ sessionId: 'bad', contextId: 'main' }, cwd); await s.ready;
+    assert.equal(s.status().judge.reason, 'configuration'); assert.equal(s.status().configuration.observation, null); assert.equal(constructions, 1);
+  }
   finally { await bad.close(); }
 }));
 test('maintained guide JSON examples match the closed reader', () => fixture((home, file) => {

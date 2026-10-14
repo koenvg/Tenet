@@ -30,9 +30,13 @@ const enforce = createGuard({ ...host, judge, env: { TENET_MODE: 'enforce', TENE
   controlPath: join(root, 'control', 'state.json') });
 try {
   const active = join(root, 'active'); const invalid = join(root, 'invalid');
-  await mkdir(active); await mkdir(invalid);
+  await mkdir(active); await mkdir(invalid); await mkdir(join(root, 'absent'));
   await writeFile(join(active, 'TENET.md'), 'Rule; BLOCK; Require approval before publishing.');
   await writeFile(join(invalid, 'TENET.md'), 'Unmarked policy is invalid.');
+  for (const [directory, running] of [[active, 1], [invalid, 2]] as const) {
+    await mkdir(join(directory, '.tenet'), { mode: 0o700 });
+    await writeFile(join(directory, '.tenet/config.json'), JSON.stringify({ version: 2, observation: { running } }), { mode: 0o600 });
+  }
   const session = observe.openSession({ sessionId: 'observe', contextId: 'main' }, active);
   const input = { payload: 'example' };
   const invocation = { callId: 'blocked-counterfactual', toolName: 'host-tool', input };
@@ -41,7 +45,7 @@ try {
   assert.equal((await session.beforeTool({ ...invocation, current })).assessment.status, 'unavailable');
   assert.equal((await session.ready).state, 'ready');
   assert.deepEqual(session.status().judge, { provider: 'injected', requestedModel: null, availability: 'ready', connectivity: 'unverified' });
-  assert.equal(enforce.status().judge.requestedModel, 'scripted-requested');
+  assert.deepEqual(enforce.status().projects, []);
   const permission = await session.beforeTool({ ...invocation, current });
   assert.equal(permission.permission, 'released'); assert.equal(permission.assessment.status, 'pending');
   assert.equal(permission.assessment.wouldDecision, undefined);
@@ -65,6 +69,12 @@ try {
   assert.equal(noAssessment.permission, 'released'); assert.equal(noAssessment.assessment.status, 'unavailable');
   assert.equal(noAssessment.assessment.wouldDecision, undefined);
   const approved = enforce.openSession({ sessionId: 'enforce', contextId: 'main' }, active); await approved.ready;
+  assert.equal(enforce.status().projects[0]!.judge.requestedModel, 'scripted-requested');
+  assert.equal(observe.status().projects.length, 3);
+  assert.deepEqual(observe.status().projects.slice(0, 2).map(project => [project.directory, project.observations.limits.running]),
+    [[active, 1], [join(root, 'absent'), 2]]);
+  assert.equal(observe.status().projects.find(project => project.directory === invalid)!.observations.limits.running, 2);
+  assert.equal(session.status().configuration.observation!.running, 1);
   const ask = { callId: 'ask', toolName: 'host-tool', input };
   const authorization = await approved.beforeTool({ ...ask,
     current: () => ({ sessionId: 'enforce', contextId: 'main', ...ask }),

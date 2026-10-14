@@ -6,7 +6,7 @@ import type { Decision } from '../decision/contracts.js';
 import { UNAVAILABLE_EVIDENCE_CONTEXT } from '../decision/evidence-context.js';
 import { permissionVeto, type Permission } from '../runtime/consequences.js';
 import { deliverOwnerRecord } from '../runtime/owner-record.js';
-import { createRuntimeResources } from '../runtime/resources.js';
+import { createRuntimeResources, type ProjectResources } from '../runtime/resources.js';
 import type { AuthorizationHandoff, RuntimeIdentity } from '../runtime/guard.js';
 import type { AssessmentStatus, BeforeToolResult, CaptureStatus, Guard, GuardOptions, GuardSession, OwnerEvent, OwnerReport, OwnerRecord, SessionIdentity, SessionStatus } from './types.js';
 import { declaredCapabilities } from './capabilities.js';
@@ -36,7 +36,7 @@ export function createGuard(options: GuardOptions): Guard {
   const timeoutMs = options.disposalTimeoutMs ?? 1000;
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 0 || timeoutMs > 5000) throw new Error('invalid-disposal-timeout');
   const capabilities = declaredCapabilities(options);
-  const sessions = new Map<string, { handle: GuardSession; identity: RuntimeIdentity; initialized: boolean; closed: boolean }>();
+  const sessions = new Map<string, { handle: GuardSession; identity: RuntimeIdentity; project: ProjectResources; initialized: boolean; closed: boolean }>();
   let closed = false;
   let closing: Promise<boolean> | undefined;
   let watching = false;
@@ -51,10 +51,10 @@ export function createGuard(options: GuardOptions): Guard {
       if (!session || session.closed || closed) return;
       deliver({ type: 'assessment', identity: session.identity, invocationId: id.invocationId, callId: id.callId,
         assessment: assessmentStatus(status, permission, reason),
-        report: permission ? ownerReport(id, permission, runtime.mode, status, resources.judgeStatus) : undefined });
+        report: permission ? ownerReport(id, permission, resources.mode, status, session.project.judgeStatus) : undefined });
     },
     emit: (stage, data) => {
-      deliverOwnerRecord(options.onOwnerRecord, stage, data, runtime.mode);
+      deliverOwnerRecord(options.onOwnerRecord, stage, data, resources.mode);
       if (stage !== 'execution' || closed || typeof data.sessionId !== 'string') return;
       const session = sessions.get(data.sessionId);
       if (!session || session.closed) return;
@@ -64,16 +64,16 @@ export function createGuard(options: GuardOptions): Guard {
         callId: data.callId, outcome: data.outcome as 'executed' | 'failed' | 'unknown' });
     },
   });
-  const { runtime, activation, archive } = resources;
+  const { activation, archive } = resources;
   const captureStatus = (): CaptureStatus => {
     if (!archive) return { kind: 'external', health: 'unknown' };
     const { enabled, ...health } = archive.health();
     return { kind: enabled ? 'local-archive' : 'disabled', ...health };
   };
   const syncWatch = () => {
-    const needed = !closed && [...sessions.values()].some(s => !s.closed && s.initialized && runtime.coverageStatus(s.identity).readiness.eligible);
+    const needed = !closed && [...sessions.values()].some(s => !s.closed && s.initialized && s.project.runtime.coverageStatus(s.identity).readiness.eligible);
     if (needed && !watching) {
-      activation.watch(value => { runtime.activationChanged(value); deliver({ type: 'activation', activation: value }); });
+      activation.watch(value => { resources.activationChanged(value); deliver({ type: 'activation', activation: value }); });
       watching = true;
     } else if (!needed && watching) { activation.close(); watching = false; }
   };
@@ -82,20 +82,23 @@ export function createGuard(options: GuardOptions): Guard {
       if (closed) throw new Error('guard-closed');
       if (!text(identity.sessionId) || !text(identity.contextId) || !isAbsolute(cwd)) throw new Error('invalid-session-identity-or-cwd');
       if (sessions.has(identity.sessionId)) throw new Error('session-already-open');
+      const project = resources.project(cwd);
+      cwd = project.directory;
+      const { runtime } = project;
       const id: RuntimeIdentity = immutable({ host: runtime.capabilities.host, sessionId: identity.sessionId, contextId: identity.contextId });
       let sessionClosing: Promise<boolean> | undefined;
       const bypassed = new Set<string>();
-      const entry = { handle: undefined as unknown as GuardSession, identity: id, initialized: false, closed: false };
+      const entry = { handle: undefined as unknown as GuardSession, identity: id, project, initialized: false, closed: false };
       const status = (): SessionStatus => {
         const coverage = runtime.coverageStatus(id);
         const ready = coverage.readiness;
-        return immutable({ identity: { sessionId: id.sessionId, contextId: id.contextId },
+        return immutable({ directory: project.directory, identity: { sessionId: id.sessionId, contextId: id.contextId },
           state: entry.closed || closed ? 'closed' : !entry.initialized ? 'uninitialized' : !ready.eligible ? 'dormant' : ready.unavailable ? 'unavailable' : 'ready',
           reason: entry.closed || closed ? 'session-closed' : ready.unavailable,
           mode: coverage.mode, modeWarning: runtime.modeWarning, activation: coverage.activation, capabilities: coverage.adapter,
           profile: ready.profile, questionVersion: ready.questionVersion,
-          judge: resources.judgeStatus,
-          configuration: resources.configurationStatus,
+          judge: project.judgeStatus,
+          configuration: project.configurationStatus,
           policy: { contractVersion: ready.policy.contractVersion, candidates: ready.policy.candidates,
             sources: ready.policy.available ? ready.policy.sources.map(({ rules, ...source }) => ({ ...source, ruleCount: rules.length })) : [],
             combinedDigest: ready.policy.available ? ready.policy.combinedDigest : null, ruleCount: ready.ruleCount,
@@ -105,7 +108,7 @@ export function createGuard(options: GuardOptions): Guard {
         permission: runtime.mode === 'enforce' ? 'blocked' : 'released', reason, ...(runtime.mode === 'enforce' ? { blockReason: `TENET blocked: ${reason}.` } : {}), assessment: unavailableAssessment(reason), execution: 'unknown' });
       // Register before starting so closure and callbacks can find the owned handle.
       sessions.set(id.sessionId, entry);
-      const ready = runtime.start(id, cwd, resources.hasJudge).then(() => {
+      const ready = runtime.start(id, cwd, project.hasJudge).then(() => {
         if (!entry.closed && !closed) { entry.initialized = true; syncWatch(); runtime.status(id); }
         return status();
       });
@@ -161,7 +164,7 @@ export function createGuard(options: GuardOptions): Guard {
           const report = () => {
             if (!entry.closed && !closed && activation.read() === 'on') deliver({ type: 'permission', identity: id, callId: invocation.callId, result,
               report: permission && reportBinding ? ownerReport(reportBinding, { ...permission, outcome: result.permission, reason: result.reason }, runtime.mode,
-                result.assessment.status === 'not-requested' ? undefined : result.assessment.status, resources.judgeStatus) : undefined });
+                result.assessment.status === 'not-requested' ? undefined : result.assessment.status, project.judgeStatus) : undefined });
           };
           report();
           // Owner delivery and the runtime await can both revoke a prepared release.
@@ -207,14 +210,12 @@ export function createGuard(options: GuardOptions): Guard {
     async setActivation(value) {
       if (closed) throw new Error('guard-closed');
       const result = await activation.write(value);
-      runtime.activationChanged(result);
+      resources.activationChanged(result);
       return result;
     },
     status() {
-      return immutable({ closed, sessions: sessions.size, mode: runtime.mode, activation: activation.read(),
-        judge: resources.judgeStatus,
-        configuration: resources.configurationStatus,
-        observations: runtime.observationQueue.health(),
+      return immutable({ closed, sessions: sessions.size, mode: resources.mode, activation: activation.read(),
+        projects: resources.status(),
         capture: captureStatus() });
     },
     close() {

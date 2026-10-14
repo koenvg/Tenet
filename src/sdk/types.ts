@@ -59,6 +59,7 @@ export interface BeforeToolResult {
   readonly execution: 'unknown';
 }
 export interface SessionStatus {
+  readonly directory: string;
   readonly judge: import('../runtime/judge.js').JudgeStatus;
   readonly configuration: import('../runtime/configuration.js').ConfigurationStatus;
   readonly state: 'uninitialized' | 'ready' | 'dormant' | 'unavailable' | 'closed';
@@ -150,16 +151,20 @@ export type CaptureStatus =
   | { readonly kind: 'local-archive' | 'disabled'; readonly directory: string; readonly issue?: string; readonly failed: number; readonly dropped: number;
       readonly written: number; readonly pending: number; readonly drainTimeouts: number }
   | { readonly kind: 'external'; readonly health: 'unknown' };
-export interface GuardStatus {
+export interface ProjectStatus {
+  readonly directory: string;
   readonly judge: import('../runtime/judge.js').JudgeStatus;
   readonly configuration: import('../runtime/configuration.js').ConfigurationStatus;
+  readonly observations: { readonly running: number; readonly waiting: number; readonly retainedBytes: number; readonly completed: number;
+    readonly unavailable: number; readonly dropped: number; readonly cancelled: number;
+    readonly limits: Readonly<{ running: number; waiting: number; bytes: number; ageMs: number }> };
+}
+export interface GuardStatus {
+  readonly projects: readonly ProjectStatus[];
   readonly closed: boolean;
   readonly sessions: number;
   readonly mode: Mode;
   readonly activation: Activation;
-  readonly observations: { readonly running: number; readonly waiting: number; readonly retainedBytes: number; readonly completed: number;
-    readonly unavailable: number; readonly dropped: number; readonly cancelled: number;
-    readonly limits: Readonly<{ running: number; waiting: number; bytes: number; ageMs: number }> };
   readonly capture: CaptureStatus;
 }
 export interface Guard {

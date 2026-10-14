@@ -112,27 +112,33 @@ export async function useStatus(guard: Guard, session: GuardSession, event: Owne
   // @ts-expect-error capability limitations are immutable
   status.capabilities.limitations.push('new');
   const health = guard.status();
-  const requestedModel: string | null = health.judge.requestedModel;
+  const requestedModel: string | null = health.projects[0]!.judge.requestedModel;
   const provider: 'typesafe' | 'apus-llamacpp' | 'injected' | 'unknown' = status.judge.provider;
   const deadline: number | null = status.configuration.deadlineMs;
   // @ts-expect-error effective configuration is immutable
   status.configuration.deadlineMs = 5;
-  if (health.configuration.observation) {
+  if (health.projects[0]!.configuration.observation) {
     // @ts-expect-error nested effective limits are immutable
-    health.configuration.observation.running = 9;
+    health.projects[0]!.configuration.observation.running = 9;
   }
   void deadline;
   // @ts-expect-error requested identities are immutable
-  health.judge.requestedModel = 'changed';
+  health.projects[0]!.judge.requestedModel = 'changed';
   // @ts-expect-error readiness does not verify connectivity
   status.judge.connectivity = 'verified';
   void [requestedModel, provider];
   // @ts-expect-error guard snapshot fields are immutable
   health.closed = true;
+  // @ts-expect-error the project list cannot be replaced
+  health.projects = [];
+  // @ts-expect-error the project list cannot be extended
+  health.projects.push(health.projects[0]!);
+  // @ts-expect-error project entries cannot be replaced
+  health.projects[0] = health.projects[0]!;
   // @ts-expect-error observation health is immutable
-  health.observations.running = 0;
+  health.projects[0]!.observations.running = 0;
   // @ts-expect-error observation limits are immutable
-  health.observations.limits.bytes = 0;
+  health.projects[0]!.observations.limits.bytes = 0;
   // @ts-expect-error capture health is immutable
   health.capture.kind = 'external';
   if (event.type === 'activation') {

@@ -34,8 +34,8 @@ test('TypeSafe readiness is local and missing credentials do not construct a cli
   for (const key of [undefined, 'offline-not-valid']) {
     const h = await fixture({ env: { TENET_RECORDING: 'off', TYPESAFE_API_KEY: key } });
     try {
-      assert.deepEqual(h.guard.status().judge, status('typesafe', 'jev-latest', key ? 'ready' : 'unavailable'));
-      assert.deepEqual((await h.session.ready).judge, h.guard.status().judge);
+      assert.deepEqual(h.guard.status().projects[0]!.judge, status('typesafe', 'jev-latest', key ? 'ready' : 'unavailable'));
+      assert.deepEqual((await h.session.ready).judge, h.guard.status().projects[0]!.judge);
       assert.equal(h.session.status().state, key ? 'ready' : 'unavailable');
       assert.equal(h.records.length, 0);
     } finally { await h.close(); }
@@ -51,7 +51,7 @@ for (const explicit of [false, true]) {
     try {
       identity.requestedModel = 'changed-after-startup';
       const expected = status('injected', explicit ? 'custom-requested' : null);
-      assert.deepEqual(h.guard.status().judge, expected);
+      assert.deepEqual(h.guard.status().projects[0]!.judge, expected);
       assert.deepEqual((await h.session.ready).judge, expected);
       assert.equal(constructions, 0);
       assert.equal((await h.before()).assessment.status, 'completed');
@@ -119,7 +119,7 @@ test('identity validation is bounded and default TypeSafe ignores injected metad
       judge: async () => ({}), judgeIdentity: { requestedModel } }), /invalid-judge-identity/);
   }
   const h = await fixture({ judgeIdentity: { requestedModel: 'ignored-for-typesafe' } });
-  try { assert.equal(h.guard.status().judge.requestedModel, 'jev-latest'); }
+  try { assert.equal(h.guard.status().projects[0]!.judge.requestedModel, 'jev-latest'); }
   finally { await h.close(); }
 });
 

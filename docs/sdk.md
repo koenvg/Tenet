@@ -193,15 +193,19 @@ This is a name list, not a copyable import. The shipped `dist/sdk/index.d.ts` an
 
 ### Judge readiness and identity
 
-Both `guard.status().judge` and `session.status().judge` give the same frozen `JudgeStatus`. `provider` is `typesafe`, `apus-llamacpp`, `injected` or `unknown` for invalid settings without a selected provider. `requestedModel` is the requested alias or `null` for unknown. TypeSafe requests `jev-latest` at its fixed official destination; injected judges never inherit that identity.
+`session.status().judge` gives that project's frozen `JudgeStatus`. `guard.status().projects` lists each initialized canonical `directory` with its `judge`, `configuration` and `observations` health. Before a project opens, the list is empty. `session.status().directory` identifies the session's project entry. There is no guard-wide effective judge or queue.
+
+`provider` is `typesafe`, `apus-llamacpp`, `injected` or `unknown` for invalid settings without a selected provider. The current report contract labels System One selections `typesafe`; see the [judge settings reference](judge.md) for endpoint and authentication selection. `requestedModel` is the selected alias or `null` for unknown. Injected judges never inherit configured identity.
 
 `availability` is local readiness, not a provider check. Unavailable reasons are `missing-credentials` and `configuration`. Valid APUS settings report `ready` and `experimental: true` without a TypeSafe key. APUS uses complete canonical assessments and existing decision gates; it never falls back to TypeSafe. An injected judge still overrides valid provider settings.
 
 `connectivity` stays `unverified`. Status does not construct a client, validate a key, attest weights or prove assessment accuracy. Policy eligibility, activation and host coverage remain separate.
 
-Both status methods also expose frozen `configuration` with the owner source, settings state, availability, optional safe failure category, effective `deadlineMs` and `observation` limits. Invalid effective configuration reports `null` limits.
+Session status and each project entry expose frozen `configuration` with source, settings state, availability, an optional safe failure category, effective `deadlineMs` and `observation` limits. Invalid effective configuration reports `null` limits.
 
-The guard reads `~/.tenet/config.json` once at construction, including invalid results; new sessions do not reread it. Use a full process restart after edits, not Pi `/reload`. For the closed schema, defaults and precedence, see the [owner judge settings reference](judge.md).
+The guard freezes owner settings and environment at construction. It reads `<project>/.tenet/config.json` at the first session in each canonical project directory and caches valid or invalid results. Later sessions reuse that project's judge, credential, deadline and queue limits, even after file edits. Closing a session cancels only its own work. Closing the guard cancels all project work and closes the shared control watcher and archive. One injected factory remains guard-owned and lazy across projects.
+
+Use an existing absolute project directory with `openSession`; aliases resolve to one canonical project. An unusable path throws `invalid-project-directory`. Settings edits need a new guard or full process restart, not Pi `/reload` or a new session. For the closed schemas, defaults and precedence, see the [judge settings reference](judge.md).
 
 Set `judgeIdentity` in trusted SDK code, not agent input. The requested model must contain non-whitespace text, have at most 256 characters and contain no terminal control characters. Invalid identities throw `invalid-judge-identity`. The guard copies the identity at construction; later edits do not change it.
 
@@ -318,7 +322,7 @@ The SDK bounds approval wait even if the UI ignores abort. Late confirmation can
 
 Observe releases after bounded snapshot capture without awaiting the judge. Background work defaults to two running, 32 waiting, 1 MiB total snapshots and five-second queue age. Terminal owner assessment events distinguish completed, unavailable, dropped and cancelled work. Pending, dropped and unavailable work has no passing assessment.
 
-`guard.status()` reports `closed`, session count, mode, activation, local `judge` readiness, frozen effective `configuration`, aggregate `observations` queue health and configured `capture` destination. Neither queue health nor capture status guarantees complete interception or durable recording.
+`guard.status()` reports `closed`, session count, mode, activation, `projects` and the configured `capture` destination. Each project entry gives its canonical directory, local `judge` readiness, frozen effective `configuration` and `observations` queue health. Queue limits apply per canonical project in each guard, not to an aggregate guard queue. Neither queue health nor capture status guarantees complete interception or durable recording.
 
 ## Runtime coverage diagnostics
 
