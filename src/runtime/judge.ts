@@ -1,8 +1,7 @@
 import { JudgeFailure, type Judge, type JudgeIdentity, type RequestedJudgeIdentity } from '../decision/contracts.js';
-import { MODEL } from '../decision/typesafe-contract.js';
-import { prepareConfiguration, type PreparedConfiguration } from './configuration.js';
+import { DEFAULT_JUDGE, prepareConfiguration, type PreparedConfiguration } from './configuration.js';
 
-/** Local preparation only. No client construction, credential validation or connectivity check. */
+/** Local preparation only. No client construction, credential validity or connectivity check. */
 export interface JudgeStatus extends RequestedJudgeIdentity {
   readonly availability: 'ready' | 'unavailable';
   readonly reason?: 'missing-credentials' | 'configuration';
@@ -19,15 +18,17 @@ export function prepareJudge(options: {
   const configuration = options.configuration ?? prepareConfiguration({ env: options.env });
   const injected = !!(options.judge || options.createJudge);
   const selected = configuration.settings.state === 'valid' ? configuration.settings.value.judge
-    : configuration.settings.state === 'absent' ? { provider: 'typesafe' as const } : undefined;
-  const providerName = injected ? 'injected' : selected?.provider ?? 'unknown';
-  const requestedModel = injected ? options.judgeIdentity?.requestedModel ?? null
-    : selected?.provider === 'apus-llamacpp' ? selected.model : selected?.provider === 'typesafe' ? MODEL : null;
+    : configuration.settings.state === 'absent' ? DEFAULT_JUDGE : undefined;
+  // Report identity migration belongs to judge-report-v2 delivery, not settings preparation.
+  const providerName = injected ? 'injected' : selected?.protocol === 'system-one' ? 'typesafe' : selected?.protocol ?? 'unknown';
+  const requestedModel = injected ? options.judgeIdentity?.requestedModel ?? null : selected?.model ?? null;
   if (requestedModel !== null && (typeof requestedModel !== 'string' || !requestedModel.trim()
     || requestedModel.length > 256 || /[\x00-\x1f\x7f-\x9f]/.test(requestedModel))) throw new Error('invalid-judge-identity');
-  const apiKey = options.env.TYPESAFE_API_KEY;
+  // Resolve only the final selection, and only if configuration is usable and not injected.
+  const auth = !injected && configuration.status.availability === 'ready' && selected?.protocol === 'system-one' ? selected.auth : undefined;
+  const token = auth?.type === 'bearer-env' ? options.env[auth.name] : undefined;
   const reason = configuration.status.availability === 'unavailable' ? 'configuration'
-    : !injected && selected?.provider === 'typesafe' && !apiKey?.trim() ? 'missing-credentials' : undefined;
+    : auth?.type === 'bearer-env' && (typeof token !== 'string' || !/^[\x21-\x7e]+$/.test(token)) ? 'missing-credentials' : undefined;
   const status: JudgeStatus = Object.freeze({ provider: providerName, requestedModel,
     availability: reason ? 'unavailable' : 'ready', ...(reason ? { reason } : {}), connectivity: 'unverified',
     ...(providerName === 'apus-llamacpp' ? { experimental: true as const } : {}) });
@@ -38,12 +39,13 @@ export function prepareJudge(options: {
     if (reason) throw new JudgeFailure('provider-error');
     if (!provider) {
       if (createJudge) provider = createJudge();
-      else if (selected?.provider === 'apus-llamacpp') {
+      else if (selected?.protocol === 'apus-llamacpp') {
         const { createApusJudge } = await import('../decision/apus.js');
         provider ??= createApusJudge({ baseUrl: selected.baseUrl, model: selected.model });
       } else {
         const { createSystemOneJudge } = await import('../decision/system-one.js');
-        provider ??= createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: MODEL, auth: { type: 'bearer', token: apiKey } });
+        provider ??= createSystemOneJudge({ baseUrl: selected!.baseUrl, model: selected!.model,
+          auth: auth?.type === 'bearer-env' ? { type: 'bearer', token } : { type: 'none' } });
       }
     }
     return provider(request, signal, recording);

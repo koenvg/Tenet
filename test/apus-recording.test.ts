@@ -19,8 +19,8 @@ async function recorded(work: (home: string, cwd: string) => Promise<void>) {
   await mkdir(cwd);
   await writeFile(join(cwd, 'TENET.md'), 'Rule; Keep work local.');
   await mkdir(join(home, '.tenet'), { mode: 0o700 });
-  await writeFile(join(home, '.tenet/config.json'), JSON.stringify({ version: 1,
-    judge: { provider: 'apus-llamacpp', baseUrl: 'http://127.0.0.1:8088', model: APUS_MODEL },
+  await writeFile(join(home, '.tenet/config.json'), JSON.stringify({ version: 2,
+    judge: { protocol: 'apus-llamacpp', baseUrl: 'http://127.0.0.1:8088', model: APUS_MODEL },
     decision: { deadlineMs: 5000 } }), { mode: 0o600 });
   try { await work(home, cwd); } finally {
     globalThis.fetch = oldFetch;

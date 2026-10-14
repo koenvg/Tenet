@@ -123,8 +123,8 @@ export async function verifyArchive(archive: string): Promise<void> {
     // Parse the ACTUAL archive's maintained examples, never a source-only substitute.
     const judgeGuide = await readFile(join(installation, 'docs/judge.md'), 'utf8');
     const examples = [...judgeGuide.matchAll(/```json\n([\s\S]*?)\n```/g)].map(m => JSON.parse(m[1]!));
-    const apus = examples.find(value => value.judge.provider === 'apus-llamacpp');
-    assert.ok(apus); assert.equal(examples.length, 2);
+    const apus = examples.find(value => value.judge?.protocol === 'apus-llamacpp');
+    assert.ok(apus); assert.equal(examples.length, 4);
     const settingsDirectory = join(home, '.tenet');
     await mkdir(settingsDirectory, { recursive: true, mode: 0o700 });
     const settingsFile = join(settingsDirectory, 'config.json');

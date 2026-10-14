@@ -8,7 +8,7 @@ export const runtimeModules = [
   'cli/index', 'doctor/doctor', 'doctor/installation',
   ...['apus', 'apus-native', 'apus-renderer', 'apus-transport', 'assessment-answers', 'assessment-budget', 'typesafe-contract', 'assessment-contract', 'assessment-shape', 'contracts', 'decide', 'diagnostics', 'evidence', 'evidence-budget',
     'evidence-context', 'evidence-context-contract', 'filesystem-presence', 'finding-triage', 'history-capture', 'history-content',
-    'history-envelope', 'history-groups', 'history-selection', 'immutable', 'system-one', 'judge-evidence', 'policy', 'policy-contract', 'policy-origin',
+    'history-envelope', 'history-groups', 'history-selection', 'immutable', 'system-one', 'system-one-origin', 'judge-evidence', 'policy', 'policy-contract', 'policy-origin',
     'questions', 'response-validation', 'thresholds', 'trajectory'].map(n => `decision/${n}`),
   ...['activation', 'approval', 'config', 'configuration', 'judge', 'settings', 'consequences', 'guard', 'invocation-authorization', 'observation-queue', 'owner-record', 'policy-selection', 'resolved-action', 'resources'].map(n => `runtime/${n}`),
   ...['archive', 'contract', 'files', 'judge', 'native', 'policy-contract', 'rules', 'scoped', 'scoped-capture'].map(n => `recording/${n}`),
