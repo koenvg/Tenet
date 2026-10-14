@@ -64,7 +64,7 @@ if (import.meta.main) {
     throw new Error('Live replay requires disclosure authorization and TYPESAFE_API_KEY. No live requests sent.');
   }
   if (!live && args.includes('--authorize-evidence-disclosure')) throw new Error('Disclosure flag requires --live. No live requests sent.');
-  const judge = live ? (await import('../src/decision/jev.js')).createJevJudge({ apiKey: process.env.TYPESAFE_API_KEY! }) : scriptedJudge;
+  const judge = live ? (await import('../src/decision/system-one.js')).createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: process.env.TYPESAFE_API_KEY! } }) : scriptedJudge;
   const report = await compareCommitPolicies(judge, live);
   await writeFile(output, JSON.stringify(report, null, 2) + '\n', { flag: 'wx' });
   console.log(JSON.stringify({ output, live, original: report.original.summary, clarified: report.clarified.summary }));

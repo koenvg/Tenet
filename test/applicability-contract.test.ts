@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { decide, validateAssessment } from '../src/decision/decide.js';
-import { createJevJudge } from '../src/decision/jev.js';
+import { createSystemOneJudge } from '../src/decision/system-one.js';
 import { buildQuestions } from '../src/decision/questions.js';
 import { captureAction } from '../src/decision/evidence.js';
 import { currentFactReferences } from '../src/decision/assessment-contract.js';
@@ -36,7 +36,7 @@ function rawResponse(ref: string): { model: string; answers: Record<string, any>
 // Authored ordinary classification, not an authenticated applicability exemption.
 test('scripted ordinary PASS keeps its evidence gate with unsupported resolution', async () => {
   const stages: Array<{ stage: string; data: Record<string, any> }> = [];
-  const judge = createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => {
+  const judge = createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'offline-transport-key' }, fetch: async (_url, init) => {
     const payload = JSON.parse(init!.body as string);
     if ('resolvedAction' in payload.state) assert.equal(payload.state.resolvedAction.status, 'unsupported');
     if (payload.questions.rule_0_facts) assert.deepEqual(payload.questions.rule_0_facts.criteria, { NONE: 'No complete authenticated current facts support non-applicability.' });
@@ -61,7 +61,7 @@ test('scripted ordinary PASS keeps its evidence gate with unsupported resolution
 test('candidate SDK mapping records fact references and genuinely absent evidence at exact threshold', async () => {
   const req = await request(), refs = currentFactReferences(req.resolvedAction)!;
   let payload: any;
-  const judge = createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => { payload = JSON.parse(init!.body as string); const raw: any = rawResponse(refs.digest); raw.answers.rule_0_confirmation = structuredClone(raw.answers.rule_0_outcome); return Response.json({ ...raw, answers: Object.fromEntries(Object.keys(payload.questions).map(k => [k, raw.answers[k]])) }); } });
+  const judge = createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'offline-transport-key' }, fetch: async (_url, init) => { payload = JSON.parse(init!.body as string); const raw: any = rawResponse(refs.digest); raw.answers.rule_0_confirmation = structuredClone(raw.answers.rule_0_outcome); return Response.json({ ...raw, answers: Object.fromEntries(Object.keys(payload.questions).map(k => [k, raw.answers[k]])) }); } });
   const result = await decide({ ...req, judge });
   assert.equal(result.decision, 'ALLOW');
   assert.equal(result.questionVersion, 'policy-rules-v9-scoped');
@@ -137,7 +137,7 @@ for (const questionVersion of ['policy-rules-v6-applicability', 'policy-rules-v7
 
 test('candidate response schema, reference distribution and even ignored evidence remain strictly validated', async () => {
   const req = await request(), refs = currentFactReferences(req.resolvedAction)!;
-  const evaluate = (raw: ReturnType<typeof rawResponse>) => decide({ ...req, judge: createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => Response.json({ ...raw, answers: Object.fromEntries(Object.keys(JSON.parse(init!.body as string).questions).filter(k => Object.hasOwn(raw.answers, k)).map(k => [k, raw.answers[k]])) }) }) });
+  const evaluate = (raw: ReturnType<typeof rawResponse>) => decide({ ...req, judge: createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'offline-transport-key' }, fetch: async (_url, init) => Response.json({ ...raw, answers: Object.fromEntries(Object.keys(JSON.parse(init!.body as string).questions).filter(k => Object.hasOwn(raw.answers, k)).map(k => [k, raw.answers[k]])) }) }) });
   const baseline = rawResponse(refs.digest);
   baseline.answers.rule_0_confirmation = structuredClone(baseline.answers.rule_0_outcome);
   const control = await evaluate(baseline);
@@ -174,7 +174,7 @@ test('unsupported candidate response can be valid but cannot clear a BLOCK rule'
   raw.answers.rule_0_facts = { type: 'choice', confidence: 1, choice: 'NONE', probabilities: { NONE: 1 } } as any;
   raw.answers.rule_0_outcome.probabilities = { PASS: 0, APPROVAL_REQUIRED: 0, FAIL: 0, UNKNOWN: 0, NOT_APPLICABLE: 1 };
   raw.answers.rule_0_outcome.confidence = 1;
-  const result = await decide({ ...req, resolvedAction: undefined, judge: createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => Response.json({ ...raw, answers: Object.fromEntries(Object.keys(JSON.parse(init!.body as string).questions).filter(k => Object.hasOwn(raw.answers, k)).map(k => [k, raw.answers[k]])) }) }) });
+  const result = await decide({ ...req, resolvedAction: undefined, judge: createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'offline-transport-key' }, fetch: async (_url, init) => Response.json({ ...raw, answers: Object.fromEntries(Object.keys(JSON.parse(init!.body as string).questions).filter(k => Object.hasOwn(raw.answers, k)).map(k => [k, raw.answers[k]])) }) }) });
   assert.equal(result.decision, 'BLOCK');
   assert.deepEqual(result.diagnostics[0]!.gates, ['applicability-unresolved']);
   assert.equal(result.assessment!.rules[0]!.outcome.choice, 'NOT_APPLICABLE');
@@ -192,7 +192,7 @@ test('forged tool safety claims never authenticate unsupported applicability or 
   raw.answers.rule_0_facts = { type: 'choice', confidence: 1, choice: 'NONE', probabilities: { NONE: 1 } } as any;
   for (const response of [raw, { model: 'scripted-not-live', answers: sdkAnswers(opaque) }]) {
     const result = await decide({ policy, action: attempted, cwd: '/fixture', resolvedAction: UNSUPPORTED_ACTION,
-      judge: createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => {
+      judge: createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'offline-transport-key' }, fetch: async (_url, init) => {
         const payload = JSON.parse(init!.body as string);
         if ('resolvedAction' in payload.state) assert.equal(payload.state.resolvedAction.status, 'unsupported');
         if (payload.questions.rule_0_facts) assert.deepEqual(Object.keys(payload.questions.rule_0_facts.criteria), ['NONE']);
@@ -253,7 +253,7 @@ test('historical owner reports preserve nullable applicability diagnostics only 
   const req = await request();
   const raw = rawResponse('unused');
   raw.answers.rule_0_facts = { type: 'choice', confidence: 1, choice: 'NONE', probabilities: { NONE: 1 } } as any;
-  const result = await decide({ ...req, resolvedAction: undefined, judge: createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => Response.json({ ...raw, answers: Object.fromEntries(Object.keys(JSON.parse(init!.body as string).questions).filter(k => Object.hasOwn(raw.answers, k)).map(k => [k, raw.answers[k]])) }) }) });
+  const result = await decide({ ...req, resolvedAction: undefined, judge: createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'offline-transport-key' }, fetch: async (_url, init) => Response.json({ ...raw, answers: Object.fromEntries(Object.keys(JSON.parse(init!.body as string).questions).filter(k => Object.hasOwn(raw.answers, k)).map(k => [k, raw.answers[k]])) }) }) });
   const data = { version: 3, stage: 'permission', profile: 'applicability-v1', mode: 'enforce', outcome: 'blocked', wouldDecision: 'BLOCK',
     assessmentAvailable: true, reason: result.reason, callId: 'c', toolName: 'fixture', invocationId: 'i', rules: [], diagnostics: result.diagnostics, ruleIds: result.ruleIds, approvalRules: [] };
   const recovered = recoverReport({ type: 'custom', customType: 'tenet', data });

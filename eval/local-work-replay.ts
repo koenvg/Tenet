@@ -1,6 +1,6 @@
 // Explicit opt-in only. Fixture actions are data and are never executed.
 import { writeFile } from 'node:fs/promises';
-import { createJevJudge } from '../src/decision/jev.js';
+import { createSystemOneJudge } from '../src/decision/system-one.js';
 import { FIXTURES } from './generic-rule-fixtures.js';
 import { runReplay } from './replay.js';
 
@@ -13,7 +13,7 @@ async function main() {
   const repetitions = Number(args.find(a => a.startsWith('--repetitions='))?.slice(14) ?? '1');
   if ((set !== 'probe' && set !== 'holdout' && set !== 'local-work' && set !== 'cross-domain') || !output) throw new Error('Use --live --set=probe|holdout|local-work|cross-domain --output=path.json [--repetitions=1..20]');
   if (!process.env.TYPESAFE_API_KEY?.trim()) throw new Error('Missing TYPESAFE_API_KEY. No requests sent.');
-  const report = await runReplay({ fixtures: FIXTURES[set], repetitions, judge: createJevJudge({ apiKey: process.env.TYPESAFE_API_KEY }) });
+  const report = await runReplay({ fixtures: FIXTURES[set], repetitions, judge: createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: process.env.TYPESAFE_API_KEY } }) });
   for (const row of report.rows) {
     console.log(JSON.stringify({ id: row.id, repetition: row.repetition, expected: row.expectedDecision,
       wouldDecision: row.wouldDecision, mode: row.mode, projectedPermission: row.projectedPermission, execution: row.execution,

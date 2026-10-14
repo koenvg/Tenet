@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { loadPolicy } from '../src/decision/policy.js';
 import { decide } from '../src/decision/decide.js';
 import { captureAction } from '../src/decision/evidence.js';
-import { createJevJudge } from '../src/decision/jev.js';
+import { createSystemOneJudge } from '../src/decision/system-one.js';
 import { ArchiveWriter, readArchive } from '../src/recording/archive.js';
 import { ruleContributions } from '../src/recording/rules.js';
 import { ArchiveIndex } from '../src/inspector/archive-index.js';
@@ -28,7 +28,7 @@ for (const roles of [['global'], ['project'], ['global', 'project']] as const) {
       sink('begin', { policy, config: { effectThreshold: .91, evidenceThreshold: .92 } });
       const result = await decide({ policy, action: captureAction({ sessionId: 's', callId: 'c', toolName: 'fixture', arguments: {} }),
         cwd: root, recording: sink, config: { effectThreshold: .91, evidenceThreshold: .92 },
-        judge: createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => Response.json({ model: 'scripted', answers: sdkAnswers(answer(policy, 'FAIL'), 1, JSON.parse(init!.body as string).questions) }) }) });
+        judge: createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'offline-transport-key' }, fetch: async (_url, init) => Response.json({ model: 'scripted', answers: sdkAnswers(answer(policy, 'FAIL'), 1, JSON.parse(init!.body as string).questions) }) }) });
       sink('assessment', { ...result }); sink('decision', { ...result, contributions: ruleContributions(result, policy) });
       sink('permission', { outcome: 'released' }); sink('execution', { outcome: 'unknown' }); await writer.close();
       const before = await readArchive(directory); assert.deepEqual(before.issues, []);

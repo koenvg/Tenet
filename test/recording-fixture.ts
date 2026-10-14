@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createJevJudge } from '../src/decision/jev.js';
+import { createSystemOneJudge } from '../src/decision/system-one.js';
 import { guardHarness } from './guard-harness.js';
 import { answer, sdkAnswers } from './helpers.js';
 import { readArchive } from '../src/recording/archive.js';
@@ -15,7 +15,7 @@ export function fixtureSubmissions(records: ArchiveRecord[]) {
 export async function recordFixture(directory: string) {
   const submitted: any[] = [];
   const h = await guardHarness({ env: { TENET_RECORDING: 'on', TENET_RECORDING_DIR: directory },
-    createJudge: () => createJevJudge({ apiKey: 'fixture-transport-secret', fetch: async (_url, init) => {
+    createJudge: () => createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'fixture-transport-secret' }, fetch: async (_url, init) => {
       const payload = JSON.parse(init!.body as string); submitted.push(payload);
       const assessment = answer(undefined, submitted.length <= 3 ? 'PASS' : 'FAIL');
       return Response.json({ model: 'scripted-offline', answers: sdkAnswers(assessment, 1, payload.questions) });

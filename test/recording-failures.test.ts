@@ -9,7 +9,7 @@ import { responseSnapshot } from '../src/recording/contract.js';
 import { writeStageFile } from '../src/recording/files.js';
 import { invocationView } from '../src/inspector/view.js';
 import { startInspector } from '../src/inspector/server.js';
-import { createJevJudge } from '../src/decision/jev.js';
+import { createSystemOneJudge } from '../src/decision/system-one.js';
 import { decide } from '../src/decision/decide.js';
 import { captureAction } from '../src/decision/evidence.js';
 import { policy } from './helpers.js';
@@ -33,7 +33,7 @@ test('persisted provider failures and absent submissions remain distinct after r
     sink('begin', { policy });
     const result = await decide({ policy, cwd: '/project',
       action: captureAction({ sessionId: identity.sessionId, callId: kind, toolName: 'edit', arguments: {} }),
-      judge: createJevJudge({ apiKey: kind === 'credentials' ? '' : 'private-api-key', fetch: async () => kind === 'provider'
+      judge: createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: kind === 'credentials' ? '' : 'private-api-key' }, fetch: async () => kind === 'provider'
         ? new Response('private-error-body', { status: 503, headers: { 'x-secret': 'private-header' } })
         : Response.json({ model: 'bad', answers: {}, text: '<script>untrusted</script>' }) }), recording: sink });
     sink('decision', { decision: result.decision, reason: result.reason });
@@ -157,7 +157,7 @@ test('process exit after submission preserves incomplete API state and exposes a
   const child = spawnSync('bun', ['-e', `
     import {qualifiedSessionKey} from './src/recording/archive.ts';
     import {ArchiveWriter} from './src/recording/archive.ts';
-    import {createJevJudge} from './src/decision/jev.ts';
+    import {createSystemOneJudge} from './src/decision/system-one.ts';
     import {decide} from './src/decision/decide.ts';
     import {captureAction} from './src/decision/evidence.ts';
     import {policy} from './test/helpers.ts';
@@ -168,7 +168,7 @@ test('process exit after submission preserves incomplete API state and exposes a
     sink('begin',{policy});
     await decide({policy,cwd:'/project',recording:sink,
       action:captureAction({sessionId:'interrupted',callId:'call',toolName:'edit',arguments:{}}),
-      judge:createJevJudge({apiKey:'offline',fetch:async()=>{
+      judge:createSystemOneJudge({baseUrl:'https://api.typesafe.ai',model:'jev-latest',auth:{type:'bearer',token:'offline-transport-key'},fetch:async()=>{
         await writer.drain();
         await writeFile(join(process.argv[1],qualifiedSessionKey('pi', 'interrupted', 'main'),'response.tmp'),'{', {mode:0o600});
         process.exit(23);
@@ -218,7 +218,7 @@ test('recorded deadline remains timeout when transport cancellation follows it',
   const result = await decide({ policy, cwd: '/project', config: { deadlineMs: 20 },
     recording: (stage, data) => { sink(stage, data); if (stage === 'validation') finish(); },
     action: captureAction({ sessionId: identity.sessionId, callId: 'one', toolName: 'edit', arguments: {} }),
-    judge: createJevJudge({ apiKey: 'offline', fetch: async (_url, init) => new Promise((_resolve, reject) => {
+    judge: createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'offline-transport-key' }, fetch: async (_url, init) => new Promise((_resolve, reject) => {
       init?.signal?.addEventListener('abort', () => reject(new Error('private-abort')), { once: true });
     }) }) });
   sink('decision', { decision: result.decision, reason: result.reason });

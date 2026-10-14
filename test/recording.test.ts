@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readArchive, recordingConfig } from '../src/recording/archive.js';
 import { ArchiveWriter, qualifiedSessionKey } from '../src/recording/archive.js';
-import { createJevJudge } from '../src/decision/jev.js';
+import { createSystemOneJudge } from '../src/decision/system-one.js';
 import { decide } from '../src/decision/decide.js';
 import { captureAction } from '../src/decision/evidence.js';
 import { answer, policy, sdkAnswers } from './helpers.js';
@@ -75,7 +75,7 @@ test('SDK submitted payload is captured exactly after redaction, with response a
   let outbound: any;
   const assessment = answer(policy);
   const answers = sdkAnswers(assessment);
-  const judge = createJevJudge({ apiKey: 'transport-secret', fetch: async (_url, init) => {
+  const judge = createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'transport-secret' }, fetch: async (_url, init) => {
     outbound = JSON.parse(init!.body as string);
     submitted.push(outbound);
     return Response.json({ model: 'scripted', answers: sdkAnswers(assessment, 1, outbound.questions) });

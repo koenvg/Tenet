@@ -135,6 +135,6 @@ Historical schemas 1 through 4 remain interpretable under their recorded contrac
 
 For checkout-only decision tests, `src/decision/decide.ts` imports no Pi code. Call `decide({ policy, action, cwd, judge, ... })` with a loaded policy set, captured action and trusted host working directory. Offline callers inject a scripted `Judge`; deadline tests can inject a `Clock`.
 
-`createJevJudge` uses TypeSafe and makes live requests when called with credentials. It sends policy and action evidence and uses quota. Such a call needs separate authorization; use an injected judge for offline checks.
+`createSystemOneJudge` requires an explicit origin, model and resolved authentication; see [System One transport and compatibility](judge.md#system-one-transport-and-compatibility). Real calls send policy and action evidence to the selected endpoint and can use quota. They need separate authorization; use an injected judge or scripted fetch for offline checks.
 
 ALLOW and ASK are decisions for the caller to enforce, not execution commands. The shared runtime owns complete-set freshness checks; Pi supplies native confirmation. This private entry is not the public embedding API; use the SDK for applications.

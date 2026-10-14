@@ -4,7 +4,7 @@ import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createGuard, type OwnerEvent, type OwnerRecord } from 'tenet';
-import { createJevJudge } from '../src/decision/jev.js';
+import { createSystemOneJudge } from '../src/decision/system-one.js';
 import { readArchive } from '../src/recording/archive.js';
 import { validRecord } from '../src/recording/contract.js';
 import { invocationView } from '../src/inspector/view.js';
@@ -24,7 +24,7 @@ for (const mode of ['enforce', 'observe'] as const) for (const recording of ['on
     const ready = new Promise<void>(r => { entered = r; }), wait = new Promise<void>(r => { release = r; });
     const guard = createGuard({ host: 'offline', env: { TENET_MODE: mode, TENET_RECORDING: recording, TENET_RECENT_EVENTS: '3', TENET_RECORDING_DIR: join(cwd, 'archive') },
       controlPath: join(cwd, 'control.json'), onOwnerEvent: e => events.push(e), onOwnerRecord: r => records.push(r),
-      judge: createJevJudge({ apiKey: 'synthetic-offline', fetch: async (_url, init) => {
+      judge: createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'synthetic-offline' }, fetch: async (_url, init) => {
         payload = JSON.parse(init!.body as string); submitted.push(payload); entered(); await wait;
         return Response.json({ model: 'offline', answers: sdkAnswers(answer(undefined, 'UNKNOWN'), 1, payload.questions) });
       } }) });

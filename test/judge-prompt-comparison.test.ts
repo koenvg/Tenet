@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { comparisonPlan, readSizeCases, runComparison, selectApprovedFetch, sha256, FROZEN_SHA256,
   type ComparisonApproval, type Delivery } from '../eval/judge-prompt-comparison.js';
-import { createJevJudge } from '../src/decision/jev.js';
+import { createSystemOneJudge } from '../src/decision/system-one.js';
 import { createApusJudge } from '../src/decision/apus.js';
 import { renderApus, sortedJson } from '../src/decision/apus-renderer.js';
 import { backendIdentity } from '../src/decision/apus-native.js';
@@ -59,7 +59,7 @@ for (const row of readSizeCases()) test(`${row.id} counts all actual normal APUS
       return [key, { type: 'choice', choice: winner, confidence: 1, probabilities: Object.fromEntries(keys.map(k => [k, +(k === winner)])) }];
     })) });
   };
-  await createJevJudge({ apiKey: 'offline-script-only', fetch: jevFetch })(candidate.request, new AbortController().signal);
+  await createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'offline-script-only' }, fetch: jevFetch })(candidate.request, new AbortController().signal);
   assert.deepEqual(jevBodies.map(b => JSON.stringify(b)), candidate.submissions.map(s => s.payloadJson));
   assert.equal(jevBodies.length, 3);
   assert.equal(candidate.sizes.jevPayloadBytes, jevBodies.reduce((n, b) => n + bytes(JSON.stringify(b)), 0));

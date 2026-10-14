@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import type { JudgeRequest } from '../src/decision/contracts.js';
 import { createApusJudge } from '../src/decision/apus.js';
-import { createJevJudge } from '../src/decision/jev.js';
+import { createSystemOneJudge } from '../src/decision/system-one.js';
 import { prepareJudgeScopes, boundEvidence } from '../src/decision/judge-evidence.js';
 import { buildQuestions } from '../src/decision/questions.js';
 import { assessmentDecision, DEFAULTS } from '../src/decision/decide.js';
@@ -46,10 +46,14 @@ function sdkScript(select: (key: string, q: any, body: any) => { winner?: string
   };
   return { bodies, fetch: fetcher };
 }
-const runJev = (source: JudgeRequest, fetcher: typeof fetch, signal = new AbortController().signal, recording?: ReturnType<typeof sink>['record']) =>
-  createJevJudge({ apiKey: 'offline-script-only', fetch: fetcher })(source, signal, recording);
+for (const selection of [
+  { baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: 'offline-script-only' } },
+  { baseUrl: 'http://127.0.0.1:18091', model: 'kev-latest', auth: { type: 'none' } },
+] as const) {
+const runSystemOne = (source: JudgeRequest, fetcher: typeof fetch, signal = new AbortController().signal, recording?: ReturnType<typeof sink>['record']) =>
+  createSystemOneJudge({ ...selection, fetch: fetcher })(source, signal, recording);
 
-for (const hasTrace of [false, true]) for (const hasPrevious of [false, true]) test(`both actual transports isolate read-${+hasTrace}${+hasPrevious}`, async () => {
+for (const hasTrace of [false, true]) for (const hasPrevious of [false, true]) test(selection.model + ' ' + `both actual transports isolate read-${+hasTrace}${+hasPrevious}`, async () => {
   const history = new Observations(request.action.sessionId);
   if (hasPrevious) {
     history.addHistory([{ kind: 'tool-call', callId: 'previous', toolName: 'read', data: { path: '/synthetic/NOTES.md' } },
@@ -59,9 +63,9 @@ for (const hasTrace of [false, true]) for (const hasPrevious of [false, true]) t
   const plan = prepareJudgeScopes(source, hasTrace ? { thinkingTrace: { status: 'present', text: 'I will read the synthetic README.' } } : {})!;
   const prepared = { ...source, judgeScopes: plan }, questions = buildQuestions(source.policy);
   const sdk = sdkScript(), jevCapture = sink();
-  const jev: any = await runJev(prepared, sdk.fetch, undefined, jevCapture.record);
+  const jev: any = await runSystemOne(prepared, sdk.fetch, undefined, jevCapture.record);
   assert.equal(sdk.bodies.length, 3);
-  assert.deepEqual(sdk.bodies, plan.groups.map(g => ({ model: 'jev-latest', state: g.state,
+  assert.deepEqual(sdk.bodies, plan.groups.map(g => ({ model: selection.model, state: g.state,
     questions: Object.fromEntries(g.questionKeys.map(k => [k, questions[k]])) })));
   const fake = scriptedNative(), nativeCapture = sink();
   const apus: any = await createApusJudge({ ...nativeOptions, fetch: fake.fetch })(prepared, new AbortController().signal, nativeCapture.record);
@@ -92,9 +96,9 @@ for (const hasTrace of [false, true]) for (const hasPrevious of [false, true]) t
   assert.ok(expectedChats.reduce((n, c) => n + Buffer.byteLength(c), 0) < oldPrompts.reduce((n, c) => n + Buffer.byteLength(c), 0));
 });
 
-test('verified facts never enter ordinary state or protected sibling state in actual submissions', async () => {
+test(selection.model + ' ' + 'verified facts never enter ordinary state or protected sibling state in actual submissions', async () => {
   const source = complete(), sdk = sdkScript(), capture = sink();
-  await runJev(source, sdk.fetch, undefined, capture.record);
+  await runSystemOne(source, sdk.fetch, undefined, capture.record);
   assert.doesNotMatch(JSON.stringify(sdk.bodies[0]), /HOST_FACT_SENTINEL|FACT_CONTENT_SENTINEL|resolvedAction|candidates/);
   assert.match(JSON.stringify(sdk.bodies[1]), /HOST_FACT_SENTINEL|FACT_CONTENT_SENTINEL/);
   assert.doesNotMatch(JSON.stringify(sdk.bodies[2]), /HOST_FACT_SENTINEL|FACT_CONTENT_SENTINEL|thinkingTrace|previousToolCall/);
@@ -107,7 +111,7 @@ test('verified facts never enter ordinary state or protected sibling state in ac
 });
 
 for (const provider of ['apus', 'jev'] as const) for (const mode of ['confirmed', 'low', 'conflict', 'none', 'ordinary-fail', 'ordinary-unknown', 'ordinary-approval'] as const)
-  test(`${provider} exemption ${mode} keeps protected provenance and gates`, async () => {
+  test(selection.model + ' ' + `${provider} exemption ${mode} keeps protected provenance and gates`, async () => {
     const source = complete(), capture = sink();
     const ordinary = mode === 'ordinary-fail' ? 'FAIL' : mode === 'ordinary-unknown' ? 'UNKNOWN' : mode === 'ordinary-approval' ? 'APPROVAL_REQUIRED' : 'NOT_APPLICABLE';
     const required = ordinary === 'NOT_APPLICABLE';
@@ -117,7 +121,7 @@ for (const provider of ['apus', 'jev'] as const) for (const mode of ['confirmed'
       const sdk = sdkScript((key, q) => ({ winner: key === 'rule_0_outcome' ? ordinary : key === 'rule_0_confirmation' ? mode === 'conflict' ? 'PASS' : 'NOT_APPLICABLE'
         : key === 'rule_0_facts' ? mode === 'none' ? 'NONE' : Object.keys(q.criteria)[1] : undefined,
         score: key === 'rule_0_confirmation' && mode === 'low' ? 0.89 : 1 }));
-      const pending = runJev(source, sdk.fetch, undefined, capture.record);
+      const pending = runSystemOne(source, sdk.fetch, undefined, capture.record);
       if (rejected) await assert.rejects(pending, /invalid-response/); else result = await pending;
       calls = sdk.bodies.length; assert.equal(calls, rejected ? 2 : 3);
       assert.equal('rule_0_confirmation' in sdk.bodies[1].questions, required);
@@ -149,7 +153,7 @@ for (const provider of ['apus', 'jev'] as const) for (const mode of ['confirmed'
     assert.equal(assessmentDecision(result, DEFAULTS, source.policy).decision, mode === 'confirmed' ? 'ALLOW' : mode === 'ordinary-approval' ? 'ASK' : 'BLOCK');
   });
 
-for (const defect of ['unsupported', 'partial', 'stale', 'redacted', 'limited'] as const) test(`${defect} cannot add confirmation or exempt on high ordinary score`, async () => {
+for (const defect of ['unsupported', 'partial', 'stale', 'redacted', 'limited'] as const) test(selection.model + ' ' + `${defect} cannot add confirmation or exempt on high ordinary score`, async () => {
   const source: any = complete();
   if (defect === 'unsupported') delete source.resolvedAction;
   else if (defect === 'partial') { source.resolvedAction.status = 'authenticated-partial'; source.resolvedAction.facts.coverage = 'partial'; }
@@ -160,7 +164,7 @@ for (const defect of ['unsupported', 'partial', 'stale', 'redacted', 'limited'] 
     const capture = sink(); let result: any;
     if (provider === 'jev') {
       const sdk = sdkScript((key) => ({ winner: key === 'rule_0_outcome' ? 'NOT_APPLICABLE' : undefined }));
-      result = await runJev(source, sdk.fetch, undefined, capture.record);
+      result = await runSystemOne(source, sdk.fetch, undefined, capture.record);
       assert.equal(sdk.bodies.length, 3); assert.ok(!('rule_0_confirmation' in sdk.bodies[1].questions));
     } else {
       const fake = scriptedNative({ winners: ['E','A','A','A','A'] });
@@ -173,7 +177,7 @@ for (const defect of ['unsupported', 'partial', 'stale', 'redacted', 'limited'] 
 });
 
 for (const failure of ['extra-key', 'missing-key', 'extra-criterion', 'low-type', 'model-change', 'http', 'cancel', 'late', 'stall', 'body-stall'] as const)
-  test(`JEV ${failure} after ordinary group stops all later work without retries`, async () => {
+  test(selection.model + ' ' + `JEV ${failure} after ordinary group stops all later work without retries`, async () => {
     const controller = new AbortController(), capture = sink(); let calls = 0, release: (() => void) | undefined;
     const sdk = sdkScript();
     const fetcher: typeof fetch = async (url, init) => {
@@ -192,25 +196,26 @@ for (const failure of ['extra-key', 'missing-key', 'extra-criterion', 'low-type'
       if (failure === 'model-change') raw.model = 'changed-model';
       return Response.json(raw);
     };
-    await assert.rejects(runJev({ ...request, deadlineMs: ['late','stall','body-stall'].includes(failure) ? 40 : 5000 }, fetcher, controller.signal, capture.record),
+    await assert.rejects(runSystemOne({ ...request, deadlineMs: ['late','stall','body-stall'].includes(failure) ? 40 : 5000 }, fetcher, controller.signal, capture.record),
       new RegExp(failure === 'cancel' ? 'cancelled' : ['late','stall','body-stall'].includes(failure) ? 'timeout' : failure === 'http' ? 'provider-error' : 'invalid-response'));
     assert.equal(calls, 2); assert.ok(!capture.records.some(r => r.stage === 'validation' && r.data.valid));
     const count = capture.records.length; release?.(); await new Promise(r => setTimeout(r, 10));
     assert.equal(calls, 2); assert.equal(capture.records.length, count);
   });
 
-test('JEV shares a deadline across groups and forwards the same cancellation signal', async () => {
+test(selection.model + ' ' + 'JEV shares a deadline across groups and forwards the same cancellation signal', async () => {
   const sdk = sdkScript(), signals: any[] = []; let calls = 0;
-  await assert.rejects(runJev({ ...request, deadlineMs: 60 }, async (url, init) => {
+  await assert.rejects(runSystemOne({ ...request, deadlineMs: 60 }, async (url, init) => {
     calls++; signals.push(init!.signal); await new Promise(r => setTimeout(r, 35)); return sdk.fetch(url, init);
   }), /timeout/);
   assert.equal(calls, 2); assert.equal(signals.at(-1).aborted, true);
 });
 
-test('required scoped overflow fails before either transport starts', async () => {
+test(selection.model + ' ' + 'required scoped overflow fails before either transport starts', async () => {
   assert.equal(boundEvidence(request, { recentEvents: 12, maxBytes: 1 }), null);
   const huge = { ...request, action: captureAction({ sessionId: 's', callId: 'c', toolName: 'read', arguments: { path: 'x'.repeat(50000) } }) };
   const never: typeof fetch = async () => { throw new Error('must not send'); };
-  await assert.rejects(runJev(huge, never), /insufficient-evidence/);
+  await assert.rejects(runSystemOne(huge, never), /insufficient-evidence/);
   await assert.rejects(createApusJudge({ ...nativeOptions, fetch: never })(huge, new AbortController().signal), /insufficient-evidence/);
 });
+}
