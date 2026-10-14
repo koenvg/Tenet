@@ -29,7 +29,8 @@ export async function main(args = process.argv.slice(2), env = process.env) {
   try {
     report = await replaySemantic({ cases: semanticCases, live,
       judge: live ? createSystemOneJudge({ baseUrl: 'https://api.typesafe.ai', model: 'jev-latest', auth: { type: 'bearer', token: env.TYPESAFE_API_KEY } }) : scriptedJudge,
-      judgeIdentity: live ? { provider: 'typesafe', requestedModel: MODEL } : undefined,
+      judgeIdentity: live ? { provider: 'system-one', requestedModel: MODEL, requestedDestination: 'https://api.typesafe.ai',
+        transportContract: 'system-one-v1', authentication: 'bearer-env' } : undefined,
       // Offline durations are synthetic and deterministic, never performance evidence.
       clock: live ? undefined : { now: () => 0, schedule: () => () => {} },
     });

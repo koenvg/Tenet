@@ -62,7 +62,7 @@ export function validScopedRequest(d: Record<string, any>): boolean {
   if (d.questionVersion !== SCOPED_QUESTION_VERSION || d.inputVersion !== SCOPED_INPUT_VERSION
     || d.profile !== SCOPED_ASSESSMENT_METADATA.profile || d.selectionVersion !== SCOPED_INPUT_VERSION || !object(p)
     || !exact(p, ['model', 'scopes', 'questions', 'questionScopes']) || !text(p.model)
-    || d.requestedModel !== p.model || !['typesafe', 'apus-llamacpp'].includes(d.provider)
+    || d.requestedModel !== p.model || !['system-one', 'typesafe', 'apus-llamacpp'].includes(d.provider)
     || !Array.isArray(p.scopes) || !p.scopes.length || p.scopes.length > 129
     || !object(p.questions) || !object(p.questionScopes) || !Array.isArray(d.mapping)
     || !object(d.policy) || !Array.isArray(d.policy.rules) || !object(d.integrity) || !text(d.integrity.id)

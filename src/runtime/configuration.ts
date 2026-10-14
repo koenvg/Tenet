@@ -18,6 +18,7 @@ export function snapshotOwnerConfiguration(options: { env: Readonly<Record<strin
   return freeze({ home, env: { ...options.env }, settings: readOwnerSettings(home) });
 }
 /** Safe diagnostics, never settings contents, destinations or credential references. */
+export type ConfigurationSource = 'owner' | 'project' | 'default' | 'environment' | 'sdk';
 export interface ConfigurationStatus {
   readonly source: '~/.tenet/config.json' | '~/.tenet/config.json + <project>/.tenet/config.json';
   readonly settings: 'absent' | 'valid' | 'invalid';
@@ -25,6 +26,8 @@ export interface ConfigurationStatus {
   readonly reason?: SettingsFailure | 'effective-limits';
   readonly deadlineMs: number | null;
   readonly observation: Readonly<ObservationLimits> | null;
+  readonly sources: { readonly judge: ConfigurationSource | null; readonly deadlineMs: ConfigurationSource | null;
+    readonly observation: Readonly<Record<keyof ObservationLimits, ConfigurationSource>> | null };
 }
 export interface PreparedConfiguration {
   readonly settings: SettingsSnapshot;
@@ -43,14 +46,24 @@ export function prepareConfiguration(options: {
   const invalid = owner.settings.state === 'invalid' ? owner.settings : project.state === 'invalid' ? project : undefined;
   if (invalid) return freeze({ settings: invalid,
     status: { source, settings: 'invalid' as const, availability: 'unavailable' as const,
-      reason: invalid.reason, deadlineMs: null, observation: null } });
+      reason: invalid.reason, deadlineMs: null, observation: null, sources: { judge: null, deadlineMs: null, observation: null } } });
   const inherited = owner.settings.state === 'valid' ? owner.settings.value : undefined;
   const overlay = project.state === 'valid' ? project.value : undefined;
   const judge = overlay?.judge ?? inherited?.judge ?? DEFAULT_JUDGE;
   const settings: SettingsSnapshot = owner.settings.state === 'absent' && project.state === 'absent' ? { state: 'absent' }
     : { state: 'valid', value: { version: 2, judge: judge,
       decision: { ...inherited?.decision, ...overlay?.decision }, observation: { ...inherited?.observation, ...overlay?.observation } } };
-  const base = { source, settings: settings.state };
+  const sourceOf = (ownerValue: unknown, projectValue: unknown): ConfigurationSource =>
+    projectValue !== undefined ? 'project' : ownerValue !== undefined ? 'owner' : 'default';
+  const sources: ConfigurationStatus['sources'] = {
+    judge: sourceOf(inherited?.judge, overlay?.judge),
+    deadlineMs: owner.env.TENET_JUDGE_DEADLINE_MS !== undefined ? 'environment' : sourceOf(inherited?.decision?.deadlineMs, overlay?.decision?.deadlineMs),
+    observation: Object.fromEntries(Object.keys(OBSERVATION_LIMITS).map(key => {
+      const field = key as keyof ObservationLimits;
+      return [field, options.observationLimits?.[field] !== undefined ? 'sdk' : sourceOf(inherited?.observation?.[field], overlay?.observation?.[field])];
+    })) as Record<keyof ObservationLimits, ConfigurationSource>,
+  };
+  const base = { source, settings: settings.state, sources };
   try {
     const value = settings.state === 'valid' ? settings.value : undefined;
     // readConfig does not inspect files. Only policyPath varies between sessions.

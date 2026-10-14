@@ -1,3 +1,5 @@
+import { recordedJudgeReport } from './judge.js';
+import { recordedConfiguration } from './configuration.js';
 import { validEvidenceContext } from '../decision/evidence-context-contract.js';
 import { validNativeCapture } from './native.js';
 import { SCOPED_INPUT_VERSION, SCOPED_QUESTION_VERSION, validScopedRequest, validScopedSubmission } from './scoped.js';
@@ -61,6 +63,8 @@ function object(value: unknown): value is Record<string, unknown> {
 }
 function validStage(r: ArchiveRecord): boolean {
   const d = r.data;
+  if (d.judgeReportVersion !== undefined && !recordedJudgeReport(d)) return false;
+  if (d.judgeReportVersion === 'judge-report-v2' && d.configuration !== undefined && !recordedConfiguration(d.configuration)) return false;
   if (!validNativeCapture(r.stage, d)) return false;
   if (r.schemaVersion === 5 && r.stage === 'begin' && !validPolicySnapshot(d.policy)) return false;
   if (r.schemaVersion === 5 && r.stage === 'request') {

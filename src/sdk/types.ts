@@ -79,9 +79,13 @@ export interface OwnerReport {
   readonly mode: Mode;
   readonly invocationId: string; readonly callId: string; readonly toolName: string;
   readonly profile?: string; readonly questionVersion?: string;
-  readonly judgeReportVersion?: 'judge-report-v1';
-  readonly requestedProvider?: Decision['requestedProvider'];
+  readonly judgeReportVersion?: 'judge-report-v1' | 'judge-report-v2';
+  readonly requestedProvider?: import('../recording/judge.js').JudgeReport['requestedProvider'];
   readonly requestedModel?: string | null;
+  readonly configuration?: import('../runtime/configuration.js').ConfigurationStatus;
+  readonly requestedDestination?: string | null;
+  readonly transportContract?: import('../recording/judge.js').JudgeReportV2['transportContract'];
+  readonly authentication?: import('../recording/judge.js').JudgeReportV2['authentication'];
   /** Backend-reported alias from a complete assessment, not proof of weights. */
   readonly returnedModel?: string;
   readonly outcome: 'released' | 'blocked';

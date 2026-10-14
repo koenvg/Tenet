@@ -9,7 +9,7 @@ import { SCOPED_INPUT_VERSION, scopedBytes, submittedPayload, validScopedRequest
 
 /** Scoped capture support. No provider calls or always-on logging. */
 export function captureScopedPlan(sink: RecordingSink | undefined, request: JudgeRequest, plan: ScopedPlan,
-  questions: ScopedQuestions, identity: { provider: 'typesafe' | 'apus-llamacpp'; model: string; nativeContract?: unknown }) {
+  questions: ScopedQuestions, identity: { provider: 'system-one' | 'typesafe' | 'apus-llamacpp'; model: string; nativeContract?: unknown }) {
   capture(sink, 'request', () => {
     const owner = evidenceContext(request);
     const scopes = plan.groups.map(g => ({ id: g.id, fields: Object.keys(g.state), stateBytes: g.stateBytes }));

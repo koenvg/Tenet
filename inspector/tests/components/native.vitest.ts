@@ -11,7 +11,7 @@ import '../../src/summary.css';
 
 function nativeView() {
   const view = makeView();
-  view.judge = { provider: 'apus-llamacpp', requestedModel: 'recorded-apus-alias', returnedModel: null, experimental: true };
+  view.judge = { ...view.judge, provider: 'apus-llamacpp', requestedModel: 'recorded-apus-alias', returnedModel: null, experimental: true };
   view.native = { contract: { version: 'apus-recording-v1', renderingVersion: 'jev.dynamic.prompt.v2',
     rendererRevision: '7389d774472c9e29ddc84fffb392951f0f25de74', protocolVersion: 'llamacpp-b11118-choice-v1' },
     snapshots: [{ untrusted: true, omittedFields: 2, bytes: 120, truncated: false, value: { kind: 'native-response', raw: { tokens_cached: 7, timings: { predicted_n: 1 } } } }, { untrusted: true, unavailable: true }],

@@ -110,8 +110,11 @@ export type Judge = (request: JudgeRequest, signal: AbortSignal, recording?: Rec
 /** Owner-supplied requested alias, not attestation of returned weights or accuracy. */
 export interface JudgeIdentity { readonly requestedModel: string }
 export interface RequestedJudgeIdentity {
-  readonly provider: 'typesafe' | 'apus-llamacpp' | 'injected' | 'unknown';
+  readonly provider: 'system-one' | 'apus-llamacpp' | 'injected' | 'unknown';
   readonly requestedModel: string | null;
+  readonly requestedDestination?: string | null;
+  readonly transportContract?: 'system-one-v1' | 'llamacpp-b11118-choice-v1' | null;
+  readonly authentication?: 'none' | 'bearer-env' | null;
 }
 export interface Clock {
   now(): number;
@@ -148,6 +151,9 @@ export interface Decision {
   questionVersion: string;
   requestedModel: string | null;
   requestedProvider?: RequestedJudgeIdentity['provider'];
+  requestedDestination?: string | null;
+  transportContract?: RequestedJudgeIdentity['transportContract'];
+  authentication?: RequestedJudgeIdentity['authentication'];
 }
 export class JudgeFailure extends Error {
   constructor(readonly reason: Reason, readonly validationIssue?: ValidationIssue) { super(reason); }

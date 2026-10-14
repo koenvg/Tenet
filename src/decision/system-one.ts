@@ -73,7 +73,7 @@ export function createSystemOneJudge(options: Readonly<{ baseUrl: string; model:
       const plan = request.judgeScopes ?? prepareJudgeScopes(request);
       if (!plan) throw new JudgeFailure('insufficient-evidence');
       const questions = buildQuestions(request.policy, request.resolvedAction);
-      captureScopedPlan(sink, request, plan, questions, { provider: 'typesafe', model });
+      captureScopedPlan(sink, request, plan, questions, { provider: 'system-one', model });
       const answers: Record<string, Answer> = Object.create(null);
       let returnedModel: string | undefined;
       for (const group of plan.groups) {

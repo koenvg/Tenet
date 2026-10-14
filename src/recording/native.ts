@@ -1,4 +1,6 @@
 import type { ArchiveRecord } from './contract.js';
+import { recordedJudgeReport } from './judge.js';
+import { recordedConfiguration } from './configuration.js';
 
 // These are historical reader contracts. Do not replace them with current adapter settings.
 const APUS_V1 = {
@@ -61,12 +63,18 @@ export function recordedJudge(records: ArchiveRecord[]) {
   const provider = latest('requestedProvider') ?? request?.provider;
   const explicitModel = records.some(r => Object.hasOwn(r.data, 'requestedModel'));
   const requestedModel = explicitModel ? latest('requestedModel') : object(request?.payload) ? request.payload.model : null;
-  const knownContract = latest('judgeReportVersion') === 'judge-report-v1'
-    || records.some(r => validNativeContract(r.data.nativeContract));
+  const report = [...records].reverse().map(r => recordedJudgeReport(r.data)).find(Boolean);
+  const v2 = report?.judgeReportVersion === 'judge-report-v2' ? report : undefined;
+  const knownContract = !!report || records.some(r => validNativeContract(r.data.nativeContract));
   return {
     provider: typeof provider === 'string' ? provider : null,
     requestedModel: typeof requestedModel === 'string' ? requestedModel : null,
-    returnedModel: object(assessment) && typeof assessment.model === 'string' ? assessment.model : null,
+    requestedDestination: v2?.requestedDestination ?? null,
+    transportContract: v2?.transportContract ?? null,
+    authentication: v2?.authentication ?? null,
+    judgeReportVersion: report?.judgeReportVersion ?? null,
+    configuration: recordedConfiguration(latest('configuration')) ?? null,
+    returnedModel: object(assessment) && typeof assessment.model === 'string' ? assessment.model : v2?.returnedModel ?? null,
     experimental: knownContract && provider === 'apus-llamacpp' ? true : null,
   };
 }

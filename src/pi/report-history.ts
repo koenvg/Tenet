@@ -1,4 +1,5 @@
 import { recordedJudgeReport } from '../recording/judge.js';
+import { recordedConfiguration } from '../recording/configuration.js';
 import { validOrigin } from '../decision/policy-origin.js';
 import { validEvidenceContext } from '../decision/evidence-context.js';
 import { freeze } from '../decision/evidence.js';
@@ -65,9 +66,11 @@ export function recoverReport(entry: unknown): OwnerReport | undefined {
       effectThreshold: r.effectThreshold, evidenceThreshold: r.evidenceThreshold as number | null, gates: [...r.gates] as BlockingGate[] });
   }
   const judge = recordedJudgeReport(d);
+  const configuration = recordedConfiguration(d.configuration);
   if (d.judgeReportVersion !== undefined && !judge) return;
   return { recordVersion: d.version as 3 | 4, mode: d.mode as OwnerReport['mode'], outcome: d.outcome as OwnerReport['outcome'],
     ...judge,
+    ...(configuration ? { configuration } : {}),
     ...(d.profile === 'legacy' || d.profile === 'applicability-v1' ? { profile: d.profile } : {}),
     ...(text(d.questionVersion) ? { questionVersion: d.questionVersion } : {}),
     ...(d.reason === 'invalid-response' && validationIssue(d.validationIssue) ? { validationIssue: validationIssue(d.validationIssue) } : {}),

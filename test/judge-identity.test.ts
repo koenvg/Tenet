@@ -11,8 +11,11 @@ import { readArchive } from '../src/recording/archive.js';
 import { SCHEMA_VERSION } from '../src/recording/contract.js';
 import { QUESTION_VERSION } from '../src/decision/assessment-shape.js';
 
-const status = (provider: 'typesafe' | 'injected', requestedModel: string | null, availability = 'ready') => ({
+const status = (provider: 'system-one' | 'injected', requestedModel: string | null, availability = 'ready') => ({
   provider, requestedModel, availability, connectivity: 'unverified',
+  requestedDestination: provider === 'system-one' ? 'https://api.typesafe.ai' : null,
+  transportContract: provider === 'system-one' ? 'system-one-v1' : null,
+  authentication: provider === 'system-one' ? 'bearer-env' : null,
   ...(availability === 'unavailable' ? { reason: 'missing-credentials' } : {}),
 });
 async function fixture(options: Partial<GuardOptions> = {}) {
@@ -34,7 +37,7 @@ test('TypeSafe readiness is local and missing credentials do not construct a cli
   for (const key of [undefined, 'offline-not-valid']) {
     const h = await fixture({ env: { TENET_RECORDING: 'off', TYPESAFE_API_KEY: key } });
     try {
-      assert.deepEqual(h.guard.status().projects[0]!.judge, status('typesafe', 'jev-latest', key ? 'ready' : 'unavailable'));
+      assert.deepEqual(h.guard.status().projects[0]!.judge, status('system-one', 'jev-latest', key ? 'ready' : 'unavailable'));
       assert.deepEqual((await h.session.ready).judge, h.guard.status().projects[0]!.judge);
       assert.equal(h.session.status().state, key ? 'ready' : 'unavailable');
       assert.equal(h.records.length, 0);

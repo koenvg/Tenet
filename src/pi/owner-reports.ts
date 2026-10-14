@@ -178,11 +178,11 @@ export class OwnerReports {
       `Mode: ${report.mode.toUpperCase()}`, `Tool: ${text(report.toolName)}`, `Call: ${text(report.callId)}`,
       `Assessment profile: ${report.profile ?? 'legacy (historical)'}`,
       `Judge questions: ${report.questionVersion ?? 'not recorded'}`,
-      `Judge: ${report.requestedProvider ?? 'not recorded'}${report.judgeReportVersion === 'judge-report-v1' && report.requestedProvider === 'apus-llamacpp' ? ' experimental' : ''}`,
+      `Judge: ${report.requestedProvider ?? 'not recorded'}${(report.judgeReportVersion === 'judge-report-v1' || report.judgeReportVersion === 'judge-report-v2') && report.requestedProvider === 'apus-llamacpp' ? ' experimental' : ''}`,
       `Requested model: ${report.requestedModel ? text(report.requestedModel, 256) : 'not recorded'}`,
       `Returned model: ${report.returnedModel ? text(report.returnedModel, 256) : 'not recorded; no complete returned identity'}`,
       `Judge report contract: ${report.judgeReportVersion ?? 'not recorded'}`,
-      ...(report.judgeReportVersion === 'judge-report-v1' && report.requestedProvider === 'apus-llamacpp' ? [
+      ...((report.judgeReportVersion === 'judge-report-v1' || report.judgeReportVersion === 'judge-report-v2') && report.requestedProvider === 'apus-llamacpp' ? [
         'APUS scores are uncalibrated candidate probabilities.',
         'Deterministic NONE is not model confidence or authenticated coverage.',
         'Completed assessment is not proof of label matching, calibration or physical weights.',

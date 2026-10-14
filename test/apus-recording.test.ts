@@ -164,14 +164,15 @@ test('historical records retain recorded model fields and do not acquire APUS id
   const archive = await assess(home, cwd);
   const history = archive.records.filter(r => ['request', 'assessment'].includes(r.stage)).map(r => {
     const data: any = structuredClone(r.data);
-    for (const key of ['nativeContract', 'judgeReportVersion', 'provider', 'requestedProvider', 'requestedModel', 'renderingVersion', 'rendererRevision']) delete data[key];
+    for (const key of ['requestedDestination', 'transportContract', 'authentication', 'returnedModel', 'configuration', 'nativeContract', 'judgeReportVersion', 'provider', 'requestedProvider', 'requestedModel', 'renderingVersion', 'rendererRevision']) delete data[key];
     if (data.payload) data.payload.model = 'historical-requested';
     if (data.assessment) data.assessment.model = 'historical-returned';
     return { ...r, data };
   });
   const copy = JSON.stringify(history);
   const view = invocationView(history);
-  assert.deepEqual(view.judge, { provider: null, requestedModel: 'historical-requested', returnedModel: 'historical-returned', experimental: null });
+  assert.deepEqual(view.judge, { provider: null, requestedModel: 'historical-requested', returnedModel: 'historical-returned', experimental: null,
+    requestedDestination: null, transportContract: null, authentication: null, judgeReportVersion: null, configuration: null });
   assert.equal(view.native, null);
   const oldNativeName = history.map(r => ({ ...r, data: { ...r.data, requestedProvider: 'apus-llamacpp', requestedModel: null } }));
   assert.equal(invocationView(oldNativeName).judge.experimental, null);
