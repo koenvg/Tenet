@@ -23,6 +23,9 @@ assert.equal(examples.length, 4, 'official, anonymous local, partial project and
 const settings = examples.find(v => v.judge?.protocol === 'apus-llamacpp');
 const official = examples.find(v => v.judge?.protocol === 'system-one' && v.judge.baseUrl === 'https://api.typesafe.ai');
 assert.ok(settings); assert.ok(official);
+const descriptor = { judgeReportVersion: 'judge-report-v2', requestedProvider: 'apus-llamacpp',
+  requestedModel: alias, requestedDestination: new URL(settings.judge.baseUrl).origin,
+  transportContract: 'llamacpp-b11118-choice-v1', authentication: 'none' };
 await fsp.writeFile(file, JSON.stringify(settings), { mode: 0o600 });
 let guard, traps, writer;
 const originals = [];
@@ -59,7 +62,10 @@ try {
   assert.equal(diagnosis.assessment, 'not-requested');
   assert.equal(diagnosis.provider, 'unverified');
   assert.ok(!diagnosis.limitations.some(i => i.code === 'missing-credentials'));
-  assert.ok(!JSON.stringify(diagnosis).includes(settings.judge.baseUrl));
+  assert.equal(diagnosis.judge.requestedDestination, descriptor.requestedDestination);
+  assert.equal(diagnosis.judge.transportContract, descriptor.transportContract);
+  assert.equal(diagnosis.judge.authentication, descriptor.authentication);
+  assert.equal(diagnosis.settings.sources.judge, 'owner');
   assert.deepEqual(fs.readdirSync(home, { recursive: true }).sort(), before);
   traps.assertNoAttempts(); traps.restore();
 
@@ -172,11 +178,13 @@ try {
       }
     }
   }
-  assert.deepEqual(recordedJudge(archived.records), { provider: 'apus-llamacpp', requestedModel: alias,
-    returnedModel: alias, experimental: true });
+  assert.deepEqual(recordedJudge(archived.records), { provider: descriptor.requestedProvider, requestedModel: alias,
+    requestedDestination: descriptor.requestedDestination, transportContract: descriptor.transportContract,
+    authentication: descriptor.authentication, judgeReportVersion: descriptor.judgeReportVersion,
+    configuration: session.status().configuration, returnedModel: alias, experimental: true });
   const report = owner.find(e => e.type === 'permission').report;
-  assert.deepEqual(recordedJudgeReport(report), { judgeReportVersion: 'judge-report-v1',
-    requestedProvider: 'apus-llamacpp', requestedModel: alias, returnedModel: alias });
+  assert.deepEqual(recordedJudgeReport(report), { ...descriptor, returnedModel: alias });
+  assert.deepEqual(report.configuration, session.status().configuration);
   assert.ok(!fs.existsSync(join(home, '.tenet/recordings')), 'capture-off external test sink must not create local archive');
   failing = true; const count = fake.calls.length;
   const failed = await invoke('failed');
@@ -190,7 +198,8 @@ try {
   assert.equal(recordedJudge(failedRecords).returnedModel, null);
   assert.equal(nativeHistory(failedRecords).responses.length, 0);
   const failedReport = owner.filter(e => e.type === 'permission').at(-1).report;
-  assert.equal(recordedJudgeReport(failedReport).judgeReportVersion, 'judge-report-v1');
+  assert.deepEqual(recordedJudgeReport(failedReport), descriptor);
+  assert.deepEqual(failedReport.configuration, session.status().configuration);
   assert.equal(failedReport.returnedModel, undefined);
   assert.equal(fake.calls.length, count + 1, 'one failure, no retry or fallback');
   assert.ok(!JSON.stringify(records.filter(r => r.stage !== 'response')).includes('private-offline-error-canary'));
@@ -205,7 +214,8 @@ try {
   await guard.close(); guard = undefined;
   const restarted = createGuard({ host: 'archive-restarted', env: { TENET_RECORDING: 'off' } });
   const restartedSession = restarted.openSession({ sessionId: 'restarted', contextId: 'main' }, project);
-  assert.equal((await restartedSession.ready).judge.provider, 'typesafe');
+  assert.equal((await restartedSession.ready).judge.provider, 'system-one');
+  assert.ok(!JSON.stringify(restartedSession.status()).includes(official.judge.auth.name), 'credential reference stays private');
   assert.equal(restartedSession.status().judge.reason, 'missing-credentials'); await restarted.close();
   await fsp.writeFile(file, JSON.stringify({ ...settings, forbidden: 'private-settings-canary' }), { mode: 0o600 });
   const invalid = createGuard({ host: 'archive-invalid', env: { TENET_MODE: 'enforce', TENET_RECORDING: 'off' } });

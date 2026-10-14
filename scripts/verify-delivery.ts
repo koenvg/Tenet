@@ -165,12 +165,12 @@ export async function verifyArchive(archive: string): Promise<void> {
     await rm(join(project, 'TENET.md'));
     for (const roles of ['global', 'global,project']) {
       if (roles.includes('project')) await writeFile(join(project, 'TENET.md'), 'Rule; BLOCK; Ask before overwriting owner-demo.txt.\n');
-      for (const provider of ['typesafe', 'apus-llamacpp']) {
+      for (const provider of ['system-one', 'apus-llamacpp']) {
         if (provider === 'apus-llamacpp') await writeFile(settingsFile, JSON.stringify(apus), { mode: 0o600 });
         else await rm(settingsFile, { force: true });
         for (const runtime of ['node', 'bun']) for (const mode of ['observe', 'enforce'])
           console.log(run(runtime, ['owner.mjs', installation, project, mode, provider, roles], host,
-            { ...(provider === 'typesafe' ? ownerEnv : { PATH: ownerEnv.PATH, TENET_RECORDING: 'off' }), TENET_MODE: mode }).trim());
+            { ...(provider === 'system-one' ? ownerEnv : { PATH: ownerEnv.PATH, TENET_RECORDING: 'off' }), TENET_MODE: mode }).trim());
       }
       await rm(settingsFile, { force: true });
     }
