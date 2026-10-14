@@ -469,8 +469,8 @@ export class GuardRuntime {
   private latest?: string;
   readonly observationQueue: ObservationQueue;
   // Pi results have no invocation ID. Retain ambiguity across native session switches.
-  private results = { resultCallIds: new Set<string>(), ambiguousResults: new Set<string>() };
-  constructor(private options: RuntimeOptions, capabilities: Capabilities) {
+  constructor(private options: RuntimeOptions, capabilities: Capabilities,
+    private results = { resultCallIds: new Set<string>(), ambiguousResults: new Set<string>() }) {
     this.options = { ...options, env: Object.freeze({ ...options.env }) };
     const selected = readMode(options.env);
     this.mode = selected.mode;

@@ -1,11 +1,21 @@
+import { realpathSync, statSync } from 'node:fs';
 import type { Judge, JudgeIdentity } from '../decision/contracts.js';
-import { prepareJudge } from './judge.js';
-import { prepareConfiguration } from './configuration.js';
+import { prepareJudge, type JudgeStatus } from './judge.js';
+import { prepareConfiguration, snapshotOwnerConfiguration, type ConfigurationStatus } from './configuration.js';
+import { readMode } from './config.js';
 import { ArchiveWriter, parseBbThreadId, recordingConfig } from '../recording/archive.js';
-import { ActivationStore } from './activation.js';
+import { ActivationStore, type Activation } from './activation.js';
 import { GuardRuntime, type Capabilities, type RuntimeOptions } from './guard.js';
 
-/** Shared startup wiring. Provider construction and control watching remain lazy. */
+export interface ProjectResources {
+  readonly directory: string;
+  readonly runtime: GuardRuntime;
+  readonly judgeStatus: JudgeStatus;
+  readonly configurationStatus: ConfigurationStatus;
+  readonly hasJudge: boolean;
+}
+
+/** Owner control, archive and injection outlive individual project sessions. */
 export function createRuntimeResources(options: Omit<RuntimeOptions, 'judge' | 'activation' | 'bindRecording'> & {
   capabilities: Capabilities;
   judge?: Judge;
@@ -16,20 +26,48 @@ export function createRuntimeResources(options: Omit<RuntimeOptions, 'judge' | '
   onCaptureHealth?: () => void;
 }) {
   const env = Object.freeze({ ...options.env });
+  const owner = snapshotOwnerConfiguration({ env });
+  const observationLimits = options.observationLimits ? Object.freeze({ ...options.observationLimits }) : undefined;
+  const { mode } = readMode(env);
   const activation = new ActivationStore(options.controlPath ?? env.TENET_CONTROL_PATH);
   const archive = options.bindRecording ? undefined : new ArchiveWriter(recordingConfig(env), undefined, options.onCaptureHealth);
-  const prepared = prepareJudge({ ...options, env, configuration: prepareConfiguration({ env, observationLimits: options.observationLimits }) });
-  const runtime = new GuardRuntime({ ...options, env, judge: prepared.judge, judgeStatus: prepared.status, activation,
-    configuration: prepared.configuration, observationLimits: prepared.configuration.status.observation ?? {},
-    bindRecording: options.bindRecording ?? (identity => archive!.bind({ ...identity,
-      bbThreadId: parseBbThreadId(env.BB_THREAD_ID) })),
-  }, options.capabilities);
-  return { runtime, activation, archive,
-    judgeStatus: prepared.status,
-    configurationStatus: prepared.configuration.status,
-    hasJudge: prepared.status.availability === 'ready',
+  const projects = new Map<string, ProjectResources>();
+  const results = { resultCallIds: new Set<string>(), ambiguousResults: new Set<string>() };
+  const judgeIdentity = options.judgeIdentity ? Object.freeze({ ...options.judgeIdentity }) : undefined;
+  const injected = options.judge || options.createJudge
+    ? prepareJudge({ ...options, env, judgeIdentity,
+      configuration: prepareConfiguration({ owner, observationLimits }) }).judge : undefined;
+  return { activation, archive, mode,
+    project(cwd: string): ProjectResources {
+      let directory: string;
+      try {
+        directory = realpathSync(cwd);
+        if (!statSync(directory).isDirectory()) throw new Error();
+      } catch { throw new Error('invalid-project-directory'); }
+      const existing = projects.get(directory);
+      if (existing) return existing;
+      const prepared = prepareJudge({ ...options, env, judge: injected, createJudge: undefined, judgeIdentity,
+        configuration: prepareConfiguration({ owner, project: directory, observationLimits }) });
+      const runtime = new GuardRuntime({ ...options, env, judge: prepared.judge, judgeStatus: prepared.status, activation,
+        configuration: prepared.configuration, observationLimits: prepared.configuration.status.observation ?? {},
+        bindRecording: options.bindRecording ?? (identity => archive!.bind({ ...identity,
+          bbThreadId: parseBbThreadId(env.BB_THREAD_ID) })),
+      }, options.capabilities, results);
+      const project = Object.freeze({ directory, runtime, judgeStatus: prepared.status,
+        configurationStatus: prepared.configuration.status, hasJudge: prepared.status.availability === 'ready' });
+      projects.set(directory, project);
+      return project;
+    },
+    status() {
+      return [...projects.values()].map(project => ({ directory: project.directory,
+        judge: project.judgeStatus, configuration: project.configurationStatus, observations: project.runtime.observationQueue.health() }));
+    },
+    activationChanged(value: Activation) {
+      for (const project of projects.values()) project.runtime.activationChanged(value);
+    },
     async close(timeoutMs: number) {
-      runtime.shutdown(); activation.close();
+      for (const project of projects.values()) project.runtime.shutdown();
+      activation.close();
       return archive ? archive.close(timeoutMs) : true;
     },
   };

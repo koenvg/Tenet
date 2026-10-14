@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtemp, writeFile, rm, symlink, unlink } from 'node:fs/promises';
+import { realpath, mkdtemp, writeFile, rm, symlink, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
@@ -15,7 +15,7 @@ type Handler = (event: any, ctx: ExtensionContext) => any;
 const pass: Judge = async request => answer(request.policy);
 const ask: Judge = async request => answer(request.policy, 'APPROVAL_REQUIRED');
 async function harness(judge: Judge = pass, options: { confirm?: () => Promise<boolean>; hasUI?: boolean; env?: Record<string, string>; policy?: string; beforeStart?: boolean } = {}) {
-  const cwd = await mkdtemp(join(tmpdir(), 'tenet-pi-')), file = join(cwd, 'TENET.md');
+  const cwd = await realpath(await mkdtemp(join(tmpdir(), 'tenet-pi-'))), file = join(cwd, 'TENET.md');
   await writeFile(file, options.policy ?? `Rule; ${RULE}`);
   const handlers = new Map<string, Handler>();
   const records: any[] = [], tools: any[] = [], prompts: string[] = [], notifications: string[] = [], statuses: string[] = [];

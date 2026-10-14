@@ -86,11 +86,12 @@ try {
       return (stage, data) => { records.push({ stage, data }); sink(stage, data); };
     } });
   assert.equal(fake.calls.length, 0, 'construction must be lazy');
-  assert.equal(guard.status().judge.requestedModel, alias);
-  assert.equal(guard.status().configuration.deadlineMs, 120000);
+  assert.deepEqual(guard.status().projects, []);
   const identity = { sessionId: 'archive', contextId: 'main' };
   const session = guard.openSession(identity, project);
   assert.equal((await session.ready).state, 'ready'); assert.equal(fake.calls.length, 0);
+  assert.equal(session.status().judge.requestedModel, alias);
+  assert.equal(session.status().configuration.deadlineMs, 120000);
   // Change settings while the guard exists. It must retain the initial immutable snapshot.
   await fsp.writeFile(file, JSON.stringify(official), { mode: 0o600 });
   const invoke = async callId => {
@@ -203,20 +204,23 @@ try {
   await guard.setActivation('on');
   await guard.close(); guard = undefined;
   const restarted = createGuard({ host: 'archive-restarted', env: { TENET_RECORDING: 'off' } });
-  assert.equal(restarted.status().judge.provider, 'typesafe');
-  assert.equal(restarted.status().judge.reason, 'missing-credentials'); await restarted.close();
+  const restartedSession = restarted.openSession({ sessionId: 'restarted', contextId: 'main' }, project);
+  assert.equal((await restartedSession.ready).judge.provider, 'typesafe');
+  assert.equal(restartedSession.status().judge.reason, 'missing-credentials'); await restarted.close();
   await fsp.writeFile(file, JSON.stringify({ ...settings, forbidden: 'private-settings-canary' }), { mode: 0o600 });
   const invalid = createGuard({ host: 'archive-invalid', env: { TENET_MODE: 'enforce', TENET_RECORDING: 'off' } });
-  assert.equal(invalid.status().judge.provider, 'unknown'); assert.equal(invalid.status().judge.reason, 'configuration');
+  assert.deepEqual(invalid.status().projects, []);
   const blocked = invalid.openSession({ sessionId: 'invalid', contextId: 'main' }, project);
   assert.equal((await blocked.ready).state, 'unavailable');
+  assert.equal(blocked.status().judge.provider, 'unknown'); assert.equal(blocked.status().judge.reason, 'configuration');
   const attempts = fake.calls.length;
   assert.equal((await blocked.beforeTool({ callId: 'bad', toolName: 'inert', input: {} })).permission, 'blocked');
   assert.equal(fake.calls.length, attempts); await invalid.close();
   let constructed = 0;
   const invalidInjected = createGuard({ host: 'archive-invalid-injected', env: { TENET_RECORDING: 'off' },
     createJudge: () => { constructed++; throw new Error('invalid settings must prevent construction'); } });
-  assert.equal(invalidInjected.status().judge.reason, 'configuration');
+  const invalidInjectedSession = invalidInjected.openSession({ sessionId: 'invalid-injected', contextId: 'main' }, project);
+  assert.equal((await invalidInjectedSession.ready).judge.reason, 'configuration');
   assert.equal(constructed, 0); await invalidInjected.close();
   console.log(`${process.versions.bun ? 'Bun' : 'Node'} archive APUS: side-effect-free imports/doctor, parsed settings, frozen identity, complete native metadata, failure without fallback passed.`);
 } finally {

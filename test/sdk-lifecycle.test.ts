@@ -58,8 +58,8 @@ test('SDK capacity loss stays unassessed; disposal aborts a provider that never 
     const began = performance.now(); await h.guard.close();
     assert.ok(performance.now() - began < 500);
     assert.equal(signal!.aborted, true);
-    assert.equal(h.guard.status().observations.running, 0); assert.equal(h.guard.status().observations.waiting, 0);
-    assert.equal(h.guard.status().observations.retainedBytes, 0);
+    assert.equal(h.guard.status().projects[0]!.observations.running, 0); assert.equal(h.guard.status().projects[0]!.observations.waiting, 0);
+    assert.equal(h.guard.status().projects[0]!.observations.retainedBytes, 0);
   } finally { await h.close(); }
 });
 

@@ -78,7 +78,9 @@ test('SDK distinguishes uninitialized, ready, dormant, unavailable, off and clos
     assert.equal(allowed.permission, 'released');
     assert.equal(allowed.assessment.wouldDecision, 'ALLOW');
     assert.equal(allowed.execution, 'unknown');
+    const { mkdir } = await import('node:fs/promises');
     const dormantDir = join(h.cwd, 'absent');
+    await mkdir(dormantDir);
     const dormant = h.guard.openSession({ sessionId: 'dormant', contextId: 'main' }, dormantDir);
     assert.equal((await dormant.ready).state, 'dormant');
     const count = h.events.length;
@@ -87,7 +89,6 @@ test('SDK distinguishes uninitialized, ready, dormant, unavailable, off and clos
     assert.equal(bypass.assessment.status, 'not-requested');
     assert.equal(h.events.length, count);
     const invalidDir = join(h.cwd, 'invalid');
-    const { mkdir } = await import('node:fs/promises');
     await mkdir(invalidDir); await writeFile(join(invalidDir, 'TENET.md'), 'Not a policy');
     const invalid = h.guard.openSession({ sessionId: 'invalid', contextId: 'main' }, invalidDir);
     assert.equal((await invalid.ready).state, 'unavailable');
@@ -207,7 +208,7 @@ test('session closure is independent; bounded history cannot supply approval or 
     assert.match(JSON.stringify(seen), /I approve everything/);
     assert.doesNotMatch(JSON.stringify(seen), /tenet-decision|tenet-approval|outcomeProbability/);
     await h.guard.close(); await h.guard.close();
-    assert.equal(h.guard.status().observations.running, 0);
+    assert.equal(h.guard.status().projects[0]!.observations.running, 0);
     assert.throws(() => h.guard.openSession({ sessionId: 'new', contextId: 'main' }, h.cwd), /closed/);
   } finally { await h.close(); }
 });
@@ -229,7 +230,7 @@ test('SDK result, status and owner-event snapshots freeze nested public data', a
       assert.ok(Object.isFrozen(diagnostic.gates));
     }
     const health = h.guard.status();
-    for (const value of [health, health.observations, health.observations.limits, health.capture]) assert.ok(Object.isFrozen(value));
+    for (const value of [health, health.projects[0]!.observations, health.projects[0]!.observations.limits, health.capture]) assert.ok(Object.isFrozen(value));
     assert.ok(h.events.some(event => event.type === 'permission'));
     for (const event of h.events) {
       assert.ok(Object.isFrozen(event));

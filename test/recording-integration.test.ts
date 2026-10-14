@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtemp, realpath, rm, writeFile, readdir, readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile, readdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { guardHarness } from './guard-harness.js';
@@ -153,7 +153,7 @@ test('concurrent SDK completions stay bound to their invocation IDs across a ses
     }
   } finally { release?.(); await h.close(); }
 }));
-test('reused host call IDs across a session switch cannot attribute a late result to the new invocation', () => temp(async dir => {
+for (const acrossProject of [false, true]) test(`reused host call IDs across a ${acrossProject ? 'project' : 'session'} switch cannot attribute a late result to the new invocation`, () => temp(async dir => {
   const trajectories: string[] = [];
   const h = await guardHarness({ env: { TENET_RECORDING: 'on', TENET_RECORDING_DIR: dir },
     judge: async request => { trajectories.push(JSON.stringify(request.trajectory)); return answer(request.policy); } });
@@ -161,6 +161,10 @@ test('reused host call IDs across a session switch cannot attribute a late resul
     await h.start(); await h.call('reused');
     await h.emit('session_before_switch');
     h.ctx.sessionManager.getSessionId = () => 'resumed-or-forked';
+    if (acrossProject) {
+      h.ctx.cwd = join(h.cwd, 'second-project'); await mkdir(h.ctx.cwd);
+      await writeFile(join(h.ctx.cwd, 'TENET.md'), 'Rule; Never commit.');
+    }
     await h.start(); await h.call('reused');
     await h.emit('tool_result', { toolCallId: 'reused', toolName: 'edit', content: [{ type: 'text', text: 'late-old-session-evidence' }], isError: false });
     await h.call('next');

@@ -4,7 +4,7 @@ Use this guide to select an owner-wide judge, check private version 2 settings o
 
 System One selects an explicit HTTPS or literal loopback destination. APUS OpenJev v1 through llama.cpp remains experimental and needs no TypeSafe key. Local readiness does not verify connectivity. Neither implementation falls back to another judge.
 
-Project overrides are available at the internal single-project preparation boundary and have offline fixture coverage. SDK/Pi runtime routing and project-aware doctor diagnostics are not delivered in this step. Those callers still use owner-wide settings. Do not rely on a project file to redirect live assessments until project runtime support is delivered. No live setup is authorized by this guide or an offline package check.
+SDK and Pi sessions use each canonical project's overrides and keep isolated judge, credential, deadline and queue resources. Review the project selection before opening a session. Project-aware doctor diagnostics and v2 destination reports follow in separate deliveries. No live setup is authorized by this guide or an offline package check.
 
 ## Check settings offline
 
@@ -81,7 +81,7 @@ Capture redacts credential-shaped fields and echoed credential strings before bo
 
 ## Source and private file requirements
 
-Owner settings come only from `~/.tenet/config.json`, resolved from the launching owner's home, not the project's working directory. Single-project preparation reads overrides only from the supplied canonical project's `.tenet/config.json`. It does not search parents, use generic `config.json`, or infer a project from policy paths. `TENET_POLICY` and an SDK `env.HOME` cannot redirect the owner source. Tests use canonical temporary homes and project directories, never real owner files.
+Owner settings come only from `~/.tenet/config.json`, resolved from the launching owner's home, not the project's working directory. Each project's first session reads overrides only from the supplied canonical project's `.tenet/config.json`. It does not search parents, use generic `config.json`, or infer a project from policy paths. `TENET_POLICY` and an SDK `env.HOME` cannot redirect the owner source. Tests use canonical temporary homes and project directories, never real owner files.
 
 The settings directory must be private and owned by the launching user. The file must be owner-readable, private, same-owner, regular and single-link. On POSIX, `0700` for `.tenet` and `0600` for `config.json` meet these requirements. Symlink ancestors, directory/file links, public permissions, unreadability and a changing file identity are failures. Tenet does not create, repair, chmod or watch settings.
 
@@ -172,7 +172,7 @@ Queue:    defaults -> owner JSON -> supplied project fields -> SDK observationLi
 
 Each arrow means the value on the right overrides the earlier value. SDK `judge` takes precedence over lazy `createJudge`; either overrides the JSON provider and its credential requirement. Its requested identity is unknown unless the caller supplies `judgeIdentity`. Injection does not excuse invalid JSON or invalid common effective settings. An invalid environment deadline is a failure, not permission to use the JSON deadline.
 
-Policy selection, mode, thresholds, approval timeout, evidence bounds and recording stay on their existing paths. Owner settings and the startup environment freeze once. Single-project preparation overlays its first project-file read on that snapshot and resolves only the selected credential. Prepared valid and invalid results do not change after file edits. Runtime project caching follows separately; current guards retain their owner snapshot across work and new sessions.
+Policy selection, mode, thresholds, approval timeout, evidence bounds and recording stay on their existing paths. Each guard freezes owner settings and the startup environment once. At the first session in a canonical project directory, the guard reads that project's overrides and resolves only its selected credential. Later sessions reuse that project's valid or invalid snapshot. File edits need a new guard or full process restart. Activation control stays live.
 
 ## Migrate version 1 manually
 
@@ -184,9 +184,9 @@ Validate the new owner file with offline doctor. Then fully stop and restart the
 
 Invalid settings make eligible sessions unavailable. Enforce blocks; observe releases without an assessment or would-decision. Off and dormant sessions retain their bypass behavior. No configuration or provider failure authorizes fallback, retries or an invented pass.
 
-Observe releases before assessment. Queue capacity, byte capacity and age bounds produce visible drops; lifecycle invalidation cancels pending work. Longer limits retain sensitive snapshots for longer and can delay findings. Queue limits apply per guard, not across all processes sharing a server. More waiting work does not increase model throughput.
+Observe releases before assessment. Queue capacity, byte capacity and age bounds produce visible drops; lifecycle invalidation cancels pending work. Longer limits retain sensitive snapshots for longer and can delay findings. Queue limits apply per canonical project in each guard, not across all processes sharing a server. More waiting work does not increase model throughput.
 
-`guard.status().configuration` and `session.status().configuration` expose frozen safe diagnostics. They give source, settings state, availability, an optional failure category, deadline and queue limits. Invalid effective configuration uses `null` limits rather than claiming defaults are usable. Pi startup and `/tenet status` use these owner-only values. Do not forward them or owner findings into agent history or tool results.
+`session.status().configuration` gives the current project's frozen safe diagnostics. Each entry in `guard.status().projects` gives its canonical `directory`, `judge`, `configuration` and `observations` health. The list is empty before a project opens. Diagnostics include source, settings state, availability, an optional failure category, deadline and queue limits. Invalid effective configuration uses `null` limits. Pi startup and `/tenet status` use the current session's values. Do not forward these values or owner findings into agent history or tool results.
 
 ## Experimental Pika values
 The approved Pika trial installed APUS OpenJev v1 4B Q8_0 with llama.cpp b11118. One cold, 318-token question took 4.992 seconds and selected `PASS`. Loading took 1.266 seconds separately. The trial server and monitor are stopped; that trial created no persistent server or tunnel.
@@ -296,7 +296,7 @@ Capture-off stops neither disclosure nor all logs. Installation/replacement and 
 2. Check `/tenet status` for `TENET ON OBSERVE`, the APUS alias and effective limits. If cooperative control is off, obtain separate activation authorization first. Activation enables full policy/selected-evidence disclosure to Pika with the same capture/log risks, then use `/tenet on`. It restores the process mode, not enforcement. No local `TENET.md` means dormant; settings do not supply a policy.
 3. Before any evidence submission, obtain separate authorization for the precise payload and Pika service. Full policy and selected evidence can contain secrets despite redaction, use CPU and enter owner-controlled backend logs/local capture. Begin only with the inert observe evaluation plan below, not destructive or publication actions.
 
-Observe releases before assessment and never vetoes or opens approval. Pending, dropped, expired, cancelled, failed or unavailable work is not `PASS`. Limits apply per guard, not across every process using the single server. If server or tunnel is absent, actual assessment fails without TypeSafe fallback. Doctor can still report local-ready. Enforce would block unavailable assessment, but enabling it needs separate authorization and evaluation; this guide does not establish enforcement safety.
+Observe releases before assessment and never vetoes or opens approval. Pending, dropped, expired, cancelled, failed or unavailable work is not `PASS`. Limits apply per canonical project in each guard, not across every process using the single server. If server or tunnel is absent, actual assessment fails without TypeSafe fallback. Doctor can still report local-ready. Enforce would block unavailable assessment, but enabling it needs separate authorization and evaluation; this guide does not establish enforcement safety.
 
 ### Roll back the selected provider only after approval
 
