@@ -5,11 +5,16 @@ const options: GuardOptions = { host: 'isolated-types', env: { TENET_RECORDING: 
   judge: async (): Promise<Assessment> => ({ profile: 'applicability-v1', model: 'scripted', rules: [] }) };
 const guard: Guard = createGuard(options);
 const status = guard.status();
-const provider: 'typesafe' | 'apus-llamacpp' | 'injected' | 'unknown' = status.judge.provider;
-const model: string | null = status.judge.requestedModel;
-const deadline: number | null = status.configuration.deadlineMs;
-const running: number | undefined = status.configuration.observation?.running;
-void provider; void model; void deadline; void running;
+for (const project of status.projects) {
+  const directory: string = project.directory;
+  const provider: 'typesafe' | 'apus-llamacpp' | 'injected' | 'unknown' = project.judge.provider;
+  const model: string | null = project.judge.requestedModel;
+  const deadline: number | null = project.configuration.deadlineMs;
+  const running: number | undefined = project.configuration.observation?.running;
+  const queueRunning: number = project.observations.running;
+  const queueLimit: number = project.observations.limits.running;
+  void directory; void provider; void model; void deadline; void running; void queueRunning; void queueLimit;
+}
 const session = guard.openSession({ sessionId: 'typed', contextId: 'main' }, '/disposable/session');
 void session.ready.then(value => {
   const version: 'policy-sources-v1' = value.policy.contractVersion;
