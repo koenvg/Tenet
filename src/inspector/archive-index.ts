@@ -143,6 +143,8 @@ export class ArchiveIndex {
     this.trackIssues(state);
   }
   private pending?: Promise<void>;
+  private closing?: Promise<void>;
+  private activeDetails = new Set<Promise<unknown>>();
   private scanIssues: ArchiveIssue[] = [];
   private sessionScans = new Map<string, SessionScan>();
   private rootCursor?: Dir;
@@ -160,8 +162,20 @@ export class ArchiveIndex {
   constructor(private root: string, private read = readPrivateFile) {}
 
   refresh(): Promise<void> {
+    if (this.closing) return Promise.reject(new Error('archive-closed'));
     if (!this.pending) this.pending = this.scan().finally(() => { this.pending = undefined; });
     return this.pending;
+  }
+  /** Stop new reads, settle active reads, and close retained bounded-scan cursors. */
+  close(): Promise<void> {
+    return this.closing ??= (async () => {
+      await this.pending;
+      await Promise.allSettled(this.activeDetails);
+      const cursors = [...(this.rootCursor ? [this.rootCursor] : []), ...this.openCursors.keys()];
+      await Promise.all(cursors.map(cursor => cursor.close()));
+      this.rootCursor = undefined; this.openCursors.clear();
+      await this.resetSessions(); this.indexing = false;
+    })();
   }
   private async removeSession(session: string): Promise<void> {
     const state = this.sessionScans.get(session);
@@ -621,7 +635,13 @@ export class ArchiveIndex {
     return { coverage: status.coverage, linkedCalls: status.linkedCalls, notices: status.notices, assessments: status.assessments, issues: [...issues].slice(0, 20),
       items, next: selection.next };
   }
-  async detail(session: string, invocation: string, bbThreadId?: string) {
+  detail(session: string, invocation: string, bbThreadId?: string) {
+    if (this.closing) return Promise.reject(new Error('archive-closed'));
+    const pending = this.readDetail(session, invocation, bbThreadId).finally(() => { this.activeDetails.delete(pending); });
+    this.activeDetails.add(pending);
+    return pending;
+  }
+  private async readDetail(session: string, invocation: string, bbThreadId?: string) {
     const records: ArchiveRecord[] = [], issues = this.issues(session), readIssues: ArchiveIssue[] = [];
     const readIssue = (reason: string) => {
       const issue = { session, file: '', reason };
