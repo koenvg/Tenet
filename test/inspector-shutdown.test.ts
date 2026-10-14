@@ -26,12 +26,12 @@ async function fixture(run: (root: string, handles: Set<Dir>) => Promise<void>) 
   }
 }
 
-async function boundedArchive(root: string) {
+async function boundedArchive(root: string, noiseEntries = 8) {
   for (let n = 0; n < 129; n++) {
     const folder = join(root, sessionKey(`session-${n}`));
     await mkdir(folder, { mode: 0o700 });
     await writeFile(join(folder, 'record.json'), '{', { mode: 0o600 });
-    for (let f = 0; f < 8; f++) await writeFile(join(folder, `${f}.noop`), '');
+    for (let f = 0; f < noiseEntries; f++) await writeFile(join(folder, `${f}.noop`), '');
   }
 }
 
@@ -68,7 +68,8 @@ test('inspector shutdown closes root and session cursors retained by a bounded s
 }));
 
 test('index shutdown waits for an active refresh and prevents new reads', () => fixture(async (root, handles) => {
-  await boundedArchive(root);
+  // The first refresh must reach a record read regardless of directory entry order.
+  await boundedArchive(root, 0);
   const read = pause();
   const index = new ArchiveIndex(root, async (directory, path) => {
     read.entered(); await read.gate;
