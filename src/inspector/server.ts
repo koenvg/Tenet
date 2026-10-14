@@ -88,6 +88,12 @@ export async function startInspector(options: { directory: string; assets?: stri
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('no-local-address');
   origin = `http://127.0.0.1:${address.port}`;
+  let closing: Promise<void> | undefined;
   return { origin, url: `${origin}/`,
-    close: () => new Promise<void>((resolve, reject) => { server.close(error => error ? reject(error) : resolve()); server.closeAllConnections(); }) };
+    close: () => closing ??= (async () => {
+      const httpClose = new Promise<void>((resolve, reject) => {
+        server.close(error => error ? reject(error) : resolve()); server.closeAllConnections();
+      });
+      await Promise.all([httpClose, index.close()]);
+    })() };
 }
