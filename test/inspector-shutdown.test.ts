@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mock, test } from 'node:test';
+import { test } from 'node:test';
 import { Dir } from 'node:fs';
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -14,13 +14,13 @@ import { FixtureArchiveWriter as ArchiveWriter } from './archive-fixture.js';
 async function fixture(run: (root: string, handles: Set<Dir>) => Promise<void>) {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-shutdown-')));
   const handles = new Set<Dir>(), read = Dir.prototype.read;
-  const spy = mock.method(Dir.prototype, 'read', function (this: Dir, ...args: unknown[]) {
+  Dir.prototype.read = function (this: Dir, ...args: unknown[]) {
     if (this.path === root || this.path.startsWith(`${root}/`)) handles.add(this);
     return Reflect.apply(read, this, args);
-  });
+  };
   try { await run(root, handles); }
   finally {
-    spy.mock.restore();
+    Dir.prototype.read = read;
     for (const handle of handles) { try { await handle.close(); } catch {} }
     await rm(root, { recursive: true, force: true });
   }
@@ -37,7 +37,7 @@ async function boundedArchive(root: string) {
 
 async function assertClosed(handles: Set<Dir>) {
   assert.ok(handles.size > 1, 'the scan opened root and session directories');
-  for (const handle of handles) await assert.rejects(handle.read(), { code: 'ERR_DIR_CLOSED' });
+  for (const handle of handles) await assert.rejects(async () => handle.read(), { code: 'ERR_DIR_CLOSED' });
 }
 
 function pause() {
