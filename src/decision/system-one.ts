@@ -65,6 +65,7 @@ export function createSystemOneJudge(options: Readonly<{ baseUrl: string; model:
     const budget = assessmentBudget(request.deadlineMs, signal);
     const sink: RecordingSink | undefined = recording && token ? (stage, data) => {
       if (!JSON.stringify(data).includes(JSON.stringify(token).slice(1, -1))) recording(stage, data);
+      else recording('response', { untrusted: true, unavailable: true, reason: 'diagnostic-content-withheld', omittedStage: stage });
     } : recording;
     let submitted = false;
     try {

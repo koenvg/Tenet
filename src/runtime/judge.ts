@@ -1,6 +1,7 @@
 import { JudgeFailure, type Judge, type JudgeIdentity, type RequestedJudgeIdentity } from '../decision/contracts.js';
 import { DEFAULT_JUDGE, prepareConfiguration, type PreparedConfiguration } from './configuration.js';
 
+import { diagnosticSafety, type DiagnosticSafety } from './diagnostic-safety.js';
 /** Local preparation only. No client construction, credential validity or connectivity check. */
 export interface JudgeStatus extends Required<RequestedJudgeIdentity> {
   readonly availability: 'ready' | 'unavailable';
@@ -14,7 +15,7 @@ export function prepareJudge(options: {
   createJudge?: () => Judge;
   judgeIdentity?: JudgeIdentity;
   configuration?: PreparedConfiguration;
-}): { status: JudgeStatus; judge: Judge; configuration: PreparedConfiguration } {
+}): { status: JudgeStatus; judge: Judge; configuration: PreparedConfiguration; diagnostics: DiagnosticSafety } {
   const prepared = options.configuration ?? prepareConfiguration({ env: options.env });
   const configuration = options.judge || options.createJudge ? { ...prepared,
     status: Object.freeze({ ...prepared.status, sources: Object.freeze({ ...prepared.status.sources, judge: 'sdk' as const }) }) } : prepared;
@@ -28,6 +29,10 @@ export function prepareJudge(options: {
   // Resolve only the final selection, and only if configuration is usable and not injected.
   const auth = !injected && configuration.status.availability === 'ready' && selected?.protocol === 'system-one' ? selected.auth : undefined;
   const token = auth?.type === 'bearer-env' ? options.env[auth.name] : undefined;
+  // Never resolve a displaced credential getter for a diagnostic copy.
+  const typeSafeValue = Object.getOwnPropertyDescriptor(options.env, 'TYPESAFE_API_KEY')?.value;
+  const diagnostics = diagnosticSafety([auth?.type === 'bearer-env' ? auth.name : undefined, token,
+    typeof typeSafeValue === 'string' ? typeSafeValue : undefined]);
   const reason = configuration.status.availability === 'unavailable' ? 'configuration'
     : auth?.type === 'bearer-env' && (typeof token !== 'string' || !/^[\x21-\x7e]+$/.test(token)) ? 'missing-credentials' : undefined;
   const status: JudgeStatus = Object.freeze({ provider: providerName, requestedModel,
@@ -54,5 +59,5 @@ export function prepareJudge(options: {
     }
     return provider(request, signal, recording);
   };
-  return { status, judge, configuration };
+  return { status, judge, configuration, diagnostics };
 }

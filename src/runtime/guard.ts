@@ -62,6 +62,11 @@ export interface InvocationIdentity extends Pick<Action, 'sessionId' | 'callId' 
   invocationId: string; combinedPolicyDigest: string | null;
   profile: string; questionVersion: string;
 }
+export type RuntimeReportData = Record<string, unknown> & {
+  judge?: JudgeStatus;
+  policy?: Policy;
+  rules?: import('../sdk/types.js').OwnerReport['rules'];
+};
 export interface RuntimeOptions {
   env: Record<string, string | undefined>;
   judge: Judge;
@@ -70,7 +75,7 @@ export interface RuntimeOptions {
   actionResolver?: ActionResolver;
   activation: { read(): Activation; refresh(): Activation };
   bindRecording?: (identity: InvocationIdentity & RuntimeIdentity & { cwd: string; mode: Mode }) => RecordingSink;
-  emit?: (stage: string, data: Record<string, unknown>, archiveData?: Record<string, unknown>) => void;
+  emit?: (stage: string, data: RuntimeReportData, archiveData?: Record<string, unknown>) => void;
   observationLimits?: Partial<ObservationLimits>;
   onAssessment?: (identity: InvocationIdentity, status: ObservationState, result?: ReturnType<Consequences['permission']>, reason?: string) => void;
 }
@@ -125,7 +130,7 @@ class SessionGuard {
     else this.observations.delete(scope(identity));
   }
 
-  private record(stage: string, data: Record<string, unknown>, archiveData: Record<string, unknown> = {}): void {
+  private record(stage: string, data: RuntimeReportData, archiveData: Record<string, unknown> = {}): void {
     data = { ...data, ...this.metadata };
     if (['assessment', 'decision', 'permission', 'assessment-status'].includes(stage)) data = { evidenceContext: UNAVAILABLE_EVIDENCE_CONTEXT, ...data };
     if (['assessment', 'decision', 'assessment-status', 'permission'].includes(stage)) data = {

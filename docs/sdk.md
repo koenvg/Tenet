@@ -198,7 +198,9 @@ This is a name list, not a copyable import. The shipped `dist/sdk/index.d.ts` an
 `session.status().judge` gives that project's frozen `JudgeStatus`. `guard.status().projects` lists each initialized canonical `directory` with its `judge`, `configuration` and `observations` health. Before a project opens, the list is empty. `session.status().directory` identifies the session's project entry. There is no guard-wide effective judge or queue.
 
 `requestedModel` is the selected alias or `null` for unknown. `requestedDestination` is the validated canonical origin, without a path or trailing slash. `transportContract` is `system-one-v1` or `llamacpp-b11118-choice-v1`. `authentication` is `none` or `bearer-env`; it never contains the credential reference name or value. Injected and unknown selections have `null` destination, transport and authentication. Injected judges never inherit configured identity.
-`provider` is `system-one`, `apus-llamacpp`, `injected` or `unknown` for invalid settings without a selected provider. The official TypeSafe default is a `system-one` implementation. Historical `typesafe` is a v1 recorded identity, not the name of every System One destination. See the [judge settings reference](judge.md) for endpoint and authentication selection.
+`provider` is `system-one`, `apus-llamacpp`, `injected` or `unknown`. Unknown can mean invalid settings without a selected provider, or a withheld diagnostic identity. A ready judge still sends policy and evidence to the configured selected service when its displayed identity is withheld.
+
+The official TypeSafe default is a `system-one` implementation. Historical `typesafe` is a v1 recorded identity, not the name of every System One destination. See the [judge settings reference](judge.md) for endpoint and authentication selection.
 
 `availability` is local readiness, not a provider check. Unavailable reasons are `missing-credentials` and `configuration`. Valid APUS settings report `ready` and `experimental: true` without a TypeSafe key. APUS uses complete canonical assessments and existing decision gates; it never falls back to TypeSafe. An injected judge still overrides valid provider settings.
 
@@ -273,7 +275,7 @@ There is no global-path override, opt-out, parent search or fallback. An `env.HO
 
 The current `Policy` contract is `policy-sources-v1`. It has ordered `candidates`, validated `sources`, a `combinedDigest`, aggregate `bytes` and source-qualified `rules`. Each rule origin records role, configured source, resolved target, file digest and physical line.
 
-SDK status returns source roles, paths, digests, byte counts and per-source `ruleCount` without rule text. `combinedDigest` is null when no valid snapshot exists. `reason` and `failedRole` identify validation failure.
+SDK status returns source roles, paths, digests, byte counts and per-source `ruleCount` without rule text. `combinedDigest` is null when no valid snapshot exists or provenance is withheld from diagnostics. `reason: 'diagnostic-content-withheld'` means paths and source summaries were omitted for privacy, not that runtime policy is invalid. Other `reason` values and `failedRole` identify validation failure.
 
 All global declarations apply before all project declarations, each in physical line order. There is no precedence, cancellation or deduplication, even if both roles select the same target. Both roles share 64 KiB of file bytes and 16 user declarations, with 4096 UTF-8 bytes per rule; each boundary is allowed.
 
@@ -370,6 +372,8 @@ Check `guard.status().capture.kind` before reading health fields. `CaptureStatus
 
 Off suppresses new capture without changing its configured destination. Queued writes can finish. Archive failures remain `local-archive` with measured losses.
 
+Known selected credentials and their reference names can require capture omission. Unsafe exact payloads produce an unavailable response marker rather than edited JSON; an unsafe recording identity suppresses that invocation's capture. Both count as local `dropped` capture, without changing assessment or permission.
+
 Local counters describe only this guard's writer. `written` counts completed stage-file writes, not durable or complete invocation coverage.
 
 `bindRecording` takes precedence over `TENET_RECORDING=off`, which disables only the local archive. External health stays unknown even after successful sink calls or caught binder/sink errors. The SDK has no external health-reporting contract and does not drain or dispose external sinks. Successful `close()` says nothing about external durability.
@@ -425,7 +429,7 @@ A prepared permission report can be superseded after revalidation; update the sa
 
 `onOwnerRecord` optionally delivers immutable `status`, `assessment`, `decision`, `approval`, `permission`, `assessment-status` and `execution` records. Pi stores these as non-message custom transcript entries and validates recorded contracts when recovering findings. This is not an archive sink and delivers neither submitted requests nor raw provider responses.
 
-Owner records retain rule text, validated scores and metadata. Keep them out of agent history and evaluator evidence. Committed release records arrive outside the final synchronous handoff; only the completed `beforeTool` result can authorize dispatch.
+Owner records retain safe rule text, validated scores and metadata. Keep them out of agent history and evaluator evidence. Committed release records arrive outside the final synchronous handoff; only the completed `beforeTool` result can authorize dispatch.
 
 Event/sink failures cannot grant authorization or veto observation. Callbacks must be local and bounded. Synchronous JavaScript callbacks cannot be preempted.
 

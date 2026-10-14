@@ -35,6 +35,59 @@ async function fixture(work: (f: { root: string; project: string; delivery: stri
   } finally { await chmod(project, 0o755).catch(() => {}); await rm(root, { recursive: true, force: true }); }
 }
 
+async function projectSettings(project: string, judge: Record<string, unknown>) {
+  await mkdir(join(project, '.tenet'), { mode: 0o700 });
+  await writeFile(join(project, '.tenet/config.json'), JSON.stringify({ version: 2, judge,
+    decision: { deadlineMs: 1234 }, observation: { running: 1 } }), { mode: 0o600 });
+}
+for (const [protocol, auth, presence] of [
+  ['system-one', { type: 'none' }, 'not-required'],
+  ['system-one', { type: 'bearer-env', name: 'CUSTOM_DOCTOR_REFERENCE' }, 'missing'],
+  ['apus-llamacpp', undefined, 'not-required'],
+] as const) {
+  test(`doctor canonical project ${protocol} ${presence} replaces missing owner bearer offline`, async () => fixture(async f => {
+    delete f.env.TYPESAFE_API_KEY;
+    await projectSettings(f.project, { protocol, baseUrl: 'http://127.0.0.1:18091', model: 'authored-local', ...(auth ? { auth } : {}) });
+    const alias = join(f.root, 'alias'); await symlink(f.project, alias);
+    const before = await snapshot(f.project);
+    const originalFetch = globalThis.fetch;
+    let requests = 0; globalThis.fetch = (() => { requests++; throw new Error('no-network'); }) as typeof fetch;
+    try {
+      const report = await diagnoseProject({ projectDir: alias, deliveryDir: f.delivery, env: f.env });
+      assert.equal(report.schemaVersion, 3); assert.equal(report.project, f.project);
+      assert.equal(report.state, presence === 'missing' ? 'unavailable' : 'ready');
+      assert.equal(report.credentials.presence, presence);
+      assert.equal(report.judge.requestedDestination, 'http://127.0.0.1:18091');
+      assert.equal(report.settings.sources.judge, 'project'); assert.equal(report.settings.deadlineMs, 1234);
+      assert.equal(report.settings.sources.deadlineMs, 'project'); assert.equal(report.settings.observation?.running, 1);
+      assert.match(formatDoctor(report), /origin: http:\/\/127\.0\.0\.1:18091/);
+      assert.match(formatDoctor(report), /provenance:/);
+      assert.ok(!JSON.stringify(report).includes('CUSTOM_DOCTOR_REFERENCE')); assert.equal(requests, 0);
+      assert.deepEqual(await snapshot(f.project), before);
+    } finally { globalThis.fetch = originalFetch; }
+  }));
+}
+test('doctor invalid project source has unknown credentials and no owner fallback', async () => fixture(async f => {
+  await projectSettings(f.project, { protocol: 'unknown', baseUrl: 'https://secret.invalid', model: 'untrusted' });
+  const report = await diagnoseProject({ projectDir: f.project, deliveryDir: f.delivery, env: f.env });
+  assert.equal(report.state, 'invalid'); assert.equal(report.credentials.presence, 'unknown');
+  assert.equal(report.judge.provider, 'unknown'); assert.equal(report.judge.requestedDestination, null);
+  assert.ok(!JSON.stringify(report).includes('secret.invalid'));
+}));
+test('doctor selected custom credential and reference are absent from diagnostics with controls', async () => fixture(async f => {
+  f.env.CUSTOM_DOCTOR_REFERENCE = 'custom-doctor-secret-123';
+  await projectSettings(f.project, { protocol: 'system-one', baseUrl: 'https://custom.invalid',
+    model: 'CUSTOM_DOCTOR_REFERENCE-custom-doctor-secret-123', auth: { type: 'bearer-env', name: 'CUSTOM_DOCTOR_REFERENCE' } });
+  const host = join(f.project, 'node_modules/@earendil-works/pi-coding-agent'); await mkdir(host, { recursive: true });
+  await writeFile(join(host, 'package.json'), JSON.stringify({ name: '@earendil-works/pi-coding-agent', version: 'custom-doctor-secret-123\u001b\u202e' }));
+  f.env.TENET_RECORDING_DIR = join(f.root, 'CUSTOM_DOCTOR_REFERENCE-custom-doctor-secret-123\u001b\u202e');
+  const report = await diagnoseProject({ projectDir: f.project, deliveryDir: f.delivery, env: f.env });
+  assert.equal(report.judge.availability, 'ready');
+  for (const output of [JSON.stringify(report), formatDoctor(report)]) {
+    assert.ok(!output.includes('custom-doctor-secret-123')); assert.ok(!output.includes('CUSTOM_DOCTOR_REFERENCE'));
+    assert.ok(!output.includes('\u001b')); assert.ok(!output.includes('\u202e'));
+  }
+}));
 test('doctor reports policy identity, local readiness and honest verification limits without secret text', async () => fixture(async f => {
   const report = await diagnoseProject({ projectDir: f.project, deliveryDir: f.delivery, env: f.env });
   assert.equal(report.state, 'ready'); assert.equal(report.exitCode, 0);
@@ -182,6 +235,11 @@ test('doctor redacts semver-shaped credentials and credential substrings in comp
   const identity = await diagnoseProject({ projectDir: f.project, deliveryDir: f.delivery, env: f.env });
   f.env.TYPESAFE_API_KEY = identity.policy.sources[0]!.digest!;
   const redacted = await diagnoseProject({ projectDir: f.project, deliveryDir: f.delivery, env: f.env });
+  assert.equal(redacted.policy.validation, 'valid');
+  assert.equal(redacted.judge.availability, 'ready');
+  assert.equal(redacted.policy.combinedDigest, null);
+  assert.deepEqual(redacted.policy.sources, []);
+  assert.equal(redacted.policy.reason, 'diagnostic-content-withheld');
   for (const output of [JSON.stringify(redacted), formatDoctor(redacted)]) assert.ok(!output.includes(f.env.TYPESAFE_API_KEY));
 }));
 

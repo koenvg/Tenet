@@ -4,7 +4,9 @@ Use this guide to select an owner-wide judge, check private version 2 settings o
 
 System One selects an explicit HTTPS or literal loopback destination. APUS OpenJev v1 through llama.cpp remains experimental and needs no TypeSafe key. Local readiness does not verify connectivity. Neither implementation falls back to another judge.
 
-SDK and Pi sessions use each canonical project's overrides and keep isolated judge, credential, deadline and queue resources. Review the project selection before opening a session. Project-aware doctor diagnostics and v2 destination reports follow in separate deliveries. No live setup is authorized by this guide or an offline package check.
+SDK and Pi sessions use each canonical project's overrides and keep isolated judge, credential, deadline and queue resources. Doctor schema 3 reports the effective project selection offline. Pi startup and status use the current session snapshot.
+
+Historical details use recorded `judge-report-v1` or `judge-report-v2` facts, never current settings. No live setup is authorized by this guide or an offline package check.
 
 ## Check settings offline
 
@@ -16,12 +18,16 @@ For an archive, first install its locked production dependencies as described in
    node dist/cli/index.js doctor --project /absolute/path/to/project
    ```
 
-2. Check `Settings` for the source, validation state, effective deadline and queue. Check `Judge` for the selected provider, requested alias and local availability. Invalid settings produce a bounded category, not file contents.
+2. Check `Settings` for effective limits and per-field provenance. Check `Judge` for the implementation, requested alias, canonical origin, transport, authentication and local availability. Invalid settings produce a bounded category, not file contents.
 3. If settings are invalid, inspect and correct them yourself outside the guarded agent path. After any edit, fully stop and restart the host process. Pi `/reload` and a new session are not supported settings reload procedures.
 
-An absent file reports TypeSafe and the defaults below. TypeSafe without its key reports `missing-credentials`. Valid APUS settings report the selected alias and local `ready` availability, not verified connectivity or a missing TypeSafe key. Doctor exits `1` for invalid or active unavailable setup; coherent off or dormant setup can exit `0` with the provider limitation visible. See [doctor states and fixes](doctor.md#states-and-exits).
+Confirmed absence of both owner and project settings reports TypeSafe and the defaults below. TypeSafe without its key reports `missing-credentials`.
 
-Until the report/doctor delivery, System One still appears under the legacy `typesafe` label, and doctor's credential-presence row checks `TYPESAFE_API_KEY`. The judge availability check uses the selected source. For custom auth, check the source named in your reviewed file rather than treating that legacy row or guidance as selected-credential verification.
+Valid APUS settings report the selected alias and local `ready` availability, not verified connectivity or a missing TypeSafe key. Doctor exits `1` for invalid or active unavailable setup; coherent off or dormant setup can exit `0` with the provider limitation visible. See [doctor states and fixes](doctor.md#states-and-exits).
+
+Doctor shows the canonical origin, transport, authentication mode and setting provenance. Anonymous System One and APUS credentials are `not-required`. Invalid selection is `unknown`, not anonymous or a fallback.
+
+Selected bearer presence is `present` or `missing`; neither is validity verification. Reports contain no bearer environment reference name or value.
 
 Local availability is not connectivity, model provenance, calibration, active hooks or assessment accuracy. An alias names the requested model, not proof of loaded weights.
 
@@ -46,9 +52,15 @@ All groups share the configured whole-assessment deadline and cancellation. Ever
 
 Across the groups, real assessments still disclose selected rule text, paths, tool arguments and required protected data to the selected provider. Capture is on by default and can retain those strings despite redaction. `TENET_RECORDING=off` stops new local capture, not disclosure or backend logs. An assessment is neither permission by itself nor proof of execution.
 
+Official TypeSafe uses quota. A custom hosted service can have operator-defined charges.
+
+Kev or APUS on Pika receives these strings through owner-operated forwarding. The owner must control Pika logging, log access and retention; loopback and capture-off do not remove those responsibilities.
+
 ## System One transport and compatibility
 
-The official default uses one System One adapter with origin `https://api.typesafe.ai`, alias `jev-latest` and the explicitly selected TypeSafe bearer source. Version 2 settings can select a different compatible destination and model. Current records still use `typesafe` and `judge-report-v1` for System One, including custom selections. They do not record or attest the destination; project-aware v2 reports follow in a separate delivery.
+The official default uses one System One adapter with origin `https://api.typesafe.ai`, alias `jev-latest` and the explicitly selected TypeSafe bearer source. Version 2 settings can select another compatible destination and model. New records identify `system-one` through `judge-report-v2`, with canonical origin, transport and authentication mode separate from requested and validated returned aliases.
+
+Historical v1 `typesafe` remains historical TypeSafe. Missing historical destinations stay not recorded.
 
 The adapter's internal `createSystemOneJudge` boundary takes an origin, model and either explicit bearer authentication or explicit `none`. It does not read credentials from the environment.
 
@@ -340,7 +352,7 @@ Credential fields, headers and fields named `token` stay omitted. Submitted toke
 
 Omitted-field, unavailable and truncated markers remain. These are not exact unredacted native logs.
 
-Sole-`NONE` provenance records no inference, `modelConfidence: false` and `authenticatedCoverage: false`. Its probability of one is not confidence. Additive `judge-report-v1` in owner report version 4 keeps requested provider/model and reports `returnedModel` only for a complete validated assessment.
+Sole-`NONE` provenance records no inference, `modelConfidence: false` and `authenticatedCoverage: false`. Its probability of one is not confidence. Additive `judge-report-v2` in owner report version 4 keeps requested provider/model and reports `returnedModel` only for a complete validated assessment.
 
 Readers reject unknown native versions. They do not infer absent fields in old records, rewrite historical identities or apply current question versions to old captures. Historical `apus-recording-v1` shared-state captures retain their recorded meaning. Capture-off without an external sink stores no native request/response archive. The optional [repository-only native recording contract](https://github.com/koenvg/Tenet/blob/main/docs/assessment-contract.md#native-recording-contract) has development details and is not shipped or required for owner setup.
 

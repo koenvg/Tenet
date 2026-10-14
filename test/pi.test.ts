@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { realpath, mkdtemp, writeFile, rm, symlink, unlink } from 'node:fs/promises';
+import { realpath, mkdtemp, writeFile, rm, symlink, unlink, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
@@ -10,32 +10,136 @@ import type { Judge } from '../src/decision/contracts.js';
 import { answer, ruleAnswer } from './helpers.js';
 import { REPORTED_FIXTURES, REPORTED_RULES } from '../eval/generic-rule-fixtures.js';
 import { reportedAssessment } from './reported-assessments.js';
+import { recoverReport } from '../src/pi/report-history.js';
+import { validPolicySnapshot } from '../src/decision/policy-contract.js';
 
 type Handler = (event: any, ctx: ExtensionContext) => any;
 const pass: Judge = async request => answer(request.policy);
 const ask: Judge = async request => answer(request.policy, 'APPROVAL_REQUIRED');
-async function harness(judge: Judge = pass, options: { confirm?: () => Promise<boolean>; hasUI?: boolean; env?: Record<string, string>; policy?: string; beforeStart?: boolean } = {}) {
+async function harness(judge: Judge = pass, options: { confirm?: () => Promise<boolean>; hasUI?: boolean; env?: Record<string, string>; policy?: string; beforeStart?: boolean; configuredJudge?: Record<string, unknown> } = {}) {
   const cwd = await realpath(await mkdtemp(join(tmpdir(), 'tenet-pi-'))), file = join(cwd, 'TENET.md');
   await writeFile(file, options.policy ?? `Rule; ${RULE}`);
+  if (options.configuredJudge) {
+    await mkdir(join(cwd, '.tenet'), { mode: 0o700 });
+    await writeFile(join(cwd, '.tenet/config.json'), JSON.stringify({ version: 2, judge: options.configuredJudge }), { mode: 0o600 });
+  }
   const handlers = new Map<string, Handler>();
+  const commands = new Map<string, { handler: (args: string, ctx: ExtensionContext) => unknown }>();
   const records: any[] = [], tools: any[] = [], prompts: string[] = [], notifications: string[] = [], statuses: string[] = [];
   const controller = new AbortController();
   const pi = { on: (name: string, handler: Handler) => handlers.set(name, handler), getAllTools: () => tools,
-    registerCommand() {},
+    registerCommand: (name: string, command: { handler: (args: string, ctx: ExtensionContext) => unknown }) => commands.set(name, command),
     appendEntry: (_type: string, data: unknown) => records.push(data) } as unknown as ExtensionAPI;
   const ctx = { cwd, hasUI: options.hasUI ?? true, signal: controller.signal,
     sessionManager: { getSessionId: () => 'session' },
     ui: { confirm: async (title: string, body: string) => { prompts.push(title + '\n' + body); return options.confirm ? options.confirm() : true; },
       notify: (message: string) => notifications.push(message), setStatus: (_key: string, value: string) => statuses.push(value) },
   } as unknown as ExtensionContext;
-  registerGuard(pi, { judge, env: { TENET_RECORDING: 'off', TENET_MODE: 'enforce', ...options.env } });
+  registerGuard(pi, { ...(options.configuredJudge ? {} : { judge }), env: { TENET_RECORDING: 'off', TENET_MODE: 'enforce', ...options.env } });
   const emit = (event: { type: string; [key: string]: unknown }) => handlers.get(event.type)?.(event, ctx);
   const restart = () => emit({ type: 'session_start', reason: 'startup' });
   if (!options.beforeStart) await restart();
   const call = (input: Record<string, unknown> = { arbitrary: ['code'], token: 'secret-value' }, name = 'unknown-tool', id = 'c') => emit({ type: 'tool_call', toolName: name, toolCallId: id, input });
-  return { cwd, file, call, emit, restart, records, tools, prompts, notifications, statuses, controller, close: () => rm(cwd, { recursive: true, force: true }) };
+  return { cwd, file, call, status: () => commands.get('tenet')!.handler('status', ctx), emit, restart, records, tools, prompts, notifications, statuses, controller, close: () => rm(cwd, { recursive: true, force: true }) };
 }
 
+for (const missing of [false, true]) {
+  test(`Pi selected project startup and status are safe and local, missing bearer ${missing}`, async () => {
+    const h = await harness(pass, { configuredJudge: { protocol: 'system-one', baseUrl: 'https://custom.invalid',
+      model: 'custom-model', auth: { type: 'bearer-env', name: 'PI_SELECTED_REFERENCE' } },
+      env: { ...(missing ? {} : { PI_SELECTED_REFERENCE: 'pi-selected-secret' }), TENET_RECORDING_DIR: missing ? '/tmp/PI_SELECTED_REFERENCE\u202e' : '/tmp/PI_SELECTED_REFERENCE-pi-selected-secret\u202e' } });
+    try {
+      const startup = h.notifications.find(message => message.includes('Rule text'))!;
+      assert.match(startup, /origin "https:\/\/custom.invalid/); assert.match(startup, /authentication bearer-env/);
+      assert.match(startup, /judge source project/); assert.match(startup, /connectivity unverified/);
+      assert.match(startup, missing ? /local availability unavailable/ : /local availability ready/);
+      await writeFile(join(h.cwd, '.tenet/config.json'), JSON.stringify({ version: 2, judge: { protocol: 'system-one', baseUrl: 'http://127.0.0.1:19999', model: 'changed', auth: { type: 'none' } } }), { mode: 0o600 });
+      await h.status();
+      const status = h.notifications.at(-1)!;
+      assert.match(status, /origin "https:\/\/custom.invalid/); assert.match(status, /authentication bearer-env/);
+      assert.match(status, /judge source project/); assert.doesNotMatch(status, /19999/);
+      for (const output of [...h.notifications, JSON.stringify(h.records)]) {
+        assert.ok(!output.includes('PI_SELECTED_REFERENCE')); assert.ok(!output.includes('pi-selected-secret'));
+        assert.ok(!output.includes('\u202e'));
+      }
+    } finally { await h.emit({ type: 'session_shutdown' }); await h.close(); }
+  });
+}
+test('Pi unknown-but-ready startup warns about configured service disclosure before any action', async () => {
+  const originalFetch = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = (async () => { requests++; throw new Error('offline-only'); }) as typeof fetch;
+  const h = await harness(pass, { configuredJudge: { protocol: 'system-one', baseUrl: 'https://custom.invalid',
+    model: 'authored\u202emodel', auth: { type: 'bearer-env', name: 'PI_KEY' } }, env: { PI_KEY: 'pi-secret' } });
+  try {
+    assert.equal(requests, 0);
+    const startup = h.notifications.find(message => message.includes('Rule text'))!;
+    assert.match(startup, /Judge unknown/); assert.match(startup, /local availability ready/);
+    assert.match(startup, /reach the configured selected service, whose diagnostic identity is withheld/);
+    assert.doesNotMatch(startup, /no provider|settings are invalid/);
+    await h.status();
+    assert.match(h.notifications.at(-1)!, /local availability ready/);
+    assert.equal(requests, 0);
+  } finally { await h.emit({ type: 'session_shutdown' }); await h.close(); globalThis.fetch = originalFetch; }
+});
+test('Pi reserves the no-provider disclosure for actual invalid configuration', async () => {
+  const originalFetch = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = (async () => { requests++; throw new Error('must-not-request'); }) as typeof fetch;
+  const h = await harness(pass, { configuredJudge: { protocol: 'unsupported' } });
+  try {
+    const startup = h.notifications.find(message => message.includes('Rule text'))!;
+    assert.match(startup, /local availability unavailable/);
+    assert.match(startup, /no provider while settings are invalid/);
+    assert.equal(requests, 0);
+  } finally { await h.emit({ type: 'session_shutdown' }); await h.close(); globalThis.fetch = originalFetch; }
+});
+test('Pi retains valid private owner entries after two selected projects initialize', async () => {
+  const root = await realpath(await mkdtemp('/tmp/tenet-pi-private-'));
+  const secret = 'b-selected-secret', reference = 'B_SELECTED_REFERENCE';
+  const a = join(root, secret, 'a'), b = join(root, 'b');
+  const handlers = new Map<string, Handler>();
+  const entries: any[] = [], notices: string[] = [];
+  const commands = new Map<string, { handler: (args: string, ctx: ExtensionContext) => unknown }>();
+  const originalFetch = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = (async () => { requests++; return new Response('', { status: 503 }); }) as typeof fetch;
+  const context = (cwd: string, sessionId: string) => ({ cwd, hasUI: true,
+    sessionManager: { getSessionId: () => sessionId, getBranch: () => entries.map(data => ({ type: 'custom', customType: 'tenet', data })) },
+    ui: { notify: (message: string) => notices.push(message), setStatus: () => {} } }) as unknown as ExtensionContext;
+  const ca = context(a, 'a-session'), cb = context(b, 'b-session');
+  try {
+    for (const [cwd, model, name] of [[a, `a-${secret}`, 'A_KEY'], [b, 'b-model', reference]]) {
+      await mkdir(join(cwd!, '.tenet'), { recursive: true, mode: 0o700 });
+      await writeFile(join(cwd!, 'TENET.md'), `Rule; Keep ${cwd === a ? secret : 'work'} local.`);
+      await writeFile(join(cwd!, '.tenet/config.json'), JSON.stringify({ version: 2, judge: { protocol: 'system-one',
+        baseUrl: 'https://custom.invalid', model, auth: { type: 'bearer-env', name } } }), { mode: 0o600 });
+    }
+    const pi = { on: (name: string, handler: Handler) => handlers.set(name, handler), getAllTools: () => [],
+      registerCommand: (name: string, command: { handler: (args: string, ctx: ExtensionContext) => unknown }) => commands.set(name, command),
+      appendEntry: (_type: string, data: unknown) => entries.push(structuredClone(data)) } as unknown as ExtensionAPI;
+    registerGuard(pi, { env: { A_KEY: 'a-selected-secret', [reference]: secret, TENET_MODE: 'enforce', TENET_RECORDING: 'off' }, controlPath: join(root, 'control.json') });
+    await handlers.get('session_start')!({}, cb);
+    await handlers.get('session_start')!({}, ca);
+    assert.equal(requests, 0);
+    await commands.get('tenet')!.handler('status', ca);
+    assert.match(notices.at(-1)!, /Judge unknown/); assert.match(notices.at(-1)!, /local availability ready/);
+    const result = await handlers.get('tool_call')!({ toolCallId: 'call', toolName: 'fixture', input: {} }, ca);
+    assert.match(result.reason, /provider-error/); assert.equal(requests, 1);
+    const permission = entries.find(entry => entry.stage === 'permission');
+    assert.ok(permission);
+    const restored = recoverReport({ type: 'custom', customType: 'tenet', data: permission });
+    assert.equal(restored?.reason, 'provider-error'); assert.equal(restored?.requestedProvider, 'unknown');
+    assert.equal(restored?.configuration?.sources.judge, 'project');
+    for (const entry of entries.filter(entry => entry.stage === 'status')) assert.equal(validPolicySnapshot(entry.policy), true);
+    for (const output of [JSON.stringify(entries), notices.join('\n')]) {
+      assert.ok(!output.includes(secret)); assert.ok(!output.includes(reference));
+    }
+  } finally {
+    await handlers.get('session_shutdown')?.({}, ca);
+    globalThis.fetch = originalFetch; await rm(root, { recursive: true, force: true });
+  }
+});
 test('injected judge disclosure is owner-only and does not claim TypeSafe submission', async () => {
   const h = await harness();
   try {

@@ -5,6 +5,7 @@ const id = (n: number) => n.toString(16).padStart(64, '0');
 const pass = { ...previewSummaries['synthetic-pass']!, metadata: { schemas: [4], questionVersion: 'synthetic-v1',
   profile: 'synthetic-recorded-profile', policyDigest: id(10) }, omittedRules: 0, explanation: summarizeBlockingRules(previewSummaries['synthetic-pass']!.rules), evaluatorState: { status: 'completed' as const, reason: null } };
 const failed = { ...pass, identity: { toolName: 'bash', callId: 'synthetic-provider-error-1', mode: 'observe' },
+  judge: { ...pass.judge, returnedModel: null },
   decision: 'BLOCK', reason: 'provider-error', assessmentStatus: 'unavailable', failure: 'provider-error',
   evaluatorState: { status: 'unavailable' as const, reason: 'provider-error' }, categories: ['unavailable' as const],
   noRulesClassifiedViolated: false, explanation: summarizeBlockingRules([]), rules: pass.rules.map(rule => ({ ...rule, result: null, gateIds: null })) };

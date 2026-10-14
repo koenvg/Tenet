@@ -223,7 +223,7 @@ test('fake Pi owner status and findings name APUS experimental; private native d
     await h.start(); const result = await h.call(); await h.assessed();
     assert.equal(result, undefined);
     await h.commands.get('tenet').handler('status', h.ctx);
-    assert.match(h.notifications.at(-1)!, /apus-llamacpp experimental/);
+    assert.match(h.notifications.at(-1)!, /APUS llama.cpp experimental/);
     let selection = 0;
     h.ctx.ui.select = async (title, items) => { h.views.push({ title, items }); return selection++ === 0 ? items[0] : undefined; };
     await h.commands.get('tenet').handler('', h.ctx);

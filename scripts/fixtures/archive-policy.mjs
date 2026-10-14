@@ -78,11 +78,14 @@ for (const mode of ['observe', 'enforce']) {
     const diagnosis = spawnSync(runtime, args, { cwd: project, env: { ...process.env, ...env, TYPESAFE_API_KEY: 'offline-presence-only' }, encoding: 'utf8' });
     assert.equal(diagnosis.status, invalid ? 1 : 0, `${diagnosis.stderr}\n${diagnosis.stdout}`);
     const report = JSON.parse(diagnosis.stdout);
-    assert.equal(report.schemaVersion, 2);
+    assert.equal(report.schemaVersion, 3);
     assert.equal(report.state, invalid ? 'invalid' : scenario === 'none' ? 'dormant' : 'ready');
     for (const field of ['contractVersion', 'sources', 'combinedDigest', 'ruleCount'])
       assert.deepEqual(report.policy[field], status.policy[field]);
-    assert.deepEqual(report.policy.candidates, status.policy.candidates.map(({ role, selection, source, presence }) => ({ role, selection, source, presence })));
+    assert.deepEqual(report.policy.candidates, status.policy.candidates.map(({ role, selection, source, presence }) => ({
+      role, selection, source, presence,
+      ...(scenario === 'empty-override' && role === 'project' ? { failure: 'configuration' } : {}),
+    })));
     assert.equal(report.policy.validation, invalid ? 'invalid' : roles.length ? 'valid' : 'absent');
     if (invalid) {
       assert.equal(report.policy.reason, status.policy.reason);

@@ -103,15 +103,15 @@ export function orderedRules<T extends SummaryRule>(rules: T[]) {
   return [...rules].sort((a, b) => rank(a) - rank(b));
 }
 // Presentation of recorded outputs only. No threshold comparisons or evaluator imports.
-function blockingFacts(view: SummaryDecision): SummaryExplanation {
+function blockingFacts(view: Omit<SummaryDecision, 'judge'>): SummaryExplanation {
   return view.explanation ?? summarizeBlockingRules(view.rules);
 }
-function uncertaintyNotice(view: SummaryDecision, context = blockingFacts(view)): string | null {
+function uncertaintyNotice(view: Omit<SummaryDecision, 'judge'>, context = blockingFacts(view)): string | null {
   if (view.decision !== 'BLOCK' || view.reason !== 'insufficient-evidence' || !view.noRulesClassifiedViolated
     || !context.blockerCount || !context.uncertaintyOnly) return null;
   return `No rule was classified as violated. ${view.identity?.mode === 'observe' ? 'The assessment would block in enforce mode' : 'The recorded assessment is blocked'} by uncertainty. This is not a safety guarantee.`;
 }
-export function explainDecision(view: SummaryDecision): string {
+export function explainDecision(view: Omit<SummaryDecision, 'judge'>): string {
   const context = blockingFacts(view), first = context.firstBlocker;
   if (view.decision === 'BLOCK' && first) {
     const notice = uncertaintyNotice(view, context);
@@ -154,7 +154,7 @@ export function actionPreview(view: InvocationView): string | null {
   }
   return null;
 }
-export function decisionReason(view: SummaryDecision): string {
+export function decisionReason(view: Omit<SummaryDecision, 'judge'>): string {
   const assessmentStatus = view.evaluatorState?.status ?? view.assessmentStatus;
   if (!['validated', 'completed'].includes(assessmentStatus)) return `Assessment ${assessmentStatus}. No completed assessment is available.`;
   const uncertainty = uncertaintyNotice(view);

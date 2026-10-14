@@ -3,6 +3,7 @@ import type { InvocationSummary } from '../../../src/inspector/archive-index.js'
 import type { SummaryCall, SummaryDecision, SummaryRule, SummaryScore, SummaryEvaluatorState } from './model.js';
 import { summarizeBlockingRules } from '../../../src/inspector/summary-explanation.js';
 
+import { summaryJudge } from '../../../src/inspector/summary-judge.js';
 const score = (value: unknown): SummaryScore | null => {
   if (!value || typeof value !== 'object') return null;
   const source = value as { choice?: unknown; probabilities?: unknown };
@@ -31,6 +32,7 @@ export function standaloneRule(rule: InvocationView['rules'][number]): SummaryRu
 export function standaloneSummary(view: InvocationView & { evaluatorState?: SummaryEvaluatorState }): SummaryDecision {
   const rules = view.rules.map(standaloneRule);
   return {
+    judge: summaryJudge(view.judge, view.evaluatorState ?? { status: 'incomplete', reason: null }),
     identity: view.identity ? { callId: view.identity.callId, toolName: view.identity.toolName, mode: view.identity.mode } : null,
     metadata: { schemas: view.identity?.schemas ?? [], questionVersion: String(view.questionVersion ?? 'unknown'),
       profile: view.assessmentProfile, policyDigest: typeof (view.policy.combinedDigest ?? view.policy.digest) === 'string' && /^[a-f0-9]{64}$/.test(view.policy.combinedDigest ?? view.policy.digest) ? view.policy.combinedDigest ?? view.policy.digest : null },

@@ -148,9 +148,9 @@ try {
   await session.prompt('/tenet status');
   assert.ok(statuses.some(s => s.startsWith(`TENET ON ${expectedMode.toUpperCase()}`)));
   assert.match(notifications.at(-1), /argument stability|arguments-not-frozen/);
-  assert.ok(notifications.some(s => s.includes(`judge ${provider}`) && s.includes('connectivity unverified')),
+  assert.ok(notifications.some(s => s.includes(provider === 'apus-llamacpp' ? 'Judge APUS llama.cpp' : 'Judge System One') && s.includes('connectivity unverified')),
     'explicit native status identifies the selected judge independently of startup UI timing');
-  if (provider === 'apus-llamacpp') assert.ok(notifications.some(s => s.includes(`judge ${provider} experimental`)));
+  if (provider === 'apus-llamacpp') assert.ok(notifications.some(s => s.includes('Judge APUS llama.cpp experimental')));
   if (expectedMode === 'observe') {
     // Permission and the local effect happen while judgment is still pending.
     await invoke(); assert.equal(executed, 1); assert.equal(confirmations.length, 0);

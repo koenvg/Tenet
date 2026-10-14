@@ -44,7 +44,7 @@ export function createGuard(options: GuardOptions): Guard {
   let closing: Promise<boolean> | undefined;
   let watching = false;
   const deliver = (event: OwnerEvent) => {
-    try { options.onOwnerEvent?.(immutable(event)); } catch { /* Owner delivery cannot authorize or veto. */ }
+    try { options.onOwnerEvent?.(immutable(resources.diagnostics().ownerEvent(event))); } catch { /* Owner delivery cannot authorize or veto. */ }
   };
   const resources = createRuntimeResources({ ...options, capabilities, env: { ...(options.env ?? process.env) },
     onCaptureHealth: () => deliver({ type: 'capture', capture: captureStatus() }),
@@ -71,7 +71,7 @@ export function createGuard(options: GuardOptions): Guard {
   const captureStatus = (): CaptureStatus => {
     if (!archive) return { kind: 'external', health: 'unknown' };
     const { enabled, ...health } = archive.health();
-    return { kind: enabled ? 'local-archive' : 'disabled', ...health };
+    return resources.diagnostics().captureStatus({ kind: enabled ? 'local-archive' : 'disabled', ...health });
   };
   const syncWatch = () => {
     const needed = !closed && [...sessions.values()].some(s => !s.closed && s.initialized && s.project.runtime.coverageStatus(s.identity).readiness.eligible);
@@ -95,7 +95,7 @@ export function createGuard(options: GuardOptions): Guard {
       const status = (): SessionStatus => {
         const coverage = runtime.coverageStatus(id);
         const ready = coverage.readiness;
-        return immutable({ directory: project.directory, identity: { sessionId: id.sessionId, contextId: id.contextId },
+        return immutable(resources.diagnostics().sessionStatus({ directory: project.directory, identity: { sessionId: id.sessionId, contextId: id.contextId },
           state: entry.closed || closed ? 'closed' : !entry.initialized ? 'uninitialized' : !ready.eligible ? 'dormant' : ready.unavailable ? 'unavailable' : 'ready',
           reason: entry.closed || closed ? 'session-closed' : ready.unavailable,
           mode: coverage.mode, modeWarning: runtime.modeWarning, activation: coverage.activation, capabilities: coverage.adapter,
@@ -105,7 +105,7 @@ export function createGuard(options: GuardOptions): Guard {
           policy: { contractVersion: ready.policy.contractVersion, candidates: ready.policy.candidates,
             sources: ready.policy.available ? ready.policy.sources.map(({ rules, ...source }) => ({ ...source, ruleCount: rules.length })) : [],
             combinedDigest: ready.policy.available ? ready.policy.combinedDigest : null, ruleCount: ready.ruleCount,
-            ...(!ready.policy.available ? { reason: ready.policy.reason, failedRole: ready.policy.failedRole } : {}) } });
+            ...(!ready.policy.available ? { reason: ready.policy.reason, failedRole: ready.policy.failedRole } : {}) } }));
       };
       const unavailable = (reason: string): BeforeToolResult => immutable({
         permission: runtime.mode === 'enforce' ? 'blocked' : 'released', reason, ...(runtime.mode === 'enforce' ? { blockReason: `TENET blocked: ${reason}.` } : {}), assessment: unavailableAssessment(reason), execution: 'unknown' });

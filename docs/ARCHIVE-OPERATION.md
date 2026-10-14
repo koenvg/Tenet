@@ -14,7 +14,9 @@ Pi loads `dist/pi/extension.js`, which registers the native guard and inspector 
 
 ## Check status before a live action
 
-A real assessment sends full policy, paths, selected tool evidence and bounded observations to the selected judge. TypeSafe uses quota; APUS through private SSH forwarding sends these to Pika and uses CPU. Secrets can survive field redaction.
+A real assessment sends full policy, paths, selected tool evidence and bounded observations to the selected service. Official TypeSafe uses quota. Custom hosted System One costs depend on its operator.
+
+Kev or APUS through owner-operated forwarding sends these strings to Pika. Secrets can survive field redaction.
 
 Default local capture saves submitted strings in `~/.tenet/recordings`. `TENET_RECORDING=off` stops neither disclosure nor all backend logs; the owner controls backend log access/retention.
 
@@ -41,8 +43,12 @@ Observe never vetoes or opens approval, including for unavailable assessment or 
    TENET_MODE=observe pi
    ```
 
-3. In an eligible session, run `/tenet status`. It shows base mode, activation, policy readiness, effective capture and declared host coverage.
+3. In an eligible session, run `/tenet status`. It shows base mode, activation, policy readiness, effective capture and declared host coverage. It also shows the current session's canonical judge origin, transport, authentication mode, per-field provenance and effective limits.
 4. Use bare `/tenet` to browse owner findings. A finding describes an assessment, not permission or proof that a tool ran.
+
+Startup and status use the current session's frozen project snapshot. Owner finding details use recorded identity and provenance. V1 or absent historical destinations say not recorded, not today's destination.
+
+Failed or unfinished assessment has no complete returned model. Bearer environment reference names and values are not report fields.
 
 Expected active status is `TENET ON OBSERVE`, or `TENET ON ENFORCE` after an explicit enforce launch. A shared off choice shows `TENET OFF`; unavailable control shows `TENET CONTROL UNAVAILABLE`.
 
@@ -234,7 +240,9 @@ Approval waits are serialized and the timeout includes queue time. A late answer
 
 ## Settings before launch
 
-Private provider selection and JSON deadline/queue limits are in the shipped [judge/settings guide](judge.md). Settings live only in owner `~/.tenet/config.json`, separate from activation. Confirmed absence retains TypeSafe/`jev-latest`; invalid settings are unavailable, never a fallback. APUS needs no TypeSafe key. Only local readiness is checked offline.
+Private protocol selection and JSON deadline and queue limits are in the shipped [judge settings guide](judge.md). Owner `~/.tenet/config.json` supplies the base selection. The canonical project's private `.tenet/config.json` can replace the complete judge or override supplied limits.
+
+Both sources are separate from activation. Confirmed absence retains official System One at `https://api.typesafe.ai` with `jev-latest`; invalid sources never fall back. Anonymous System One and APUS need no bearer credential. Doctor checks local readiness only.
 
 Set environment variables in the shell that launches Pi. Code and environment changes require a full process restart. Do not use `/reload` or `/new` to apply code or environment changes. Doctor reads process environment, not dotenv files or Pi settings.
 
@@ -268,9 +276,9 @@ export TENET_SENSITIVE_FIELDS='["customerSecret","internalPayload"]'
 
 Matching ignores case, hyphens, underscores and whitespace. Recognized credential fields remain removed. Executor arguments do not change. Redaction cannot find all embedded or encoded secrets, and rule text is not secret-scanned.
 
-The TypeSafe client uses `https://api.typesafe.ai`, `jev-latest`, disabled SDK logging and no retries. `jev-latest` is a provider alias, not an immutable release.
+The official default uses the System One adapter at `https://api.typesafe.ai` with `jev-latest`, no client logging and no retries. A configured custom origin receives the same protocol through its selected authentication mode. The alias is not an immutable release or physical weight attestation.
 
-Records retain requested/returned model identities. Cancellation reaches the SDK; late responses cannot change a blocked decision. There is no live-mode mock fallback.
+New `judge-report-v2` records retain canonical origin, transport and auth mode alongside requested and validated returned aliases. Historical v1 `typesafe` keeps its original meaning and missing destinations stay not recorded. Cancellation reaches the adapter; late responses cannot change a blocked decision. There is no live-mode mock fallback.
 
 ## Troubleshooting
 
@@ -280,7 +288,7 @@ Run doctor outside Pi in the launch environment. It never starts hooks or submit
 | --- | --- |
 | No footer or `/tenet` command | Confirmed absence of both implicit candidates with no override is dormant in both modes. Registration supplies no policy. Check the selected cwd, author policy externally and restart. If a source is selected, check `pi list` and load errors. A load error means no Tenet hook. |
 | Invalid or broken active policy | A malformed or unreadable selected file, broken link or stale policy is unavailable. Check UTF-8 `Rule;` lines, grammar and limits above. Review the selected path externally, reload or restart, and verify digest. Observe permits without a pass; enforce blocks. |
-| Invalid settings or selected provider errors | Check provider/alias, deadline and queue with doctor, then the [private setup and rollback guide](judge.md). TypeSafe needs its key; APUS does not. Unreachable Pika, closed forwarding, timeout or a mismatched backend is unavailable, not a pass or fallback. Live connectivity checks require separate full-payload/service authorization. |
+| Invalid settings or selected provider errors | Check provider/alias, deadline and queue with doctor, then the [private setup and rollback guide](judge.md). Bearer auth needs its selected credential; anonymous System One and APUS do not. Unreachable Pika, closed forwarding, timeout or a mismatched backend is unavailable, not a pass or fallback. Live connectivity checks require separate full-payload/service authorization. |
 | `TENET OFF` or `CONTROL UNAVAILABLE` | `/tenet on` restores this process's mode, not enforce. Fix unsafe permissions/links outside Pi; repair safe malformed content through native on/off. Other processes notice asynchronously. |
 | Pending or lost findings | Check status for completed, unavailable, dropped, cancelled and cumulative loss counts. Queue limits and interruptions can lose work. Absence of a report is not `PASS`. |
 | Native findings but no inspector history | Recording opt-out leaves native reporting active. Otherwise check capture location and loss/drain counts. Unsafe directories, full disk or queue loss can prevent capture without changing permission. Stop writers before storage repair. |

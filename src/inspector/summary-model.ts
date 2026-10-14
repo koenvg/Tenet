@@ -1,5 +1,16 @@
 import type { FindingCategory } from '../decision/finding-triage.js';
 import type { RecordedOrigin } from '../recording/policy-contract.js';
+import type { JudgeReportV1, JudgeReportV2 } from '../recording/judge.js';
+import type { ConfigurationStatus } from '../runtime/configuration.js';
+
+export interface SummaryJudge {
+  provider: JudgeReportV1['requestedProvider'] | JudgeReportV2['requestedProvider'] | null;
+  requestedModel: string | null; returnedModel: string | null;
+  judgeReportVersion: JudgeReportV1['judgeReportVersion'] | JudgeReportV2['judgeReportVersion'] | null;
+  requestedDestination: string | null;
+  transportContract: JudgeReportV2['transportContract']; authentication: JudgeReportV2['authentication'];
+  experimental: true | null; configuration: ConfigurationStatus | null;
+}
 // Presentation inputs only. Host adapters must validate and bound these before transport.
 export interface SummaryRule {
   id: string; text: string; line: number | null; enforcement: string; builtin: boolean;
@@ -28,6 +39,7 @@ export interface SummaryExplanation {
   firstBlocker: (Pick<SummaryRule, 'builtin' | 'line' | 'result' | 'thresholds'> & { gate: string }) | null;
 }
 export interface SummaryDecision {
+  judge: SummaryJudge;
   identity: { callId: string; toolName: string; mode: string } | null;
   decision: string; reason: string; permission: string; execution: string; approval: string;
   categories: FindingCategory[]; missing: string[]; assessmentStatus: string; failure: string | null;

@@ -5,6 +5,8 @@ import { explainDecision, primaryStatus } from './presentation.js';
 import EvidenceCoverage from './EvidenceCoverage.js';
 import NativeMappings from './NativeMappings.js';
 
+import RecordedJudgeFields from './shared/RecordedJudgeFields.js';
+import { summaryJudge } from '../../src/inspector/summary-judge.js';
 export default function RecordingDetails({ view }: { view: InvocationView }) {
   return <>
     <section className="record-group" aria-label="Recorded outcomes">
@@ -29,9 +31,7 @@ export default function RecordingDetails({ view }: { view: InvocationView }) {
         <div><dt>Adapter version</dt><dd>{view.adapterCoverage?.version ?? 'unverified'}</dd></div>
         <div><dt>Recording schemas</dt><dd>{view.identity?.schemas.join(', ') ?? 'unknown'}</dd></div>
         <div><dt>Assessment profile</dt><dd>{view.assessmentProfile}</dd></div>
-        <div><dt>Provider</dt><dd>{view.judge.provider ?? 'Provider not recorded'}{view.judge.experimental === true ? ' experimental' : ''}</dd></div>
-        <div><dt>Requested model</dt><dd>{view.judge.requestedModel ?? 'not recorded'}</dd></div>
-        <div className="record-wide"><dt>Returned model</dt><dd>{view.judge.returnedModel ?? 'not recorded; no complete returned assessment'}</dd></div>
+        <RecordedJudgeFields judge={summaryJudge(view.judge, view.evaluatorState)} />
         <div className="record-wide"><dt>Judge questions</dt><dd>{view.questionVersion ?? 'not recorded'}</dd></div>
         {view.native && <>
           <div><dt>Native recording</dt><dd>{view.native.contract.version}</dd></div>

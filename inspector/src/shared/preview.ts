@@ -4,6 +4,8 @@ const target = document.getElementById('summary-preview')!;
 const narrow = new URLSearchParams(location.search).get('container') === '390';
 target.style.width = narrow ? '390px' : '100%';
 target.style.maxWidth = '100%';
+const authoredCase = new URLSearchParams(location.search).get('case');
+if (authoredCase && previewSummaries[authoredCase]) previewInput.model = { ...previewInput.model, selectedId: authoredCase, selected: previewSummaries[authoredCase] };
 const workspace = mountSummaryWorkspace(target, previewInput);
 function update() { workspace.update(previewInput); }
 const allCalls = previewInput.model.calls;

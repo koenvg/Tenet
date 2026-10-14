@@ -77,7 +77,7 @@ test('shared workspace keeps the standalone summary hierarchy and check disclosu
   await screen.getByText(/Browse all rules/).click();
   await screen.getByRole('button', { name: /Record every file edit/ }).click();
   await expect.element(screen.getByRole('heading', { name: 'Rule at line 9' })).toBeVisible();
-  expect(screen.container.querySelectorAll('.common-summary > details > summary')).toHaveLength(1);
+  expect([...screen.container.querySelectorAll('.common-summary > details > summary')].map(node => node.textContent)).toEqual(['Why this assessment', 'Recorded judge']);
   expect(screen.container.querySelector('.evidence-dock')).toBeNull();
 });
 

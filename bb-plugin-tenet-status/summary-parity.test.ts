@@ -57,6 +57,7 @@ for (const schema of [3, 4] as const) for (const [n, scenario] of cases.entries(
     const bb = (await host.experimental_call('readOverview', { threadId, recordingDirectory: root })).selected!;
     assert.ok(bb);
     for (const field of ['decision', 'reason', 'permission', 'execution', 'approval', 'noRulesClassifiedViolated'] as const) assert.equal(bb[field], standalone[field], field);
+    assert.deepEqual(bb.judge, standalone.judge);
     assert.equal(bb.reason, c.reason); assert.equal(bb.approval, c.expectedApproval);
     assert.equal(explainDecision(bb), explainDecision(standalone)); assert.equal(decisionReason(bb), decisionReason(standalone));
     assert.ok(!JSON.stringify(bb).includes(sentinel));
