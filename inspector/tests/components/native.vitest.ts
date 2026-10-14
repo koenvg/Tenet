@@ -65,8 +65,32 @@ test('historical metadata is not labelled as APUS or filled from current setting
   screen.container.style.containerType = 'inline-size';
   await screen.getByText('Recorded data', { exact: true }).click();
   await screen.getByText('Recording and coverage', { exact: true }).click();
-  screen.getByText('Provider not recorded', { exact: true }).element().scrollIntoView();
-  await expect.element(screen.getByText('Provider not recorded', { exact: true })).toBeVisible();
+  screen.getByText('Implementation not recorded', { exact: true }).element().scrollIntoView();
+  await expect.element(screen.getByText('Implementation not recorded', { exact: true })).toBeVisible();
   expect(screen.container.textContent).not.toContain('experimental');
   expect(screen.container.querySelector('.native-mappings')).toBeNull();
+});
+
+for (const failure of [false, true]) test(`standalone recorded v2 ${failure ? 'failure' : 'completed'} fields use historical identity`, async () => {
+  for (const width of [1280, 390]) {
+    await page.viewport(width, 1000);
+    const view = makeView(failure ? { failure: 'provider-error' } : {});
+    view.judge = { provider: 'system-one', judgeReportVersion: 'judge-report-v2', requestedModel: 'recorded-kev-request', returnedModel: failure ? 'stale-returned-must-not-display' : 'recorded-kev-return',
+      requestedDestination: 'http://127.0.0.1', transportContract: 'system-one-v1', authentication: 'none', experimental: null, configuration: null };
+    const screen = await render(createElement(Detail, { view }));
+    screen.container.style.containerType = 'inline-size';
+    await screen.getByText('Recorded data', { exact: true }).click();
+    await screen.getByText('Recording and coverage', { exact: true }).click();
+    for (const label of ['recorded-kev-request', 'http://127.0.0.1', 'system-one-v1', 'judge-report-v2']) {
+      screen.getByText(label, { exact: true }).element().scrollIntoView();
+      await expect.element(screen.getByText(label, { exact: true })).toBeVisible();
+    }
+    const metadata = screen.container.querySelector('.recording-details')!;
+    expect(metadata.textContent).toContain('Authentication'); expect(metadata.textContent).toContain('none');
+    expect(metadata.textContent).not.toContain('stale-returned-must-not-display');
+    expect(metadata.textContent).toContain(failure ? 'not recorded; no complete returned assessment' : 'recorded-kev-return');
+    expect(metadata.querySelector('a[href^="http://127.0.0.1"]')).toBeNull();
+    expect(metadata.getBoundingClientRect().right).toBeLessThanOrEqual(width);
+    await screen.unmount();
+  }
 });

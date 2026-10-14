@@ -3,6 +3,9 @@ import { findingCategories } from '../src/decision/finding-triage.js';
 import { evaluatorFailureCodes } from '../src/inspector/finding-view.js';
 import { summaryChoices, summaryGates } from '../src/inspector/bb-summary.js';
 
+import { recordedJudgeReport } from '../src/recording/judge.js';
+import { recordedConfiguration } from '../src/recording/configuration.js';
+import type { SummaryJudge } from '../src/inspector/summary-model.js';
 export const recordId = z.string().regex(/^[a-f0-9]{64}$/);
 const label = z.string().max(256), count = z.number().int().nonnegative();
 const cursor = z.string().min(1).max(512);
@@ -28,11 +31,38 @@ const explanation = z.object({ blockerCount: count, uncertaintyOnly: z.boolean()
     result: rule.shape.result, thresholds: rule.shape.thresholds }).strict().nullable() }).strict();
 const facts = { decision: label, permission: label, execution: label, categories, missing: z.array(label).max(8),
   assessmentStatus: label, failure: z.enum(evaluatorFailureCodes).nullable(), evaluatorState };
+const configurationSource = z.enum(['owner', 'project', 'default', 'environment', 'sdk']);
+const limitSources = z.object({ running: configurationSource, waiting: configurationSource, bytes: configurationSource, ageMs: configurationSource }).strict();
+const configuration = z.object({
+  source: z.enum(['~/.tenet/config.json', '~/.tenet/config.json + <project>/.tenet/config.json']),
+  settings: z.enum(['absent', 'valid', 'invalid']), availability: z.enum(['ready', 'unavailable']),
+  reason: z.enum(['unsafe', 'unreadable', 'oversized', 'malformed', 'schema', 'effective-limits']).optional(),
+  deadlineMs: z.number().int().positive().max(2147483647).nullable(),
+  observation: z.object({ running: count.positive(), waiting: count.positive(), bytes: count.positive(), ageMs: count.positive().max(2147483647) }).strict().nullable(),
+  sources: z.object({ judge: configurationSource.nullable(), deadlineMs: configurationSource.nullable(), observation: limitSources.nullable() }).strict(),
+}).strict().refine(value => !!recordedConfiguration(value), 'invalid recorded configuration');
+export const summaryJudgeSchema = z.object({
+  provider: z.enum(['typesafe', 'system-one', 'apus-llamacpp', 'injected', 'unknown']).nullable(),
+  requestedModel: label.nullable(), returnedModel: label.nullable(),
+  judgeReportVersion: z.enum(['judge-report-v1', 'judge-report-v2']).nullable(),
+  requestedDestination: z.string().max(2048).nullable(),
+  transportContract: z.enum(['system-one-v1', 'llamacpp-b11118-choice-v1']).nullable(),
+  authentication: z.enum(['none', 'bearer-env']).nullable(), experimental: z.literal(true).nullable(), configuration: configuration.nullable(),
+}).strict().refine(value => {
+  if (value.experimental !== null && value.provider !== 'apus-llamacpp') return false;
+  if (value.judgeReportVersion === null) return value.requestedDestination === null && value.transportContract === null && value.authentication === null;
+  const report = recordedJudgeReport({ ...value, requestedProvider: value.provider, returnedModel: value.returnedModel ?? undefined });
+  return !!report && (value.judgeReportVersion === 'judge-report-v2'
+    || value.requestedDestination === null && value.transportContract === null && value.authentication === null);
+}, 'incoherent recorded judge');
+type Assert<T extends true> = T;
+export type JudgeSchemaMatchesModel = Assert<z.infer<typeof summaryJudgeSchema> extends SummaryJudge ? true : false>;
+export type JudgeModelMatchesSchema = Assert<SummaryJudge extends z.infer<typeof summaryJudgeSchema> ? true : false>;
 const call = z.object({ ...facts, id: recordId, callId: label, toolName: label, timestamp: z.number(), mode: label }).strict();
-const selected = z.object({ ...facts, identity: z.object({ callId: label, toolName: label, mode: z.enum(['observe', 'enforce']) }).strict().nullable(),
+const selected = z.object({ ...facts, judge: summaryJudgeSchema, identity: z.object({ callId: label, toolName: label, mode: z.enum(['observe', 'enforce']) }).strict().nullable(),
   metadata: z.object({ schemas: z.array(z.number().int()).max(4), questionVersion: label, profile: label, policyDigest: recordId.nullable() }).strict(),
   reason: label, approval: label, noRulesClassifiedViolated: z.boolean(), explanation, rules: z.array(rule).max(16), omittedRules: count, missingRuleSnapshots: count.optional(),
-  rulePage: z.object({ snapshot: recordId, offset: count, total: count, next: nullableCursor }).strict().optional() }).strict();
+  rulePage: z.object({ snapshot: recordId, offset: count, total: count, next: nullableCursor }).strict().optional() }).strict().refine(value => value.evaluatorState.status === 'completed' || value.judge.returnedModel === null, 'returned model without complete assessment');
 export const overviewSchema = z.object({ readScope: recordId.optional(), state: z.enum(['available', 'unsupported', 'unavailable']),
   coverage: z.enum(['unknown', 'partial', 'unavailable']), linkedCalls: count, failures: count, issues: codes,
   sessions: z.array(z.object({ id: recordId, timestamp: z.number(), started: z.number(), calls: count,

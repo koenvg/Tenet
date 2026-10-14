@@ -1,4 +1,4 @@
-import { stat } from 'node:fs/promises';
+import { realpath, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { loadPolicy } from '../decision/policy.js';
 import type { PolicyFailure } from '../decision/contracts.js';
@@ -9,11 +9,11 @@ import { recordingConfig } from '../recording/archive.js';
 import { inspectCompatibility, inspectDelivery, type Compatibility } from './installation.js';
 export { DELIVERY_FILES } from './installation.js';
 import { prepareJudge, type JudgeStatus } from '../runtime/judge.js';
-import type { ConfigurationStatus } from '../runtime/configuration.js';
+import { prepareConfiguration, type ConfigurationStatus, type PreparedConfiguration } from '../runtime/configuration.js';
 
 interface Diagnostic { code: string; guidance: string }
 export interface DoctorReport {
-  schemaVersion: 2;
+  schemaVersion: 3;
   state: 'ready' | 'off' | 'dormant' | 'invalid' | 'unavailable';
   exitCode: 0 | 1;
   project: string;
@@ -23,7 +23,7 @@ export interface DoctorReport {
   policy: import('../sdk/types.js').SessionStatus['policy'] & { validation: 'valid' | 'invalid' | 'absent' };
   control: Activation;
   judge: JudgeStatus;
-  credentials: { presence: 'present' | 'missing'; validity: 'unverified' };
+  credentials: { presence: 'present' | 'missing' | 'not-required' | 'unknown'; validity: 'unverified' };
   capture: { state: 'local-archive' | 'disabled'; directory: string; configuration: 'valid' | 'invalid'; writability: 'unverified' };
   delivery: Awaited<ReturnType<typeof inspectDelivery>>;
   compatibility: Compatibility;
@@ -38,36 +38,36 @@ export interface DoctorReport {
 export async function diagnoseProject(options: {
   projectDir: string; deliveryDir: string; env: Record<string, string | undefined>;
 }): Promise<DoctorReport> {
-  const env = { ...options.env }, project = resolve(options.projectDir);
-  // Externally derived diagnostics must not disclose credentials or terminal control characters.
-  const safeDiagnostic = (value: string) => {
-    const secret = env.TYPESAFE_API_KEY;
-    return (secret ? value.split(secret).join('[redacted]') : value).replace(/[\x00-\x1f\x7f-\x9f]/g, '?').slice(0, 512);
-  };
+  const env = Object.freeze({ ...options.env });
+  let project = resolve(options.projectDir);
   const issues: Diagnostic[] = [], limitations: Diagnostic[] = [];
   const issue = (code: string, guidance: string) => issues.push({ code, guidance });
   const limit = (code: string, guidance: string) => limitations.push({ code, guidance });
   let invalid = false;
-  try { if (!(await stat(project)).isDirectory()) throw new Error(); }
+  try { project = await realpath(project); if (!(await stat(project)).isDirectory()) throw new Error(); }
   catch { invalid = true; issue('project-unavailable', 'Select an existing readable project directory with --project.'); }
   const selectedMode = readMode(env);
-  const { status: judge, configuration: prepared } = prepareJudge({ env });
+  const configurationInput: PreparedConfiguration = invalid ? {
+    settings: { state: 'invalid', reason: 'unreadable' },
+    status: { source: '~/.tenet/config.json + <project>/.tenet/config.json', settings: 'invalid', availability: 'unavailable',
+      reason: 'unreadable', deadlineMs: null, observation: null, sources: { judge: null, deadlineMs: null, observation: null } },
+  } : prepareConfiguration({ env, project });
+  const { status: judge, configuration: prepared, diagnostics } = prepareJudge({ env, configuration: configurationInput });
+  const safeDiagnostic = (value: string) => diagnostics.text(value, 512);
   let configuration: DoctorReport['configuration'] = prepared.status.availability === 'ready' ? 'valid' : 'invalid';
   const selected = await selectPolicies(project, env);
   if (selectedMode.warning) configuration = 'invalid';
   if (configuration === 'invalid') {
     invalid = true;
-    issue('configuration', 'Check private owner config.json, supported settings fields, TENET_POLICY, TENET_MODE, decision/evidence limits, approval timeout and TENET_SENSITIVE_FIELDS. Mode must be observe or enforce. Doctor does not print or repair settings.');
+    issue('configuration', 'Check private owner and project config.json, supported settings fields, TENET_POLICY, TENET_MODE, decision/evidence limits, approval timeout and TENET_SENSITIVE_FIELDS. Mode must be observe or enforce. Doctor does not print or repair settings.');
   }
   const eligible = selected.eligible;
   const loaded = eligible ? await loadPolicy(selected.candidates) : undefined;
   const policy: DoctorReport['policy'] = {
-    contractVersion: 'policy-sources-v1', candidates: selected.candidates.map(c => ({ role: c.role, selection: c.selection,
-      source: safeDiagnostic(c.source), presence: c.presence })),
-    sources: loaded?.available ? loaded.sources.map(({ rules, ...s }) => ({ ...s, ruleCount: rules.length,
-      source: safeDiagnostic(s.source), target: safeDiagnostic(s.target), digest: safeDiagnostic(s.digest) })) : [],
+    contractVersion: 'policy-sources-v1', candidates: selected.candidates,
+    sources: loaded?.available ? loaded.sources.map(({ rules, ...s }) => ({ ...s, ruleCount: rules.length })) : [],
     validation: !eligible ? 'absent' : loaded?.available ? 'valid' : 'invalid',
-    combinedDigest: loaded?.available ? safeDiagnostic(loaded.combinedDigest) : null,
+    combinedDigest: loaded?.available ? loaded.combinedDigest : null,
     ruleCount: loaded?.available ? loaded.rules.length : 0,
     ...(loaded && !loaded.available ? { reason: loaded.reason, failedRole: loaded.failedRole } : {}),
   };
@@ -84,8 +84,10 @@ export async function diagnoseProject(options: {
   if (capture.issue) {
     invalid = true; issue(capture.issue, 'Set TENET_RECORDING to on or off and TENET_RECORDING_DIR to an absolute path.');
   }
-  const presence = env.TYPESAFE_API_KEY?.trim() ? 'present' : 'missing';
-  if (judge.reason === 'missing-credentials') limit(judge.reason, 'Configure TYPESAFE_API_KEY securely before starting an active session. Presence does not verify provider validity.');
+  const presence: DoctorReport['credentials']['presence'] = judge.provider === 'unknown' || judge.reason === 'configuration' ? 'unknown'
+    : judge.authentication === 'none' ? 'not-required'
+    : judge.authentication === 'bearer-env' ? judge.reason === 'missing-credentials' ? 'missing' : 'present' : 'unknown';
+  if (judge.reason === 'missing-credentials') limit(judge.reason, 'Configure the selected bearer credential securely before starting an active session. Presence does not verify provider validity.');
   if (judge.experimental) limit('experimental-judge', 'APUS is experimental. Local readiness does not verify connectivity, calibration or enforcement accuracy.');
   const delivery = await inspectDelivery(resolve(options.deliveryDir));
   if (delivery.status === 'incomplete') issue('delivery-incomplete', 'Build the SDK/CLI and inspector, install locked runtime dependencies, or replace the incomplete installation.');
@@ -102,8 +104,8 @@ export async function diagnoseProject(options: {
   const unavailable = delivery.status === 'incomplete' || compatibility.status === 'unavailable' || (!bypass && judge.availability === 'unavailable');
   const state = invalid ? 'invalid' : unavailable ? 'unavailable' : bypass ?? 'ready';
   return {
-    schemaVersion: 2, state, exitCode: state === 'invalid' || state === 'unavailable' ? 1 : 0,
-    project: safeDiagnostic(project), mode: selectedMode.mode, configuration, settings: prepared.status, policy, control, judge,
+    schemaVersion: 3, state, exitCode: state === 'invalid' || state === 'unavailable' ? 1 : 0,
+    project: safeDiagnostic(project), mode: selectedMode.mode, configuration, settings: prepared.status, policy: { ...diagnostics.policySummary(policy), validation: policy.validation }, control, judge: diagnostics.identity(judge),
     credentials: { presence, validity: 'unverified' },
     capture: { state: capture.enabled ? 'local-archive' : 'disabled', directory: safeDiagnostic(capture.directory),
       configuration: capture.issue ? 'invalid' : 'valid', writability: 'unverified' },
@@ -121,6 +123,8 @@ export function formatDoctor(report: DoctorReport): string {
     ...report.policy.sources.map(s => `Policy source: ${s.role} ${s.source}; target ${s.target}; SHA-256 ${s.digest}; ${s.bytes} bytes; ${s.ruleCount} rules`),
     `Combined policy digest: ${report.policy.combinedDigest ?? 'unavailable'}; declared rules: ${report.policy.ruleCount}`,
     `Judge: ${report.judge.provider}${report.judge.experimental ? ' experimental' : ''}; requested model: ${report.judge.requestedModel ?? 'unknown'}; local availability: ${report.judge.availability}`,
+    `Judge origin: ${report.judge.requestedDestination ?? 'unknown'}; transport: ${report.judge.transportContract ?? 'unknown'}; authentication: ${report.judge.authentication ?? 'unknown'}`,
+    `Settings provenance: ${JSON.stringify(report.settings.sources)}`,
     `Settings: ${report.settings.source}; ${report.settings.settings}${report.settings.reason ? ` (${report.settings.reason})` : ''}; deadline ms: ${report.settings.deadlineMs ?? 'unavailable'}; observation: ${report.settings.observation ? JSON.stringify(report.settings.observation) : 'unavailable'}`,
     `Credentials: ${report.credentials.presence}; validity: unverified; provider connectivity: unverified`,
     `Capture: ${report.capture.state}; ${report.capture.directory}; configuration: ${report.capture.configuration}; writability: unverified`,

@@ -8,9 +8,11 @@ Obtain `tenet.tar.gz` from a passing `main` GitHub Actions build. The private ar
 
 You need Node 22.19+ with npm, Bun 1.3.14+ and a separate Pi installation. The tested host is `@earendil-works/pi-coding-agent` 1.1.0. SDK-only use supports Node 22.12+ or Bun 1.3.14+ without Pi.
 
-Before installation, registration or installed extension replacement, obtain separate authorization. A live-capable Tenet installation sends full policy and selected evidence to the selected judge, TypeSafe or experimental APUS on Pika. Strings can contain secrets despite redaction.
+Before installation, registration or installed extension replacement, obtain separate authorization. Live-capable Tenet sends full policy, paths and selected evidence to the selected judge. Strings can contain secrets despite redaction.
 
-TypeSafe uses quota; Pika uses CPU and can retain backend logs. Local capture is on by default. `TENET_RECORDING=off` stops neither disclosure nor all backend logs.
+Official TypeSafe uses quota. Custom hosted System One costs depend on its operator. Kev or experimental APUS through owner-operated forwarding can send these strings to Pika.
+
+The owner controls Pika logging, access and retention. Local capture is on by default. `TENET_RECORDING=off` stops neither provider disclosure nor provider and backend logs.
 
 Installation approval does not authorize a service, tunnel, owner settings edit, evidence submission or enforcement.
 
@@ -57,9 +59,9 @@ Before launching Pi, review these limits:
    export TENET_RECORDING=off
    ```
 
-   This does not prevent provider disclosure, disable observation or native findings, or delete old records. Omit it to retain evidence for the inspector.
+   This does not prevent provider disclosure, stop provider and backend logs, disable observation or native findings, or delete old records. Omit it to retain evidence for the inspector.
 
-   Before writing owner policy, obtain separate authorization. Future assessment discloses full policy and selected evidence to TypeSafe or Pika, with possible secrets despite redaction, quota/CPU cost, default capture and owner-controlled backend logs. Capture-off stops neither disclosure nor all logs.
+   Before writing owner policy, obtain separate authorization. Future assessment discloses full policy and selected evidence to the selected service, with possible secrets despite redaction, service-dependent costs, default capture and owner-controlled backend logs. Capture-off stops neither disclosure nor all logs.
 
 3. Review the intended rules first. Author the optional `~/.tenet/TENET.md`, the project's `TENET.md`, or both yourself in an editor or owner shell, outside the guarded agent's intercepted path. Create the global file only if you want its rules across projects.
 
@@ -94,6 +96,10 @@ Bun can run the same compiled CLI. Doctor checks the installation containing tha
 `ready` means local prerequisites are valid. Hooks, credential validity and provider connectivity remain unverified. Fix invalid or unavailable setup before launch. `off` and `dormant` are bypass states, not passing assessments. See [doctor states, exits and limits](doctor.md).
 
 Check global and project roles, configured paths, resolved targets, each file digest, combined digest and total rule count. Absent optional candidates remain listed.
+
+Doctor schema 3 also identifies the effective canonical project's judge origin, transport, authentication mode, setting provenance and limits. Anonymous System One and APUS credentials are not-required. An invalid selection is unknown, never a fallback.
+
+Pi startup and status use the frozen current session snapshot; restored owner details use recorded facts, with missing historical destinations not recorded.
 
 After any policy-only change, reload through Pi session start or restart and check these values again. Active source changes invalidate the whole snapshot; off/on does not refresh it. Code or environment changes require a full restart.
 

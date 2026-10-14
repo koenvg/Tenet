@@ -1,12 +1,16 @@
 # Configure Tenet for a Pi process
 
-Use this guide to configure a built developer checkout. Archive owners should use the shipped [operation guide](ARCHIVE-OPERATION.md). Set process options in the launch shell and select the judge in `~/.tenet/config.json`.
+Use this guide to configure a built developer checkout. Archive owners should use the shipped [operation guide](ARCHIVE-OPERATION.md). Set process options in the launch shell and review owner and project judge selection through [private settings](judge.md#source-and-private-file-requirements).
 
 ## Apply and check a setting
 
-Before owner-file changes or live launch, obtain separate authorization for disclosure of full policy, paths, tool evidence and bounded observations. TypeSafe uses API quota; a selected local judge through forwarding sends the data to Pika and uses its CPU.
+Before owner or project settings changes or live launch, obtain separate authorization for disclosure of full policy, paths, tool evidence and bounded observations.
 
 Secrets can survive redaction and enter local recordings or backend logs. `TENET_RECORDING=off` stops only new local capture.
+
+Official TypeSafe uses quota. Custom hosted System One costs depend on its operator.
+
+Kev or APUS through owner-operated forwarding can send these strings to Pika. The owner controls Pika logging, access and retention, even with local capture disabled.
 
 Observe never blocks execution or opens approval. Tenet is not a sandbox, and Pi installation does not establish coverage in other hosts.
 
@@ -40,13 +44,17 @@ Mac Pi + owner config -> Mac loopback -> private SSH forwarding -> Pika APUS
 
 Version 2 requires a complete owner judge. Select `judge.protocol: "system-one"` with an explicit origin, model and auth source, or `"apus-llamacpp"` with its native loopback origin and expected model. TypeSafe is the official System One default, not the only supported destination. Optional deadline and queue fields retain their bounds. Version 1, unknown fields and wrong types fail without migration or fallback.
 
-Single-project preparation also validates partial `<project>/.tenet/config.json` overrides. Runtime routing and project-aware doctor diagnostics follow separately; current SDK/Pi callers still use owner-wide settings. Do not use a project file as a live destination switch yet. Review cloned configuration before future use because it can select both the recipient of evidence and a credential source. Private permissions are not a sandbox.
+SDK and Pi sessions use the canonical project's private `.tenet/config.json` overrides. Doctor diagnoses that same project offline. A supplied project judge replaces the whole owner/default judge, including authentication.
+
+Invalid owner or project sources never fall back. Review cloned configuration before use because it can select both the evidence recipient and a credential source. Private permissions are not a sandbox.
 
 Use private, same-owner `.tenet` and `config.json`, normally `0700` and `0600` on POSIX. The file must be owner-readable, regular, single-link, valid UTF-8 JSON and at most 32768 bytes, with no symlinks anywhere in its path. Tenet neither creates, repairs nor watches it.
 
-The deadline uses the environment override, then the file value, then `2500` ms. No environment switch selects the provider or overrides observation queue limits. Each guard freezes settings, including invalid results, for pending work and new sessions; edits require a full process restart.
+The deadline uses the environment override, then project JSON, owner JSON and `2500` ms. Supplied project queue fields override owner fields. Each guard freezes owner settings and environment, then the effective valid or invalid snapshot at first initialization of each canonical project.
 
-Confirmed file absence selects TypeSafe with built-in limits, subject to environment overrides. Invalid input makes assessment unavailable, not a provider fallback. Global/project `TENET.md` files supply policy rules; `control.json` supplies live cooperative on/off.
+Later sessions reuse that project's snapshot. Edits require a new guard or full Pi process restart. See [limits and precedence](judge.md#defaults-limits-and-precedence).
+
+Confirmed absence of both owner and project settings selects TypeSafe with built-in limits, subject to environment overrides. Invalid input makes assessment unavailable, not a provider fallback. Global/project `TENET.md` files supply policy rules; `control.json` supplies live cooperative on/off.
 
 For offline JSON examples and field validation, read [the settings schema](judge.md#version-2-schema). For queue defaults, numeric bounds and SDK overrides, read [limits and precedence](judge.md#defaults-limits-and-precedence). For separately authorized deployment, use [the unverified private Pika plan](judge.md#plan-private-pika-setup).
 
@@ -62,7 +70,7 @@ APUS scores do not establish calibration or enforcement safety.
 
 Optional owner `~/.tenet/TENET.md` applies alongside session `TENET.md`. `TENET_POLICY` replaces only the project candidate. Both implicit files absent without an override means dormant; unusable sources invalidate the whole set. For selection, stale sources and reload rules, read [policy selection](policy.md#choose-the-policy-file).
 
-Doctor reads owner settings and process environment, not dotenv files, secret managers or Pi settings. It checks credential presence only.
+Doctor reads owner and canonical project settings and process environment, not dotenv files, secret managers or Pi settings. Schema 3 shows selected bearer `present` or `missing`, anonymous or APUS `not-required`, and invalid selection `unknown`. Authentication mode and per-field provenance are visible, never the bearer reference name or value.
 
 ## Decision and evidence settings
 
@@ -115,8 +123,8 @@ For active eligible sessions, unavailable assessment blocks in enforce and permi
 
 | Problem | Result and next action |
 | --- | --- |
-| Invalid mode, owner settings, guard setting or selected policy | Doctor `invalid`, exit `1`, including off/dormant. Correct the reported issue and restart. |
-| Missing TypeSafe key with TypeSafe selected | Active doctor `unavailable`, exit `1`. Configure the key securely; coherent off/dormant can exit `0`. |
+| Invalid mode, owner or project settings, guard setting or selected policy | Doctor `invalid`, exit `1`, including off/dormant. Correct the reported issue and restart. |
+| Missing selected bearer credential | Active doctor `unavailable`, exit `1`. Configure the key securely; coherent off/dormant can exit `0`. |
 | Invalid recording setting/path | Capture disabled; guard permission unchanged. Doctor `invalid`, exit `1`. |
 | Unsafe/unreadable control | No assessment or recording. Fix permissions/links externally; repair safe malformed content with native on/off. Doctor `invalid`, exit `1`. |
 | Both implicit policies absent, no override | Dormant with no active Tenet status or assessment. Doctor exits `0` if other prerequisites are coherent. |
@@ -125,7 +133,9 @@ Invalid setup takes precedence over unavailable and bypass states; doctor off ta
 
 ## Provider settings that are not switches
 
-The absent-file default selects `https://api.typesafe.ai`, `jev-latest` and the `TYPESAFE_API_KEY` source. Explicit System One settings can replace all three. A selected compatible endpoint receives scoped policy/evidence and only its selected bearer credential, if any. The adapter has no client logging or retries. Aliases and current `judge-report-v1` records do not attest a destination or weights; late responses cannot change blocked decisions.
+The absent-file default selects `https://api.typesafe.ai`, `jev-latest` and the `TYPESAFE_API_KEY` source. Explicit System One settings can replace all three. A selected compatible endpoint receives scoped policy/evidence and only its selected bearer credential, if any. The adapter has no client logging or retries.
+
+Current `judge-report-v2` records retain the selected canonical origin, transport and auth mode. Aliases do not attest physical weights; late responses cannot change blocked decisions.
 
 Neither provider has a live-mode mock fallback. For APUS protocol and cancellation limits, read [the native contract](judge.md#pinned-native-assessment-contract).
 

@@ -8,6 +8,7 @@ import { Button } from '../../../web/components/ui/button.js';
 import { orderedRules, hasFinding } from '../presentation.js';
 import './presentation.css';
 
+import RecordedJudgeFields from './RecordedJudgeFields.js';
 export default function SummaryDetail({ view, moreRules = false, loading = false, loadMoreRules, restartRules, onRuleSelect }: {
   view: SummaryDecision; moreRules?: boolean; loading?: boolean; loadMoreRules?: () => void; restartRules?: () => void;
   onRuleSelect?: (id: string) => void;
@@ -51,6 +52,9 @@ export default function SummaryDetail({ view, moreRules = false, loading = false
       </details>
       {!!view.omittedRules && <p role="status">{view.omittedRules} recorded rules are not shown on this page.{moreRules ? ' Use More rules to continue.' : view.rulePage?.offset ? ' Use First rule page to return.' : ''}</p>}
       {!!view.missingRuleSnapshots && <p className="missing-data">{view.missingRuleSnapshots} assessed rules have no recorded snapshot. Their text and identity cannot be inspected here.</p>}
+      <details className="recorded-judge-disclosure disclosure"><summary>Recorded judge</summary>
+        <dl className="record-fields judge-fields"><RecordedJudgeFields judge={view.judge} /></dl>
+      </details>
       <p className="summary-privacy-note">Raw evidence, action previews, exact questions and provider responses are separate from this summary. They remain in the standalone inspector on the selected machine.</p>
     </section></div>
   </section>;

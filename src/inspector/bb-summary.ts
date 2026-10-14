@@ -10,6 +10,8 @@ import { recordedOrigin } from '../recording/policy-contract.js';
 import { summarizeBlockingRules } from './summary-explanation.js';
 import { recordedInputs } from '../recording/scoped.js';
 
+import { recordedJudge } from '../recording/native.js';
+import { summaryJudge } from './summary-judge.js';
 // Keep the BB reason allowlist complete when the decision contract changes.
 const decisionReasons = {
   'policy-unavailable': true, 'policy-format': true, 'policy-file-limit': true, 'policy-rule-count-limit': true, 'policy-rule-size-limit': true,
@@ -82,6 +84,7 @@ export function projectSummaryDecision(records: ArchiveRecord[], ruleOffset = 0)
   const summaryRules = allRules.slice(ruleOffset, ruleOffset + 16);
   const facts = recordedDecisionFacts(records);
   return { identity: records[0] ? { callId: summaryLabel(records[0].callId), toolName: summaryLabel(records[0].toolName), mode: records[0].mode } : null,
+    judge: summaryJudge(recordedJudge(records), findings.evaluatorState),
     metadata: { schemas: [...new Set(records.map(r => r.schemaVersion))], questionVersion: summaryLabel(request.questionVersion ?? begin.questionVersion),
       profile: summaryLabel(findings.profile), policyDigest: typeof (policy.combinedDigest ?? policy.digest) === 'string' && /^[a-f0-9]{64}$/.test(policy.combinedDigest ?? policy.digest) ? policy.combinedDigest ?? policy.digest : null },
     decision: known(facts.decision, ['ALLOW', 'ASK', 'BLOCK']),

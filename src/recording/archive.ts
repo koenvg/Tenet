@@ -49,6 +49,8 @@ export class ArchiveWriter {
   private loss(kind: 'failed' | 'dropped' | 'drainTimeouts'): void {
     this[kind]++; this.lossVersion++; this.changed();
   }
+  /** Known-sensitive exact content was intentionally not captured. Counts as capture loss. */
+  captureSuppressed(): void { if (this.config.enabled && !this.closed) this.loss('dropped'); }
   private record(identity: BoundIdentity, stage: ArchiveRecord['stage'], data: Record<string, unknown>): ArchiveRecord {
     if (identity.schemaVersion >= 4 && ['request', 'assessment', 'decision', 'permission', 'assessment-status'].includes(stage)) {
       data = { evidenceContext: UNAVAILABLE_EVIDENCE_CONTEXT,

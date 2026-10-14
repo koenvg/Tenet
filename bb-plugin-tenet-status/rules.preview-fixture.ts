@@ -27,6 +27,7 @@ export function rulesSyntheticRead(selection: OverviewSelection): ThreadOverview
   rules[1]!.text = 'Recorded long rule '.repeat(110).slice(0, 2038) + ' [omitted]'; rules[1]!.textStatus = 'truncated'; rules[1]!.omittedTextChars = 962;
   rules[2]!.text = 'Rule text unavailable'; rules[2]!.textStatus = 'missing';
   const selected: SummaryDecision = { ...base, identity: { toolName: 'bash', callId: chosen.callId, mode: 'observe' },
+    judge: { ...base.judge, returnedModel: n === 6 ? null : 'authored-returned' },
     metadata: { schemas: [3], questionVersion: 'recorded-v3', policyDigest: id(90), profile: 'legacy' },
     decision: n === 4 ? 'ASK' : n === 0 ? 'ALLOW' : 'BLOCK', reason: n === 6 ? 'provider-error' : 'recorded-decision',
     permission: 'released', execution: 'unknown', approval: n === 4 ? 'not requested (observe mode)' : 'not required',

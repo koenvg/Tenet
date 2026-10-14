@@ -13,7 +13,13 @@ Recordings can contain secrets in submitted source, commands and other strings d
 
 Capture is on by default in `~/.tenet/recordings`, whether the inspector is running or not. `TENET_RECORDING=off` disables new local capture, not provider disclosure, observation or native findings. Old files remain. See [capture, retention and deletion](#sensitive-local-storage).
 
-Opening retained evidence is offline and makes no evaluator request. Real assessed Pi actions contact the selected judge. TypeSafe uses quota; APUS sends full native rendering to the owner-operated backend, including Pika through forwarding. Before authorizing such an action, read [what the selected judge receives](limits.md#data-disclosure-and-audit). There is no live mock fallback.
+Opening retained evidence is offline and makes no evaluator request. Real assessments send policy, paths and selected evidence to the selected service. Official TypeSafe uses quota. Custom hosted System One costs depend on its operator.
+
+Kev or APUS through owner-operated forwarding sends these strings to Pika. The owner controls Pika logging, access and retention. Capture-off stops neither provider disclosure nor provider and backend logs.
+
+Before a live action, read [what the selected judge receives](limits.md#data-disclosure-and-audit). There is no live mock fallback.
+
+Before a live-capable Pi launch or activation, obtain separate authorization for the selected service and exact full policy and selected evidence. Before starting either inspector service, obtain separate authorization to expose retained full policy and selected evidence to same-user loopback readers. Opening the inspector makes no new judge request.
 
 ## Open it from Pi
 
@@ -103,6 +109,12 @@ Missing scores, thresholds and gate coverage stay missing. Non-applicable eviden
 A recorded confidence gate with PASS is uncertainty, not a selected violation. WARN gates are advisory. Approval conditions remain separate from permission and tool results. The inspector never compares against current policy settings.
 
 **Why this assessment** keeps compact recorded-rule text and confidence bars. Question shortcuts, readable question sections, the repeated PASS confidence note, separate Rule outcome rows and **Probabilities and rule details** are absent. Use **Recorded data** for the complete exact records.
+
+Open **Recorded data**, then **Recording and coverage**, to read the recorded implementation, requested and returned aliases, judge report version, origin, transport, authentication mode and configuration provenance. BB's shared detail shows the same bounded facts under **Recorded judge**. Neither view consults current settings.
+
+V1 `typesafe` keeps its historical meaning. V1 and absent destinations, transport and authentication stay **not recorded**. Injected or unknown v2 identity stays **unknown**.
+
+Failed or unfinished assessment has no complete returned model, even if another stage carries a conflicting completed alias. Origins are inert text, not destination links or proof of physical weights.
 
 For APUS, open **Recorded data**, then **Recording and coverage** and **Native scoring mappings**. Read captured letter/token mappings and deterministic NONE selectors separately from model probabilities.
 
@@ -202,7 +214,7 @@ A missing historical role says unknown, not recorded. Readers never consult curr
 
 Pending or dropped assessments have no invented would-decision or final history counters. Unsupported newer records, corrupt files and incomplete indexing produce a partial-coverage warning even while supported calls remain readable.
 
-Provider/model fields come only from recorded data. APUS's additive native recording contract leaves schema 4 unchanged. Missing historical fields stay not recorded; the reader never uses today's settings to rebuild native prompts or label old providers. See [the recorded native contract](assessment-contract.md#native-recording-contract).
+Judge fields come only from recorded data. `judge-report-v2` adds canonical origin, transport and auth mode without changing archive schema 5 or semantic contracts. Historical `judge-report-v1` and APUS native versions retain their meanings. Missing fields stay not recorded; the reader never uses today's settings to rebuild prompts or label old providers. See [the recorded native contract](assessment-contract.md#native-recording-contract).
 
 Unsupported newer records and corrupt files produce a short Partial archive indicator. Indexing archive means indexing is still in progress. Supported calls remain readable.
 

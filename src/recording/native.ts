@@ -78,6 +78,7 @@ export function recordedJudge(records: ArchiveRecord[]) {
     experimental: knownContract && provider === 'apus-llamacpp' ? true : null,
   };
 }
+export type RecordedJudge = ReturnType<typeof recordedJudge>;
 export function nativeHistory(records: ArchiveRecord[]) {
   const record = records.find(r => validNativeContract(r.data.nativeContract));
   if (!record) return null;

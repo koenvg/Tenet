@@ -38,6 +38,11 @@ This source-only preview uses authored summaries. It reads no archive, sends no 
    ```
 
 2. Open `http://127.0.0.1:52351/summary-preview.html`. Add `?container=390` for a 390px workspace inside a wide window. Also test a 390px browser viewport.
+
+   Add `?case=v2-hosted`, `?case=v2-loopback`, `?case=v2-failure`, `?case=v2-apus`, `?case=identity-absent` or `?case=v2-injected` for authored identities. The default `synthetic-pass` has historical TypeSafe v1. Combine a case with `&container=390`.
+
+   Open **Recorded judge** to inspect historical fields and provenance. Failure has no returned model.
+
 3. Use Calls and Summary at compact widths. Coverage and Refresh archive remain outside these views. Stop Vite with Ctrl+C when finished.
 
 The list and summary appear beside each other above a 650px workspace width. The compact navigation uses the workspace container width, not the window width. If port 52351 is occupied, use the URL Vite prints.
@@ -59,7 +64,15 @@ The source contract is [shared/model.ts](src/shared/model.ts). It is a presentat
 
 `SummaryCall` has an opaque ID, call/tool labels, timestamp, mode, recorded decision, permission, execution, categories, missing-stage codes, assessment status and safe failure code.
 
-`SummaryDecision` has call/tool identity and mode, those recorded facts, approval, recorded reason code, the recorded no-violation flag and rules. It has no action, evidence, question or provider-response field.
+`SummaryDecision` has call and tool identity, mode, recorded facts, approval, reason code, the recorded no-violation flag, rules and a required `judge` subset. It has no action, evidence, question or provider-response field.
+
+`SummaryJudge` allowlists implementation, requested and returned aliases, judge report version, canonical origin, transport, authentication mode, experimental status and recorded configuration with per-field provenance. Both adapters use the pure recorded-only `summaryJudge` projection.
+
+The strict BB RPC schema rejects extra fields and incoherent v2 combinations. Compile-time checks require its judge shape to agree with the model.
+
+Origins have a separate 2048-character bound and are validated whole, never truncated to the 256-character label limit. Canonical HTTP loopback port 80 omits `:80`. V1 TypeSafe retains `typesafe`; v1 or absent destination, transport and auth stay not recorded.
+
+Unknown or injected v2 fields stay unknown. Non-completed evaluator state withholds the returned alias, including conflicting terminal stages. No current settings or bearer reference names enter this subset.
 
 The optional `explanation` holds whole-call blocking facts: blocker count, whether all recorded blocking gates are uncertainty gates, and the first blocker's built-in identity, line, gate, scores and thresholds. Paginated HOST summaries require this strict, bounded context.
 
@@ -67,7 +80,7 @@ Both adapters derive it from the complete snapshot through `summarizeBlockingRul
 
 `SummaryRule` has recorded ID, inert text, line, `enforcement` severity, built-in identity, selected outcome/evidence scores and probabilities, gates, contribution, effective thresholds, evidence-gate status and assessment profile. The optional recorded source origin retains role, path, target, digest and line; BB bounds its labels to 256 characters. Nullable scores, thresholds and gates remain unknown. The view never compares current policy or recomputes classifications.
 
-BB transport limits are 50 sessions/calls per page, 16 rules per page, 512-character cursors, 256-character labels, 2,048-character rule text and 20 issue codes. Host reads preserve explicit text/page omission markers, the shared 256-stage/16-MiB refresh budget and selected-detail 64-stage/16-MiB cap. They validate exact thread association before grouping or counting.
+BB transport limits are 50 sessions/calls per page, 16 rules per page, 512-character cursors, 256-character labels, 2,048-character origins and rule text and 20 issue codes. Host reads preserve explicit text/page omission markers, the shared 256-stage/16-MiB refresh budget and selected-detail 64-stage/16-MiB cap. They validate exact thread association before grouping or counting.
 
 Reason, failure and gate fields contain safe recorded codes, never provider bodies or exception messages. Categories and assessment state come from the shared recorded classification and stage folding. The workspace adds no classifier, non-Pi association or coverage.
 
@@ -87,7 +100,7 @@ The standalone app uses `useArchive` in [archive-state.ts](src/archive-state.ts)
 
 Standalone Detail shows named permission, tool result and assessment facts, followed by two native disclosures. **Why this assessment** contains compact recorded-rule explanations. **Recorded data** contains submitted action, policy, exact evidence/questions, response and recording details. New selections close disclosures; unchanged polls keep them mounted. The standalone UI does not fetch groups.
 
-BB keeps [SummaryDetail.tsx](src/shared/SummaryDetail.tsx), its recorded map, selected-check controls and paginated rule summaries. Those components still use [presentation.css](src/shared/presentation.css). The synthetic comparison also renders this safe summary on both sides; it is not proof of the private Inspector's layout.
+BB keeps [SummaryDetail.tsx](src/shared/SummaryDetail.tsx), its recorded map, selected-check controls and paginated rule summaries. Its Recorded judge disclosure and private RecordingDetails reuse RecordedJudgeFields for the same recorded labels and order. Those components still use [presentation.css](src/shared/presentation.css). The synthetic comparison also renders this safe summary on both sides; it is not proof of the private Inspector's layout.
 
 The library entry is [library.tsx](src/shared/library.tsx). `mountSummaryWorkspace(target, input)` returns `update(input)` and asynchronous, idempotent `destroy()`. Updates after disposal do nothing. The entry exposes no raw-detail snippets, HTTP client, polling timer or global history handler.
 

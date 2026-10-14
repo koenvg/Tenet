@@ -44,7 +44,7 @@ bun run inspector:build
 
 Then run the compiled `dist/cli/index.js` through the direct commands above. Do not substitute `src/cli/index.ts` for the delivered command. SDK-only consumers support Node 22.12+, but that does not lower the tested Pi/archive requirement.
 
-Doctor reads process environment and the private owner `~/.tenet/config.json`, not dotenv files, a secret manager or Pi settings. For TypeSafe, configure `TYPESAFE_API_KEY` securely through your existing secret manager. Never put credentials in policy, settings JSON or command-line arguments.
+Doctor reads process environment, private owner `~/.tenet/config.json` and the canonical project's `.tenet/config.json`. It does not read dotenv files, a secret manager or Pi settings. Only the final selected bearer source determines credential presence. Supply secrets through your existing secret manager, never policy, settings JSON or command-line arguments.
 
 Presence is not proof of validity. After running doctor, use [states and exits](#states-and-exits) to read the result, or [setup fixes](#fix-invalid-or-unavailable-setup) for a failure.
 
@@ -67,15 +67,19 @@ Expected text output starts with `TENET doctor: ready (local setup only)` for co
 - Missing credentials remain a visible limitation but do not fail coherent off/dormant states.
 - Off takes precedence over dormancy when both apply.
 
-JSON uses `schemaVersion: 2`. Policy output uses `policy-sources-v1` with candidates, source summaries, combined digest, rule count, validation and any reason/failed role.
+JSON uses `schemaVersion: 3`. Policy output uses `policy-sources-v1` with candidates, source summaries, combined digest, rule count, validation and any reason/failed role.
 
 The report also includes `state`, `exitCode`, configuration, safe effective `settings`, mode, control, local `judge` readiness, credentials, capture, delivery, compatibility, issues and limitations. `hooks` and `provider` stay `unverified`.
 
-`judge` uses the same local preparation contract as the SDK and Pi owner disclosure. The default reports `provider: 'typesafe'`, `requestedModel: 'jev-latest'` and `connectivity: 'unverified'`.
+`judge` uses the same local preparation contract as the SDK and Pi owner disclosure. The official default reports `provider: 'system-one'`, `requestedModel: 'jev-latest'`, origin `https://api.typesafe.ai`, transport `system-one-v1` and authentication `bearer-env`. Connectivity remains `unverified`.
 
-TypeSafe's `availability` is `ready` when its credential is present, otherwise `unavailable` with `reason: 'missing-credentials'`. Valid APUS settings report the configured alias and `experimental: true` without a TypeSafe-key requirement. APUS can report local `ready` availability. It makes no TypeSafe fallback request; doctor does not test its backend.
+`credentials.presence` is `present` or `missing` for the selected bearer credential, `not-required` for anonymous System One or APUS, and `unknown` for invalid selection. Presence does not verify validity.
 
-`settings` reports source, validation state, effective deadline and queue limits without file contents or destination. Invalid settings use bounded categories and `null` effective limits. For the closed schema, precedence and full-restart rule, see the [owner judge settings reference](judge.md).
+A complete anonymous project judge can replace a missing owner bearer without resolving that displaced source. Invalid owner or project settings never fall back.
+
+`settings` gives effective deadline and observation limits, validation state and per-field `sources`. Provenance is `owner`, `project`, `default`, `environment` or `sdk`, not a bearer environment reference name. Invalid settings have bounded categories and `null` limits.
+
+Doctor resolves symlinked project directories to their canonical directory before settings, policy and host metadata lookup. It does not search parents or derive settings from a policy path. See the [judge settings reference](judge.md) for precedence and restart rules.
 
 This is local readiness, not connectivity, calibration or model attestation. Injected SDK dependencies use the [SDK identity contract](sdk.md#judge-readiness-and-identity), not standalone doctor.
 
@@ -83,7 +87,9 @@ Text output marks APUS experimental and reports provider execution as not reques
 
 Invalid CLI arguments or an unexpected inspection failure exit `2` with bounded usage guidance. Diagnostics never echo raw exceptions, invalid environment values or policy contents.
 
-Externally derived paths, digests and detected versions are bounded, strip terminal controls and redact the configured credential value. Compatibility classification uses the original metadata.
+Externally derived paths and detected versions are bounded and replace terminal and bidirectional controls. Diagnostic copies redact the selected bearer value and reference name.
+
+If a model or origin cannot remain a valid descriptor after this protection, its diagnostic identity is unknown with null fields. This does not change selection or local availability. Compatibility classification uses the original metadata.
 
 ## Fix invalid or unavailable setup
 
@@ -92,7 +98,7 @@ Externally derived paths, digests and detected versions are bounded, strip termi
 | `project-unavailable` | Select an existing readable project directory with `--project`. |
 | Policy absent, state `dormant` | Author that project's `TENET.md` yourself outside the guarded action path, or select an owner-reviewed project file with `TENET_POLICY`. Review optional `~/.tenet/TENET.md` before authoring it externally: it activates projects without local rules, can reach the selected judge and recordings, and makes the whole set unavailable if invalid. Tenet never creates it automatically; registration supplies no policy. |
 | Policy invalid | Check the reported source role. Both sources share 64 KiB and 16 declarations, with 4096 UTF-8 bytes per rule. Check UTF-8, case-sensitive `Rule;` lines and threshold syntax; repair externally, as doctor neither prints nor repairs policy text. |
-| `configuration` | Check private owner settings and their bounded category, nonblank `TENET_POLICY`, exact mode values, threshold/limit ranges, approval timeout and the JSON sensitive-field array. Restart fully after correction. |
+| `configuration` | Check private owner and project settings and their bounded category, nonblank `TENET_POLICY`, exact mode values, threshold/limit ranges, approval timeout and the JSON sensitive-field array. Restart fully after correction. |
 | `control-unavailable` | Check the absolute control path and private same-user file/directory. Fix unsafe links or permissions outside Pi. Doctor does not repair control. |
 | `invalid-recording-setting` or `invalid-recording-directory` | Use exact `on`/`off` and an absolute recording directory, even when capture is off. |
 | `delivery-incomplete` | For a checkout, build SDK/CLI and inspector and install locked dependencies. For an archive, replace the incomplete installation and install its locked production dependencies. |
@@ -123,7 +129,11 @@ Control defaults to `~/.tenet/control.json` or an absolute `TENET_CONTROL_PATH`.
 
 Restart Pi and verify native `/tenet status` in an eligible session before relying on the guard. Doctor does not inspect extension registration or claim that tools are protected.
 
-A real default assessment sends policy and evaluator evidence to TypeSafe and uses quota. An APUS assessment through forwarding sends them to the owner-selected Pika backend. Any live check needs separate authorization. Secret-bearing strings can survive redaction. Observe is non-blocking even on unavailable assessment; readiness is not a live safety guarantee.
+A real assessment sends policy, paths and selected evidence to the selected service. Official TypeSafe uses quota. A custom hosted System One service can have operator-defined costs.
+
+Kev or APUS through owner-operated forwarding sends these strings to Pika, whose logging, access and retention are owner responsibilities. Any live check needs separate authorization. Secret-bearing strings can survive redaction.
+
+Observe never vetoes unavailable assessment. Approval covers only one unchanged pending call, and hooks are not a sandbox.
 
 ### Host discovery does not prove the next launch
 
@@ -143,6 +153,6 @@ It does not execute imports, validate every transitive package or certify archiv
 
 Capture defaults to `~/.tenet/recordings`. `TENET_RECORDING=off` disables it; `TENET_RECORDING_DIR` must be absolute. Doctor checks configuration only, not directory health or future writes.
 
-Local records can contain secrets. Disabling capture does not prevent later provider submission. Off and removal do not erase historical recordings.
+Local records can contain secrets. Disabling capture does not prevent later provider submission or stop provider and backend logs. Off and removal do not erase historical recordings.
 
 Pi lacks exact result correlation, post-hook argument stability and stock authenticated action resolution. Pre-release hook checks do not sandbox commands or guarantee behavior after hook release. The Claude Code prototype is not supported by this setup path.

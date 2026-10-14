@@ -10,10 +10,10 @@ export const runtimeModules = [
     'evidence-context', 'evidence-context-contract', 'filesystem-presence', 'finding-triage', 'history-capture', 'history-content',
     'history-envelope', 'history-groups', 'history-selection', 'immutable', 'system-one', 'system-one-origin', 'judge-evidence', 'policy', 'policy-contract', 'policy-origin',
     'questions', 'response-validation', 'thresholds', 'trajectory'].map(n => `decision/${n}`),
-  ...['activation', 'approval', 'config', 'configuration', 'judge', 'settings', 'consequences', 'guard', 'invocation-authorization', 'observation-queue', 'owner-record', 'policy-selection', 'resolved-action', 'resources'].map(n => `runtime/${n}`),
+  ...['activation', 'approval', 'config', 'configuration', 'diagnostic-safety', 'judge', 'settings', 'consequences', 'guard', 'invocation-authorization', 'observation-queue', 'owner-record', 'policy-selection', 'resolved-action', 'resources'].map(n => `runtime/${n}`),
   ...['archive', 'configuration', 'contract', 'files', 'judge', 'native', 'policy-contract', 'rules', 'scoped', 'scoped-capture'].map(n => `recording/${n}`),
-  ...['approval', 'boundary', 'config', 'extension', 'guard', 'history', 'inspector-command', 'owner-reports', 'report-history'].map(n => `pi/${n}`),
-  ...['action-preview', 'archive-index', 'assessment-completeness', 'bb-findings', 'bb-summary', 'summary-model', 'summary-explanation', 'finding-view', 'recorded-assessment', 'recorded-decision', 'serve-cli', 'server', 'view'].map(n => `inspector/${n}`),
+  ...['approval', 'boundary', 'config', 'extension', 'guard', 'history', 'inspector-command', 'judge-disclosure', 'owner-reports', 'report-history'].map(n => `pi/${n}`),
+  ...['action-preview', 'archive-index', 'assessment-completeness', 'bb-findings', 'bb-summary', 'summary-judge', 'summary-model', 'summary-explanation', 'finding-view', 'recorded-assessment', 'recorded-decision', 'serve-cli', 'server', 'view'].map(n => `inspector/${n}`),
 ];
 export const documentFiles = ['README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'docs/operation.md', 'docs/sdk.md', 'docs/doctor.md', 'docs/judge.md', 'third-party/apus/LICENSE', 'third-party/apus/NOTICE'];
 

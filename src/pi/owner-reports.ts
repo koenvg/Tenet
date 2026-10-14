@@ -134,6 +134,7 @@ export class OwnerReports {
     report.assessmentStatus = status;
     if (permission && (status === 'completed' || status === 'unavailable')) Object.assign(report, permission, { outcome: report.outcome, assessmentStatus: status });
     else if (reason) report.reason = reason;
+    if (status !== 'completed') delete report.returnedModel;
     if (status === 'completed' && !this.concern(report)) return;
     if (!this.recent.includes(report)) this.retain(report);
   }
@@ -180,8 +181,15 @@ export class OwnerReports {
       `Judge questions: ${report.questionVersion ?? 'not recorded'}`,
       `Judge: ${report.requestedProvider ?? 'not recorded'}${(report.judgeReportVersion === 'judge-report-v1' || report.judgeReportVersion === 'judge-report-v2') && report.requestedProvider === 'apus-llamacpp' ? ' experimental' : ''}`,
       `Requested model: ${report.requestedModel ? text(report.requestedModel, 256) : 'not recorded'}`,
-      `Returned model: ${report.returnedModel ? text(report.returnedModel, 256) : 'not recorded; no complete returned identity'}`,
+      `Returned model: ${report.returnedModel && (report.assessmentStatus === 'completed' || report.assessmentStatus === undefined && report.assessmentAvailable) ? text(report.returnedModel, 256) : 'not recorded; no complete returned identity'}`,
       `Judge report contract: ${report.judgeReportVersion ?? 'not recorded'}`,
+      ...('requestedDestination' in report ? [
+        ...rows(`Origin: ${report.requestedDestination ? display(report.requestedDestination) : 'unknown'}`),
+        `Transport contract: ${report.transportContract ?? 'unknown'}`,
+        `Authentication: ${report.authentication ?? 'unknown'}`,
+      ] : ['Origin: not recorded', 'Transport contract: not recorded', 'Authentication: not recorded']),
+      `Judge source: ${report.configuration?.sources.judge ?? 'not recorded'}`,
+      `Effective limits: ${report.configuration ? JSON.stringify({ deadlineMs: report.configuration.deadlineMs, observation: report.configuration.observation, sources: report.configuration.sources }) : 'not recorded'}`,
       ...((report.judgeReportVersion === 'judge-report-v1' || report.judgeReportVersion === 'judge-report-v2') && report.requestedProvider === 'apus-llamacpp' ? [
         'APUS scores are uncalibrated candidate probabilities.',
         'Deterministic NONE is not model confidence or authenticated coverage.',
