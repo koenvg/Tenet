@@ -1,7 +1,5 @@
 import { JudgeFailure, type Judge, type Json } from './contracts.js';
-import { assembleScopedAssessment, validateGroupAnswers, validateConfirmation, groupQuestions, type Answer } from './assessment-answers.js';
-import { prepareJudgeScopes } from './judge-evidence.js';
-import { buildQuestions } from './questions.js';
+import { openScopedAssessment } from './assessment-answers.js';
 import { APUS_RENDERING_VERSION, APUS_REVISION, renderApus, sortedJson } from './apus-renderer.js';
 import { backendIdentity, nativeTokens, scoreCompletion } from './apus-native.js';
 import { NativeFailure, nativeTransport } from './apus-transport.js';
@@ -22,9 +20,8 @@ export function createApusJudge(options: { baseUrl: string; model: string; fetch
     const nativeSnapshot = (value: unknown) => ({ nativeContract: APUS_RECORDING_CONTRACT, ...responseSnapshot(value) });
     try {
       transport.check();
-      const plan = request.judgeScopes ?? prepareJudgeScopes(request);
-      if (!plan) throw new JudgeFailure('insufficient-evidence');
-      const entries = plan.entries, questions = buildQuestions(request.policy, request.resolvedAction);
+      const session = openScopedAssessment(request);
+      const { plan, questions } = session;
       captureScopedPlan(recording, request, plan, questions, { provider: 'apus-llamacpp', model, nativeContract: APUS_RECORDING_CONTRACT });
       const metadata = async (phase: 'before' | 'after') => {
         submitted = true;
@@ -35,12 +32,11 @@ export function createApusJudge(options: { baseUrl: string; model: string; fetch
         return identity;
       };
       const identity = await metadata('before');
-      const answers: Record<string, Answer> = Object.create(null);
       let previousTokens: number[] = [];
       const tokenize = async (content: string) => nativeTokens(await transport.json('/tokenize', { content, add_special: false, parse_special: true, with_pieces: false }), identity.vocab);
-      for (const group of plan.groups) {
+      for (let scope = session.current(); scope; scope = session.current()) {
         transport.check();
-        const selected = groupQuestions(plan, group, questions, answers);
+        const group = scope.group, selected = scope;
         for (const [key, question] of Object.entries(selected.questions)) {
         transport.check();
         const scopeId = group.id;
@@ -51,9 +47,9 @@ export function createApusJudge(options: { baseUrl: string; model: string; fetch
         try {
         const criteria = Object.entries(question.criteria).map(([id, description]) => ({ id, description }));
         if (criteria.length === 1) {
-          if (!entries.some(e => e.factsKey === key) || criteria[0]!.id !== 'NONE') throw new NativeFailure('single-candidate');
+          if (scope.factsKey !== key || criteria[0]!.id !== 'NONE') throw new NativeFailure('single-candidate');
           const answer = { type: 'choice', choice: 'NONE', probabilities: { NONE: 1 }, confidence: 1 };
-          answers[key] = answer;
+          scope.acceptAnswer(key, identity.model, answer);
           captureScopedSubmission(recording, { submissionId: key, scopeId, questionKeys: [key],
             status: 'unavailable', reason: 'deterministic-NONE-no-native-request' });
           capture(recording, 'response', () => nativeSnapshot({ provider: 'apus-llamacpp', question: key, scopeId, answer,
@@ -86,10 +82,9 @@ export function createApusJudge(options: { baseUrl: string; model: string; fetch
         const raw = await transport.json('/completion', nativeRequest);
         transport.check();
         capture(recording, 'response', () => nativeSnapshot({ provider: 'apus-llamacpp', kind: 'native-response', question: key, scopeId, raw }));
-        answers[key] = scoreCompletion(raw, rendered.mapping, labelIds, tokens.length, identity);
+        const answer = scoreCompletion(raw, rendered.mapping, labelIds, tokens.length, identity);
         previousTokens = tokens;
-        validateGroupAnswers({ model: identity.model, answers: { [key]: answers[key] } }, { [key]: question });
-        if (selected.confirmation?.confirmationQuestion === key) validateConfirmation(selected.confirmation, answers, group.questionKeys[0]!);
+        scope.acceptAnswer(key, identity.model, answer);
         captureScopedSubmission(recording, { ...submission, status: 'completed' });
         } catch (error) {
           captureScopedSubmission(recording, { ...submission, status: 'unavailable',
@@ -101,7 +96,7 @@ export function createApusJudge(options: { baseUrl: string; model: string; fetch
       const finalIdentity = await metadata('after');
       if (JSON.stringify(finalIdentity) !== JSON.stringify(identity)) throw new NativeFailure('backend-changed');
       transport.check();
-      const assessment = assembleScopedAssessment(finalIdentity.model, answers, request, plan, questions);
+      const assessment = session.finish(finalIdentity.model);
       transport.check();
       capture(recording, 'validation', () => ({ nativeContract: APUS_RECORDING_CONTRACT, valid: true, assessment, provider: 'apus-llamacpp', renderingVersion: APUS_RENDERING_VERSION }));
       return assessment;

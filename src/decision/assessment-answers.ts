@@ -3,8 +3,81 @@ import { probability, requireChoice, validateAssessment } from './decide.js';
 import { ASSESSMENT_METADATA, currentFactReferences } from './assessment-contract.js';
 import { assessmentEntries, buildQuestions, exemptionConfirmation } from './questions.js';
 import { INTEGRITY_ID } from './policy.js';
+import { prepareJudgeScopes, type JudgeScopes } from './judge-evidence.js';
+import type { ConfirmationProvenance, ScopedQuestions } from '../recording/scoped.js';
 
 export interface Answer { type?: string; choice?: string; confidence?: number; probabilities?: Record<string, number> }
+
+interface AssessmentScope {
+  readonly group: JudgeScopes['groups'][number];
+  readonly questions: ScopedQuestions;
+  readonly confirmation: ConfirmationProvenance | undefined;
+  readonly factsKey: string | undefined;
+  stage(raw: unknown): { model: string; commit(): void };
+  acceptAnswer(key: string, model: string, answer: unknown): void;
+}
+
+export function openScopedAssessment(request: JudgeRequest) {
+  const plan = request.judgeScopes ?? prepareJudgeScopes(request);
+  if (!plan) throw new JudgeFailure('insufficient-evidence');
+  const questions = buildQuestions(request.policy, request.resolvedAction);
+  const answers: Record<string, Answer> = Object.create(null);
+  let index = 0, failed = false;
+  let active: AssessmentScope | undefined;
+  const invalid = (): never => { failed = true; throw new JudgeFailure('invalid-response'); };
+
+  return {
+    plan, questions,
+    current(): AssessmentScope | undefined {
+      if (failed) return invalid();
+      if (active) return active;
+      const group = plan.groups[index];
+      if (!group) return undefined;
+      const selected = groupQuestions(plan, group, questions, answers);
+      const keys = Object.keys(selected.questions);
+      let accepted = 0, staged = false;
+      const check = () => { if (failed || active !== scope) invalid(); };
+      const retain = (next: Record<string, Answer>) => {
+        check();
+        Object.assign(answers, next);
+        accepted += Object.keys(next).length;
+        if (accepted === keys.length) {
+          try { validateConfirmation(selected.confirmation, answers, group.questionKeys[0]!); }
+          catch (error) { failed = true; throw error; }
+          index++;
+          active = undefined;
+        }
+      };
+      const scope: AssessmentScope = {
+        group, ...selected,
+        factsKey: plan.entries.find(entry => entry.id === group.ruleId)?.factsKey,
+        stage(raw) {
+          check();
+          if (staged || accepted !== 0) return invalid();
+          try {
+            const validated = validateGroupAnswers(raw, selected.questions);
+            staged = true;
+            return { model: validated.model, commit: () => retain(validated.answers) };
+          } catch (error) { failed = true; throw error; }
+        },
+        acceptAnswer(key, model, answer) {
+          check();
+          if (staged || keys[accepted] !== key) return invalid();
+          try {
+            const validated = validateGroupAnswers({ model, answers: { [key]: answer } }, { [key]: selected.questions[key]! });
+            retain(validated.answers);
+          } catch (error) { failed = true; throw error; }
+        },
+      };
+      active = scope;
+      return scope;
+    },
+    finish(model: string): Assessment {
+      if (failed || index !== plan.groups.length) return invalid();
+      return assembleScopedAssessment(model, answers, request, plan, questions);
+    },
+  };
+}
 /** Map a complete canonical choice-answer set. Provider transport and scoring stay outside this function. */
 export function assembleAssessment(raw: unknown, request: JudgeRequest): Assessment {
   return assembleRecordedAssessment(raw, buildQuestions(request.policy, request.resolvedAction),
@@ -39,7 +112,7 @@ export function assembleRecordedAssessment(raw: unknown, questions: Record<strin
 
 
 /** Validate exactly one submitted group before retaining any of its answers. */
-export function validateGroupAnswers(raw: unknown, questions: Record<string, { criteria: Record<string, string> }>) {
+function validateGroupAnswers(raw: unknown, questions: Record<string, { criteria: Record<string, string> }>) {
   const value = raw as { model?: unknown; answers?: Record<string, Answer> } | null;
   if (!value || typeof value !== 'object' || typeof value.model !== 'string' || !value.model.trim()
     || !value.answers || typeof value.answers !== 'object' || Array.isArray(value.answers)
@@ -55,8 +128,8 @@ export function validateGroupAnswers(raw: unknown, questions: Record<string, { c
 }
 
 /** Only protected confirmation may replace an ordinary exemption distribution. */
-export function assembleScopedAssessment(model: string, answers: Record<string, Answer>, request: JudgeRequest,
-  plan: import('./judge-evidence.js').JudgeScopes, questions: import('../recording/scoped.js').ScopedQuestions) {
+function assembleScopedAssessment(model: string, answers: Record<string, Answer>, request: JudgeRequest,
+  plan: JudgeScopes, questions: ScopedQuestions) {
   const finalAnswers = { ...answers };
   const refs = currentFactReferences(request.resolvedAction);
   for (const [i, entry] of plan.entries.entries()) {
@@ -74,9 +147,8 @@ export function assembleScopedAssessment(model: string, answers: Record<string, 
 }
 
 
-/** Fixed conditional step shared by both provider loops. */
-export function groupQuestions(plan: import('./judge-evidence.js').JudgeScopes, group: import('./judge-evidence.js').JudgeScopes['groups'][number],
-  questions: import('../recording/scoped.js').ScopedQuestions, answers: Record<string, Answer>) {
+function groupQuestions(plan: JudgeScopes, group: JudgeScopes['groups'][number],
+  questions: ScopedQuestions, answers: Record<string, Answer>) {
   const selected = Object.fromEntries(group.questionKeys.map(key => [key, questions[key]!]));
   const index = plan.entries.findIndex(e => e.id === group.ruleId), entry = plan.entries[index]!;
   const refs = group.kind === 'exemption' ? (group.state as { allowedFactReferences: { digest: string } | null }).allowedFactReferences : null;
@@ -90,7 +162,7 @@ export function groupQuestions(plan: import('./judge-evidence.js').JudgeScopes, 
 }
 
 
-export function validateConfirmation(confirmation: import('../recording/scoped.js').ConfirmationProvenance | undefined,
+function validateConfirmation(confirmation: ConfirmationProvenance | undefined,
   answers: Record<string, Answer>, factsKey: string) {
   if (confirmation && (answers[confirmation.confirmationQuestion]?.choice !== 'NOT_APPLICABLE'
     || answers[factsKey]?.choice !== confirmation.factsReference)) throw new JudgeFailure('invalid-response');

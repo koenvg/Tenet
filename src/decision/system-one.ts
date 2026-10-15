@@ -1,7 +1,5 @@
 import { JudgeFailure, type Judge, type Json } from './contracts.js';
-import { assembleScopedAssessment, validateGroupAnswers, validateConfirmation, groupQuestions, type Answer } from './assessment-answers.js';
-import { prepareJudgeScopes } from './judge-evidence.js';
-import { buildQuestions } from './questions.js';
+import { openScopedAssessment } from './assessment-answers.js';
 import { capture, responseSnapshot, type RecordingSink } from '../recording/contract.js';
 import { freeze, jsonCopy } from './evidence.js';
 import { captureScopedPlan, captureScopedSubmission } from '../recording/scoped-capture.js';
@@ -69,15 +67,13 @@ export function createSystemOneJudge(options: Readonly<{ baseUrl: string; model:
     try {
       budget.check();
       if (unavailable) throw new JudgeFailure(unavailable);
-      const plan = request.judgeScopes ?? prepareJudgeScopes(request);
-      if (!plan) throw new JudgeFailure('insufficient-evidence');
-      const questions = buildQuestions(request.policy, request.resolvedAction);
+      const session = openScopedAssessment(request);
+      const { plan, questions } = session;
       captureScopedPlan(sink, request, plan, questions, { provider: 'system-one', model });
-      const answers: Record<string, Answer> = Object.create(null);
       let returnedModel: string | undefined;
-      for (const group of plan.groups) {
+      for (let scope = session.current(); scope; scope = session.current()) {
         budget.check();
-        const selected = groupQuestions(plan, group, questions, answers);
+        const group = scope.group, selected = scope;
         const payload = freeze({ model, state: jsonCopy(group.state) as Record<string, Json>, questions: selected.questions });
         const submission = { submissionId: group.id, scopeId: group.id, questionKeys: Object.keys(selected.questions),
           payloadJson: JSON.stringify(payload), ...(selected.confirmation ? { confirmation: selected.confirmation } : {}) };
@@ -110,12 +106,11 @@ export function createSystemOneJudge(options: Readonly<{ baseUrl: string; model:
           } finally { if (observed && !reading) discard(observed); }
           budget.check();
           capture(sink, 'response', () => ({ scopeId: group.id, ...responseSnapshot(raw, token) }));
-          const validated = validateGroupAnswers(raw, selected.questions);
+          const validated = scope.stage(raw);
           if (!validModel(validated.model) || token && validated.model.includes(token)
             || returnedModel !== undefined && validated.model !== returnedModel) throw new JudgeFailure('invalid-response');
           returnedModel = validated.model;
-          Object.assign(answers, validated.answers);
-          validateConfirmation(selected.confirmation, answers, group.questionKeys[0]!);
+          validated.commit();
           captureScopedSubmission(sink, { ...submission, status: 'completed' });
         } catch (error) {
           captureScopedSubmission(sink, { ...submission, status: 'unavailable', reason: error instanceof JudgeFailure ? error.reason : 'provider-error' });
@@ -123,7 +118,7 @@ export function createSystemOneJudge(options: Readonly<{ baseUrl: string; model:
         }
       }
       budget.check();
-      const assessment = assembleScopedAssessment(returnedModel!, answers, request, plan, questions);
+      const assessment = session.finish(returnedModel!);
       if (token && credentialEcho(assessment, token)) throw new JudgeFailure('invalid-response');
       budget.check();
       capture(sink, 'validation', () => ({ valid: true, assessment }));
