@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { assertDelivery } from './delivery-contract.js';
 import { isolatedEnvironment, isolatedArgs } from './isolated-environment.js';
-import { verifyRuntimeConsumers, verifyDeclarationConsumer } from './delivery-consumers.js';
+import { ConsumerInterrupted, verifyRuntimeConsumers, verifyDeclarationConsumer } from './delivery-consumers.js';
 
 export async function verifyArchive(archive: string): Promise<void> {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-relocated-')));
@@ -190,5 +190,9 @@ export async function verifyArchive(archive: string): Promise<void> {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (!process.argv[2]) throw new Error('Usage: bun scripts/verify-delivery.ts archive.tar.gz');
-  await verifyArchive(process.argv[2]);
+  try { await verifyArchive(process.argv[2]); }
+  catch (error) {
+    if (!(error instanceof ConsumerInterrupted)) throw error;
+    process.exitCode = error.exitCode;
+  }
 }

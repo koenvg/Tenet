@@ -9,6 +9,14 @@ type ConsumerCompiler = Readonly<{ compiler: string; typeRoots: string }>;
 
 type CompilerFailure = { status?: number | null; stdout?: string; stderr?: string };
 
+export class ConsumerInterrupted extends Error {
+  readonly exitCode: number;
+  constructor(readonly signal: 'SIGINT' | 'SIGTERM') {
+    super(`Delivery consumer interrupted by ${signal}.`);
+    this.exitCode = signal === 'SIGINT' ? 130 : 143;
+  }
+}
+
 export function runConsumerCompiler(compiler: string, typeRoots: string, cwd: string, env: Record<string, string>): string {
   try {
     return execFileSync('node', [compiler, '--pretty', 'false', '--noEmit', '--strict', '--module', 'NodeNext',
@@ -29,35 +37,50 @@ export function runConsumerCompiler(compiler: string, typeRoots: string, cwd: st
 async function runConsumer(runtime: string, fixture: string, context: ConsumerContext): Promise<void> {
   const env = await isolatedEnvironment(context.root, join(context.root, `home-${runtime}-${fixture}`));
   env.PATH = `${join(context.installation, 'node_modules/.bin')}:${env.PATH}`;
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(runtime, isolatedArgs(runtime, [fixture, context.installation]), {
-      cwd: context.consumer, env, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    let stdout = '', stderr = '', failure: string | undefined;
-    const terminate = () => {
-      try {
-        if (process.platform === 'win32') child.kill('SIGKILL');
-        else if (child.pid) process.kill(-child.pid, 'SIGKILL');
-      } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error; }
-    };
-    const timer = setTimeout(() => { failure = 'timed out'; terminate(); }, 180_000);
-    child.stdout.on('data', chunk => {
-      stdout += chunk;
-      if (stdout.length > 1_000_000) { failure = 'exceeded output limit'; terminate(); }
-    });
-    child.stderr.on('data', chunk => {
-      stderr += chunk;
-      if (stderr.length > 1_000_000) { failure = 'exceeded output limit'; terminate(); }
-    });
-    child.once('error', error => { clearTimeout(timer); terminate(); reject(error); });
-    child.once('close', code => {
-      clearTimeout(timer);
-      // The SDK consumer starts an inspector. Kill any descendants even on timeout or assertion failure.
-      terminate();
-      if (failure || code !== 0) reject(new Error(`${runtime} ${fixture} ${failure ?? `exited ${code}`}.\n${stderr.slice(0, 8_000)}`));
-      else { console.log(stdout.trim()); resolve(); }
-    });
+  const child = spawn(runtime, isolatedArgs(runtime, [fixture, context.installation]), {
+    cwd: context.consumer, env, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'],
   });
+  let interruption: ConsumerInterrupted | undefined;
+  let ownedGroup = child.pid;
+  const terminate = () => {
+    if (!ownedGroup) return;
+    try {
+      if (process.platform === 'win32') child.kill('SIGKILL');
+      else process.kill(-ownedGroup, 'SIGKILL');
+    } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error; }
+    ownedGroup = undefined;
+  };
+  const interrupt = (signal: 'SIGINT' | 'SIGTERM') => { interruption ??= new ConsumerInterrupted(signal); terminate(); };
+  const onInt = () => interrupt('SIGINT'), onTerm = () => interrupt('SIGTERM');
+  process.on('SIGINT', onInt);
+  process.on('SIGTERM', onTerm);
+  try {
+    await new Promise<void>((resolve, reject) => {
+      let stdout = '', stderr = '', failure: string | undefined, spawnError: Error | undefined;
+      const timer = setTimeout(() => { failure = 'timed out'; terminate(); }, 180_000);
+      child.stdout.on('data', chunk => {
+        stdout += chunk;
+        if (stdout.length > 1_000_000) { failure = 'exceeded output limit'; terminate(); }
+      });
+      child.stderr.on('data', chunk => {
+        stderr += chunk;
+        if (stderr.length > 1_000_000) { failure = 'exceeded output limit'; terminate(); }
+      });
+      child.once('error', error => { spawnError = error; terminate(); });
+      child.once('close', code => {
+        clearTimeout(timer);
+        // The SDK consumer starts an inspector. Kill descendants before the caller removes their state.
+        terminate();
+        if (interruption) reject(interruption);
+        else if (spawnError) reject(spawnError);
+        else if (failure || code !== 0) reject(new Error(`${runtime} ${fixture} ${failure ?? `exited ${code}`}.\n${stderr.slice(0, 8_000)}`));
+        else { console.log(stdout.trim()); resolve(); }
+      });
+    });
+  } finally {
+    process.off('SIGINT', onInt);
+    process.off('SIGTERM', onTerm);
+  }
 }
 
 export async function verifyRuntimeConsumers(context: ConsumerContext): Promise<void> {

@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { chmod, cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -154,6 +156,146 @@ for (const failure of ['assertion', 'timeout']) {
       await assert.rejects(fetch(server.url), /fetch|connect/i);
       await assertCleaned(root);
     });
+  });
+}
+
+function alive(pid: number): boolean {
+  try { process.kill(pid, 0); return true; }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === 'ESRCH') return false; throw error; }
+}
+
+for (const entry of ['canonical', 'standalone'] as const) for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  test(`${entry} delivery stage stops the real SDK consumer and inspector before cleanup on ${signal}`, { timeout: 120_000 }, async () => {
+    await checkout(async (root, copy) => {
+      const realBun = spawnSync('which', ['bun'], { encoding: 'utf8' }).stdout.trim();
+      const bin = join(root, 'bin'); await mkdir(bin);
+      await mkdir(join(root, 'cache'));
+      await mkdir(join(copy, 'bb-plugin-tenet-status'));
+      const wrapper = join(bin, 'bun');
+      await writeFile(wrapper, `#!/bin/bash
+if [[ "$1" == --no-env-file ]]; then shift; fi
+if [[ "$*" == 'run delivery:check' ]]; then exec ${JSON.stringify(realBun)} --no-env-file run delivery:check; fi
+case "$*" in 'run sdk:build'|'run inspector:build'|'run summary:build'|'run site:build'|'../scripts/check-summary-build.ts'|'run build:server'|'run test'|'run typecheck') exit 0;; esac
+if [[ "$1" == run ]]; then echo "Unexpected lane stage: $*" >&2; exit 98; fi
+exec ${JSON.stringify(realBun)} --no-env-file "$@"
+`);
+      await chmod(wrapper, 0o700);
+      const evidence = join(root, 'ready.json');
+      const fixture = join(copy, 'scripts/fixtures/archive-consumer.mjs');
+      const source = await readFile(fixture, 'utf8');
+      const ready = 'const htmlResponse = await fetchHTTP(url);';
+      assert.ok(source.includes(ready));
+      await writeFile(fixture, source.replace(ready, `
+await writeFile(${JSON.stringify(evidence)}, JSON.stringify({
+  consumer: process.pid, inspector: inspector.pid, url,
+  state: process.env.TMPDIR, lane: process.env.TMPDIR.slice(0, process.env.TMPDIR.lastIndexOf('/'))
+}));
+await new Promise(resolve => setTimeout(resolve, 60_000));
+${ready}`));
+      const env = await isolatedEnvironment(root, join(root, 'owner'));
+      env.PATH = `${bin}:${env.PATH}`;
+      const child = entry === 'canonical'
+        ? spawn('/bin/bash', ['--noprofile', '--norc', 'scripts/validate-offline.sh', '--browser-cache', join(root, 'cache')], {
+          cwd: copy, env, stdio: ['ignore', 'pipe', 'pipe'],
+        })
+        : spawn(realBun, ['--no-env-file', 'scripts/check-delivery-consumers.ts'], {
+          cwd: copy, env, stdio: ['ignore', 'pipe', 'pipe'],
+        });
+      let stdout = '', stderr = '', finished = false;
+      child.stdout.on('data', chunk => { stdout += chunk; });
+      child.stderr.on('data', chunk => { stderr += chunk; });
+      const done = new Promise<number | null>((resolve, reject) => {
+        child.once('error', reject);
+        child.once('close', code => { finished = true; resolve(code); });
+      });
+      let server: { consumer: number; inspector: number; url: string; state: string; lane: string } | undefined;
+      let cleanupError: unknown;
+      try {
+        for (let i = 0; i < 6_000 && !finished && !existsSync(evidence); i++) await sleep(10);
+        assert.ok(existsSync(evidence), `SDK fixture reached real inspector readiness.\n${stdout}\n${stderr}`);
+        server = JSON.parse(await readFile(evidence, 'utf8'));
+        assert.ok(server);
+        assert.equal((await fetch(server.url)).status, 200);
+        assert.ok(alive(server.consumer)); assert.ok(alive(server.inspector));
+        assert.ok(existsSync(server.state)); assert.ok(existsSync(server.lane));
+        child.kill(signal);
+        const removedWhileAlive: string[] = [];
+        for (let i = 0; i < 1_000 && !finished; i++) {
+          for (const path of (entry === 'canonical' ? [server.state, server.lane] : [server.state]))
+            if (!existsSync(path) && (alive(server.consumer) || alive(server.inspector))) removedWhileAlive.push(path);
+          await sleep(5);
+        }
+        assert.ok(finished, `${entry} interruption completed within five seconds.\n${stderr}`);
+        assert.equal(await done, signal === 'SIGINT' ? 130 : 143, stdout + stderr);
+        const observed = { consumerAlive: alive(server.consumer), inspectorAlive: alive(server.inspector),
+          stateExists: existsSync(server.state), laneExists: existsSync(server.lane) };
+        console.log(`${signal} ${entry} delivery interruption: ${JSON.stringify(observed)}`);
+        assert.deepEqual(observed, { consumerAlive: false, inspectorAlive: false, stateExists: false, laneExists: entry === 'standalone' });
+        assert.deepEqual(removedWhileAlive, [], 'temporary state must remain until both descendants stop');
+        await assert.rejects(fetch(server.url), /fetch|connect/i);
+        assert.ok(existsSync(join(root, 'cache')), 'unowned browser cache remains');
+      } finally {
+        if (!finished) {
+          child.kill('SIGTERM');
+          for (let i = 0; i < 500 && !finished; i++) await sleep(10);
+          if (!finished) child.kill('SIGKILL');
+        }
+        if (server && (alive(server.consumer) || alive(server.inspector))) {
+          try { process.kill(-server.consumer, 'SIGKILL'); }
+          catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') cleanupError = error; }
+          for (let i = 0; i < 200 && (alive(server.consumer) || alive(server.inspector)); i++) await sleep(10);
+        }
+        await done;
+      }
+      if (cleanupError) throw cleanupError;
+    });
+  });
+}
+
+for (const outcome of ['success', 'assertion', 'overflow', 'spawn', 'SIGINT', 'SIGTERM'] as const) {
+  test(`shared consumer lifetime releases signal handlers after ${outcome}`, async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-lifetime-test-')));
+    try {
+      await mkdir(join(root, 'scripts/fixtures'), { recursive: true });
+      await mkdir(join(root, 'consumer'));
+      for (const name of ['delivery-consumers.ts', 'isolated-environment.ts'])
+        await cp(join(repository, 'scripts', name), join(root, 'scripts', name));
+      const interrupted = outcome === 'SIGINT' || outcome === 'SIGTERM';
+      const source = outcome === 'assertion' ? "throw new Error('lifetime-assertion');"
+        : outcome === 'overflow' ? "process.stdout.write('x'.repeat(1_000_001)); setInterval(() => {}, 1000);"
+        : interrupted ? `import {writeFileSync} from 'node:fs';
+          writeFileSync(${JSON.stringify(join(root, 'ready'))}, 'ready'); setInterval(() => {}, 1000);` : '';
+      for (const name of ['archive-consumer.mjs', 'archive-judge.mjs', 'archive-native.mjs', 'archive-offline-trap.mjs'])
+        await writeFile(join(root, 'scripts/fixtures', name), source);
+      await writeFile(join(root, 'check.ts'), `
+import assert from 'node:assert/strict';
+import { ConsumerInterrupted, verifyRuntimeConsumers } from './scripts/delivery-consumers.ts';
+const before = ['SIGINT', 'SIGTERM'].map(signal => process.listeners(signal));
+const context = { root: ${JSON.stringify(root)}, installation: ${JSON.stringify(root)}, consumer: ${JSON.stringify(join(root, 'consumer'))} };
+const outcome = ${JSON.stringify(outcome)};
+if (outcome === 'spawn') process.env.PATH = '/nonexistent-lifetime-path';
+const running = verifyRuntimeConsumers(context);
+if (outcome === 'SIGINT' || outcome === 'SIGTERM') {
+  const { existsSync } = await import('node:fs');
+  const ready = ${JSON.stringify(join(root, 'ready'))};
+  for (let i = 0; i < 200 && !existsSync(ready); i++) await new Promise(resolve => setTimeout(resolve, 10));
+  assert.ok(existsSync(ready));
+  process.kill(process.pid, outcome);
+  await assert.rejects(running, error => error instanceof ConsumerInterrupted && error.signal === outcome
+    && error.exitCode === (outcome === 'SIGINT' ? 130 : 143));
+} else if (outcome === 'success') await running;
+else {
+  const expected = { assertion: /lifetime-assertion/, overflow: /exceeded output limit/, spawn: { code: 'ENOENT' } };
+  await assert.rejects(running, expected[outcome]);
+}
+assert.deepEqual(['SIGINT', 'SIGTERM'].map(signal => process.listeners(signal)), before);
+console.log('lifetime released after ${outcome}');
+`);
+      const env = await isolatedEnvironment(root, join(root, 'owner'));
+      const result = spawnSync('bun', ['--no-env-file', 'check.ts'], { cwd: root, env, encoding: 'utf8', timeout: 15_000 });
+      assert.equal(result.status, 0, result.stdout + result.stderr);
+      assert.match(result.stdout, new RegExp(`lifetime released after ${outcome}`));
+    } finally { await rm(root, { recursive: true, force: true }); }
   });
 }
 

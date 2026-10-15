@@ -3,7 +3,7 @@ import { cp, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/pr
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { verifyRuntimeConsumers, verifyDeclarationConsumer } from './delivery-consumers.js';
+import { ConsumerInterrupted, verifyRuntimeConsumers, verifyDeclarationConsumer } from './delivery-consumers.js';
 import { isolatedEnvironment, isolatedArgs } from './isolated-environment.js';
 
 const repository = fileURLToPath(new URL('..', import.meta.url));
@@ -40,4 +40,10 @@ export async function checkDeliveryConsumers(): Promise<void> {
   } finally { await rm(root, { recursive: true, force: true }); }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await checkDeliveryConsumers();
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try { await checkDeliveryConsumers(); }
+  catch (error) {
+    if (!(error instanceof ConsumerInterrupted)) throw error;
+    process.exitCode = error.exitCode;
+  }
+}
