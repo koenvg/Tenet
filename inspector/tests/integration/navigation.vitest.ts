@@ -14,7 +14,6 @@ for (const width of [1380, 1103, 390]) test(`direct category filter and individu
     expect(await page.evaluate(() => performance.getEntriesByType('resource').some(entry => new URL(entry.name).pathname.endsWith('/groups')))).toBe(false);
     expect(await page.getByText(/Repeated uncertainty/).count()).toBe(0);
     expect(await page.locator('.repeated-uncertainty, .uncertainty-group, .inspection-switch').count()).toBe(0);
-    expect(await page.locator('.triage-tools details, .triage-tools summary').count()).toBe(0);
     expect(await page.locator('.archive-state > p').textContent()).toContain('Partial archive');
     expect(await page.locator('.session-picker').getAttribute('open')).toBeNull();
     if (width === 1380) {

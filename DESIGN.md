@@ -61,7 +61,11 @@ Recorded `released` permission is displayed as **Not blocked by Tenet**. It mean
 
 Lifecycle categories appear once in the named Assessment field. Violation, uncertainty and approval conditions remain separate overlapping findings. The private reader carries a bounded `assessmentInvalid` boolean from recorded validation markers to prevent an invalid completed record from appearing as Allow. This does not change recording contracts, finding classification or BB status.
 
-Preserve atomic refresh publication in `archive-state.ts`. Unchanged polls must not mutate the workspace, move content, replay motion or replace mounted detail state. Keep deep links, manual selection, project filters, pagination, historical questions and exact recorded probabilities. Keep the single exact-records disclosure and scrollable data region mounted; captured UTF-16 identities remain lossless JSON data. Keep evidence nodes, scroll, open disclosures and keyboard focus through delayed stages.
+Preserve atomic refresh publication in `archive-navigation.ts`. Unchanged polls must not flash unrelated capture warnings, move content, replay motion or replace mounted detail state. Tests check these effects rather than prohibit every DOM mutation.
+
+Keep deep links, manual selection, project filters, pagination, historical questions and exact recorded probabilities.
+
+Keep the single exact-records disclosure and scrollable data region mounted; captured UTF-16 identities remain lossless JSON data. Keep evidence nodes, scroll, open disclosures and keyboard focus through delayed stages.
 
 The private metadata cache keeps action previews and at most 16 recorded policy-rule excerpts plus integrity. Each display string is bounded to 512 UTF-8 bytes, with explicit shortening/unavailable labels. Full evidence stays in selected detail. Ordinary call requests never load groups; unchanged group refreshes do not reread evidence. Neither display field enters BB status, agent messages, provider requests, logs or URLs. Existing BB finding policy-text fields are unchanged.
 
