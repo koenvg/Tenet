@@ -122,19 +122,70 @@ afterAll(async () => {
   if (directory) await rm(directory, { recursive: true, force: true });
 });
 
+function watchCaptureWarnings() {
+  const main = document.querySelector('main')!;
+  const warning = 'Capture may be incomplete.';
+  let seen = main.textContent?.includes(warning) ?? false;
+  const inspect = (records: MutationRecord[]) => {
+    seen ||= main.textContent?.includes(warning) ?? false;
+    for (const record of records) {
+      seen ||= !!record.oldValue?.includes(warning)
+        || !!record.target.textContent?.includes(warning)
+        || [...record.addedNodes, ...record.removedNodes].some(node => node.textContent?.includes(warning));
+    }
+  };
+  const observer = new MutationObserver(inspect);
+  observer.observe(main, { subtree: true, childList: true, characterData: true, characterDataOldValue: true });
+  return { stop() { inspect(observer.takeRecords()); observer.disconnect(); return seen; } };
+}
+
+for (const [change, expected] of [
+  ['unrelated update', false],
+  ['warning added and removed', true],
+  ['warning text changed and restored', true],
+] as const) test(`capture warning watch detects only warning text: ${change}`, async () => {
+  const p = currentPage(); await pickCall('summary');
+  const watch = await p.evaluateHandle(watchCaptureWarnings);
+  try {
+    await p.evaluate(change => {
+      const node = document.createElement('p');
+      const text = document.createTextNode('Refreshing archive');
+      node.append(text); document.querySelector('main')!.append(node);
+      if (change === 'warning added and removed') {
+        const warning = document.createElement('span');
+        warning.textContent = 'Capture may be incomplete.';
+        node.append(warning); warning.remove();
+      } else if (change === 'warning text changed and restored') {
+        text.data = 'Capture may be incomplete.';
+        text.data = 'Archive refreshed';
+      } else {
+        node.setAttribute('aria-live', 'polite');
+        text.data = 'Archive refreshed';
+      }
+      node.remove();
+    }, change);
+    expect(await watch.evaluate(watch => watch.stop())).toBe(expected);
+    expect(await p.locator('main').textContent()).not.toContain('Capture may be incomplete.');
+  } finally {
+    await watch.evaluate(watch => watch.stop());
+    await watch.dispose();
+  }
+});
+
 test('background refresh does not flash archive-wide warnings into the selected session', async () => {
   const p = currentPage(); await pickCall('summary');
   let completedPolls = 0;
   p.on('response', response => { if (response.url().includes('/invocations/')) completedPolls++; });
   const before = await p.locator('.decision-title').boundingBox();
-  const mutations = await p.evaluate(() => new Promise<number>(resolve => {
-    let count = 0;
-    const observer = new MutationObserver(records => count += records.length);
-    observer.observe(document.querySelector('main')!, { subtree: true, childList: true, attributes: true, characterData: true });
-    setTimeout(() => { observer.disconnect(); resolve(count); }, 4500);
-  }));
-  expect(completedPolls).toBeGreaterThanOrEqual(2);
-  expect(mutations).toBe(0);
+  const watch = await p.evaluateHandle(watchCaptureWarnings);
+  try {
+    await p.waitForTimeout(4500);
+    expect(completedPolls).toBeGreaterThanOrEqual(2);
+    expect(await watch.evaluate(watch => watch.stop())).toBe(false);
+  } finally {
+    await watch.evaluate(watch => watch.stop());
+    await watch.dispose();
+  }
   expect(await p.locator('.decision-title').boundingBox()).toEqual(before);
   expect(await p.getByRole('region', { name: 'Recording issues' }).count()).toBe(1);
   expect(await p.locator('.issues-body').textContent()).not.toContain('Capture may be incomplete.');
