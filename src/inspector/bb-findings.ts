@@ -1,7 +1,5 @@
-import { recordedInputs } from '../recording/scoped.js';
-import { recordedOrigin } from '../recording/policy-contract.js';
 import type { ArchiveRecord } from '../recording/contract.js';
-import { findingStage, foldFindingStages } from './finding-view.js';
+import { recordedInvocation } from './recorded-invocation.js';
 import { createHash } from 'node:crypto';
 import { recordedAssessment } from './recorded-assessment.js';
 
@@ -15,52 +13,47 @@ export interface ThreadFinding {
   missingStages: string[];
 }
 
-const object = (value: unknown): Record<string, any> => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-const STAGES = ['begin', 'request', 'response', 'validation', 'assessment', 'decision', 'permission', 'execution'];
 
 /** Allowlisted owner projection: never send actions, evidence, provider responses or cwd to BB. */
 export function projectThreadFinding(records: ArchiveRecord[], id: string, threadId: string): { item: ThreadFinding | null; gaps: string[] } {
   const gaps: string[] = [];
   if (!records.length || records.some(r => ![3, 4, 5].includes(r.schemaVersion) || r.host !== 'pi' || r.bbThreadId !== threadId))
     return { item: null, gaps: ['detail-unavailable'] };
-  const stage = (name: string) => object(records.findLast(r => r.stage === name)?.data);
-  const facts = foldFindingStages(records.map(findingStage));
-  if (stage('validation').valid !== true || facts.evaluatorState.status !== 'completed')
+  const invocation = recordedInvocation(records);
+  const facts = invocation.findings;
+  if (invocation.validation.valid !== true || facts.evaluatorState.status !== 'completed')
     return { item: null, gaps: ['detail-unavailable'] };
-  const assessment = recordedAssessment(stage('assessment').assessment);
+  const assessment = recordedAssessment(invocation.assessmentStage.assessment);
   if (!assessment) return { item: null, gaps: ['detail-unavailable'] };
-  const request = stage('request'), begin = stage('begin');
-  const policy = object(Object.keys(request).length ? request.policy : begin.policy);
-  const integrity = object(Object.keys(request).length ? recordedInputs(request).integrity : begin.integrity);
-  const rules = [...(Array.isArray(policy.rules) ? policy.rules : []),
-    ...(typeof integrity.id === 'string' ? [{ ...integrity, enforcement: 'BLOCK' }] : [])];
+  const { policy, integrity, rules } = invocation.submittedSnapshot;
   const selected = new Map<string, ThreadFinding['rules'][number]>();
-  const diagnostics = stage('decision').contributions ?? stage('decision').diagnostics;
-  const threshold = object(stage('assessment').config ?? begin.config).effectThreshold;
+  const threshold = invocation.config.effectThreshold;
   for (const result of assessment.rules) {
     if (result.outcome.choice !== 'FAIL') continue;
-    const rule = rules.find(r => r?.id === result.ruleId && (r.enforcement === 'BLOCK' || r.enforcement === 'WARN'));
-    if (!rule) continue;
+    const snapshot = rules.find(({ rule }) => rule.id === result.ruleId && (rule.enforcement === 'BLOCK' || rule.enforcement === 'WARN'));
+    if (!snapshot) continue;
+    const { rule, origin, builtin } = snapshot;
+    const recorded = invocation.forRule(result.ruleId);
     if (selected.size >= 16) { gaps.push('detail-rule-limit'); break; }
     const text = typeof rule.text === 'string' ? rule.text : null;
     if (text === null || text.length > 2048) gaps.push('policy-text-unavailable');
     const confidence = result.outcome.probabilities?.FAIL;
     selected.set(result.ruleId, { ruleId: result.ruleId, severity: rule.enforcement,
-      origin: result.ruleId === integrity.id ? null : recordedOrigin(records.findLast(r => r.stage === 'request' || r.stage === 'begin')?.schemaVersion, rule, policy),
+      origin,
       policyText: text !== null && text.length <= 2048 ? text : null,
       confidence: typeof confidence === 'number' && Number.isFinite(confidence) && confidence >= 0 && confidence <= 1 ? confidence : null,
-      kind: result.ruleId === integrity.id ? 'integrity' : 'policy',
+      kind: builtin ? 'integrity' : 'policy',
       uncertain: typeof confidence !== 'number' || !Number.isFinite(confidence) || !Number.isFinite(threshold) || confidence < threshold
-        || !Array.isArray(diagnostics) || !diagnostics.some(d => d?.ruleId === result.ruleId && Array.isArray(d.gates))
+        || !recorded.hasRecordedGates
         || facts.uncertainty.some(value => value.ruleId === result.ruleId) });
   }
   if (!selected.size) return { item: null, gaps: ['detail-unavailable'] };
-  const decision = stage('decision').decision, permission = stage('permission').outcome, execution = stage('execution').outcome;
+  const { decision, permission, execution } = invocation.facts;
   const first = records[0]!;
   return { item: { id, callId: first.callId.slice(0, 256), toolName: first.toolName.slice(0, 256), timestamp: first.timestamp, mode: first.mode,
     snapshot: createHash('sha256').update(JSON.stringify([policy, integrity])).digest('hex'),
-    rules: [...selected.values()], wouldDecision: ['ALLOW', 'ASK', 'BLOCK'].includes(decision) ? decision : 'unknown',
-    actualPermission: ['released', 'blocked'].includes(permission) ? permission : 'unknown',
-    observedExecution: ['executed', 'failed'].includes(execution) ? execution : 'unknown',
-    missingStages: STAGES.filter(name => !records.some(r => r.stage === name)) }, gaps };
+    rules: [...selected.values()], wouldDecision: decision === 'ALLOW' || decision === 'ASK' || decision === 'BLOCK' ? decision : 'unknown',
+    actualPermission: permission === 'released' || permission === 'blocked' ? permission : 'unknown',
+    observedExecution: execution === 'executed' || execution === 'failed' ? execution : 'unknown',
+    missingStages: invocation.missing }, gaps };
 }

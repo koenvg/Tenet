@@ -1,14 +1,11 @@
 import type { ArchiveRecord } from '../recording/contract.js';
 import type { InvocationSummary } from './archive-index.js';
-import { findingStage, foldFindingStages } from './finding-view.js';
 import { noRulesClassifiedViolated } from './assessment-completeness.js';
 import type { SummaryCall, SummaryDecision, SummaryRule, SummaryScore } from './summary-model.js';
 import type { Reason } from '../decision/contracts.js';
 import { evaluatorFailureCodes } from './finding-view.js';
-import { recordedDecisionFacts } from './recorded-decision.js';
-import { recordedOrigin } from '../recording/policy-contract.js';
+import { recordedInvocation } from './recorded-invocation.js';
 import { summarizeBlockingRules } from './summary-explanation.js';
-import { recordedInputs } from '../recording/scoped.js';
 
 import { recordedJudge } from '../recording/native.js';
 import { summaryJudge } from './summary-judge.js';
@@ -51,20 +48,14 @@ export function projectSummaryCall(row: InvocationSummary): SummaryCall {
 
 export function projectSummaryDecision(records: ArchiveRecord[], ruleOffset = 0): SummaryDecision {
   if (!Number.isSafeInteger(ruleOffset) || ruleOffset < 0 || ruleOffset % 16 !== 0) throw new Error('invalid-page');
-  const stage = (s: string) => object(records.findLast(r => r.stage === s)?.data);
-  const begin = stage('begin'), request = stage('request'), decision = stage('decision');
-  const findings = foldFindingStages(records.map(findingStage));
-  const policy = object(request.policy ?? begin.policy), integrity = object(recordedInputs(request).integrity ?? begin.integrity);
-  const config = object(stage('assessment').config ?? begin.config);
-  const assessment = object(stage('assessment').assessment ?? stage('validation').assessment);
-  const rules = [...list(policy.rules), ...(typeof integrity.id === 'string' ? [{ ...integrity, enforcement: 'BLOCK', line: null }] : [])];
-  const diagnostics = [...list(decision.contributions), ...list(decision.diagnostics)];
-  const valid = findings.evaluatorState.status === 'completed' && stage('validation').valid === true;
-  const allRules: SummaryRule[] = rules.map(rule => {
-    const result = valid ? list(assessment.rules).find(r => r.ruleId === rule.id) : undefined;
-    const contribution = diagnostics.find(r => r.ruleId === rule.id);
+  const invocation = recordedInvocation(records);
+  const { begin, request, findings, assessment, validation, facts } = invocation;
+  const { policy, integrity, rules } = invocation.snapshot;
+  const valid = findings.evaluatorState.status === 'completed' && validation.valid === true;
+  const allRules: SummaryRule[] = rules.map(({ rule, builtin, origin }) => {
+    const { result: recordedResult, recorded: contribution, thresholds } = invocation.forRule(rule.id);
+    const result = valid ? recordedResult : undefined;
     const text = typeof rule.text === 'string' ? rule.text : 'Rule text unavailable';
-    const origin = rule.id === integrity.id ? null : recordedOrigin(records.findLast(r => r.stage === 'request' || r.stage === 'begin')?.schemaVersion, rule, policy);
     return { id: summaryLabel(rule.id), text: text.length <= 2048 ? text : `${text.slice(0, 2038)} [omitted]`,
       line: Number.isSafeInteger(rule.line) && rule.line > 0 ? rule.line : null,
       origin: origin ? { role: origin.role, source: origin.source === null ? null : summaryLabel(origin.source),
@@ -72,17 +63,16 @@ export function projectSummaryDecision(records: ArchiveRecord[], ruleOffset = 0)
         line: Number.isSafeInteger(origin.line) && origin.line! > 0 ? origin.line : null } : null,
       textStatus: typeof rule.text !== 'string' ? 'missing' : text.length > 2048 ? 'truncated' : 'recorded',
       omittedTextChars: typeof rule.text === 'string' && text.length > 2048 ? text.length - 2038 : 0,
-      enforcement: known(rule.enforcement, ['BLOCK', 'WARN']), builtin: rule.id === integrity.id,
+      enforcement: known(rule.enforcement, ['BLOCK', 'WARN']), builtin,
       result: result ? { outcome: score(result.outcome), evidence: score(result.evidence) } : null,
       gateIds: valid && Array.isArray(contribution?.gates) ? contribution.gates.filter((g: any) => summaryGates.includes(g)).slice(0, 8) : null,
       contribution: known(contribution?.contribution, ['pass', 'blocking-gates', 'approval-required', 'advisory-gates', 'advisory-approval', 'unavailable', 'not-applicable']),
-      thresholds: { effectThreshold: probability(contribution?.effectThreshold ?? config.effectThreshold),
-        evidenceThreshold: probability(contribution && Object.hasOwn(contribution, 'evidenceThreshold') ? contribution.evidenceThreshold : config.evidenceThreshold) },
+      thresholds: { effectThreshold: probability(thresholds.effectThreshold),
+        evidenceThreshold: probability(thresholds.evidenceThreshold) },
       evidenceGate: known(contribution?.evidenceGate, ['applicable', 'not-applicable', 'unavailable']),
       profile: summaryLabel(contribution?.profile ?? findings.profile) };
   });
   const summaryRules = allRules.slice(ruleOffset, ruleOffset + 16);
-  const facts = recordedDecisionFacts(records);
   return { identity: records[0] ? { callId: summaryLabel(records[0].callId), toolName: summaryLabel(records[0].toolName), mode: records[0].mode } : null,
     judge: summaryJudge(recordedJudge(records), findings.evaluatorState),
     metadata: { schemas: [...new Set(records.map(r => r.schemaVersion))], questionVersion: summaryLabel(request.questionVersion ?? begin.questionVersion),
@@ -92,12 +82,12 @@ export function projectSummaryDecision(records: ArchiveRecord[], ruleOffset = 0)
     permission: known(facts.permission, ['released', 'blocked']), execution: known(facts.execution, ['executed', 'failed']),
     approval: known(facts.approval, ['approved', 'denied', 'cancelled', 'unavailable', 'not requested (observe mode)', 'unavailable (host cannot approve)', 'not required']),
     categories: valid ? findings.categories : findings.categories.filter(c => c !== 'violation'),
-    missing: ['begin', 'request', 'response', 'validation', 'assessment', 'decision', 'permission', 'execution'].filter(s => !records.some(r => r.stage === s)),
+    missing: invocation.missing,
     assessmentStatus: findings.evaluatorState.status, failure: findings.evaluatorState.reason, evaluatorState: { ...findings.evaluatorState },
-    noRulesClassifiedViolated: valid && noRulesClassifiedViolated(policy, integrity, assessment, stage('validation'), findings.profile),
+    noRulesClassifiedViolated: valid && noRulesClassifiedViolated(policy, integrity, assessment, validation, findings.profile),
     explanation: summarizeBlockingRules(allRules),
     rules: summaryRules, omittedRules: Math.max(0, rules.length - summaryRules.length),
-    missingRuleSnapshots: valid ? list(assessment.rules).filter(result => !rules.some(rule => rule.id === result.ruleId)).length : 0 };
+    missingRuleSnapshots: valid ? list(assessment.rules).filter(result => !rules.some(({ rule }) => rule.id === result.ruleId)).length : 0 };
 }
 
 export interface LinkedSessionSummary {
