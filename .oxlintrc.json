@@ -1,0 +1,26 @@
+{
+  "categories": {
+    "correctness": "off"
+  },
+  "rules": {
+    "constructor-super": "error",
+    "no-async-promise-executor": "error",
+    "no-duplicate-case": "error",
+    "no-dupe-else-if": "error",
+    "no-dupe-keys": "error",
+    "no-constant-binary-expression": "error",
+    "no-obj-calls": "error",
+    "no-self-assign": "error",
+    "no-setter-return": "error",
+    "no-sparse-arrays": "error",
+    "no-unreachable": "error",
+    "no-unsafe-finally": "error",
+    "no-unsafe-optional-chaining": "error",
+    "use-isnan": "error",
+    "valid-typeof": "error"
+  },
+  "ignorePatterns": [
+    ".pi/skills/**",
+    "third-party/**"
+  ]
+}

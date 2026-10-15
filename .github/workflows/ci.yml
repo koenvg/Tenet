@@ -27,6 +27,7 @@ jobs:
           bun-version: 1.4.3
       - run: python3 -B scripts/model-trial-monitors/test_watch.py
       - run: bun install --frozen-lockfile
+      - run: bun run lint
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
