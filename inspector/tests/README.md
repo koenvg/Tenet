@@ -50,6 +50,16 @@ Vitest Browser Mode mounts React components in headless Chromium without a produ
 
 The API mock rejects unexpected or non-local requests. This suite does not check archive security.
 
+## Shared rule coverage
+
+The shared summary tests divide coverage by boundary:
+
+- `components/rules.vitest.ts` owns public-mount rendering across viewport and container widths. It covers 16-row and 3-row bounds, truncated and missing text, integrity selection and technical thresholds, and WARN call selection and rule detail. It also covers keyboard paging, inert text, overflow, and destruction.
+- `integration/bb-rules.vitest.ts` uses the real preview and adapter with the generated summary in one 390px panel inside a 1440px window. It owns rule paging and page-one reset after each call switch. It also covers provider failure, summary privacy, host isolation, keyboard navigation between Calls and Summary, close, and unmount.
+- `integration/bb-panel.vitest.ts` owns the responsive preview shell width variants.
+
+The synthetic preview does not test a real BB host or native focus behavior. Real archive, HTTP, capture, and production-asset tests remain independent of these checks.
+
 ## Built-app suite
 
 To run only the built app, complete setup and SDK build above, then run from the repository root:
