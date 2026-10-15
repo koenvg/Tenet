@@ -104,17 +104,26 @@ test('delivery includes the compiled offline doctor and its reference', async ()
 
 test('delivery includes the configured native judge and its attribution', async () => {
   for (const name of ['decision/apus', 'decision/apus-native', 'decision/apus-renderer', 'decision/apus-transport',
-    'decision/assessment-answers', 'decision/typesafe-contract', 'runtime/judge', 'runtime/settings', 'runtime/configuration'])
+    'decision/assessment-answers', 'decision/bounded-json', 'decision/typesafe-contract', 'runtime/judge', 'runtime/settings', 'runtime/configuration'])
     assert.ok(runtimeModules.includes(name), `missing reviewed module: ${name}`);
   for (const name of ['docs/judge.md', 'third-party/apus/LICENSE', 'third-party/apus/NOTICE'])
     assert.ok(documentFiles.includes(name), `missing maintained guide or attribution: ${name}`);
   const { DELIVERY_FILES } = await import('../src/doctor/installation.js');
-  for (const name of ['dist/decision/apus.js', 'dist/runtime/settings.js', 'docs/judge.md', 'third-party/apus/LICENSE', 'third-party/apus/NOTICE'])
+  for (const name of ['dist/decision/apus.js', 'dist/decision/bounded-json.js', 'dist/runtime/settings.js', 'docs/judge.md', 'third-party/apus/LICENSE', 'third-party/apus/NOTICE'])
     assert.ok(DELIVERY_FILES.includes(name), `missing readiness entry: ${name}`);
   const root = await fixture();
   try {
     await rm(join(root, 'third-party/apus/NOTICE'));
     await assert.rejects(assertDelivery(root), /missing delivery file: third-party\/apus\/NOTICE/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+for (const extension of ['js', 'd.ts']) test(`delivery requires the compiled bounded JSON body ${extension}`, async () => {
+  const root = await fixture();
+  try {
+    await assertDelivery(root);
+    await rm(join(root, `dist/decision/bounded-json.${extension}`));
+    await assert.rejects(assertDelivery(root), { message: `missing delivery file: dist/decision/bounded-json.${extension}` });
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 

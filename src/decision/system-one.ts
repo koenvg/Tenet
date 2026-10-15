@@ -6,11 +6,11 @@ import { capture, responseSnapshot, type RecordingSink } from '../recording/cont
 import { freeze, jsonCopy } from './evidence.js';
 import { captureScopedPlan, captureScopedSubmission } from '../recording/scoped-capture.js';
 import { assessmentBudget } from './assessment-budget.js';
+import { createBoundedJsonBody, JSON_BODY_LIMIT } from './bounded-json.js';
 
 import { systemOneOrigin } from './system-one-origin.js';
 export type SystemOneAuth = Readonly<{ type: 'none' }> | Readonly<{ type: 'bearer'; token: string | undefined }>;
 const REQUEST_LIMIT = 8 * 1024 * 1024;
-const RESPONSE_LIMIT = 1024 * 1024;
 type Budget = ReturnType<typeof assessmentBudget>;
 const validModel = (value: unknown): value is string => typeof value === 'string' && !!value.trim()
   && value.length <= 256 && !/[\x00-\x1f\x7f-\x9f]/.test(value);
@@ -23,25 +23,23 @@ async function readJson(response: Response, budget: Budget): Promise<unknown> {
   try {
     budget.check();
     const length = response.headers.get('content-length');
-    if (length !== null && (!/^\d+$/.test(length) || Number(length) > RESPONSE_LIMIT)) throw new JudgeFailure('invalid-response');
+    if (length !== null && (!/^\d+$/.test(length) || Number(length) > JSON_BODY_LIMIT)) throw new JudgeFailure('invalid-response');
     if (!response.body) throw new JudgeFailure('invalid-response');
     reader = response.body.getReader();
-    const chunks: Uint8Array[] = []; let bytes = 0;
+    const responseBody = createBoundedJsonBody();
     for (;;) {
       const next = await budget.bounded(() => reader!.read().catch(() => {
         budget.check(); throw new JudgeFailure('provider-error');
       }));
       budget.check();
       if (next.done) break;
-      if (next.value.byteLength > RESPONSE_LIMIT - bytes) throw new JudgeFailure('invalid-response');
-      bytes += next.value.byteLength; chunks.push(next.value);
+      if (!responseBody.push(next.value)) throw new JudgeFailure('invalid-response');
     }
     budget.check();
-    let raw: unknown;
-    try { raw = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks))); }
-    catch { throw new JudgeFailure('invalid-response'); }
+    const decoded = responseBody.decode();
+    if (!decoded.ok) throw new JudgeFailure('invalid-response');
     budget.check();
-    return raw;
+    return decoded.value;
   } finally {
     if (reader) {
       try { void reader.cancel().catch(() => {}); } catch {}

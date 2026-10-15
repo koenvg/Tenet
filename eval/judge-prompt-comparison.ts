@@ -85,7 +85,7 @@ export interface Delivery {
 export function comparisonPlan(delivery: Delivery | null = null) {
   const prepared = prepareRead();
   const implementationFiles = ['judge-prompt-comparison.ts', 'evidence-selection-history.ts'].map(f => new URL(f, import.meta.url));
-  for (const f of ['apus', 'apus-native', 'apus-renderer', 'apus-transport', 'assessment-budget', 'assessment-answers', 'assessment-contract',
+  for (const f of ['apus', 'apus-native', 'apus-renderer', 'apus-transport', 'bounded-json', 'assessment-budget', 'assessment-answers', 'assessment-contract',
     'assessment-shape', 'judge-evidence', 'questions', 'history-selection', 'history-content', 'evidence-context', 'decide', 'diagnostics', 'response-validation'])
     implementationFiles.push(new URL(`../src/decision/${f}.ts`, import.meta.url));
   const body = { planVersion: 'judge-prompt-comparison-v1', fixtureId: 'read-00', startingCommit: frozen.startingCommit,

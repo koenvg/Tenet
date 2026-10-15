@@ -1,10 +1,10 @@
 import { assessmentBudget } from './assessment-budget.js';
 import { JudgeFailure } from './contracts.js';
+import { createBoundedJsonBody, JSON_BODY_LIMIT } from './bounded-json.js';
 
 export class NativeFailure extends JudgeFailure {
   constructor(readonly category: string, reason: 'invalid-response' | 'provider-error' = 'invalid-response') { super(reason); }
 }
-export const NATIVE_BODY_LIMIT = 1024 * 1024;
 export const NATIVE_REQUEST_LIMIT = 8 * 1024 * 1024;
 
 /** One budget for the entire assessment, including stalled noncooperative readers. */
@@ -23,21 +23,20 @@ export function nativeTransport(baseUrl: string, deadlineMs: number, parent: Abo
     }).then(value => { if (budget.signal.aborted) discard(value); return value; }));
     if (!response.ok || response.redirected) { discard(response); throw new NativeFailure('http', 'provider-error'); }
     const length = response.headers.get('content-length');
-    if (length !== null && (!/^\d+$/.test(length) || Number(length) > NATIVE_BODY_LIMIT)) { discard(response); throw new NativeFailure('body-limit'); }
+    if (length !== null && (!/^\d+$/.test(length) || Number(length) > JSON_BODY_LIMIT)) { discard(response); throw new NativeFailure('body-limit'); }
     if (!response.body) throw new NativeFailure('body-missing');
     const reader = response.body.getReader();
-    const chunks: Uint8Array[] = []; let bytes = 0;
+    const responseBody = createBoundedJsonBody();
     try {
       for (;;) {
         const next = await bounded(() => reader.read());
         if (next.done) break;
-        bytes += next.value.byteLength;
-        if (bytes > NATIVE_BODY_LIMIT) throw new NativeFailure('body-limit');
-        chunks.push(next.value);
+        if (!responseBody.push(next.value)) throw new NativeFailure('body-limit');
       }
       check();
-      try { return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks))); }
-      catch { throw new NativeFailure('body-json'); }
+      const decoded = responseBody.decode();
+      if (!decoded.ok) throw new NativeFailure('body-json');
+      return decoded.value;
     } finally {
       // Do not await cancellation: a backend or injected reader can ignore it.
       void reader.cancel().catch(() => {});
