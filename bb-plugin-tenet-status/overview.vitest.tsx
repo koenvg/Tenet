@@ -34,8 +34,13 @@ test('Pi header sends identical focus requests, preserves finding count and focu
 
 test('restored non-Pi panel reads no archive; forged params read no summaries', async () => {
   const app = await loadPluginApp(() => import('./app'));
-  for (const [providerId, params, message] of [['codex', null, 'This overview supports Pi threads only. No archive requested.'],
-    ['pi', { recordingDirectory: '/escape' }, 'Panel selection rejected. Close this tab and open the overview again.']] as const) {
+  const unsupported = 'This overview supports Pi threads only. No archive requested.';
+  for (const [providerId, params, message] of [
+    ...['codex', 'pi-prefix', 'pi-subagents-extra', 'Pi', 'PI-SUBAGENTS', ' pi', 'pi ', 'pi-subagents ']
+      .map(providerId => [providerId, null, unsupported] as const),
+    ['pi', { recordingDirectory: '/escape' }, 'Panel selection rejected. Close this tab and open the overview again.'],
+    ['pi-subagents', { recordingDirectory: '/escape' }, 'Panel selection rejected. Close this tab and open the overview again.'],
+  ] as const) {
     const slot = renderSlot(app.threadPanelActions[0]!, { threadId, params }, {
       sdk: { threads: { get: async () => ({ providerId }) as any } }, rpc: { overview: () => { throw new Error('must not read'); } },
     });
@@ -44,11 +49,11 @@ test('restored non-Pi panel reads no archive; forged params read no summaries', 
   }
 });
 
-test('real panel mounts shared safe summary, displays inert text, and clears stale data on disconnect', async () => {
+test.each(['pi', 'pi-subagents'])('real panel mounts shared safe summary, displays inert text, and clears stale data on disconnect for %s', async providerId => {
   const app = await loadPluginApp(() => import('./app'));
   let disconnected = false;
   const slot = renderSlot(app.threadPanelActions[0]!, { threadId, params: null }, {
-    sdk: { threads: { get: async () => ({ providerId: 'pi' }) as any } },
+    sdk: { threads: { get: async () => ({ providerId }) as any } },
     rpc: { overview: (selection: any) => {
       if (disconnected) return emptyOverview();
       const data = syntheticRead(selection);
