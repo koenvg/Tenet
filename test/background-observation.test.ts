@@ -146,7 +146,7 @@ test('oversized input is dropped before metadata inspection, copying or evaluato
   } finally { runtime.shutdown(); await rm(cwd, { recursive: true, force: true }); }
 });
 
-test('a pending would-block finding survives a burst beyond the owner history limit', { timeout: 30000 }, async () => {
+test('a pending would-block finding completes independently after later completed observations', { timeout: 30000 }, async () => {
   let release!: (value: unknown) => void;
   const h = await guardHarness({ judge: request => request.action.callId === 'first'
     ? new Promise(done => { release = done; }) : Promise.resolve(answer(request.policy)) });
@@ -154,11 +154,17 @@ test('a pending would-block finding survives a burst beyond the owner history li
     await h.start(); await h.call('first');
     for (let i = 0; !release && i < 400; i++) await new Promise(resolve => setTimeout(resolve, 5));
     assert.ok(release, 'first assessment entered the judge');
-    for (let i = 0; i < 110; i++) await h.call(`later-${i}`);
-    await tick();
+    for (let i = 0; i < 2; i++) {
+      const callId = `later-${i}`;
+      await h.call(callId);
+      const status = await h.assessed(callId);
+      assert.equal(status.status, 'completed', JSON.stringify(status));
+    }
+    assert.equal(h.records.findLast(r => r.stage === 'assessment-status' && r.callId === 'first')?.status, 'pending');
     const policy = h.records.find(r => r.stage === 'status')!.policy;
     release(answer(policy, 'FAIL'));
-    assert.equal((await h.assessed('first')).status, 'completed');
+    const status = await h.assessed('first');
+    assert.equal(status.status, 'completed', JSON.stringify(status));
     await h.commands.get('tenet').handler('', h.ctx);
     assert.ok(h.views.at(-1).items.some((item: string) => item.includes('first') && item.includes('Suspected violation')));
   } finally { release?.(undefined); await h.close(); }
