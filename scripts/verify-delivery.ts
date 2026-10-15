@@ -7,25 +7,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { assertDelivery } from './delivery-contract.js';
 import { isolatedEnvironment, isolatedArgs } from './isolated-environment.js';
-
-type CompilerFailure = { status?: number | null; stdout?: string; stderr?: string };
-
-export function runConsumerCompiler(compiler: string, typeRoots: string, cwd: string, env: Record<string, string>): string {
-  try {
-    return execFileSync('node', [compiler, '--pretty', 'false', '--noEmit', '--strict', '--module', 'NodeNext',
-      '--moduleResolution', 'NodeNext', '--target', 'ES2023', '--typeRoots', typeRoots, '--traceResolution', 'check.ts'],
-      { cwd, env, encoding: 'utf8', stdio: 'pipe', timeout: 180_000 });
-  } catch (error) {
-    const failure = error as CompilerFailure;
-    const diagnostics = [failure.stdout ?? '', failure.stderr ?? ''].flatMap(output => output.split(/\r?\n/))
-      .filter(line => /^(?:.+\(\d+,\d+\): )?error TS\d+: /.test(line)).join('\n');
-    const limit = 8_000;
-    console.error(`Isolated TypeScript consumer check failed (exit status ${failure.status ?? 'unknown'}).`);
-    console.error(diagnostics.slice(0, limit) || 'No TypeScript diagnostics captured.');
-    if (diagnostics.length > limit) console.error('[TypeScript diagnostics truncated]');
-    throw Object.assign(new Error('Isolated TypeScript consumer compilation failed.'), { status: failure.status });
-  }
-}
+import { ConsumerInterrupted, verifyRuntimeConsumers, verifyDeclarationConsumer } from './delivery-consumers.js';
 
 export async function verifyArchive(archive: string): Promise<void> {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-relocated-')));
@@ -56,12 +38,7 @@ export async function verifyArchive(archive: string): Promise<void> {
     await writeFile(join(consumer, 'package.json'), JSON.stringify({ name: 'isolated-consumer', private: true, type: 'module',
       dependencies: { tenet: `file:${installation}` } }));
     run('npm', ['install', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'], consumer);
-    await cp(new URL('./fixtures/archive-consumer.mjs', import.meta.url), join(consumer, 'check.mjs'));
-    for (const runtime of ['node', 'bun']) console.log(run(runtime, ['check.mjs'], consumer).trim());
-
-    for (const name of ['archive-judge.mjs', 'archive-native.mjs', 'archive-offline-trap.mjs'])
-      await cp(new URL(`./fixtures/${name}`, import.meta.url), join(consumer, name));
-    for (const runtime of ['node', 'bun']) console.log(run(runtime, ['archive-judge.mjs'], consumer).trim());
+    await verifyRuntimeConsumers({ root, installation, consumer });
     // Test tools are installed separately, after the production-only imports and HTTP checks.
     const host = join(root, 'host'); await mkdir(host);
     const source = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
@@ -91,10 +68,9 @@ export async function verifyArchive(archive: string): Promise<void> {
       }
     }
     await rm(join(installation, 'TENET.md'));
-    await cp(new URL('./fixtures/archive-types.ts', import.meta.url), join(consumer, 'check.ts'));
-    const trace = runConsumerCompiler(join(host, 'node_modules/typescript/bin/tsc'), join(host, 'node_modules/@types'), consumer, env);
-    assert.ok(trace.includes(join(installation, 'dist/sdk/index.d.ts')), 'consumer must resolve delivered declarations');
-    console.log('Isolated TypeScript declarations resolved.');
+    await verifyDeclarationConsumer({ root, installation, consumer }, {
+      compiler: join(host, 'node_modules/typescript/bin/tsc'), typeRoots: join(host, 'node_modules/@types'),
+    });
     for (const name of ['archive-native.mjs', 'archive-offline-trap.mjs'])
       await cp(new URL(`./fixtures/${name}`, import.meta.url), join(host, name));
     await cp(new URL('./fixtures/archive-pi.mjs', import.meta.url), join(host, 'check.mjs'));
@@ -214,5 +190,9 @@ export async function verifyArchive(archive: string): Promise<void> {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (!process.argv[2]) throw new Error('Usage: bun scripts/verify-delivery.ts archive.tar.gz');
-  await verifyArchive(process.argv[2]);
+  try { await verifyArchive(process.argv[2]); }
+  catch (error) {
+    if (!(error instanceof ConsumerInterrupted)) throw error;
+    process.exitCode = error.exitCode;
+  }
 }

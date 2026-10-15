@@ -85,6 +85,7 @@ checks() {
   cat "$TMPDIR/bun-suite.log" || { local replay_status=$?; (( status != 0 )) || status=$replay_status; }
   (( status == 0 )) || return "$status"
   bun run typecheck
+  bun run delivery:check
   bun run inspector:check
   bun run inspector:test
   (

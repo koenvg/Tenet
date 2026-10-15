@@ -7,8 +7,9 @@ import { createGuard, SDK_VERSION } from 'tenet';
 
 assert.equal(SDK_VERSION, 'alpha-1');
 const sdk = import.meta.resolve('tenet');
-assert.ok(sdk.includes('tenet-relocated-') && sdk.endsWith('/dist/sdk/index.js'));
+assert.ok(sdk.endsWith('/dist/sdk/index.js'));
 const installation = fileURLToPath(new URL('../../', sdk));
+assert.equal(await realpath(installation), await realpath(process.argv[2]));
 const root = await realpath(await mkdtemp(join(process.cwd(), 'exercise-')));
 const archive = join(root, 'recordings');
 const events = [];
@@ -82,7 +83,7 @@ try {
   const invocations = details.flatMap(d => d.invocations);
   assert.equal(invocations.length, 5);
   assert.ok(invocations.some(i => i.decision === 'BLOCK' && i.assessmentStatus === 'completed'));
-  console.log(`${process.versions.bun ? 'Bun' : 'Node'} production-only SDK: findings, 3 dummy executions, enforcement and built inspector HTTP passed.`);
+  console.log(`${process.versions.bun ? 'Bun' : 'Node'} SDK: findings, 3 dummy executions, enforcement and built inspector HTTP passed.`);
 } finally {
   await observe.close(); await enforce.close();
   if (inspector && inspector.exitCode === null) {

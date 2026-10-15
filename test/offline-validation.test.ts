@@ -13,6 +13,7 @@ const poison = ['TYPESAFE_API_KEY', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'TENE
 const expected = [
   ['run', 'sdk:build'], ['run', 'inspector:build'], ['run', 'summary:build'], ['run', 'site:build'],
   ['../scripts/check-summary-build.ts'], ['run', 'build:server'], ['run', 'test'], ['run', 'typecheck'],
+  ['run', 'delivery:check'],
   ['run', 'inspector:check'], ['run', 'inspector:test'], ['tsc', '--noEmit'], ['vitest', 'run', '--config', 'vitest.config.ts'],
 ];
 
@@ -101,7 +102,7 @@ function result(child: ReturnType<typeof spawn>) {
 
 async function absent(path: string) { await assert.rejects(access(path), { code: 'ENOENT' }); }
 
-for (const failure of [undefined, 'run test', 'run inspector:build']) {
+for (const failure of [undefined, 'run test', 'run inspector:build', 'run delivery:check']) {
   test(`offline lane has fixed order, isolated descendants and cleanup (${failure ?? 'success'})`, async () => {
     const f = await fixture({ fail: failure });
     try {

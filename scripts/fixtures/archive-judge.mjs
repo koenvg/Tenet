@@ -6,8 +6,10 @@ import { fileURLToPath } from 'node:url';
 import { syncBuiltinESMExports } from 'node:module';
 import { alias, scriptedNative } from './archive-native.mjs';
 
-const installation = fileURLToPath(new URL('../../', import.meta.resolve('tenet')));
-assert.ok(installation.includes('tenet-relocated-'));
+const sdk = import.meta.resolve('tenet');
+assert.ok(sdk.endsWith('/dist/sdk/index.js'));
+const installation = fileURLToPath(new URL('../../', sdk));
+assert.equal(await fsp.realpath(installation), await fsp.realpath(process.argv[2]));
 const home = await fsp.realpath(await fsp.mkdtemp(join(process.cwd(), 'judge-home-')));
 const previousHome = process.env.HOME;
 const originalFetch = globalThis.fetch;

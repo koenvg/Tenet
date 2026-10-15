@@ -38,7 +38,7 @@ async function compile(source: string, check: (result: CompilerResult, stderr: s
     await writeFile(join(root, 'driver.ts'), `
       import assert from 'node:assert/strict';
       import { homedir } from 'node:os';
-      import { runConsumerCompiler } from ${JSON.stringify(verifier)};
+      import { runConsumerCompiler } from ${JSON.stringify(new URL('../scripts/delivery-consumers.ts', import.meta.url).href)};
       assert.equal(homedir(), ${JSON.stringify(home)});
       for (const key of ['TYPESAFE_API_KEY', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'TENET_POLICY', 'NODE_OPTIONS'])
         assert.equal(process.env[key], undefined);
