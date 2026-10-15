@@ -1,6 +1,7 @@
 import type { BbPluginApi } from '@get-bb/plugin-sdk';
 import { z } from 'zod';
 import { pickerMethods, type PickerSelection } from './picker-contract.js';
+import { supportsTenetProvider } from './supported-provider.js';
 
 const projectCursor = z.object({ kind: z.literal('projects'), after: z.string().max(72) }).strict();
 const threadCursor = z.object({ kind: z.literal('threads'), projectId: z.string().max(72),
@@ -28,7 +29,7 @@ export function pickerHandlers(sdk: Pick<BbPluginApi['sdk'], 'projects' | 'threa
       if (scope.projectId !== projectId) throw new Error('Picker cursor scope rejected');
       // One bounded metadata window per request. Non-Pi windows can be empty.
       const threads = await sdk.threads.list({ projectId, includeHidden: true, archived: scope.archived, limit: 50, offset: scope.offset });
-      const items = threads.filter(thread => thread.projectId === projectId && thread.providerId === 'pi' && !thread.deletedAt)
+      const items = threads.filter(thread => thread.projectId === projectId && supportsTenetProvider(thread.providerId) && !thread.deletedAt)
         .slice(0, 50).map(thread => ({ id: thread.id, label: label(thread.title ?? thread.titleFallback ?? thread.id),
           status: label(thread.runtime.displayStatus), archived: thread.archivedAt !== null }));
       const next = threads.length === 50 ? encode({ ...scope, offset: scope.offset + 50 })
@@ -40,7 +41,7 @@ export function pickerHandlers(sdk: Pick<BbPluginApi['sdk'], 'projects' | 'threa
       try {
         const thread = await sdk.threads.get({ threadId });
         if (!thread || thread.id !== threadId || thread.deletedAt) return empty('unavailable');
-        if (thread.providerId !== 'pi') return empty('unsupported');
+        if (!supportsTenetProvider(thread.providerId)) return empty('unsupported');
         if (projectId && thread.projectId !== projectId) return empty('scope-changed');
         const project = await sdk.projects.get({ projectId: thread.projectId });
         if (!project || project.id !== thread.projectId) return empty('unavailable');

@@ -7,6 +7,7 @@ import { liveRead } from './live-read';
 import { CoverageDetails } from './coverage-details';
 import { StatusIcon } from './status-icon';
 import { OverviewPanel } from './overview-panel';
+import { supportsTenetProvider } from './supported-provider';
 
 function ThreadRules(props: { threadId: string; isCompactViewport: boolean }) {
   return <ThreadStatus key={props.threadId} {...props} />;
@@ -22,7 +23,7 @@ function ThreadStatus({ threadId, isCompactViewport }: { threadId: string; isCom
   useEffect(() => {
     let current = true;
     setIsPi(false); setOpen(false); setStatus(null);
-    sdk.threads.get({ threadId }).then(thread => { if (current) setIsPi(thread.providerId === 'pi'); }, () => {});
+    sdk.threads.get({ threadId }).then(thread => { if (current) setIsPi(supportsTenetProvider(thread.providerId)); }, () => {});
     return () => { current = false; };
   }, [sdk, threadId]);
   useEffect(() => {

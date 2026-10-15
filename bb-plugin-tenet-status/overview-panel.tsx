@@ -7,6 +7,7 @@ import { OverviewAdapter } from './overview-adapter';
 import { SummaryWorkspaceMount } from './summary-workspace';
 import { liveRead } from './live-read';
 import { emptyOverview, type OverviewSelection, type ThreadOverview } from '../src/inspector/bb-summary';
+import { supportsTenetProvider } from './supported-provider';
 
 type PanelSelection = { threadId: string; params: unknown };
 type Navigation = { projectId?: string; onSelection?: (selection: OverviewSelection) => void };
@@ -33,7 +34,7 @@ export function OverviewView({ threadId, params, projectId, onSelection, readThr
     setAdapter(null); setMessage('Checking thread provider…');
     liveRead(readThread(threadId, controller.signal), controller.signal).then(thread => {
       if (!current) return;
-      if (thread?.providerId !== 'pi') { setMessage('This overview supports Pi threads only. No archive requested.'); return; }
+      if (!thread || !supportsTenetProvider(thread.providerId)) { setMessage('This overview supports Pi threads only. No archive requested.'); return; }
       if (thread.deletedAt || projectId && (thread.id !== threadId || thread.projectId !== projectId)) {
         setMessage('Thread scope changed or was deleted. No archive requested.'); return;
       }
@@ -44,7 +45,7 @@ export function OverviewView({ threadId, params, projectId, onSelection, readThr
         // thread cannot trigger another archive read during the next refresh.
         if (projectId) {
           const latest = await readThread(threadId, signal);
-          if (latest.providerId !== 'pi') return emptyOverview('unsupported');
+          if (!supportsTenetProvider(latest.providerId)) return emptyOverview('unsupported');
           if (latest.id !== threadId || latest.deletedAt || latest.projectId !== projectId) return emptyOverview();
         }
         if (!current || signal.aborted) return emptyOverview();
