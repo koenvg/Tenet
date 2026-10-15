@@ -1,14 +1,11 @@
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { expect, test } from '../playwright-fixture.js';
 import { mkdir } from 'node:fs/promises';
 import { sessionKey } from '../../../src/recording/archive.js';
-import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
 import { hostileCommand, previewSession, seedPreview } from './preview-fixture.js';
 import { openRecordedData } from '../ui-navigation.js';
 
-beforeAll(launchBrowser);
-afterAll(closeBrowser);
 
-test('fictional command and file previews remain inert, private and usable at desktop and mobile widths', async () => {
+test('fictional command and file previews remain inert, private and usable at desktop and mobile widths', async ({ withInspector }) => {
   await withInspector('recorded-action-preview', async ({ page, app, externalRequests }) => {
     await page.locator('.decision-summary').waitFor();
     const list = page.getByRole('navigation', { name: 'Invocations' });

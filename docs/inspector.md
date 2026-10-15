@@ -291,8 +291,8 @@ CI=1 bun run inspector:test
 bun test test/standalone-workflow.test.ts
 ```
 
-On Linux CI, install Chromium system libraries with `bunx playwright install --with-deps chromium`. Success means the checks exit zero. These tests need no Arc debugging endpoint, signed-in profile, evaluator credential or live provider call. See [inspector test instructions](../inspector/tests/README.md) for focused component/browser commands and setup fixes.
+On Linux CI, install Chromium system libraries with `bunx playwright install --with-deps chromium`. Success means the checks exit zero. These tests need no Arc debugging endpoint, signed-in profile, evaluator credential or live provider call. See [inspector test instructions](../inspector/tests/README.md) for focused component, journey and infrastructure commands and setup fixes.
 
-Component tests mount React views with controlled API responses. The full-app suite builds and serves the production client from a temporary loopback archive in disposable headless Chromium. It checks updates, pagination, deep links, failure history, truncation and capture health, and blocks non-local browser requests.
+Vitest Browser Mode component tests mount React views with controlled API responses. The Playwright Test journey lane builds and serves the production client from a temporary loopback archive in disposable headless Chromium. It checks updates, pagination, deep links, failure history, truncation and capture health, and blocks non-local browser requests.
 
 The integrated workflow records passes, concerns and provider failure with the reader closed, restarts it, resumes the same session, and compares recorded questions/evidence with the scripted SDK payload. It checks permission separately from execution. Offline success does not prove live model accuracy or deployed hook coverage.

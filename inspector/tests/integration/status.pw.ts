@@ -1,12 +1,9 @@
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { expect, test } from '../playwright-fixture.js';
 import { mkdir } from 'node:fs/promises';
 import { FixtureArchiveWriter } from '../../../test/archive-fixture.js';
 import { recordSessionKey, recordInvocationKey } from '../../../src/recording/archive.js';
-import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
 import { openRecordedData, reveal } from '../ui-navigation.js';
 
-beforeAll(launchBrowser);
-afterAll(closeBrowser);
 
 type Schema = 1 | 2 | 3 | 4;
 const identity = { sessionId: 'status', invocationId: 'ran', callId: 'ran',
@@ -44,7 +41,7 @@ async function seedStatus(directory: string, options: { schema?: Schema; executi
   await writer.complete();
 }
 
-test('observe BLOCK with a recorded result has neutral Ran first on desktop and narrow screens', async () => {
+test('observe BLOCK with a recorded result has neutral Ran first on desktop and narrow screens', async ({ withInspector }) => {
   await withInspector('execution-first-preview', async ({ page }) => {
     await page.locator('.decision-summary').waitFor();
     await mkdir('coverage/inspector-artifacts', { recursive: true });
@@ -70,7 +67,7 @@ test('observe BLOCK with a recorded result has neutral Ran first on desktop and 
   }, { base: false, seed: directory => seedStatus(directory), path: link(1) });
 });
 
-for (const schema of [1, 2, 3, 4] as const) test(`schema ${schema} preserves recorded labels, scores, thresholds, questions and exact evidence`, async () => {
+for (const schema of [1, 2, 3, 4] as const) test(`schema ${schema} preserves recorded labels, scores, thresholds, questions and exact evidence`, async ({ withInspector }) => {
   await withInspector(`historical-status-${schema}`, async ({ page, app, open }) => {
     await page.locator('.decision-summary').waitFor();
     const api = `/api/sessions/${recordSessionKey(address(schema))}/invocations/${recordInvocationKey(address(schema))}`;
@@ -102,7 +99,7 @@ for (const schema of [1, 2, 3, 4] as const) test(`schema ${schema} preserves rec
 for (const [execution, permission] of [
   ['executed', 'blocked'], ['failed', 'blocked'],
   [null, 'blocked'], [null, 'released'], [null, null],
-] as const) test(`real archive preserves permission/result for ${execution}/${permission}`, async () => {
+] as const) test(`real archive preserves permission/result for ${execution}/${permission}`, async ({ withInspector }) => {
   await withInspector('separate-facts', async ({ page }) => {
     await page.locator('.decision-summary').waitFor();
     const result = execution === 'executed' ? 'Successful' : execution === 'failed' ? 'Failed' : 'Unknown / not recorded';
@@ -124,7 +121,7 @@ for (const [execution, permission] of [
   }, { base: false, seed: directory => seedStatus(directory, { execution, permission }), path: link(1) });
 });
 
-for (const width of [1280, 390]) test(`Observe with blocked permission keeps its counterfactual visible at ${width}px`, async () => {
+for (const width of [1280, 390]) test(`Observe with blocked permission keeps its counterfactual visible at ${width}px`, async ({ withInspector }) => {
   await withInspector(`observe-blocked-first-view-${width}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
     await page.locator('.decision-summary').waitFor();
@@ -137,7 +134,7 @@ for (const width of [1280, 390]) test(`Observe with blocked permission keeps its
   }, { base: false, seed: directory => seedStatus(directory, { permission: 'blocked', execution: null }), path: link(1) });
 });
 
-for (const width of [1280, 390]) test(`polling Released to Ran at ${width}px retains selection, evidence node and scroll through delayed assessment`, async () => {
+for (const width of [1280, 390]) test(`polling Released to Ran at ${width}px retains selection, evidence node and scroll through delayed assessment`, async ({ withInspector }) => {
   await withInspector(`status-poll-${width}`, async ({ page, directory }) => {
     await page.setViewportSize({ width, height: 844 });
     await page.locator('.decision-summary').waitFor();

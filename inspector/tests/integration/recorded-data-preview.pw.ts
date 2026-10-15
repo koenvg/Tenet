@@ -1,10 +1,7 @@
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { expect, test } from '../playwright-fixture.js';
 import { mkdir } from 'node:fs/promises';
-import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
 import { recordedDataLink, seedRecordedData } from './recorded-data-fixture.js';
-beforeAll(launchBrowser);
-afterAll(closeBrowser);
-test('fictional Recorded data is readable on desktop and mobile, with all rule questions', async () => {
+test('fictional Recorded data is readable on desktop and mobile, with all rule questions', async ({ withInspector }) => {
   await withInspector('recorded-data-preview', async ({ page }) => {
     await page.locator('.recorded-disclosure > summary').click();
     await page.locator('.submitted-fields').waitFor();
@@ -27,7 +24,7 @@ test('fictional Recorded data is readable on desktop and mobile, with all rule q
 });
 
 
-test('delayed request and result preserve native disclosure state, focus, evidence node and URL through real polls', async () => {
+test('delayed request and result preserve native disclosure state, focus, evidence node and URL through real polls', async ({ withInspector }) => {
   await withInspector('recorded-data-delayed', async ({ page, directory }) => {
     await page.locator('.recorded-disclosure > summary').click();
     await page.locator('.submitted-evidence-details > summary').click();
@@ -76,7 +73,7 @@ test('delayed request and result preserve native disclosure state, focus, eviden
 });
 
 
-test('supported historical captures with lone-surrogate invocation and rule IDs remain inspectable', async () => {
+test('supported historical captures with lone-surrogate invocation and rule IDs remain inspectable', async ({ withInspector }) => {
   const { FixtureArchiveWriter } = await import('../../../test/archive-fixture.js');
   const { recordSessionKey, recordInvocationKey } = await import('../../../src/recording/archive.js');
   const identity = { schemaVersion: 1 as const, sessionId: 'fictional-surrogates', invocationId: 'fictional-\ud800', callId: 'fictional-call', toolName: 'edit', cwd: '/fictional', mode: 'observe' as const };

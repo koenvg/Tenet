@@ -50,4 +50,6 @@ Ordinary evidence can support `PASS` without authenticated action resolution. Th
 
 [Checkout setup and offline checks](CONTRIBUTING.md) are developer-only. They are not the owner installation path. See the [writing guide](docs/writing-guide.md) before changing documentation.
 
+The [Inspector test guide](inspector/tests/README.md) separates mounted UI behavior in Vitest Browser Mode, browser journeys in Playwright Test and Node infrastructure checks. The canonical offline command runs all three with synthetic data and no live evaluator calls.
+
 Tenet source is [MIT-licensed](LICENSE). Bundled assets retain their licenses in [third-party notices](THIRD_PARTY_NOTICES.md). Report vulnerabilities [privately](SECURITY.md).

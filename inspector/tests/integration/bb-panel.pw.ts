@@ -1,18 +1,11 @@
-import { afterAll, beforeAll, expect, test } from 'vitest';
-import { chromium, type Browser } from 'playwright';
-import { createServer, type ViteDevServer } from 'vite';
+import { expect, test } from '../browser-shell-fixture.js';
+
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-let server: ViteDevServer, browser: Browser, origin: string;
 const artifacts = resolve('coverage/inspector-artifacts/tenet52');
-beforeAll(async () => {
-  server = await createServer({ configFile: false, root: resolve('bb-plugin-tenet-status'), server: { host: '127.0.0.1', port: 0 } });
-  await server.listen(); origin = server.resolvedUrls!.local[0]!;
-  browser = await chromium.launch({ headless: true }); await mkdir(artifacts, { recursive: true });
-});
-afterAll(async () => { await browser?.close(); await server?.close(); });
-for (const width of [1440, 390]) test(`synthetic BB panel is compact at 390px inside ${width}px window, keyboard-safe and host-isolated`, async () => {
-  const page = await browser.newPage({ viewport: { width, height: 1050 } });
+test.beforeAll(async ({}, testInfo) => { testInfo.setTimeout(30_000); await mkdir(artifacts, { recursive: true }); });
+for (const width of [1440, 390]) test(`synthetic BB panel is compact at 390px inside ${width}px window, keyboard-safe and host-isolated`, async ({ page, shellOrigin: origin }) => {
+  await page.setViewportSize({ width, height: 1050 });
   const errors: string[] = [], unexpected: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
   await page.route('**/*', route => {
@@ -57,8 +50,8 @@ for (const width of [1440, 390]) test(`synthetic BB panel is compact at 390px in
     expect(errors).toEqual([]); expect(unexpected).toEqual([]);
   } finally { await page.close(); }
 });
-test('desktop BB shared composition has the same common fields and no raw extensions', async () => {
-  const page = await browser.newPage({ viewport: { width: 1600, height: 1050 } });
+test('desktop BB shared composition has the same common fields and no raw extensions', async ({ page, shellOrigin: origin }) => {
+  await page.setViewportSize({ width: 1600, height: 1050 });
   try {
     await page.goto(`${origin}overview.preview.html`); await page.locator('.call-row').first().waitFor();
     await page.getByRole('button', { name: 'Toggle 390px panel' }).click();

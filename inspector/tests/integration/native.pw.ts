@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { expect, test } from '../playwright-fixture.js';
 import { mkdir } from 'node:fs/promises';
 import { ArchiveWriter, recordSessionKey, recordInvocationKey } from '../../../src/recording/archive.js';
 import { createApusJudge } from '../../../src/decision/apus.js';
@@ -6,11 +6,8 @@ import { decide } from '../../../src/decision/decide.js';
 import { captureAction } from '../../../src/decision/evidence.js';
 import { policy } from '../../../test/helpers.js';
 import { APUS_MODEL, scriptedNative } from '../../../test/apus-scripted.js';
-import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
 import { reveal, openRecordedData } from '../ui-navigation.js';
 
-beforeAll(launchBrowser);
-afterAll(closeBrowser);
 const identity = { schemaVersion: 4, host: 'offline', contextId: 'main', sessionId: 'native-history', invocationId: 'c', callId: 'c', toolName: 'inert-fixture', cwd: '/synthetic', mode: 'observe' as const };
 const link = `/?session=${recordSessionKey(identity)}&invocation=${recordInvocationKey(identity)}`;
 async function seed(directory: string, partial: boolean) {
@@ -31,7 +28,7 @@ async function seed(directory: string, partial: boolean) {
   expect(writer.health().failed + writer.health().dropped + writer.health().pending).toBe(0);
 }
 
-for (const width of [1280, 390]) for (const partial of [false, true]) test(`built inspector reads ${partial ? 'partial' : 'complete'} native history at ${width}px without inferring identity or execution`, async () => {
+for (const width of [1280, 390]) for (const partial of [false, true]) test(`built inspector reads ${partial ? 'partial' : 'complete'} native history at ${width}px without inferring identity or execution`, async ({ withInspector }) => {
   await withInspector(`apus-${partial}-${width}`, async ({ page, app }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.locator('.decision-summary').waitFor();

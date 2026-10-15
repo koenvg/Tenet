@@ -216,7 +216,7 @@ test('framework configurations do not load dotenv in the offline lane', async ()
   const root = await realpath(await mkdtemp('/tmp/tenet-framework-test-'));
   try {
     for (const name of ['.env', '.env.production', '.env.test']) await writeFile(join(root, name), 'VITE_OFFLINE_CANARY=loaded\n');
-    const configs = ['inspector/vite.config.ts', 'inspector/vite.summary.config.ts', 'inspector/vitest.browser.config.ts', 'inspector/vitest.config.ts', 'site/vite.config.ts', 'site/vitest.config.ts', 'bb-plugin-tenet-status/vitest.config.ts'];
+    const configs = ['inspector/vite.config.ts', 'inspector/vite.summary.config.ts', 'inspector/vitest.browser.config.ts', 'inspector/vitest.node.config.ts', 'site/vite.config.ts', 'site/vitest.config.ts', 'bb-plugin-tenet-status/vitest.config.ts'];
     const script = `import {loadConfigFromFile,resolveConfig} from 'vite';
 for(const file of ${JSON.stringify(configs)}){
  const loaded=await loadConfigFromFile({command:'build',mode:'production'},file);

@@ -1,12 +1,8 @@
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { expect, test } from '../playwright-fixture.js';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
 
-beforeAll(launchBrowser);
-afterAll(closeBrowser);
-
-for (const width of [1280, 390]) test(`bundled wordmark font loads without network access at ${width}px`, async () => {
+for (const width of [1280, 390]) test(`bundled wordmark font loads without network access at ${width}px`, async ({ withInspector }) => {
   await withInspector(`wordmark-font-${width}`, async ({ page, externalRequests }) => {
     await page.setViewportSize({ width, height: 844 });
     await page.reload();
@@ -31,7 +27,7 @@ for (const width of [1280, 390]) test(`bundled wordmark font loads without netwo
   }, { base: false });
 });
 
-test('reader font policy blocks remote fonts before a network request', async () => {
+test('reader font policy blocks remote fonts before a network request', async ({ withInspector }) => {
   await withInspector('remote-font-policy', async ({ page, externalRequests }) => {
     const result = await page.evaluate(async () => {
       const violations: Array<{ directive: string; blockedURI: string }> = [];

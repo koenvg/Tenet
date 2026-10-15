@@ -1,10 +1,7 @@
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { expect, test } from '../playwright-fixture.js';
 import { mkdir } from 'node:fs/promises';
-import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
 import { seedPreview } from './preview-fixture.js';
-beforeAll(launchBrowser);
-afterAll(closeBrowser);
-test('fictional named facts fit the desktop and mobile first view', async () => {
+test('fictional named facts fit the desktop and mobile first view', async ({ withInspector }) => {
   await withInspector('named-facts-preview', async ({ page }) => {
     await page.locator('.decision-summary').waitFor();
     await mkdir('coverage/inspector-artifacts', { recursive: true });

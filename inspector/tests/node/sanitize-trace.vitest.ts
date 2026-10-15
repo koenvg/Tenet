@@ -5,7 +5,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { unzipSync, zipSync, strFromU8, strToU8 } from 'fflate';
-import { diagnosticUrl } from './report.js';
+import { diagnosticUrl } from '../diagnostics/report.js';
 
 const run = promisify(execFile);
 test('retained trace keeps snapshots/screenshots without network headers, cookies or URL credentials', async () => {

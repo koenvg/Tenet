@@ -1,18 +1,11 @@
-import { afterAll, beforeAll, expect, test } from 'vitest';
-import { chromium, type Browser } from 'playwright';
-import { createServer, type ViteDevServer } from 'vite';
+import { expect, test } from '../browser-shell-fixture.js';
+
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-let server: ViteDevServer, browser: Browser, origin: string;
 const artifacts = resolve('coverage/inspector-artifacts/tenet53');
-beforeAll(async () => {
-  server = await createServer({ configFile: false, root: resolve('bb-plugin-tenet-status'), server: { host: '127.0.0.1', port: 0 } });
-  await server.listen(); origin = server.resolvedUrls!.local[0]!;
-  browser = await chromium.launch({ headless: true }); await mkdir(artifacts, { recursive: true });
-});
-afterAll(async () => { await browser?.close(); await server?.close(); });
-test('offline adapter rule paging and call resets in a 390px panel inside a 1440px window', async () => {
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1050 } });
+test.beforeAll(async ({}, testInfo) => { testInfo.setTimeout(30_000); await mkdir(artifacts, { recursive: true }); });
+test('offline adapter rule paging and call resets in a 390px panel inside a 1440px window', async ({ page, shellOrigin: origin }) => {
+  await page.setViewportSize({ width: 1440, height: 1050 });
   const errors: string[] = [], unexpected: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
   await page.route('**/*', route => {

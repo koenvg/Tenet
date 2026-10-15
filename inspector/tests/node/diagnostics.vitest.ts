@@ -15,15 +15,16 @@ const cases = [
   ['callback', 'test', 'CALLBACK_SENTINEL'],
   ['original', 'test', 'CALLBACK_SENTINEL'],
   ['teardown', 'teardown', 'TEARDOWN_SENTINEL'],
-  ['timeout', 'test', 'Test timed out in 20000ms'],
-  ['late-server', 'setup.server', 'Test timed out in 500ms'],
-  ['late-context', 'setup.context', 'Test timed out in 500ms'],
-  ['late-seed', 'setup.seed', 'Test timed out in 500ms'],
+  ['timeout', 'test', 'Test timeout of 20000ms exceeded'],
+  ['late-server', 'setup.server', 'Test timeout of 500ms exceeded'],
+  ['late-context', 'setup.context', 'Test timeout of 500ms exceeded'],
+  ['late-seed', 'setup.seed', 'Test timeout of 500ms exceeded'],
   ['late-trace', 'test', 'CALLBACK_SENTINEL'],
-  ['late-callback', 'test', 'Test timed out in 500ms'],
+  ['late-callback', 'test', 'Test timeout of 500ms exceeded'],
   ['reuse', 'test', 'CALLBACK_SENTINEL'],
   ['events', 'test', 'CALLBACK_SENTINEL'],
   ['bounds', 'test', 'CALLBACK_SENTINEL'],
+  ['interrupted', 'test', 'Test interrupted'],
   ['success', '', ''],
 ] as const;
 
@@ -35,9 +36,9 @@ const debuggerCases = [
   ['original', 'test', 'CALLBACK_SENTINEL'],
   ['context-close', 'teardown', 'CONTEXT_SENTINEL'],
   ['teardown', 'teardown', 'TEARDOWN_SENTINEL'],
-  ['timeout', 'test', 'Test timed out in 20000ms'],
-  ['late-browser', 'setup.browser', 'Hook timed out in 30000ms'],
-  ['late-seed', 'setup.seed', 'Hook timed out in 30000ms'],
+  ['timeout', 'test', 'Test timeout of 20000ms exceeded'],
+  ['late-browser', 'setup.browser', 'Fixture "debuggerSuite" timeout of 30000ms exceeded during setup.'],
+  ['late-seed', 'setup.seed', 'Fixture "debuggerSuite" timeout of 30000ms exceeded during setup.'],
   ['guard', 'test', 'non-local requests must not leave this test'],
   ['pageerror', 'test', 'uncaught browser errors must not leave this test'],
   ['late-guard', 'teardown', 'non-local requests must not leave this test'],
@@ -54,7 +55,7 @@ for (const [mode, phase, message] of modes) test(`${target} fixture diagnostics 
   let output = '';
   const before = new Set(await readdir(artifacts).catch(() => []));
   try {
-    const child = spawn(process.execPath, ['node_modules/vitest/dist/cli.js', 'run', '--config', 'inspector/tests/diagnostics/child.config.ts'], {
+    const child = spawn(process.execPath, ['node_modules/playwright/cli.js', 'test', '--config', 'inspector/tests/diagnostics/child.config.ts'], {
       cwd: resolve('.'),
       env: {
         PATH: `${home}/bin:${process.env.PATH}`, HOME: home, TMPDIR: '/tmp', CI: '1',
@@ -66,9 +67,18 @@ for (const [mode, phase, message] of modes) test(`${target} fixture diagnostics 
     child.stdout.on('data', chunk => { output = (output + chunk).slice(-128_000); });
     child.stderr.on('data', chunk => { output = (output + chunk).slice(-128_000); });
     const timer = setTimeout(() => child.kill('SIGKILL'), 60_000);
-    const code = await new Promise<number | null>((resolve, reject) => { child.on('error', reject); child.on('exit', resolve); }).finally(() => clearTimeout(timer));
-    expect(code, output).toBe(mode === 'success' ? 0 : 1);
-    if (message) expect(output).toContain(message);
+    let interrupted = false;
+    const interrupt = mode === 'interrupted' ? setInterval(() => {
+      void readFile(join(home, 'ready')).then(() => {
+        if (!interrupted) { interrupted = true; child.kill('SIGINT'); }
+      }, () => {});
+    }, 50) : undefined;
+    const started = Date.now();
+    const code = await new Promise<number | null>((resolve, reject) => { child.on('error', reject); child.on('exit', resolve); }).finally(() => { clearTimeout(timer); clearInterval(interrupt); });
+    expect(code, output).toBe(mode === 'success' ? 0 : mode === 'interrupted' ? 130 : 1);
+    if (message && mode !== 'interrupted') expect(output).toContain(message);
+    if (mode === 'timeout') expect(Date.now() - started).toBeGreaterThanOrEqual(20_000);
+    if (mode === 'interrupted') expect(interrupted).toBe(true);
     expect(output).not.toContain('Unhandled Rejection');
     const failures = (await readdir(artifacts).catch(() => [])).filter(file => !before.has(file) && file.startsWith('failure-') && (target === 'debugger' || file.includes(name) || (mode === 'launch' && file.includes('browser-launch'))));
     if (mode === 'success') expect(failures).toEqual([]);
@@ -82,7 +92,7 @@ for (const [mode, phase, message] of modes) test(`${target} fixture diagnostics 
       expect(report.timeline[0]).toMatchObject({ kind: 'phase', phase: 'setup.browser' });
       expect(report.timeline.every((entry: { wallTime: string; elapsedMs: number }) => !Number.isNaN(Date.parse(entry.wallTime)) && entry.elapsedMs >= 0)).toBe(true);
       if (target === 'integration') {
-        expect(report.cleanup.some((entry: { outcome: string }) => entry.outcome === 'pending')).toBe(mode === 'timeout');
+        expect(report.cleanup.some((entry: { outcome: string }) => entry.outcome === 'pending')).toBe(['timeout', 'interrupted'].includes(mode));
         if (mode === 'late-trace') expect(report.cleanup.every((entry: { outcome: string }) => entry.outcome === 'closed')).toBe(true);
         if (['callback', 'original', 'bounds', 'timeout', 'teardown'].includes(mode)) {
           expect(report.browser.connected).toBe(true);
@@ -130,6 +140,8 @@ for (const [mode, phase, message] of modes) test(`${target} fixture diagnostics 
         }
       }
     }
+    const runnerFiles = await readdir(resolve('coverage/inspector-artifacts/diagnostic-runner'), { recursive: true });
+    expect(runnerFiles.filter(file => file !== '.last-run.json'), 'only shared sanitized diagnostics may survive a child run').toEqual([]);
     const witness = JSON.parse(await readFile(join(home, 'witness.json'), 'utf8'));
     expect(witness.directoryExists).toBe(false);
     expect(witness.listening).toBe(false);
