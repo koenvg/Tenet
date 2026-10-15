@@ -2,16 +2,18 @@ import { recordedInputs } from '../recording/scoped.js';
 import { type FindingCategory } from '../decision/finding-triage.js';
 import { findingStage, foldFindingStages, type FindingStage, type EvaluatorState, type EvaluatorFailureCode } from './finding-view.js';
 import { lstat, opendir } from 'node:fs/promises';
-import type { Dir } from 'node:fs';
+import type { Dir, Stats } from 'node:fs';
 import { join } from 'node:path';
 import { type ArchiveIssue, sessionKey, recordSessionKey, recordInvocationKey } from '../recording/archive.js';
 import { READER_SCHEMAS, type ArchiveRecord, validRecord } from '../recording/contract.js';
 import { directory, MAX_RECORD_BYTES, readPrivateFile } from '../recording/files.js';
-import { captureHealth, invocationView, recordedAssessmentInvalid, type CaptureHealth } from './view.js';
+import { object, captureHealth, invocationView, recordedAssessmentInvalid, type CaptureHealth } from './view.js';
 import { projectThreadFinding, type ThreadFinding } from './bb-findings.js';
 import { projectSummaryCall, projectSummaryDecision, type LinkedSessionSummary, type ThreadOverview, type OverviewSelection } from './bb-summary.js';
 import { recordedAssessment } from './recorded-assessment.js';
 import { recordedRulePreviews, recordedActionPreview, unavailableActionPreview, type TextPreview, type ActionPreview } from './action-preview.js';
+import { sessionRuleStage, foldInvocationRules, foldSessionRules, RULE_CHECK_LIMIT, type SessionRuleStage } from './session-rules.js';
+import type { SessionRuleSummary, SessionRulesPage, RuleChecksPage, SelectedSessionRule, RuleCheck } from './session-rules-model.js';
 
 export interface PageOptions { limit?: number; cursor?: string; offset?: number }
 export interface InvocationSummary {
@@ -23,8 +25,8 @@ export interface InvocationSummary {
   mode: string; permission: string; execution: string;
   actionPreview: ActionPreview;
 }
-export interface SessionSummary {
-  id: string; sessionId: string; host: string; contextId: string; projects: string[]; timestamp: number; started: number;
+export interface SessionSummary extends SessionRuleSummary {
+  revision: string; id: string; sessionId: string; host: string; contextId: string; projects: string[]; timestamp: number; started: number;
   invocations: number; concerns: number; unavailable: number; coverage: string; categoryCounts: Record<FindingCategory, number>;
 }
 export type UncertaintyGroup = { id: string; policyIdentity: string; profile: string; ruleId: string; gate: string; count: number; first: number; last: number;
@@ -33,7 +35,7 @@ export type UncertaintyGroup = { id: string; policyIdentity: string; profile: st
 // Private display allowlist: one action preview and at most 16 policy excerpts plus integrity.
 // Each value is <=512 UTF-8 bytes. No full evidence or display strings enter BB projections.
 type Metadata = Omit<ArchiveRecord, 'data'> & { decision?: string; outcome?: string; finding: FindingStage; health?: CaptureHealth[number];
-  assessmentInvalid?: boolean; actionPreview?: ActionPreview; rulePreviews?: ReturnType<typeof recordedRulePreviews>; valid?: boolean; selectedFailIds?: string[]; policyRuleIds?: string[]; integrityRuleId?: string | null };
+  ruleStage: SessionRuleStage; assessmentInvalid?: boolean; actionPreview?: ActionPreview; rulePreviews?: ReturnType<typeof recordedRulePreviews>; valid?: boolean; selectedFailIds?: string[]; policyRuleIds?: string[]; integrityRuleId?: string | null };
 type Entry = { fingerprint: string; bytes: number; metadata?: Metadata; issue?: ArchiveIssue; unsupportedVersion?: number };
 type Counts = { unsupported: number; newerUnsupported: number; corrupt: number; otherIssues: number };
 const counts = (): Counts => ({ unsupported: 0, newerUnsupported: 0, corrupt: 0, otherIssues: 0 });
@@ -73,9 +75,10 @@ function bbFacts(record: ArchiveRecord): Pick<Metadata, 'valid' | 'policyRuleIds
   return { valid: stage === 'validation' ? data.valid === true : undefined, policyRuleIds, integrityRuleId, selectedFailIds };
 }
 const compare = (a: { timestamp: number; id: string }, b: { timestamp: number; id: string }) => b.timestamp - a.timestamp || a.id.localeCompare(b.id);
+const fileFingerprint = (stat: Stats) => [stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs, stat.mode, stat.uid, stat.nlink].join(':');
 
 // Cursors contain only a sort key and a hash binding them to a query, never evidence.
-function page<T extends { timestamp: number; id: string }>(rows: T[], options: PageOptions, scope: string, time = (row: T) => row.timestamp) {
+function page<T extends { timestamp: number; id: string }>(rows: T[], options: PageOptions, scope: string, time = (row: T) => row.timestamp, revision?: string) {
   const limit = options.limit ?? 50;
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new Error('invalid-page');
   let offset = options.offset ?? 0;
@@ -83,13 +86,14 @@ function page<T extends { timestamp: number; id: string }>(rows: T[], options: P
   const keyOf = (row: T) => ({ id: row.id, timestamp: time(row) });
   rows.sort((a, b) => compare(keyOf(a), keyOf(b)));
   if (options.cursor) {
-    let key: { timestamp: number; id: string; scope: string };
+    let key: { timestamp: number; id: string; scope: string; revision?: string };
     try { key = JSON.parse(Buffer.from(options.cursor, 'base64url').toString()); } catch { throw new Error('invalid-page'); }
     if (!key || !Number.isFinite(key.timestamp) || !/^[a-f0-9]{64}$/.test(key.id) || key.scope !== sessionKey(scope)) throw new Error('invalid-page');
+    if (revision !== undefined && key.revision !== revision) throw new Error('stale-cursor');
     rows = rows.filter(row => compare(keyOf(row), key) > 0); offset = 0;
   }
   const items = rows.slice(offset, offset + limit), last = items.at(-1);
-  return { items, next: last && offset + limit < rows.length ? Buffer.from(JSON.stringify({ ...keyOf(last), scope: sessionKey(scope) })).toString('base64url') : null };
+  return { items, next: last && offset + limit < rows.length ? Buffer.from(JSON.stringify({ ...keyOf(last), scope: sessionKey(scope), ...(revision === undefined ? {} : { revision }) })).toString('base64url') : null };
 }
 
 type SessionScan = { session: string; cursor?: Dir; files: Map<string, Entry>; entryIssues: Map<string, ArchiveIssue>;
@@ -326,7 +330,7 @@ export class ArchiveIndex {
         state.seen.add(path);
         try {
           const stat = await lstat(path);
-          const fingerprint = [stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs, stat.mode, stat.uid, stat.nlink].join(':');
+          const fingerprint = fileFingerprint(stat);
           const cached = state.files.get(path);
           if (cached?.fingerprint === fingerprint) continue;
           this.replaceEntry(state, path);
@@ -348,7 +352,7 @@ export class ArchiveIndex {
             }
             if (!validRecord(record) || recordSessionKey(record) !== session) throw new Error('invalid-record');
             const { data, ...metadata } = record;
-            entry.metadata = { ...metadata, finding: findingStage(record), ...bbFacts(record),
+            entry.metadata = { ...metadata, ruleStage: sessionRuleStage(record), finding: findingStage(record), ...bbFacts(record),
               assessmentInvalid: recordedAssessmentInvalid(record),
               actionPreview: record.stage === 'request' ? recordedActionPreview(data) : undefined,
               rulePreviews: recordedRulePreviews(data, record.stage),
@@ -404,7 +408,7 @@ export class ArchiveIndex {
   }
   captureHealth(session?: string): CaptureHealth {
     const latest = new Map<string, Metadata>();
-    for (const [, entry] of this.allEntries()) {
+    for (const [, entry] of session ? this.sessionScans.get(session)?.files ?? [] : this.allEntries()) {
       const record = entry.metadata;
       if (!record?.health || (session && recordSessionKey(record) !== session)) continue;
       if (record.sequence > (latest.get(record.writerId)?.sequence ?? 0)) latest.set(record.writerId, record);
@@ -413,7 +417,7 @@ export class ArchiveIndex {
   }
   private groups(session?: string) {
     const groups = new Map<string, Metadata[]>();
-    for (const [, entry] of this.allEntries()) {
+    for (const [, entry] of session ? this.sessionScans.get(session)?.files ?? [] : this.allEntries()) {
       const record = entry.metadata;
       if (!record || (session && recordSessionKey(record) !== session)) continue;
       const key = session ? recordInvocationKey(record) : recordSessionKey(record);
@@ -451,14 +455,101 @@ export class ArchiveIndex {
       rows.push({ id, sessionId: first.sessionId, host: first.host ?? 'pi', contextId: first.contextId ?? 'main', projects,
         timestamp: Math.max(...records.map(r => r.timestamp)), started: Math.min(...records.map(r => r.timestamp)),
         invocations: summaries.length, concerns: summaries.filter(row => row.categories.some(c => ['violation', 'uncertainty', 'approval'].includes(c))).length,
-        unavailable: categoryCounts.unavailable, categoryCounts, coverage: 'best-effort' });
+        unavailable: categoryCounts.unavailable, categoryCounts, coverage: 'best-effort', ...this.ruleSummary(id) });
     }
-    return page(rows, options, `sessions:${options.project ?? ''}`, row => row.started);
+    return page(rows, options, `sessions:${options.project ?? ''}`, row => row.started, this.ruleRevision());
   }
   invocations(session: string, options: PageOptions & { category?: FindingCategory } = {}) {
     const rows = [...this.groups(session)].map(([id, records]) => this.summarize(id, records))
       .filter(row => !options.category || row.categories.includes(options.category));
     return page(rows, options, `invocations:${session}:${options.category ?? ''}`);
+  }
+  private ruleCache?: { session: string; revision: string; value: ReturnType<typeof foldSessionRules> };
+  private ruleRevision(session?: string): string {
+    const sources: string[] = [];
+    for (const [path, entry] of session ? this.sessionScans.get(session)?.files ?? [] : this.allEntries()) {
+      sources.push(JSON.stringify([path, entry.fingerprint, entry.metadata?.ruleStage.digest, entry.issue?.reason]));
+    }
+    return sessionKey(JSON.stringify([this.rootIdentity, sources.sort(), this.indexing, this.issues(session)]));
+  }
+  private *ruleInvocations(session: string) {
+    for (const [id, records] of this.groups(session)) {
+      yield foldInvocationRules(id, records[0]!.callId, records.map(record => record.ruleStage));
+    }
+  }
+  hasSession(session: string): boolean {
+    return [...(this.sessionScans.get(session)?.files.values() ?? [])].some(entry => entry.metadata !== undefined);
+  }
+  private ruleProjection(session: string) {
+    const revision = this.ruleRevision(session);
+    if (this.ruleCache?.session === session && this.ruleCache.revision === revision) return this.ruleCache;
+    const gaps = this.issues(session).map(issue => issue.reason);
+    if (!this.hasSession(session)) gaps.push('session-not-observed');
+    const health = this.captureHealth(session);
+    if (health.some(writer => writer.failed > 0 || writer.dropped > 0 || writer.drainTimeouts > 0)) gaps.push('writer-loss');
+    const value = foldSessionRules(this.ruleInvocations(session), this.indexing, gaps);
+    return this.ruleCache = { session, revision, value };
+  }
+  private ruleSummary(session: string): SessionRuleSummary & { revision: string } {
+    const { value, revision } = this.ruleProjection(session);
+    const { rows, ...summary } = value;
+    return { ...summary, revision };
+  }
+  sessionRules(session: string, options: PageOptions & { revision?: string } = {}): SessionRulesPage {
+    const { revision, value } = this.ruleProjection(session);
+    if (options.revision !== undefined && options.revision !== revision) throw new Error('stale-cursor');
+    const { rows, ...summary } = value;
+    return { session, revision, ...summary, ...page(rows.slice(), options, `rules:${session}`, row => row.timestamp, revision) };
+  }
+  ruleChecks(session: string, rule: string, options: PageOptions & { revision?: string } = {}): RuleChecksPage {
+    const { revision, value } = this.ruleProjection(session);
+    if (options.revision !== undefined && options.revision !== revision) throw new Error('stale-cursor');
+    if (!value.rows.some(row => row.id === rule)) throw new Error('rule-not-found');
+    const checks: RuleCheck[] = [];
+    let omitted = 0;
+    for (const invocation of this.ruleInvocations(session)) {
+      const check = invocation.rules.find(item => item.row.id === rule)?.check;
+      if (!check) continue;
+      if (checks.length < RULE_CHECK_LIMIT) checks.push(check); else omitted++;
+    }
+    const { rows, ...summary } = value;
+    const ruleCoverage = { ...summary.ruleCoverage, omittedChecks: omitted,
+      incomplete: summary.ruleCoverage.incomplete || omitted > 0,
+      reasons: [...summary.ruleCoverage.reasons, ...(omitted ? ['check-history-overflow'] : [])] };
+    return { session, rule, revision, ...summary, ruleCoverage,
+      ...page(checks, options, `checks:${session}:${rule}`, row => row.timestamp, revision) };
+  }
+  async selectedRule(session: string, ruleId: string, expectedRevision?: string): Promise<SelectedSessionRule | null> {
+    const { revision, value } = this.ruleProjection(session);
+    if (expectedRevision !== undefined && revision !== expectedRevision) throw new Error('stale-cursor');
+    const rule = value.rows.find(row => row.id === ruleId);
+    if (!rule) return null;
+    const { rows, ...summary } = value;
+    const unavailable = (reason: string): SelectedSessionRule => ({ session, revision, ...summary, rule, wording: { state: 'unavailable', reason } });
+    if (rule.wordingConflict) return unavailable('recorded-declaration-conflict');
+    const detail = await this.detail(session, rule.representative.invocation);
+    if (detail.readIssues.length || this.ruleRevision(session) !== revision) return unavailable('source-unavailable-or-changed');
+    try {
+      const root = await lstat(this.root), folder = await lstat(join(this.root, session));
+      if (`${root.dev}:${root.ino}` !== this.rootIdentity || `${folder.dev}:${folder.ino}` !== this.sessionScans.get(session)?.identity)
+        return unavailable('source-unavailable-or-changed');
+      for (const [path, entry] of this.sessionScans.get(session)?.files ?? []) {
+        if (entry.metadata && recordInvocationKey(entry.metadata) === rule.representative.invocation
+          && fileFingerprint(await lstat(path)) !== entry.fingerprint) return unavailable('source-unavailable-or-changed');
+      }
+    } catch { return unavailable('source-unavailable-or-changed'); }
+    const facts = foldInvocationRules(rule.representative.invocation, detail.records[0]?.callId ?? '', detail.records.map(sessionRuleStage));
+    if (facts.revision !== rule.representative.revision || !facts.rules.some(item => item.row.id === ruleId
+      && item.row.declarationId === rule.declarationId && item.row.policyIdentity === rule.policyIdentity)) return unavailable('source-unavailable-or-changed');
+    const begin = detail.records.findLast(record => record.stage === 'begin')?.data;
+    const request = detail.records.findLast(record => record.stage === 'request')?.data;
+    const policy = object(request?.policy ?? begin?.policy);
+    const declaration = rule.builtin ? recordedInputs(request ?? {}).integrity ?? begin?.integrity
+      : Array.isArray(policy.rules) ? policy.rules.find(item => object(item).id === rule.declarationId) : null;
+    const wording = object(declaration).text;
+    if (typeof wording !== 'string') return unavailable('recorded-wording-unavailable');
+    if (this.ruleRevision(session) !== revision) return unavailable('source-unavailable-or-changed');
+    return { session, revision, ...summary, rule, wording: { state: 'available', text: wording } };
   }
   uncertaintyGroups(session: string): { items: UncertaintyGroup[]; omittedGroups: number } {
     const groups = new Map<string, UncertaintyGroup>();
