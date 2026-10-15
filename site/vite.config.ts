@@ -8,6 +8,7 @@ import MarketingPage from './src/MarketingPage.js';
 import DocsPage from './src/DocsPage.js';
 
 export default defineConfig({
+  envDir: false,
   root: fileURLToPath(new URL('.', import.meta.url)),
   resolve: { alias: { '@': fileURLToPath(new URL('../web', import.meta.url)) } },
   plugins: [

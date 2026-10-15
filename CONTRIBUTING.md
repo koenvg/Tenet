@@ -29,76 +29,99 @@ Dependency and browser installation can download packages. The checks below do n
 
 ## Check a change
 
-Run these steps in order from the repository root. They cover the application, inspector, and BB plugin checks in [application CI](.github/workflows/ci.yml). CI runs on pushes to `main` and on pull requests.
+Run the supported offline lane from the repository root. It covers the application, inspector and BB plugin checks in [application CI](.github/workflows/ci.yml). CI runs on pushes to `main` and on pull requests.
 
+Complete [Set up](#set-up) first. Supply an existing absolute Playwright executable-cache path. The runner does not install dependencies or browsers.
 
-First start a disposable shell with a real temporary owner home. Unset provider credentials and overrides so checks cannot read personal policies or use live credentials:
+Replace `/absolute/path/to/ms-playwright` below with that directory. Typical paths are `/Users/your-name/Library/Caches/ms-playwright` on macOS and `/home/your-name/.cache/ms-playwright` on Linux.
 
 ```sh
-TEST_HOME=$(mktemp -d)
+env -u BASH_ENV -u ENV /bin/bash --noprofile --norc scripts/validate-offline.sh --browser-cache /absolute/path/to/ms-playwright
+```
+
+This is the canonical entry. Removing `BASH_ENV` and `ENV` before Bash starts prevents shell startup hooks.
+
+The runner creates a private realpath home under `/tmp` and starts checks with an allowlisted environment. It excludes inherited credentials, `TENET_POLICY`, runtime hooks, proxies and owner configuration.
+
+It sets disposable XDG, Pi and npm locations. No personal policy or browser profile is read or copied.
+
+The PATH Bun wrapper adds `--no-env-file`. Runner-owned `BUN_OPTIONS=--no-env-file` also protects inherited-environment children that launch Bun through `process.execPath`. Framework configurations disable their own dotenv discovery with `envDir: false`.
+
+These controls are not a sandbox against code that deliberately replaces its environment or reads owner files.
+
+The runner builds the SDK, inspector, summary and website first. It then validates the plugin summary and builds the plugin server before tests or types.
+
+The complete Bun suite uses `--isolate --max-concurrency=1 --timeout=30000`. Its stdout and stderr go to a regular file that is replayed afterward.
+
+Application types, inspector types and both browser suites follow. Plugin TypeScript and configured Vitest checks run last. Nested SDK and inspector rebuilds remain part of their existing commands.
+
+Success means exit zero. The runner stops at the first failure and preserves its exit code through log replay and cleanup.
+
+INT and TERM stop the worker process group, allow a bounded shutdown wait, then force remaining children to stop before removing only the invocation's temporary state. They return exit codes 130 and 143. SIGKILL cannot run cleanup.
+
+If the worker group still exists after forced shutdown, the runner reports and retains its temporary directory instead of removing state that a child might still use.
+
+Browser executable caches and checkout build output remain. Use separate worktrees for concurrent runs because builds share checkout output.
+
+The inspector uses disposable headless Chromium, not a signed-in browser. See [inspector test coverage and failures](inspector/tests/README.md).
+
+Offline success does not prove live evaluator accuracy, provider connectivity or active host hooks. For website changes, also follow [the separate local website check](docs/DEPLOYMENT.md#build-and-verify-locally).
+
+### Use the package alias
+
+In a shell with no runtime startup hooks, you can use the package alias. Set `PLAYWRIGHT_BROWSERS_PATH` to the same existing absolute executable cache:
+
+```sh
+PLAYWRIGHT_BROWSERS_PATH=/absolute/path/to/ms-playwright bun --no-env-file run validate:offline
+```
+
+The initial Bun process starts before the alias can clean the environment. `--no-env-file` prevents its dotenv loading, but it does not neutralize inherited `BUN_OPTIONS` or other startup hooks. Use the canonical shell entry above when runtime hooks may be present.
+
+### Run focused checks in a clean shell
+
+Use the complete lane for ordinary validation. For a focused check, first start this disposable shell from the repository root. It uses a short realpath process home and excludes inherited credentials, policies and runtime hooks:
+
+```sh
+TEST_HOME=$(mktemp -d /tmp/tenet-focused.XXXXXX)
 TEST_HOME=$(cd "$TEST_HOME" && pwd -P)
 mkdir "$TEST_HOME/bin"
 printf '#!/bin/sh\nexec "%s" --no-env-file "$@"\n' "$(command -v bun)" > "$TEST_HOME/bin/bun"
 chmod 700 "$TEST_HOME/bin/bun"
-env -i PATH="$TEST_HOME/bin:$PATH" HOME="$TEST_HOME" TMPDIR=/tmp bash --noprofile --norc
+env -i PATH="$TEST_HOME/bin:$PATH" HOME="$TEST_HOME" TMPDIR="$TEST_HOME" CI=1 BUN_OPTIONS=--no-env-file \
+  XDG_CONFIG_HOME="$TEST_HOME/.config" XDG_CACHE_HOME="$TEST_HOME/.cache" XDG_DATA_HOME="$TEST_HOME/.local/share" \
+  PI_CODING_AGENT_DIR="$TEST_HOME/pi" npm_config_cache="$TEST_HOME/.npm" \
+  npm_config_userconfig="$TEST_HOME/.npmrc" npm_config_globalconfig="$TEST_HOME/.npm-globalrc" \
+  /bin/bash --noprofile --norc
 ```
 
-The temporary Bun wrapper prevents `.env` auto-loading in checks and child processes. The clean environment removes credentials and `TENET_POLICY`. Run the ordered checks inside that shell, then use `exit`. Remove only the disposable `$TEST_HOME` after all fixture processes close.
+Run focused checks inside this shell, then use `exit`. After all fixture processes close, remove only the disposable `$TEST_HOME` from the original shell.
 
-If Chromium was installed in the original home's cache, set `PLAYWRIGHT_BROWSERS_PATH` inside the shell to that cache's absolute path before browser checks. Do not use a signed-in browser.
+Before focused browser checks, set `PLAYWRIGHT_BROWSERS_PATH` inside the clean shell to the existing absolute executable cache. Never attach to a signed-in browser.
 
-1. Build the SDK, inspector, website and shared summary before the Bun suite and plugin checks:
+Build the prerequisites needed by your selected tests with `bun run sdk:build`, `bun run inspector:build`, `bun run summary:build` and `bun run site:build`. SDK tests import compiled output; Pi inspector-command tests serve `inspector/dist`; website content tests read prerendered `site/dist` pages.
 
-   ```sh
-   bun run sdk:build
-   bun run inspector:build
-   bun run summary:build
-   bun run site:build
-   ```
+Plugin mount tests import the generated summary library. See the [checkout-only summary build and input reference](inspector/summary-workspace.md).
 
-   SDK tests import compiled output. Pi inspector-command tests serve files from `inspector/dist`. Website content tests read the prerendered pages in `site/dist`.
+Global discovery requires a disposable process `HOME`, not only a guard's `env.HOME`, because `node:os.homedir()` uses the process environment. Keep all selected owner-home data in fixtures and use a separate child process for each global-policy fixture. Do not read or copy the owner's personal policy.
 
-   Global discovery makes isolation required for validation. Start checks with a realpath disposable process `HOME`, unset provider credentials and `TENET_POLICY`, and keep all selected owner-home data in fixtures. Passing `env.HOME` to a guard alone does not change `node:os.homedir()`.
+The application `typecheck` also builds the SDK and checks the executable guide example. Run that example offline under Node with `bun run sdk:example`; see [the alpha SDK guide](docs/sdk.md).
 
-   Use a separate child process for each global-policy fixture. Do not read or copy the owner's personal policy.
-   Plugin mount tests import the generated summary library. See the [checkout-only summary build and input reference](inspector/summary-workspace.md).
+### Package the BB plugin separately
 
-2. Run the isolated, serial Bun suite, including Pi smoke tests, then the application type check:
+The shared offline lane validates the summary build and runs `bun run build:server`. It does not run the external BB packaging command. With a supported BB CLI (`bb` version 0.43 or later) installed for your local BB setup, package from the repository root:
 
-   ```sh
-   bun test --isolate --max-concurrency=1 --timeout=30000
-   bun run typecheck
-   ```
+```sh
+bun run plugin:build
+```
 
-   `typecheck` also builds the SDK and checks the executable guide example. To run that example offline under Node, use `bun run sdk:example`. See [the alpha SDK guide](docs/sdk.md).
-
-3. Check the inspector and run both browser suites:
-
-   ```sh
-   bun run inspector:check
-   CI=1 bun run inspector:test
-   ```
-
-   The test command runs components, builds the client, then tests the built app. It uses disposable headless Chromium, not a signed-in browser. See [inspector test coverage and failures](inspector/tests/README.md).
-
-4. Check the BB plugin from its own directory:
-
-   ```sh
-   cd bb-plugin-tenet-status
-   ./node_modules/.bin/tsc --noEmit
-   ./node_modules/.bin/vitest run --config vitest.config.ts
-   npm run build
-   cd ..
-   ```
-
-Success means each command exits zero. Offline success does not prove live evaluator accuracy, provider connectivity, or active host hooks. For website changes, also follow [the separate local website check](docs/DEPLOYMENT.md#build-and-verify-locally).
+This rebuilds the summary and runs `npm run build` in `bb-plugin-tenet-status`, including `bb plugin build .`. Packaging is separate from offline validation and does not authorize publication or an active-service restart.
 
 ### Check evidence, questions and reports
 
-Use these focused offline checks for changes to current-action evidence, question wording or report identities. Build the SDK and inspector first. On macOS, use a short temporary path and unset provider credentials:
+Use these focused offline checks for changes to current-action evidence, question wording or report identities. Run them inside the [clean focused-check shell](#run-focused-checks-in-a-clean-shell) above. Build the SDK and inspector first.
 
 ```sh
-env -u TYPESAFE_API_KEY TMPDIR=/tmp bun test --isolate --max-concurrency=1 --timeout=30000 test/applicability-comparison.test.ts test/evidence-preparation.test.ts test/evidence-budget-capture.test.ts test/applicability-contract.test.ts test/applicability.test.ts test/assessment-metadata.test.ts test/resolved-action.test.ts test/decision.test.ts test/runtime-contract.test.ts test/approval-lifecycle.test.ts test/evidence-selection-live.test.ts test/evidence-selection-report.test.ts
+bun test --isolate --max-concurrency=1 --timeout=30000 test/applicability-comparison.test.ts test/evidence-preparation.test.ts test/evidence-budget-capture.test.ts test/applicability-contract.test.ts test/applicability.test.ts test/assessment-metadata.test.ts test/resolved-action.test.ts test/decision.test.ts test/runtime-contract.test.ts test/approval-lifecycle.test.ts test/evidence-selection-live.test.ts test/evidence-selection-report.test.ts
 ```
 
 For current-action selection alone, run:
@@ -183,9 +206,9 @@ Unloading removes observation and enforcement. There is no live-mode mock fallba
 
 ## A check fails
 
-- Missing SDK output, inspector assets or website pages: run the four build commands before the Bun suite.
-- Chromium cannot start: install Chromium and, on Linux, its system libraries.
-- Startup tests time out with plain `bun test`: use the isolated serial command above. On Bun 1.3.14, the all-file default can register `node:test` files inside another running test.
+- Missing SDK output, inspector assets or website pages: run the complete offline lane so prerequisite builds finish before tests.
+- Chromium cannot start: install Chromium and, on Linux, its system libraries. Pass the existing absolute executable-cache directory to the runner.
+- Startup tests time out with plain `bun test`: use `bun run test` inside the clean shell for the required isolation, serial execution and timeout flags. On Bun 1.3.14, the all-file default can register `node:test` files inside another running test.
 - Archive metadata fails: inspect the named entry and rebuild without host metadata. Do not skip the separate metadata gate.
 
 ## Keep secrets and live work separate

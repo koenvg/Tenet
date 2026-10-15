@@ -18,8 +18,9 @@
   "scripts": {
     "package:archive": "bun scripts/package.ts",
     "package:verify": "bun scripts/verify-delivery.ts",
-    "test": "bun test",
+    "test": "bun test --isolate --max-concurrency=1 --timeout=30000",
     "lint": "oxlint --deny-warnings .",
+    "validate:offline": "env -u BASH_ENV -u ENV /bin/bash --noprofile --norc scripts/validate-offline.sh",
     "sdk:build": "bun --bun tsc -p tsconfig.sdk.json && bun --bun tsc -p tsconfig.sdk-example.json",
     "sdk:example": "bun run sdk:build && node examples/dist/sdk.js",
     "smoke": "bun run sdk:build && bun test ./test/pi-smoke.test.ts",

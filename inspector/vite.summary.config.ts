@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
+  envDir: false,
   plugins: [react()],
   build: {
     outDir: fileURLToPath(new URL('../bb-plugin-tenet-status/.summary-workspace', import.meta.url)),
