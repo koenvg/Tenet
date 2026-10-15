@@ -3,6 +3,7 @@ import type { BbPluginApi } from '@get-bb/plugin-sdk';
 import { hostContract, rpcContract, unavailable, unavailableFindings } from './contract.js';
 import { emptyOverview } from '../src/inspector/bb-summary.js';
 import { overviewSchema } from './overview-contract.js';
+import { supportsTenetProvider } from './supported-provider.js';
 
 import { pickerHandlers } from './picker.js';
 /** Owner-facing RPC only. No agent tool, message, hook or assessment is registered. */
@@ -14,7 +15,7 @@ export default function plugin(bb: BbPluginApi) {
   const host = bb.hosts.experimental_client({ contract: hostContract });
   const target = async (threadId: string) => {
     const thread = await bb.sdk.threads.get({ threadId });
-    if (!thread || thread.providerId !== 'pi' || !thread.environmentId) return null;
+    if (!thread || !supportsTenetProvider(thread.providerId) || !thread.environmentId) return null;
     const environment = await bb.sdk.environments.get({ environmentId: thread.environmentId });
     if (!environment || environment.id !== thread.environmentId) return null;
     const hostId = environment.hostId;
@@ -44,7 +45,7 @@ export default function plugin(bb: BbPluginApi) {
     async overview({ threadId, ...selection }) {
       try {
         const thread = await bb.sdk.threads.get({ threadId });
-        if (thread && thread.providerId !== 'pi') return overviewSchema.parse(emptyOverview('unsupported'));
+        if (thread && !supportsTenetProvider(thread.providerId)) return overviewSchema.parse(emptyOverview('unsupported'));
         const selected = await target(threadId);
         if (!selected) return overviewSchema.parse(emptyOverview());
         const data = await host.call('readOverview', { threadId, ...selection, ...selected.input }, { hostId: selected.hostId });

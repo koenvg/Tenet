@@ -118,14 +118,14 @@ test('summary pages and cursors are bounded and scoped; refresh/detail budgets r
   } finally { await f.writer.close(); await rm(f.root, { recursive: true, force: true }); }
 });
 
-test('backend resolves only the selected Pi machine, rejects client escapes, and clears unavailable hosts/archives', async () => {
+for (const providerId of ['pi', 'pi-subagents']) test(`backend resolves only the selected machine, rejects client escapes, and clears unavailable hosts/archives for ${providerId}`, async () => {
   const a = await fixture(), b = await fixture();
   const hostA = experimental_createHostEntryHarness(hostEntry), hostB = experimental_createHostEntryHarness(hostEntry);
   const calls: any[] = []; let disconnected = false, currentEnvironment = 'env_machinea';
   try {
     a.append('machine-a'); b.append('machine-b', other); await a.writer.close(5000); await b.writer.close(5000);
     const fake = createFakePluginHost({ pluginId: 'tenet-overview', settings: { recordingDirectories: JSON.stringify({ [machineA]: a.root, [machineB]: b.root }) },
-      sdk: { threads: { get: async ({ threadId: id }: any) => ({ id, providerId: id === 'thr_nonpi1234' ? 'codex' : 'pi', environmentId: id === other ? 'env_machineb' : currentEnvironment }) as any },
+      sdk: { threads: { get: async ({ threadId: id }: any) => ({ id, providerId: id === 'thr_nonpi1234' ? 'codex' : providerId, environmentId: id === other ? 'env_machineb' : currentEnvironment }) as any },
         environments: { get: async ({ environmentId }: any) => ({ id: environmentId, hostId: environmentId === 'env_machineb' ? machineB : machineA }) as any } },
       experimental_callHostRpc: async ({ method, input, hostId }: any) => { calls.push({ method, input, hostId }); if (disconnected) throw new Error(sentinel); return (hostId === machineA ? hostA : hostB).experimental_call(method, input); } });
     try {

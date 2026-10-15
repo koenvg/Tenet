@@ -100,6 +100,34 @@ for (const cause of ['moved', 'deleted', 'non-Pi', 'unreadable'] as const) test(
   } finally { slot.lifecycle.unmount(); }
   await vi.advanceTimersByTimeAsync(30_000); expect(read).toHaveBeenCalledOnce(); expect(vi.getTimerCount()).toBe(0);
 });
+test.each([['pi', true], ['pi-subagents', true], ['codex', false], ['pi-prefix', false], ['pi-subagents-extra', false],
+  ['Pi', false], ['PI-SUBAGENTS', false], [' pi', false], ['pi ', false], ['pi-subagents ', false]] as const)(
+  'registered main overview rechecks exact provider %j before refreshing archives', async (nextProvider, accepted) => {
+    vi.useFakeTimers();
+    const app = await loadPluginApp(() => import('./app'));
+    let providerId = 'pi';
+    const read = vi.fn(rpc.overview);
+    const slot = renderSlot(app.navPanels[0]!, { subPath: overviewPath(stopped, {}, projectA) }, {
+      rpc: { ...rpc, overview: read }, sdk: { threads: { get: async ({ threadId }: any) => ({
+        ...(await syntheticThread(threadId)), providerId,
+      }) as any } },
+    });
+    try {
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+      expect(read).toHaveBeenCalledOnce();
+      expect(slot.container.textContent).toContain('Call synthetic-provider-error-1');
+      providerId = nextProvider;
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      expect(read).toHaveBeenCalledTimes(accepted ? 2 : 1);
+      if (accepted) {
+        expect(slot.container.textContent).toContain('Call synthetic-provider-error-1');
+        expect(read.mock.calls.at(-1)![0]).toMatchObject({ threadId: stopped });
+      } else {
+        expect(slot.container.textContent).toContain('This overview supports Pi threads only.');
+        expect(slot.container.querySelector('.call-row')).toBeNull();
+      }
+    } finally { slot.lifecycle.unmount(); }
+  });
 test('main scope switch disposes mount and ignores a late summary completion', async () => {
   const app = await loadPluginApp(() => import('./app'));
   let resolve!: (value: typeof syntheticOverview) => void;

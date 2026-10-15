@@ -80,18 +80,23 @@ describe('finding RPC output contract', () => {
 });
 
 describe('Pi thread rule action', () => {
-  it('does not show an action on non-Pi threads', async () => {
+  it.each(['codex', 'pi-prefix', 'pi-subagents-extra', 'Pi', 'PI-SUBAGENTS', ' pi', 'pi ', 'pi-subagents '])('does not show an action or request status for %j', async providerId => {
     const app = await loadPluginApp(() => import('./app'));
+    const metadata = vi.fn(async () => ({ providerId }) as any), status = vi.fn(() => linked);
     const slot = renderSlot(app.threadHeaderActions[0]!, { threadId, projectId: 'project', isCompactViewport: false },
-      { sdk: { threads: { get: async () => ({ providerId: 'codex' }) as any } } });
-    try { expect(slot.queryByRole('button', { name: 'TENET rule status' })).toBeNull(); }
-    finally { slot.lifecycle.unmount(); }
+      { sdk: { threads: { get: metadata } }, rpc: { status } });
+    try {
+      await act(async () => { await Promise.resolve(); });
+      expect(metadata).toHaveBeenCalledOnce();
+      expect(slot.queryByRole('button', { name: 'TENET rule status' })).toBeNull();
+      expect(status).not.toHaveBeenCalled();
+    } finally { slot.lifecycle.unmount(); }
   });
 
-  it('shows a short summary without exposing rule or call details', async () => {
+  it.each(['pi', 'pi-subagents'])('shows a short summary without exposing rule or call details for %s', async providerId => {
     const app = await loadPluginApp(() => import('./app'));
     const slot = renderSlot(app.threadHeaderActions[0]!, { threadId, projectId: 'project', isCompactViewport: true },
-      { sdk: { threads: { get: async () => ({ providerId: 'pi' }) as any } }, rpc: { status: () => linked } });
+      { sdk: { threads: { get: async () => ({ providerId }) as any } }, rpc: { status: () => linked } });
     try {
       const button = await slot.findByRole('button', { name: 'TENET rule status' });
       expect(button.textContent).toMatch(/^T/);

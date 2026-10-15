@@ -57,6 +57,28 @@ test('public picker RPC pages allowlisted metadata without any environment, sett
     for (const key of Object.keys(pickerMethods)) await assert.rejects(fake.harness.behavior.callRpc(key, { threadId, projectId, raw: 'forbidden' }));
   } finally { await fake.harness.lifecycle.dispose(); }
 });
+for (const [providerId, accepted] of [['pi', true], ['pi-subagents', true], ['codex', false], ['pi-prefix', false],
+  ['pi-subagents-extra', false], ['Pi', false], ['PI-SUBAGENTS', false], [' pi', false], ['pi ', false], ['pi-subagents ', false]] as const)
+  test(`picker list and selection enforce exact provider eligibility for ${JSON.stringify(providerId)}`, async () => {
+    let archives = 0;
+    const row = { id: threadId, providerId, projectId, title: 'Fixture thread', status: 'idle',
+      runtime: { displayStatus: 'idle' }, archivedAt: null, deletedAt: null };
+    const fake = createFakePluginHost({ sdk: {
+      projects: { get: async () => ({ id: projectId, name: 'Fixture project' }) as any },
+      threads: { list: async () => [row] as any, get: async () => row as any },
+    }, experimental_callHostRpc: async () => { archives++; throw new Error('Archive must not be read'); } });
+    plugin(fake.bb);
+    try {
+      const page = await fake.harness.behavior.callRpc('pickerThreads', { projectId }) as ThreadPage;
+      const selection = await fake.harness.behavior.callRpc('pickerSelection', { threadId, projectId }) as PickerSelection;
+      assert.deepEqual({ items: page.items, selection }, accepted ? {
+        items: [{ id: threadId, label: 'Fixture thread', status: 'idle', archived: false }],
+        selection: { state: 'ready', project: { id: projectId, label: 'Fixture project' },
+          thread: { id: threadId, label: 'Fixture thread', status: 'idle', archived: false } },
+      } : { items: [], selection: { state: 'unsupported', project: null, thread: null } });
+      assert.equal(archives, 0);
+    } finally { await fake.harness.lifecycle.dispose(); }
+  });
 test('main routes round-trip bounded opaque selection, preserve old findings links, and reject raw/path selectors', () => {
   const selection = { sessionId: 'a'.repeat(64), callId: 'b'.repeat(64), category: 'unavailable' as const };
   assert.deepEqual(parseMainRoute(overviewPath(threadId, selection, projectId)), { kind: 'overview', projectId, threadId, selection });

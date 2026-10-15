@@ -13,7 +13,7 @@ import type { Status } from './contract.js';
 const threadId = 'thr_abcdefgh1234', otherId = 'thr_wxyzabcd1234';
 const hostId = 'host_abcdefgh1234';
 
-test('synthetic archive through host and BB RPC keeps linked FAIL, pass, history and unmonitored threads separate', async () => {
+for (const providerId of ['pi', 'pi-subagents']) test(`synthetic archive through host and BB RPC keeps linked FAIL, pass, history and unmonitored threads separate for ${providerId}`, async () => {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-bb-host-')));
   const writer = new ArchiveWriter({ enabled: true, directory: root });
   const append = (id: string, link: string | undefined, outcome: 'PASS' | 'FAIL') => {
@@ -33,13 +33,12 @@ test('synthetic archive through host and BB RPC keeps linked FAIL, pass, history
   const host = experimental_createHostEntryHarness(hostEntry);
   let calls = 0;
   const fake = createFakePluginHost({ pluginId: 'tenet-status', settings: { recordingDirectories: JSON.stringify({ [hostId]: root }) },
-    sdk: { threads: { get: async ({ threadId: id }: any) => ({ id, providerId: id === otherId ? 'codex' : 'pi', environmentId: 'env_fixture' }) as any },
+    sdk: { threads: { get: async ({ threadId: id }: any) => ({ id, providerId: id === otherId ? 'codex' : providerId, environmentId: 'env_fixture' }) as any },
       environments: { get: async () => ({ id: 'env_fixture', hostId }) as any } },
     experimental_callHostRpc: async ({ method, input, hostId: selected }: any) => {
       calls++;
       assert.equal(selected, hostId);
-      assert.equal(method, 'readStatus');
-      return host.experimental_call('readStatus', input);
+      return host.experimental_call(method, input);
     } });
   try {
     await plugin(fake.bb);
@@ -56,6 +55,11 @@ test('synthetic archive through host and BB RPC keeps linked FAIL, pass, history
     const nonPi = await fake.harness.behavior.callRpc('status', { threadId: otherId }) as Status;
     assert.equal(nonPi.coverage, 'unavailable');
     assert.equal(calls, 2);
+    const findings: any = await fake.harness.behavior.callRpc('findings', { threadId });
+    assert.equal(findings.coverage, 'partial'); assert.equal(findings.linkedCalls, 2);
+    assert.deepEqual(findings.items.map((item: any) => item.callId), ['flagged']);
+    assert.equal(calls, 3);
+    assert.ok(!JSON.stringify(findings).includes('secret-bearing-action'));
     await assert.rejects(fake.harness.behavior.callRpc('status', { threadId, hostId } as any));
     await assert.rejects(fake.harness.behavior.callRpc('status', { threadId, cursor: 'page-2' } as any));
     await assert.rejects(fake.harness.behavior.callRpc('status', { threadId: 'bad' }));
@@ -63,6 +67,25 @@ test('synthetic archive through host and BB RPC keeps linked FAIL, pass, history
     await fake.harness.lifecycle.dispose(); await host.experimental_dispose(); await rm(root, { recursive: true, force: true });
   }
 });
+
+for (const providerId of ['codex', 'pi-prefix', 'pi-subagents-extra', 'Pi', 'PI-SUBAGENTS', ' pi', 'pi ', 'pi-subagents '])
+  test(`server rejects ${JSON.stringify(providerId)} without reading archives`, async () => {
+    let archives = 0, environments = 0;
+    const fake = createFakePluginHost({ sdk: {
+      threads: { get: async () => ({ id: threadId, providerId, environmentId: 'env_fixture' }) as any },
+      environments: { get: async () => { environments++; return { id: 'env_fixture', hostId } as any; } },
+    }, experimental_callHostRpc: async () => { archives++; throw new Error('Archive must not be read'); } });
+    plugin(fake.bb);
+    try {
+      const status: any = await fake.harness.behavior.callRpc('status', { threadId });
+      const findings: any = await fake.harness.behavior.callRpc('findings', { threadId });
+      const overview: any = await fake.harness.behavior.callRpc('overview', { threadId });
+      assert.equal(status.coverage, 'unavailable'); assert.equal(status.linkedCalls, 0);
+      assert.equal(findings.coverage, 'unavailable'); assert.deepEqual(findings.items, []);
+      assert.equal(overview.state, 'unsupported'); assert.deepEqual(overview.calls, []);
+      assert.equal(archives, 0); assert.equal(environments, 0);
+    } finally { await fake.harness.lifecycle.dispose(); }
+  });
 
 test('unsafe archive cannot become green, and host rejects arbitrary relative recording paths', async () => {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-bb-unsafe-')));
