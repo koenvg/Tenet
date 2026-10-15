@@ -36,10 +36,20 @@ for (const [viewport, width] of [[390, 390], [1280, 390], [1280, 1000]]) test(`r
     expect(target.querySelectorAll('.rule-row')).toHaveLength(3);
     await page.getByRole('button', { name: /Built-in integrity/ }).click();
     await expect.element(page.getByRole('heading', { name: 'Built-in integrity' })).toBeVisible();
+    await page.getByText('Probabilities and rule details', { exact: true }).click();
+    await expect.element(page.getByRole('row', { name: 'Selected outcome threshold 0.65', exact: true })).toBeVisible();
+    await expect.element(page.getByRole('row', { name: 'SUFFICIENT threshold 0.75', exact: true })).toBeVisible();
     [...target.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === 'First rule page')!.focus();
     await userEvent.keyboard('{Enter}');
     await expect.element(page.getByText('Recorded rules 1–16 of 19. At most 16 rules per page.')).toBeVisible();
     expect(target.scrollWidth).toBeLessThanOrEqual(target.clientWidth);
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
+    if (width! < 650) await page.getByRole('button', { name: 'Calls', exact: true }).click();
+    await page.getByRole('button', { name: /synthetic-WARN/ }).click();
+    await expect.element(page.getByText('Call synthetic-WARN', { exact: true })).toBeVisible();
+    await page.getByText('Why this assessment', { exact: true }).click();
+    await page.getByText(/Browse all rules/).click();
+    await page.getByRole('button', { name: /Line 1 / }).click();
+    await expect.element(page.getByRole('region', { name: 'Selected rule', exact: true }).getByText('WARN', { exact: true })).toBeVisible();
   } finally { await workspace.destroy(); expect(target.childElementCount).toBe(0); target.remove(); }
 });
