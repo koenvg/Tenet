@@ -150,7 +150,10 @@ On Bun 1.3.14, plain all-file `bun test` can register `node:test` files inside a
 
 - Check the browser installation and Linux system libraries first.
 - If Pi fixtures cannot import the SDK, run `bun run sdk:build` before retrying.
-- For a test failure, inspect its unique directory under ignored `coverage/inspector-artifacts/playwright/`. It retains API response timing, browser errors, and HTML/screenshots for every open page, including linked pages. Synthetic summary screenshots also go there.
-- Vitest Browser Mode may save failures under ignored `.vitest/attachments/`. A CI job can upload these directories on failure.
+- For a `withInspector` fixture failure, inspect its unique directory under ignored `coverage/inspector-artifacts/playwright/failure-*/`. `report.json` records phase timestamps, request timings, console and page errors, browser state, server health, and cleanup results. Setup and navigation failures, callback failures, Vitest timeouts, and teardown failures use the same capture path.
+- Inspect the report's omissions before drawing conclusions. Diagnostics have time, event, string, page, and byte limits. A failure before browser setup can retain only a report. Available browser evidence includes up to three page screenshots and a bounded `trace.zip` with snapshots. Traces omit network entries, headers, cookies, and source files.
+- Use only synthetic archives. Screenshots and trace snapshots can contain exact displayed recording text. Never point these tests at personal recordings or add credentials to fixtures. From the repository root, open an available trace with `bunx playwright show-trace <failure-directory>/trace.zip`. Replace `<failure-directory>` with the retained directory. Use the local viewer rather than uploading the trace to an external service.
+- Vitest Browser Mode may save component failures under ignored `.vitest/attachments/`. On failure, the offline CI job uploads that directory and built-app `failure-*` directories for seven days. It does not upload temporary archives, owner homes, or all of `coverage/`.
+- The built-app suite also runs deliberate failure subprocesses to check diagnostic retention and owned-resource cleanup. A deliberate 20-second timeout must fail in the subprocess and pass its enclosing regression. These checks add no retries or longer deadlines to existing browser cases.
 
 Tests never overwrite tracked `.impeccable/review/` reference images. The user-facing `/tenet-inspector` command still opens Arc; Arc is not a test dependency.
