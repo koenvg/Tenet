@@ -6,6 +6,7 @@ for (const width of [1103, 390]) test(`complete exact rules/questions replace ex
   await withInspector('exact-rule-records', async ({ page, app }) => {
     await page.setViewportSize({ width, height: 1318 });
     await page.locator('.decision-summary').waitFor();
+    const rulesURL = new URL(`/api/sessions/${new URL(page.url()).searchParams.get('session')}/rules`, app.origin);
     expect(await page.locator('.recorded-disclosure').getAttribute('open')).toBeNull();
     expect(await page.locator('.rule-question-link, .rule-questions, .question-rich, .rule-outcome, .recorded-rule-facts, .confidence-note').count()).toBe(0);
     expect(await page.locator('.summary-content > details > summary').allTextContents()).toEqual(['Why this assessment', 'Recorded data']);
@@ -19,7 +20,10 @@ for (const width of [1103, 390]) test(`complete exact rules/questions replace ex
     expect(await firstRule.locator('.confidence-values').allTextContents()).toEqual(['PASS 0.88Required 0.9', 'SUFFICIENT 0.85123456789Required 0.9']);
     const whySummary = page.locator('.why-disclosure > summary');
     await whySummary.focus();
-    await page.waitForResponse(response => /\/api\/sessions\/[a-f0-9]{64}\/invocations\//.test(response.url()));
+    await page.waitForResponse(async response => {
+      const url = new URL(response.url());
+      return url.origin === rulesURL.origin && url.pathname === rulesURL.pathname && response.status() === 200 && await response.finished() === null;
+    });
     expect(await firstRule.getAttribute('data-retained')).toBe('same-rule');
     expect(await page.evaluate(() => document.activeElement?.parentElement?.classList.contains('why-disclosure'))).toBe(true);
     await openRecordedData(page, 'Questions');
@@ -51,7 +55,10 @@ for (const width of [1103, 390]) test(`complete exact rules/questions replace ex
     const outerScroll = await page.locator('.invocation').evaluate(el => el.scrollTop);
     const url = page.url();
     for (let poll = 0; poll < 2; poll++) {
-      await page.waitForResponse(response => /\/api\/sessions\/[a-f0-9]{64}\/invocations\//.test(response.url()));
+      await page.waitForResponse(async response => {
+        const url = new URL(response.url());
+        return url.origin === rulesURL.origin && url.pathname === rulesURL.pathname && response.status() === 200 && await response.finished() === null;
+      });
       expect(await exact.getAttribute('data-retained')).toBe('same-node');
       expect(await firstRule.getAttribute('data-retained')).toBe('same-rule');
       expect(await page.locator('.why-disclosure').getAttribute('open')).not.toBeNull();

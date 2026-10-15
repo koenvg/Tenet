@@ -19,7 +19,7 @@ test('all fictional lifecycle and overlap facts remain distinct in the built app
         const session = url.searchParams.get('session');
         const rows = await (await fetch(`${app.origin}/api/sessions/${session}`)).json();
         expect(rows.invocations.find((r: { callId: string }) => r.callId === 'invalid').assessmentInvalid).toBe(true);
-        expect(await linked.locator('.call-row').filter({ has: linked.locator('.call-id', { hasText: /^invalid$/ }) }).innerText()).toContain('Assessment invalid');
+        expect(await linked.locator('[data-fact="assessment"]').innerText()).toBe('Unavailable');
         expect(text).not.toContain('No blocking issues');
       }
       if (item.id === 'observe-ask') {

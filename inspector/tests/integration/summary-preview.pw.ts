@@ -1,6 +1,7 @@
 import { expect, test } from '../playwright-fixture.js';
 import { mkdir } from 'node:fs/promises';
-import { seedPreview } from './preview-fixture.js';
+import { seedPreview, previewSession } from './preview-fixture.js';
+import { sessionKey } from '../../../src/recording/archive.js';
 test('fictional named facts fit the desktop and mobile first view', async ({ withInspector }) => {
   await withInspector('named-facts-preview', async ({ page }) => {
     await page.locator('.decision-summary').waitFor();
@@ -13,7 +14,7 @@ test('fictional named facts fit the desktop and mobile first view', async ({ wit
     await page.screenshot({ path: 'coverage/inspector-artifacts/tenet-59-mobile.png' });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     expect(await page.locator('[data-fact="assessment"]').isVisible()).toBe(true);
-    await page.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Calls' }).click();
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
     await page.screenshot({ path: 'coverage/inspector-artifacts/tenet-59-mobile-calls.png' });
-  }, { base: false, seed: seedPreview });
+  }, { base: false, seed: seedPreview, path: `/?session=${sessionKey(previewSession)}&invocation=${sessionKey('format')}` });
 });

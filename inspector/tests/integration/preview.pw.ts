@@ -8,14 +8,14 @@ import { openRecordedData } from '../ui-navigation.js';
 test('fictional command and file previews remain inert, private and usable at desktop and mobile widths', async ({ withInspector }) => {
   await withInspector('recorded-action-preview', async ({ page, app, externalRequests }) => {
     await page.locator('.decision-summary').waitFor();
-    const list = page.getByRole('navigation', { name: 'Invocations' });
-    for (const label of ['src/billing/format.ts', 'src/billing/totals.ts', 'bun test test/format.test.ts', 'Action preview unavailable', 'Preview shortened']) {
-      await expect(list.getByText(label, { exact: true }).isVisible()).resolves.toBe(true);
-    }
-    expect(await list.locator('script, a, img').count()).toBe(0);
-    const hostile = list.locator('.call-row').filter({ hasText: 'https://invalid.example/private' });
-    expect(await hostile.count()).toBe(1);
-    await hostile.click();
+    const rows = (await (await page.request.get(`/api/sessions/${sessionKey(previewSession)}`)).json()).invocations;
+    const previews = rows.map((row: any) => row.actionPreview.value);
+    expect(previews).toEqual(expect.arrayContaining(['src/billing/format.ts', 'src/billing/totals.ts', 'bun test test/format.test.ts', null]));
+    expect(rows.some((row: any) => row.actionPreview.shortened)).toBe(true);
+    expect(await page.locator('.rule-main script, .rule-main img').count()).toBe(0);
+    expect(rows.filter((row: any) => row.actionPreview.value?.includes('https://invalid.example/private'))).toHaveLength(1);
+    await page.goto(`/?session=${sessionKey(previewSession)}&invocation=${sessionKey('hostile')}`);
+    await page.locator('dialog[open] .invocation').waitFor();
     expect(page.url()).toContain('invocation=' + sessionKey('hostile'));
     expect(page.url()).not.toContain('invalid.example');
     await openRecordedData(page);
@@ -28,9 +28,10 @@ test('fictional command and file previews remain inert, private and usable at de
     await mkdir('coverage/inspector-artifacts', { recursive: true });
     await page.screenshot({ path: 'coverage/inspector-artifacts/preview-desktop.png' });
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Calls', exact: true }).click();
-    await page.screenshot({ path: 'coverage/inspector-artifacts/preview-mobile-calls.png' });
-    await list.getByText('src/billing/totals.ts', { exact: true }).click();
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.screenshot({ path: 'coverage/inspector-artifacts/preview-mobile-rules.png' });
+    await page.goto(`/?session=${sessionKey(previewSession)}&invocation=${sessionKey('totals')}`);
+    await page.locator('dialog[open] .invocation').waitFor();
     expect(page.url()).toContain('invocation=' + sessionKey('totals'));
     await page.screenshot({ path: 'coverage/inspector-artifacts/preview-mobile-detail.png' });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { startInspector } from '../../src/inspector/server.js';
-import { sessionKey } from '../../src/recording/archive.js';
+import { sessionKey, qualifiedSessionKey } from '../../src/recording/archive.js';
 import { browserFixture } from './browser-fixture.js';
 import { diagnosticUrl, FixtureDiagnostics, TraceStore } from './diagnostics/report.js';
 
@@ -18,10 +18,11 @@ const assertBrowserClean = (owner: Pick<DebuggerRun, 'externalRequests' | 'pageE
   expect(owner.pageErrors, 'uncaught browser errors must not leave this test').toEqual([]);
 };
 export async function openDebugger(page: Page, origin: string) {
-  await page.goto(origin);
-  await page.locator('.call-row').first().waitFor();
-  await page.locator('[aria-label="Decision summary"]').waitFor();
-  await expect.poll(() => page.locator('.call-row').count()).toBe(11);
+  const session = qualifiedSessionKey('pi', 's', 'main');
+  await page.goto(`${origin}/?session=${session}`);
+  await page.locator('.rule-trigger').first().waitFor();
+  const rows = await (await page.request.get(`${origin}/api/sessions/${session}?limit=100`)).json();
+  expect(rows.invocations).toHaveLength(11);
 }
 
 export function createDebuggerTest(factories: DebuggerFactories = {}, afterClose?: () => Promise<void>) {
