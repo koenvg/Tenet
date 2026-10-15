@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from 'vitest';
-import { act, fireEvent } from '@testing-library/react';
+import { act, fireEvent, within } from '@testing-library/react';
 import { loadPluginApp } from '@get-bb/plugin-sdk/testing/app';
 import { renderSummarySlot, summaryCalls } from './summary-rpc.fixture';
 import { OverviewAdapter } from './overview-adapter';
@@ -25,15 +25,19 @@ for (const entry of ['panel', 'main'] as const) test(`${entry}: live append pres
     : renderSummarySlot(app.navPanels[0]!, { subPath: path }, { rpc, sdk: { threads: { get: async ({ threadId }) => metadata(threadId) as any } } });
   try {
     await settle(); await settle();
-    fireEvent.click(slot.getByRole('button', { name: 'More sessions' })); await settle();
+    const archive = () => within(slot.container.querySelector<HTMLElement>('.archive-messages')!);
+    const explorer = () => within(slot.getByRole('complementary', { name: 'Call explorer' }));
+    const detail = () => within(slot.getByRole('region', { name: 'Invocation detail' }));
+    const rules = () => within(detail().getByRole('navigation', { name: 'Rules' }));
+    fireEvent.click(archive().getByRole('button', { name: 'More sessions' })); await settle();
     expect(slot.getByLabelText('Linked session').querySelectorAll('option')).toHaveLength(55);
     fireEvent.change(slot.getByLabelText('Linked session'), { target: { value: liveId(1054) } }); await settle();
-    fireEvent.click(slot.getByRole('button', { name: 'More invocations' })); await settle();
+    fireEvent.click(explorer().getByRole('button', { name: 'More invocations' })); await settle();
     expect(slot.container.querySelectorAll('.call-row')).toHaveLength(70);
     fireEvent.click(slot.getByText('live-1', { exact: true })); await settle();
     fireEvent.click(slot.getByText('Why this assessment')); fireEvent.click(slot.getByText(/Browse all rules/));
-    fireEvent.click(slot.getByRole('button', { name: 'More rules' })); await settle();
-    fireEvent.click(slot.getByRole('button', { name: /Built-in integrity/ })); await settle();
+    fireEvent.click(detail().getByRole('button', { name: 'More rules' })); await settle();
+    fireEvent.click(rules().getByRole('button', { name: /Built-in integrity/ })); await settle();
     const selected = { sessionId: liveId(1054), callId: liveId(2001) };
     const readCount = summaryCalls(slot).length;
     if (entry === 'main') {
@@ -43,17 +47,17 @@ for (const entry of ['panel', 'main'] as const) test(`${entry}: live append pres
       slot.lifecycle.rerender(<MainPage subPath={overviewPath(liveThread, selected, liveProject)} />); await settle();
       expect(slot.container.querySelectorAll('.call-row')).toHaveLength(70);
       // Actual Back/Forward call changes reset rule pages, not loaded timeline pages.
-      fireEvent.click(slot.getByRole('button', { name: 'More rules' })); await settle();
-      fireEvent.click(slot.getByRole('button', { name: /Built-in integrity/ })); await settle();
+      fireEvent.click(detail().getByRole('button', { name: 'More rules' })); await settle();
+      fireEvent.click(rules().getByRole('button', { name: /Built-in integrity/ })); await settle();
     }
     fixture.append(); await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
     expect(slot.container.querySelectorAll('.call-row')).toHaveLength(71);
     expect(slot.getByText('Call live-1')).toBeTruthy();
     expect(slot.getByLabelText('Linked session').querySelectorAll('option')).toHaveLength(55);
-    expect(slot.queryByRole('button', { name: 'More invocations' })).toBeNull();
-    expect(slot.getByRole('button', { name: /Built-in integrity/ }).getAttribute('aria-pressed')).toBe('true');
+    expect(explorer().queryByRole('button', { name: 'More invocations' })).toBeNull();
+    expect(rules().getByRole('button', { name: /Built-in integrity/ }).getAttribute('aria-pressed')).toBe('true');
     expect(slot.getByText('Recorded rules 17–19 of 19. At most 16 rules per page.')).toBeTruthy();
-    fireEvent.click(slot.getByRole('button', { name: 'Refresh archive' })); await settle();
+    fireEvent.click(archive().getByRole('button', { name: 'Refresh archive' })); await settle();
     expect(slot.container.querySelectorAll('.call-row')).toHaveLength(50);
     expect(slot.getByText('Call live-1')).toBeTruthy();
     expect((slot.getByLabelText('Linked session') as HTMLSelectElement).value).toBe(selected.sessionId);
