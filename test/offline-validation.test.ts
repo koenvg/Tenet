@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
+import { once } from 'node:events';
+import { createInterface } from 'node:readline';
 import { access, chmod, copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -69,8 +71,9 @@ if(args.join(' ')==='run sdk:build'){
 }
 fs.appendFileSync(root+'/trace.jsonl',JSON.stringify(entry)+'\\n');
 if(control.hold===args.join(' ')){
- const child=cp.spawn(node,['-e',\"process.on('SIGINT',()=>process.exit(0));process.on('SIGTERM',()=>\"+(control.stubborn?'{}':'process.exit(0)')+\");setInterval(()=>{},1000)\"],{stdio:'ignore'});
- fs.writeFileSync(root+'/child-pid',String(child.pid));
+ if(control.startupDelayMs) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,control.startupDelayMs);
+ const child=cp.spawn(node,['-e',"process.on('SIGINT',()=>process.exit(0));process.on('SIGTERM',()=>"+(control.stubborn?'{}':'process.exit(0)')+");setInterval(()=>{},1000);console.log(process.pid)"],{stdio:['ignore','pipe','inherit']});
+ child.stdout.pipe(process.stdout);
  process.on('SIGINT',()=>process.exit(130));process.on('SIGTERM',()=>process.exit(143));setInterval(()=>{},1000);
 }else if(control.fail===args.join(' ')){console.log('failure-stdout');console.error('failure-stderr');process.exit(37);
 }else if(args.join(' ')==='run test'){
@@ -147,22 +150,20 @@ for (const failure of [undefined, 'run test', 'run inspector:build', 'run delive
 }
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-  test(`offline lane forwards ${signal}, waits for children and cleans only its state`, async () => {
-    const f = await fixture({ hold: 'run inspector:build', stubborn: signal === 'SIGTERM' });
+  test(`offline lane forwards ${signal}, waits for children and cleans only its state`, { timeout: 30_000 }, async context => {
+    const f = await fixture({ hold: 'run inspector:build', stubborn: signal === 'SIGTERM', startupDelayMs: signal === 'SIGINT' ? 2200 : 0 });
     const child = f.start();
+    const lines = createInterface({ input: child.stdout! });
+    const ready = once(lines, 'line', { signal: context.signal });
     const done = result(child);
     try {
-      let pid = 0, marker = '', markerError = '';
-      for (let i = 0; i < 200; i++) {
-        try { marker = await readFile(`${f.root}/child-pid`, 'utf8'); pid = Number(marker); break; } catch (error) { markerError = String(error); await sleep(10); }
-      }
-      if (!pid) {
+      const pid = await Promise.race([ready.then(([marker]) => Number(marker)), done.then(() => 0)]);
+      if (!Number.isSafeInteger(pid) || pid <= 0) {
         child.kill('SIGTERM');
         const output = await done;
         const trace = await readFile(`${f.root}/trace.jsonl`, 'utf8').catch(error => String(error));
-        assert.ok(pid, `fixture reached the blocking command (run inspector:build): ${JSON.stringify({ marker, markerError, trace, ...output })}`);
+        assert.fail(`fixture reached the blocking command (run inspector:build): ${JSON.stringify({ pid, trace, ...output })}`);
       }
-      await sleep(100);
       child.kill(signal);
       const output = await done;
       assert.equal(output.code, signal === 'SIGINT' ? 130 : 143, output.stderr);
@@ -172,7 +173,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
       assert.ok(trace[0], 'fixture recorded the worker state');
       await absent(trace[0].root);
       await access(`${f.root}/cache`);
-    } finally { child.kill('SIGTERM'); await done; await rm(f.root, { recursive: true, force: true }); }
+    } finally { lines.close(); child.kill('SIGTERM'); await done; await rm(f.root, { recursive: true, force: true }); }
   });
 }
 

@@ -181,15 +181,19 @@ exec ${JSON.stringify(realBun)} --no-env-file "$@"
 `);
       await chmod(wrapper, 0o700);
       const evidence = join(root, 'ready.json');
+      const pendingEvidence = `${evidence}.pending`;
       const fixture = join(copy, 'scripts/fixtures/archive-consumer.mjs');
       const source = await readFile(fixture, 'utf8');
       const ready = 'const htmlResponse = await fetchHTTP(url);';
       assert.ok(source.includes(ready));
       await writeFile(fixture, source.replace(ready, `
-await writeFile(${JSON.stringify(evidence)}, JSON.stringify({
+await writeFile(${JSON.stringify(pendingEvidence)}, '');
+await new Promise(resolve => setTimeout(resolve, 50));
+await writeFile(${JSON.stringify(pendingEvidence)}, JSON.stringify({
   consumer: process.pid, inspector: inspector.pid, url,
   state: process.env.TMPDIR, lane: process.env.TMPDIR.slice(0, process.env.TMPDIR.lastIndexOf('/'))
 }));
+await (await import('node:fs/promises')).rename(${JSON.stringify(pendingEvidence)}, ${JSON.stringify(evidence)});
 await new Promise(resolve => setTimeout(resolve, 60_000));
 ${ready}`));
       const env = await isolatedEnvironment(root, join(root, 'owner'));
