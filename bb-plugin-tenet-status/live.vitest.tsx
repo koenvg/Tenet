@@ -58,7 +58,7 @@ for (const entry of ['panel', 'main'] as const) test(`${entry}: live append pres
     expect(slot.getByText('Call live-1')).toBeTruthy();
     expect((slot.getByLabelText('Linked session') as HTMLSelectElement).value).toBe(selected.sessionId);
     expect(summaryCalls(slot).at(-1)?.input).toMatchObject(selected);
-    expect((summaryCalls(slot).at(-1)?.input as any).ruleCursor).toBeUndefined();
+    expect((summaryCalls(slot).at(-1)?.input as any)?.ruleCursor).toBeUndefined();
   } finally { slot.lifecycle.unmount(); await settle(); }
   expect(vi.getTimerCount()).toBe(0); expect(document.querySelector('.tenet-summary-workspace')).toBeNull();
 });
