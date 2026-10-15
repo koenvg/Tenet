@@ -36,6 +36,17 @@ jobs:
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/playwright-browsers
       - run: env -u BASH_ENV -u ENV /bin/bash --noprofile --norc scripts/validate-offline.sh --browser-cache "${{ runner.temp }}/playwright-browsers"
+      - name: Retain synthetic browser failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: inspector-failures-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            coverage/inspector-artifacts/playwright/failure-*/
+            .vitest/attachments/
+          if-no-files-found: warn
+          include-hidden-files: true
+          retention-days: 7
 
   delivery:
     name: Build installable archive

@@ -1,10 +1,12 @@
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
-import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { chromium, type Browser, type Page } from 'playwright';
+import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { TestRunner, onTestFinished } from 'vitest';
 import { startInspector } from '../../../src/inspector/server.js';
 import { recordFixture } from '../../../test/recording-fixture.js';
 import { browserFixture } from '../browser-fixture.js';
+import { bounded, FixtureDiagnostics, TraceStore } from '../diagnostics/report.js';
 
 export type InspectorTest = {
   directory: string;
@@ -17,68 +19,98 @@ export type InspectorTest = {
 };
 
 let browser: Browser | undefined;
-export async function launchBrowser() { browser = await chromium.launch({ headless: true }); }
-export async function closeBrowser() { await browser?.close(); browser = undefined; }
+let browserGeneration = 0;
+let traceStore: TraceStore | undefined;
+export async function launchBrowser() {
+  const diagnostics = new FixtureDiagnostics('browser-launch');
+  const generation = ++browserGeneration;
+  let directory: string | undefined;
+  try {
+    directory = await mkdtemp(join(tmpdir(), 'tenet-inspector-traces-'));
+    const launched = await chromium.launch({ headless: true, tracesDir: directory });
+    if (generation !== browserGeneration) { await bounded(() => launched.close()); throw new Error('Browser launch completed after teardown'); }
+    browser = launched;
+    traceStore = new TraceStore(directory);
+  } catch (error) {
+    if (directory) await bounded(() => rm(directory!, { recursive: true, force: true })).catch(() => {});
+    await diagnostics.finish(error);
+    throw error;
+  }
+}
+export async function closeBrowser() {
+  browserGeneration++;
+  const ownedBrowser = browser, ownedStore = traceStore;
+  browser = undefined; traceStore = undefined;
+  const diagnostics = new FixtureDiagnostics('browser-close');
+  if (ownedStore) diagnostics.own('browser trace store', () => rm(ownedStore.directory, { recursive: true, force: true }));
+  if (ownedBrowser) diagnostics.own('browser', () => ownedBrowser.close());
+  const error = await diagnostics.finish();
+  if (error !== undefined) throw error;
+}
 
 export async function withInspector(
   testName: string,
   run: (fixture: InspectorTest) => Promise<void>,
   options: { base?: boolean; seed?: (directory: string) => Promise<void>; path?: string } = {},
 ) {
-  if (!browser) throw new Error('Headless Chromium was not started');
-  const directory = await realpath(await mkdtemp(join(tmpdir(), 'tenet-inspector-integration-')));
-  let app: Awaited<ReturnType<typeof startInspector>> | undefined;
-  let context: BrowserContext | undefined;
-  const externalRequests: string[] = [], pageErrors: string[] = [];
+  const task = TestRunner.getCurrentTest();
+  const diagnostics = new FixtureDiagnostics(testName, task?.context.signal, browser);
+  onTestFinished(async result => {
+    const error = await diagnostics.finish(result.task.result?.errors?.[0]);
+    if (error !== undefined && !result.task.result?.errors?.length) throw error;
+  });
   try {
-    const recorded = options.base === false ? undefined : await recordFixture(directory);
-    if (options.base !== false) await browserFixture(directory);
-    await options.seed?.(directory);
-    app = await startInspector({ directory, assets: resolve('inspector/dist') });
-    context = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce' });
-    const apiEvents: Array<{ elapsedMs: number; page: string; url: string; status: number }> = [];
-    const started = Date.now();
-    context.on('response', response => {
-      if (new URL(response.url()).pathname.startsWith('/api/')) apiEvents.push({ elapsedMs: Date.now() - started,
-        page: response.request().frame().page().url(), url: response.url(), status: response.status() });
-    });
-    await context.route('**/*', route => {
+    if (!browser || !traceStore) throw new Error('Headless Chromium was not started');
+    diagnostics.enter('setup.archive');
+    const directory = await diagnostics.acquire('synthetic archive', async () => {
+      const path = await mkdtemp(join(tmpdir(), 'tenet-inspector-integration-'));
+      try { return await realpath(path); }
+      catch (error) { await rm(path, { recursive: true, force: true }); throw error; }
+    }, path => rm(path, { recursive: true, force: true }));
+    const prepare = <T>(operation: Promise<T>) => diagnostics.prepare(operation, () => rm(directory, { recursive: true, force: true }));
+    const recorded = options.base === false ? undefined : await prepare(recordFixture(directory));
+    if (options.base !== false) await prepare(browserFixture(directory));
+    diagnostics.enter('setup.seed');
+    await prepare(Promise.resolve(options.seed?.(directory)));
+    diagnostics.enter('setup.server');
+    const app = await diagnostics.acquire('local server', () => startInspector({ directory, assets: resolve('inspector/dist') }), app => app.close());
+    diagnostics.server(app.origin);
+    diagnostics.enter('setup.context');
+    const context = await diagnostics.acquire('browser context', () => browser!.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce' }), context => context.close());
+    await diagnostics.wait(diagnostics.observe(browser, context, app.origin, traceStore));
+    const externalRequests: string[] = [], pageErrors: string[] = [];
+    context.on('page', page => page.on('pageerror', error => pageErrors.push(error.message)));
+    await diagnostics.wait(context.route('**/*', route => {
       const url = route.request().url();
-      if (new URL(url).origin === app!.origin) return route.continue();
-      externalRequests.push(url); return route.abort();
-    });
-    const page = await context.newPage();
-    page.on('pageerror', error => pageErrors.push(error.message));
-    const origin = app.origin;
+      if (new URL(url).origin === app.origin) return route.continue();
+      externalRequests.push(url);
+      return route.abort();
+    }));
+    const page = await diagnostics.wait(context.newPage());
+    const navigate = async (page: Page, path: string) => {
+      diagnostics.enter('navigation');
+      await diagnostics.wait(page.goto(new URL(path, app.origin).href));
+    };
     const open = async (path = '/') => {
-      const next = await context!.newPage();
-      next.on('pageerror', error => pageErrors.push(error.message));
-      await next.goto(new URL(path, origin).href);
-      const linked = new URL(path, origin);
+      diagnostics.check();
+      const next = await diagnostics.wait(context.newPage());
+      await navigate(next, path);
+      const linked = new URL(path, app.origin);
       if (/^[a-f0-9]{64}$/.test(linked.searchParams.get('invocation') ?? '')) {
         // A document load does not finish the asynchronous archive selection.
-        await next.locator('.invocation').waitFor();
+        await diagnostics.wait(next.locator('.invocation').waitFor());
       }
+      diagnostics.enter('test');
       return next;
     };
-    await page.goto(new URL(options.path ?? '/', origin).href);
-    try {
-      await run({ directory, app, page, externalRequests, pageErrors, recorded, open });
-      if (externalRequests.length || pageErrors.length) throw new Error(`Unexpected browser requests/errors: ${JSON.stringify({ externalRequests, pageErrors })}`);
-    } catch (error) {
-      const artifacts = resolve('coverage/inspector-artifacts/playwright');
-      await mkdir(artifacts, { recursive: true });
-      const failure = await mkdtemp(join(artifacts, `failure-${testName.replace(/[^a-z0-9]+/gi, '-').slice(0, 80)}-`));
-      await writeFile(join(failure, 'requests.json'), JSON.stringify({ apiEvents, externalRequests, pageErrors }, null, 2));
-      for (const [number, failedPage] of context.pages().entries()) {
-        await failedPage.screenshot({ path: join(failure, `page-${number}.png`), fullPage: true }).catch(() => {});
-        await writeFile(join(failure, `page-${number}.html`), await failedPage.content()).catch(() => {});
-      }
-      throw error;
-    }
-  } finally {
-    await context?.close();
-    await app?.close();
-    await rm(directory, { recursive: true, force: true });
+    await navigate(page, options.path ?? '/');
+    diagnostics.enter('test');
+    await prepare(run({ directory, app, page, externalRequests, pageErrors, recorded, open }));
+    if (externalRequests.length || pageErrors.length) throw new Error(`Unexpected browser requests/errors: ${JSON.stringify({ externalRequests, pageErrors })}`);
+  } catch (error) {
+    await diagnostics.finish(error);
+    throw error;
   }
+  const error = await diagnostics.finish();
+  if (error !== undefined) throw error;
 }
