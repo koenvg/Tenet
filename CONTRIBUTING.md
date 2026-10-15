@@ -53,7 +53,11 @@ The runner builds the SDK, inspector, summary and website first. It then validat
 
 The complete Bun suite uses `--isolate --max-concurrency=1 --timeout=30000`. Its stdout and stderr go to a regular file that is replayed afterward.
 
-Application types, inspector types and both browser suites follow. Plugin TypeScript and configured Vitest checks run last. Nested SDK and inspector rebuilds remain part of their existing commands.
+Application types, delivery consumers, inspector types and both browser suites follow. Plugin TypeScript and configured Vitest checks run last. Nested SDK and inspector rebuilds remain part of their existing commands.
+
+The lane runs `bun run delivery:check` to compile fresh delivery APIs and inspector assets in a disposable installation. It runs the maintained SDK, doctor, configuration and report consumers under Node and Bun, then checks `scripts/fixtures/archive-types.ts` against fresh declarations.
+
+This check uses locked checkout dependencies without registry installs or live judges. If a fixture fails, review the contract instead of generating expectations. It does not replace the separate required production-only archive lane below.
 
 Success means exit zero. The runner stops at the first failure and preserves its exit code through log replay and cleanup.
 
