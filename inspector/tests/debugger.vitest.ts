@@ -1,5 +1,5 @@
-import { afterAll, afterEach, beforeAll, beforeEach, expect, test } from 'vitest';
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import { afterAll, afterEach, beforeAll, beforeEach, expect, onTestFinished, test } from 'vitest';
+import { chromium, type Browser, type Page } from 'playwright';
 import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -7,13 +7,29 @@ import { startInspector } from '../../src/inspector/server.js';
 import { browserFixture, recordedQuestion } from './browser-fixture.js';
 import { sessionKey } from '../../src/recording/archive.js';
 import { openRecordedData, reveal } from './ui-navigation.js';
-let browser: Browser | undefined, context: BrowserContext | undefined, page: Page | undefined;
-let app: Awaited<ReturnType<typeof startInspector>> | undefined;
-let directory: string | undefined;
+import { FixtureDiagnostics, TraceStore } from './diagnostics/report.js';
+type SuiteResources = {
+  browser: Browser;
+  directory: string;
+  app: Awaited<ReturnType<typeof startInspector>>;
+  store: TraceStore;
+};
+type DebuggerRun = {
+  diagnostics: FixtureDiagnostics;
+  page?: Page;
+  externalRequests: string[];
+  pageErrors: string[];
+};
+const suiteDiagnostics = new FixtureDiagnostics('debugger-suite');
+let suite: SuiteResources | undefined, active: DebuggerRun | undefined;
+let app: SuiteResources['app'] | undefined;
 let externalRequests: string[] = [], pageErrors: string[] = [];
-let apiEvents: Array<{ elapsedMs: number; url: string; status: number }> = [];
 const artifacts = resolve('coverage/inspector-artifacts/playwright');
-const currentPage = () => { if (!page) throw new Error('Browser page unavailable'); return page; };
+const assertBrowserClean = ({ externalRequests, pageErrors }: Pick<DebuggerRun, 'externalRequests' | 'pageErrors'>) => {
+  expect(externalRequests, 'non-local requests must not leave this test').toEqual([]);
+  expect(pageErrors, 'uncaught browser errors must not leave this test').toEqual([]);
+};
+const currentPage = () => { if (!active?.page) throw new Error('Browser page unavailable'); return active.page; };
 const pickCall = async (id: string) => {
   const p = currentPage();
   await p.locator('.call-row').filter({ has: p.locator('.call-id', { hasText: new RegExp(`^${id}$`) }) }).click();
@@ -31,35 +47,83 @@ async function openDebugger(p: Page, origin: string) {
 }
 
 beforeAll(async () => {
-  browser = await chromium.launch({ headless: true });
-  directory = await realpath(await mkdtemp(join(tmpdir(), 'tenet-playwright-')));
-  await browserFixture(directory);
-  const unrelated = join(directory, sessionKey('unrelated-session'));
-  await mkdir(unrelated, { mode: 0o700 });
-  await writeFile(join(unrelated, 'pending.tmp'), 'in progress', { mode: 0o600 });
-  app = await startInspector({ directory, assets: resolve('inspector/dist') });
-  await mkdir(artifacts, { recursive: true });
+  try {
+    suiteDiagnostics.enter('setup.browser');
+    const tracesDirectory = await suiteDiagnostics.acquire('browser trace directory',
+      () => mkdtemp(join(tmpdir(), 'tenet-inspector-traces-')),
+      path => rm(path, { recursive: true, force: true }));
+    suiteDiagnostics.enter('setup.archive');
+    const directory = await suiteDiagnostics.acquire('synthetic archive', async () => {
+      const path = await mkdtemp(join(tmpdir(), 'tenet-playwright-'));
+      try { return await realpath(path); }
+      catch (error) { await rm(path, { recursive: true, force: true }); throw error; }
+    }, path => rm(path, { recursive: true, force: true }));
+    suiteDiagnostics.enter('setup.browser');
+    const browser = await suiteDiagnostics.acquire('browser',
+      () => chromium.launch({ headless: true, tracesDir: tracesDirectory }),
+      async browser => {
+        try { await browser.close(); }
+        finally { await rm(tracesDirectory, { recursive: true, force: true }); }
+      });
+    const store = new TraceStore(tracesDirectory);
+    suiteDiagnostics.enter('setup.seed');
+    await suiteDiagnostics.prepare((async () => {
+      await browserFixture(directory);
+      const unrelated = join(directory, sessionKey('unrelated-session'));
+      await mkdir(unrelated, { mode: 0o700 });
+      await writeFile(join(unrelated, 'pending.tmp'), 'in progress', { mode: 0o600 });
+    })(), () => rm(directory, { recursive: true, force: true }));
+    suiteDiagnostics.enter('setup.server');
+    const server = await suiteDiagnostics.acquire('local server',
+      () => startInspector({ directory, assets: resolve('inspector/dist') }), app => app.close());
+    suiteDiagnostics.server(server.origin);
+    await suiteDiagnostics.wait(mkdir(artifacts, { recursive: true }));
+    suiteDiagnostics.check();
+    suite = { browser, directory, app: server, store };
+    app = server;
+  } catch (error) {
+    await suiteDiagnostics.finish(error).catch(() => {});
+    throw error;
+  }
 });
 
-beforeEach(async () => {
-  if (!browser || !app) throw new Error('Temporary inspector or headless browser unavailable');
-  context = await browser.newContext({ viewport: { width: 2233, height: 1282 } });
-  page = await context.newPage();
-  pageErrors = []; externalRequests = [];
-  apiEvents = [];
-  const started = Date.now();
-  page.on('response', response => {
-    if (new URL(response.url()).pathname.startsWith('/api/')) apiEvents.push({
-      elapsedMs: Date.now() - started, url: response.url(), status: response.status(),
-    });
+beforeEach(async task => {
+  active = undefined;
+  externalRequests = []; pageErrors = [];
+  const diagnostics = new FixtureDiagnostics(task.task.name, task.signal, suite?.browser);
+  const owner: DebuggerRun = { diagnostics, externalRequests, pageErrors };
+  active = owner;
+  onTestFinished(async result => {
+    const error = await owner.diagnostics.finish(result.task.result?.errors?.[0]);
+    if (error !== undefined && !result.task.result?.errors?.length) throw error;
   });
-  page.on('pageerror', error => pageErrors.push(error.message));
-  await page.route('**/*', route => {
-    // The fixture permits only requests to its temporary loopback server.
-    if (new URL(route.request().url()).origin === app!.origin) return route.continue();
-    externalRequests.push(route.request().url()); return route.abort();
-  });
-  await openDebugger(page, app.origin);
+  try {
+    diagnostics.enter('setup.context');
+    const resources = suite;
+    if (!resources) throw new Error('Temporary inspector or headless browser unavailable');
+    const { browser, app, store } = resources;
+    diagnostics.server(app.origin);
+    const context = await diagnostics.acquire('browser context',
+      () => browser.newContext({ viewport: { width: 2233, height: 1282 } }), async context => {
+        await context.close();
+        assertBrowserClean(owner);
+      });
+    await diagnostics.wait(diagnostics.observe(browser, context, app.origin, store));
+    context.on('page', page => page.on('pageerror', error => owner.pageErrors.push(error.message)));
+    await diagnostics.wait(context.route('**/*', route => {
+      const url = route.request().url();
+      if (new URL(url).origin === app.origin) return route.continue();
+      owner.externalRequests.push(url); return route.abort();
+    }));
+    const page = await diagnostics.wait(context.newPage());
+    diagnostics.enter('navigation');
+    await diagnostics.wait(openDebugger(page, app.origin));
+    diagnostics.enter('test');
+    owner.page = page;
+  } catch (error) {
+    await diagnostics.finish(error).catch(() => {});
+    throw error;
+  }
 });
 
 test('initial archive selection can outlast the semantic poll deadline', async () => {
@@ -102,24 +166,35 @@ for (const width of [1280, 390]) test(`default story and keyboard disclosures at
   expect(await p.locator('.lifecycle').isVisible()).toBe(true);
   expect(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
-afterEach(async taskContext => {
+afterEach(async task => {
+  const owner = active!;
+  const primaryError = task.task.result?.errors?.[0];
+  let error: unknown = primaryError;
   try {
-    if (page && (taskContext.task.result?.state === 'fail' || externalRequests.length || pageErrors.length)) {
-      const failure = await mkdtemp(join(artifacts, `failure-${taskContext.task.name.replace(/[^a-z0-9]+/gi, '-').slice(0, 80)}-`));
-      await writeFile(join(failure, 'requests.json'), JSON.stringify({ apiEvents, externalRequests, pageErrors }, null, 2));
-      await writeFile(join(failure, 'page.html'), await page.content()).catch(() => {});
-      await page.screenshot({ path: join(failure, 'page.png'), fullPage: true }).catch(() => {});
-    }
+    try {
+      assertBrowserClean(owner);
+    } catch (guardError) { error ??= guardError; }
+    const cleanupError = await owner.diagnostics.finish(error).catch(cleanupError => cleanupError);
+    error ??= cleanupError;
+    if (primaryError === undefined && error !== undefined) throw error;
   } finally {
-    try { await context?.close(); } finally { context = undefined; page = undefined; }
+    active = undefined;
+    externalRequests = []; pageErrors = [];
   }
-  expect(externalRequests, 'non-local requests must not leave this test').toEqual([]);
-  expect(pageErrors, 'uncaught browser errors must not leave this test').toEqual([]);
 });
-afterAll(async () => {
-  await app?.close();
-  await browser?.close();
-  if (directory) await rm(directory, { recursive: true, force: true });
+afterAll(async ({}, suiteTask) => {
+  let error: unknown;
+  try {
+    if (active) error = await active.diagnostics.finish();
+  } catch (cleanupError) { error = cleanupError; }
+  finally {
+    active = undefined;
+    externalRequests = []; pageErrors = [];
+    suite = undefined; app = undefined;
+    const suiteError = await suiteDiagnostics.finish(suiteTask.result?.errors?.[0]).catch(cleanupError => cleanupError);
+    error ??= suiteError;
+  }
+  if (error !== undefined) throw error;
 });
 
 test('background refresh does not flash archive-wide warnings into the selected session', async () => {
