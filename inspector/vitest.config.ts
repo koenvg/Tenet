@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
+  envDir: false,
   root: fileURLToPath(new URL('..', import.meta.url)),
   test: {
     // Node owns the temporary archive and drives a disposable headless Chromium.
