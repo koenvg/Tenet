@@ -57,13 +57,15 @@ const entry={args,cwd:process.cwd(),home:os.homedir(),root:process.env.TMPDIR,en
 if(args.join(' ')==='run sdk:build'){
  fs.mkdirSync(root+'/unsafe-permission-fixture',{mode:0o755});
  if((fs.statSync(root+'/unsafe-permission-fixture').mode&0o777)!==0o755)throw new Error('runner masked explicit unsafe fixture permissions');
- entry.probes=[];
- for(const command of [[realBun,'probe.cjs'],['bun','probe.cjs'],[realBun,'run','nested'],[realBun,'-e',\"const {spawnSync}=require('node:child_process');const p=spawnSync(process.execPath,['probe.cjs'],{encoding:'utf8',cwd:'nested'});process.stdout.write(p.stdout);process.exit(p.status)\"]]){
-   const p=cp.spawnSync(command[0],command.slice(1),{cwd:root,encoding:'utf8'});if(p.status!==0)throw new Error(JSON.stringify({command,status:p.status,error:p.error,stderr:p.stderr,stdout:p.stdout}));entry.probes.push(JSON.parse(p.stdout));
+ if(!control.hold){
+  entry.probes=[];
+  for(const command of [[realBun,'probe.cjs'],['bun','probe.cjs'],[realBun,'run','nested'],[realBun,'-e',"const {spawnSync}=require('node:child_process');const p=spawnSync(process.execPath,['probe.cjs'],{encoding:'utf8',cwd:'nested'});process.stdout.write(p.stdout);process.exit(p.status)"]]){
+    const p=cp.spawnSync(command[0],command.slice(1),{cwd:root,encoding:'utf8'});if(p.status!==0)throw new Error(JSON.stringify({command,status:p.status,error:p.error,stderr:p.stderr,stdout:p.stdout}));entry.probes.push(JSON.parse(p.stdout));
+  }
+  const p=cp.spawnSync(node,['probe.cjs'],{cwd:root,encoding:'utf8'});if(p.status!==0)throw new Error(p.stderr);entry.probes.push(JSON.parse(p.stdout));
+  const pathOnly=cp.spawnSync('bun',['probe.cjs'],{cwd:root,encoding:'utf8',env:{PATH:process.env.PATH,HOME:process.env.HOME,TMPDIR:process.env.TMPDIR}});
+  if(pathOnly.status!==0)throw new Error(pathOnly.stderr);entry.probes.push(JSON.parse(pathOnly.stdout));
  }
- const p=cp.spawnSync(node,['probe.cjs'],{cwd:root,encoding:'utf8'});if(p.status!==0)throw new Error(p.stderr);entry.probes.push(JSON.parse(p.stdout));
- const pathOnly=cp.spawnSync('bun',['probe.cjs'],{cwd:root,encoding:'utf8',env:{PATH:process.env.PATH,HOME:process.env.HOME,TMPDIR:process.env.TMPDIR}});
- if(pathOnly.status!==0)throw new Error(pathOnly.stderr);entry.probes.push(JSON.parse(pathOnly.stdout));
 }
 fs.appendFileSync(root+'/trace.jsonl',JSON.stringify(entry)+'\\n');
 if(control.hold===args.join(' ')){
@@ -150,11 +152,16 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     const child = f.start();
     const done = result(child);
     try {
-      let pid = 0;
+      let pid = 0, marker = '', markerError = '';
       for (let i = 0; i < 200; i++) {
-        try { pid = Number(await readFile(`${f.root}/child-pid`, 'utf8')); break; } catch { await sleep(10); }
+        try { marker = await readFile(`${f.root}/child-pid`, 'utf8'); pid = Number(marker); break; } catch (error) { markerError = String(error); await sleep(10); }
       }
-      assert.ok(pid, 'fixture reached the blocking command');
+      if (!pid) {
+        child.kill('SIGTERM');
+        const output = await done;
+        const trace = await readFile(`${f.root}/trace.jsonl`, 'utf8').catch(error => String(error));
+        assert.ok(pid, `fixture reached the blocking command (run inspector:build): ${JSON.stringify({ marker, markerError, trace, ...output })}`);
+      }
       await sleep(100);
       child.kill(signal);
       const output = await done;
@@ -165,7 +172,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
       assert.ok(trace[0], 'fixture recorded the worker state');
       await absent(trace[0].root);
       await access(`${f.root}/cache`);
-    } finally { child.kill('SIGKILL'); await rm(f.root, { recursive: true, force: true }); }
+    } finally { child.kill('SIGTERM'); await done; await rm(f.root, { recursive: true, force: true }); }
   });
 }
 
