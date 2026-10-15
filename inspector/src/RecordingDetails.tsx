@@ -40,11 +40,12 @@ export default function RecordingDetails({ view }: { view: InvocationView }) {
           <div className="record-wide"><dt>Renderer revision</dt><dd>{view.native.contract.rendererRevision}</dd></div>
         </>}
         <div><dt>Queue wait</dt><dd>{view.queueWaitMs === null ? 'unknown' : `${view.queueWaitMs} ms`}</dd></div>
-        <div><dt>Provider duration</dt><dd>{view.providerDurationMs === null ? 'unknown' : `${view.providerDurationMs} ms`}</dd></div>
+        <div><dt>Assessment duration</dt><dd>{view.providerDurationMs === null ? 'unknown' : `${view.providerDurationMs} ms`}</dd></div>
         <div className="record-wide"><dt>Request</dt><dd>{view.requestStatus}</dd></div>
         <div className="record-wide"><dt>Archive coverage</dt><dd>{view.coverage}</dd></div>
         <div className="record-wide"><dt>Missing stages</dt><dd>{view.missing.join(', ') || 'none observed'}</dd></div>
       </dl>
+      <p className="record-note">Elapsed time for the assessment call, including evidence preparation, judge execution and validation. This is not isolated provider latency. Queue wait is separate.</p>
       {view.native && <NativeMappings native={view.native} />}
       <details className="record-identifiers record-note"><summary>Record identifiers</summary>
         <dl className="record-fields">
