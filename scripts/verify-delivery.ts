@@ -8,6 +8,25 @@ import { fileURLToPath } from 'node:url';
 import { assertDelivery } from './delivery-contract.js';
 import { isolatedEnvironment, isolatedArgs } from './isolated-environment.js';
 
+type CompilerFailure = { status?: number | null; stdout?: string; stderr?: string };
+
+export function runConsumerCompiler(compiler: string, typeRoots: string, cwd: string, env: Record<string, string>): string {
+  try {
+    return execFileSync('node', [compiler, '--pretty', 'false', '--noEmit', '--strict', '--module', 'NodeNext',
+      '--moduleResolution', 'NodeNext', '--target', 'ES2023', '--typeRoots', typeRoots, '--traceResolution', 'check.ts'],
+      { cwd, env, encoding: 'utf8', stdio: 'pipe', timeout: 180_000 });
+  } catch (error) {
+    const failure = error as CompilerFailure;
+    const diagnostics = [failure.stdout ?? '', failure.stderr ?? ''].flatMap(output => output.split(/\r?\n/))
+      .filter(line => /^(?:.+\(\d+,\d+\): )?error TS\d+: /.test(line)).join('\n');
+    const limit = 8_000;
+    console.error(`Isolated TypeScript consumer check failed (exit status ${failure.status ?? 'unknown'}).`);
+    console.error(diagnostics.slice(0, limit) || 'No TypeScript diagnostics captured.');
+    if (diagnostics.length > limit) console.error('[TypeScript diagnostics truncated]');
+    throw Object.assign(new Error('Isolated TypeScript consumer compilation failed.'), { status: failure.status });
+  }
+}
+
 export async function verifyArchive(archive: string): Promise<void> {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-relocated-')));
   const home = join(root, 'home');
@@ -73,8 +92,7 @@ export async function verifyArchive(archive: string): Promise<void> {
     }
     await rm(join(installation, 'TENET.md'));
     await cp(new URL('./fixtures/archive-types.ts', import.meta.url), join(consumer, 'check.ts'));
-    const trace = run('node', [join(host, 'node_modules/typescript/bin/tsc'), '--noEmit', '--strict', '--module', 'NodeNext',
-      '--moduleResolution', 'NodeNext', '--target', 'ES2023', '--typeRoots', join(host, 'node_modules/@types'), '--traceResolution', 'check.ts'], consumer);
+    const trace = runConsumerCompiler(join(host, 'node_modules/typescript/bin/tsc'), join(host, 'node_modules/@types'), consumer, env);
     assert.ok(trace.includes(join(installation, 'dist/sdk/index.d.ts')), 'consumer must resolve delivered declarations');
     console.log('Isolated TypeScript declarations resolved.');
     for (const name of ['archive-native.mjs', 'archive-offline-trap.mjs'])
