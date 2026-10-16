@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
-import { cp } from 'node:fs/promises';
+import { cp, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { isolatedEnvironment, isolatedArgs } from './isolated-environment.js';
 
 type ConsumerContext = Readonly<{ root: string; installation: string; consumer: string }>;
@@ -14,6 +15,14 @@ export class ConsumerInterrupted extends Error {
   constructor(readonly signal: 'SIGINT' | 'SIGTERM') {
     super(`Delivery consumer interrupted by ${signal}.`);
     this.exitCode = signal === 'SIGINT' ? 130 : 143;
+  }
+}
+
+export class ConsumerShutdownError extends Error {
+  constructor(readonly group: number, root: string, cause: Error | undefined,
+    readonly interruption: ConsumerInterrupted | undefined, readonly shutdownCause: unknown) {
+    super(`Consumer group ${group} did not stop; retained temporary state at ${root}.`,
+      { cause: cause ?? interruption ?? shutdownCause });
   }
 }
 
@@ -37,26 +46,53 @@ export function runConsumerCompiler(compiler: string, typeRoots: string, cwd: st
 async function runConsumer(runtime: string, fixture: string, context: ConsumerContext): Promise<void> {
   const env = await isolatedEnvironment(context.root, join(context.root, `home-${runtime}-${fixture}`));
   env.PATH = `${join(context.installation, 'node_modules/.bin')}:${env.PATH}`;
+  // The outer offline runner must retain state if this owner dies before reporting shutdown.
+  await writeFile(join(context.root, '.tenet-consumer-state'), '');
   const child = spawn(runtime, isolatedArgs(runtime, [fixture, context.installation]), {
     cwd: context.consumer, env, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'],
   });
   let interruption: ConsumerInterrupted | undefined;
   let ownedGroup = child.pid;
-  const terminate = () => {
-    if (!ownedGroup) return;
-    try {
-      if (process.platform === 'win32') child.kill('SIGKILL');
-      else process.kill(-ownedGroup, 'SIGKILL');
-    } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error; }
-    ownedGroup = undefined;
-  };
-  const interrupt = (signal: 'SIGINT' | 'SIGTERM') => { interruption ??= new ConsumerInterrupted(signal); terminate(); };
-  const onInt = () => interrupt('SIGINT'), onTerm = () => interrupt('SIGTERM');
-  process.on('SIGINT', onInt);
-  process.on('SIGTERM', onTerm);
+  let onInt: (() => void) | undefined, onTerm: (() => void) | undefined;
   try {
     await new Promise<void>((resolve, reject) => {
       let stdout = '', stderr = '', failure: string | undefined, spawnError: Error | undefined;
+      let closed = false, exitCode: number | null = null;
+      let shutdown: Promise<void> | undefined;
+      let terminationError: unknown;
+      const consumerFailure = () => spawnError ?? (failure || (closed && exitCode !== 0 && !(interruption && exitCode === null))
+        ? new Error(`${runtime} ${fixture} ${failure ?? `exited ${exitCode}`}.\n${stderr.slice(0, 8_000)}`) : undefined);
+      const waitForGroup = async () => {
+        if (process.platform === 'win32') { ownedGroup = undefined; return; }
+        const deadline = performance.now() + 1_000;
+        while (ownedGroup) {
+          try { process.kill(-ownedGroup, 0); }
+          catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ESRCH') { ownedGroup = undefined; return; }
+            if ((error as NodeJS.ErrnoException).code !== 'EPERM') throw error;
+          }
+          if (performance.now() >= deadline) throw new Error(`Consumer group ${ownedGroup} did not stop.`, { cause: terminationError });
+          await sleep(10);
+        }
+      };
+      const terminate = () => {
+        if (shutdown) return;
+        try {
+          if (ownedGroup) {
+            if (process.platform === 'win32') child.kill('SIGKILL');
+            else process.kill(-ownedGroup, 'SIGKILL');
+          }
+        } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') terminationError = error; }
+        shutdown = waitForGroup();
+        void shutdown.catch(error => {
+          clearTimeout(timer);
+          child.stdout.destroy(); child.stderr.destroy(); child.unref();
+          reject(new ConsumerShutdownError(ownedGroup!, context.root, consumerFailure(), interruption, error));
+        });
+      };
+      const interrupt = (signal: 'SIGINT' | 'SIGTERM') => { interruption ??= new ConsumerInterrupted(signal); terminate(); };
+      onInt = () => interrupt('SIGINT'); onTerm = () => interrupt('SIGTERM');
+      process.on('SIGINT', onInt); process.on('SIGTERM', onTerm);
       const timer = setTimeout(() => { failure = 'timed out'; terminate(); }, 180_000);
       child.stdout.on('data', chunk => {
         stdout += chunk;
@@ -68,18 +104,20 @@ async function runConsumer(runtime: string, fixture: string, context: ConsumerCo
       });
       child.once('error', error => { spawnError = error; terminate(); });
       child.once('close', code => {
+        closed = true; exitCode = code;
         clearTimeout(timer);
-        // The SDK consumer starts an inspector. Kill descendants before the caller removes their state.
+        // Closing the consumer's pipes does not confirm that its inspector has stopped.
         terminate();
-        if (interruption) reject(interruption);
-        else if (spawnError) reject(spawnError);
-        else if (failure || code !== 0) reject(new Error(`${runtime} ${fixture} ${failure ?? `exited ${code}`}.\n${stderr.slice(0, 8_000)}`));
-        else { console.log(stdout.trim()); resolve(); }
+        void shutdown!.then(() => {
+          const error = interruption ?? consumerFailure();
+          if (error) reject(error);
+          else { console.log(stdout.trim()); resolve(); }
+        }, () => {});
       });
     });
   } finally {
-    process.off('SIGINT', onInt);
-    process.off('SIGTERM', onTerm);
+    if (onInt) process.off('SIGINT', onInt);
+    if (onTerm) process.off('SIGTERM', onTerm);
   }
 }
 

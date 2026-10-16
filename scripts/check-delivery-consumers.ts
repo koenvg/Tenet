@@ -3,13 +3,14 @@ import { cp, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/pr
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ConsumerInterrupted, verifyRuntimeConsumers, verifyDeclarationConsumer } from './delivery-consumers.js';
+import { ConsumerInterrupted, ConsumerShutdownError, verifyRuntimeConsumers, verifyDeclarationConsumer } from './delivery-consumers.js';
 import { isolatedEnvironment, isolatedArgs } from './isolated-environment.js';
 
 const repository = fileURLToPath(new URL('..', import.meta.url));
 
 export async function checkDeliveryConsumers(): Promise<void> {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-consumers-')));
+  let retained = false;
   try {
     const env = await isolatedEnvironment(root, join(root, 'home-build'));
     env.PATH = `${join(repository, 'node_modules/.bin')}:${env.PATH}`;
@@ -37,13 +38,19 @@ export async function checkDeliveryConsumers(): Promise<void> {
     await verifyRuntimeConsumers(context);
     await verifyDeclarationConsumer(context, { compiler, typeRoots: join(repository, 'node_modules/@types') });
     console.log('Offline delivery consumers passed with checkout dependencies. Production archive verification remains required.');
-  } finally { await rm(root, { recursive: true, force: true }); }
+  } catch (error) {
+    retained = error instanceof ConsumerShutdownError;
+    throw error;
+  } finally { if (!retained) await rm(root, { recursive: true, force: true }); }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try { await checkDeliveryConsumers(); }
   catch (error) {
-    if (!(error instanceof ConsumerInterrupted)) throw error;
-    process.exitCode = error.exitCode;
+    if (error instanceof ConsumerShutdownError && error.interruption) {
+      console.error(error.message);
+      process.exitCode = error.interruption.exitCode;
+    } else if (error instanceof ConsumerInterrupted) process.exitCode = error.exitCode;
+    else throw error;
   }
 }
