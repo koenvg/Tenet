@@ -6,6 +6,7 @@ import { readMode } from './config.js';
 import { ArchiveWriter, parseBbThreadId, recordingConfig } from '../recording/archive.js';
 import { ActivationStore, type Activation } from './activation.js';
 import { GuardRuntime, type Capabilities, type RuntimeOptions } from './guard.js';
+import { OperationsRuntime } from './operations.js';
 
 import { diagnosticSafety, type DiagnosticSafety } from './diagnostic-safety.js';
 export interface ProjectResources {
@@ -18,7 +19,7 @@ export interface ProjectResources {
 }
 
 /** Owner control, archive and injection outlive individual project sessions. */
-export function createRuntimeResources(options: Omit<RuntimeOptions, 'judge' | 'activation' | 'bindRecording'> & {
+export function createRuntimeResources(options: Omit<RuntimeOptions, 'judge' | 'activation' | 'bindRecording' | 'operations'> & {
   capabilities: Capabilities;
   judge?: Judge;
   createJudge?: () => Judge;
@@ -35,6 +36,7 @@ export function createRuntimeResources(options: Omit<RuntimeOptions, 'judge' | '
   const archive = options.bindRecording ? undefined : new ArchiveWriter(recordingConfig(env), undefined, options.onCaptureHealth);
   const projects = new Map<string, ProjectResources>();
   const diagnostics = () => diagnosticSafety([...projects.values()].flatMap(project => project.diagnostics.secrets));
+  const operations = archive?.config.enabled ? new OperationsRuntime(archive.config, diagnostics, () => archive.health()) : undefined;
   const results = { resultCallIds: new Set<string>(), ambiguousResults: new Set<string>() };
   const judgeIdentity = options.judgeIdentity ? Object.freeze({ ...options.judgeIdentity }) : undefined;
   const injected = options.judge || options.createJudge
@@ -53,7 +55,7 @@ export function createRuntimeResources(options: Omit<RuntimeOptions, 'judge' | '
         configuration: prepareConfiguration({ owner, project: directory, observationLimits }) });
       const bind = options.bindRecording ?? (identity => archive!.bind({ ...identity,
         bbThreadId: parseBbThreadId(env.BB_THREAD_ID) }));
-      const runtime = new GuardRuntime({ ...options, env, judge: prepared.judge, judgeStatus: prepared.status, activation,
+      const runtime = new GuardRuntime({ ...options, env, judge: prepared.judge, judgeStatus: prepared.status, activation, operations,
         configuration: prepared.configuration, observationLimits: prepared.configuration.status.observation ?? {},
         emit: (stage, data, archiveData) => {
           const safe = diagnostics().ownerRecord(data);
@@ -90,7 +92,8 @@ export function createRuntimeResources(options: Omit<RuntimeOptions, 'judge' | '
     async close(timeoutMs: number) {
       for (const project of projects.values()) project.runtime.shutdown();
       activation.close();
-      return archive ? archive.close(timeoutMs) : true;
+      const closed = await Promise.all([archive?.close(timeoutMs) ?? true, operations?.close(timeoutMs) ?? true]);
+      return closed.every(Boolean);
     },
   };
 }

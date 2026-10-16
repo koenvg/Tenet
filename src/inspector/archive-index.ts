@@ -109,6 +109,30 @@ const MAX_OPEN_SESSIONS = 256;
  * Full evidence is discarded. Unchanged evidence is not reread. Detail is validated anew.
  * Each refresh parses at most 256 stages / 16 MiB and reports incomplete cold sweeps. */
 export class ArchiveIndex {
+  private operationIndex = new Map<string, Map<string, Metadata>>();
+  private operationEntries = 0;
+  private operationLimited = false;
+  private trackOperation(path: string, metadata: Metadata, remove = false) {
+    const key = `${recordSessionKey(metadata)}/${recordInvocationKey(metadata)}`;
+    const records = this.operationIndex.get(key);
+    if (remove) {
+      if (records?.delete(path)) this.operationEntries--;
+      if (!records?.size) this.operationIndex.delete(key);
+    } else if (this.operationEntries < 8192 && (records?.size ?? 0) < 32) {
+      const group = records ?? new Map<string, Metadata>();
+      if (!group.has(path)) this.operationEntries++;
+      group.set(path, metadata); this.operationIndex.set(key, group);
+    } else this.operationLimited = true;
+  }
+  operationDescriptions(addresses: readonly { session: string; invocation: string }[]) {
+    return addresses.slice(0, 100).map(address => {
+      const group = this.operationIndex.get(`${address.session}/${address.invocation}`);
+      const records = group ? [...group.values()] : [];
+      const preview = records.filter(r => r.actionPreview).sort((a, b) => b.timestamp - a.timestamp)[0]?.actionPreview;
+      return { ...address, recording: records.length ? 'available' as const : this.operationLimited ? 'budget-limited' as const
+        : this.indexing ? 'indexing' as const : 'missing' as const, description: preview };
+    });
+  }
   private *allEntries(): IterableIterator<[string, Entry]> {
     for (const state of this.sessionScans.values()) yield* state.files;
   }
@@ -124,6 +148,8 @@ export class ArchiveIndex {
   }
   private replaceEntry(state: SessionScan, path: string, entry?: Entry): void {
     const old = state.files.get(path);
+    if (old?.metadata) this.trackOperation(path, old.metadata, true);
+    if (entry?.metadata) this.trackOperation(path, entry.metadata);
     if (old?.issue) { countIssue(state.totals, old.issue.reason, -1); countIssue(this.totals, old.issue.reason, -1); }
     if (old?.unsupportedVersion !== undefined && old.unsupportedVersion > READER_SCHEMAS.at(-1)!) {
       state.totals.newerUnsupported--; this.totals.newerUnsupported--;
@@ -188,6 +214,9 @@ export class ArchiveIndex {
     if (!state.complete) this.coldPending--;
     this.pruneQueue.delete(state);
     addCounts(this.totals, state.totals, -1); this.issueStates.delete(state);
+    for (const [key, records] of this.operationIndex) if (key.startsWith(`${session}/`)) {
+      this.operationEntries -= records.size; this.operationIndex.delete(key);
+    }
     this.sessionScans.delete(session);
     if (this.probe === session) this.probe = undefined;
   }
@@ -204,6 +233,7 @@ export class ArchiveIndex {
   private async resetSessions(): Promise<void> {
     for (const cursor of this.openCursors.keys()) { try { await cursor.close(); } catch {} }
     this.openCursors.clear(); this.sessionScans = new Map(); this.pruneQueue.clear();
+    this.operationIndex.clear(); this.operationEntries = 0; this.operationLimited = false;
     this.totals = counts(); this.issueStates.clear();
     this.rootPrune = undefined; this.rootEpoch = 1; this.coldPending = 0;
     this.turn = undefined; this.probe = undefined;

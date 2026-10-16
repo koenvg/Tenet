@@ -44,7 +44,7 @@ export function createGuard(options: GuardOptions): Guard {
   let closing: Promise<boolean> | undefined;
   let watching = false;
   const deliver = (event: OwnerEvent) => {
-    try { options.onOwnerEvent?.(immutable(resources.diagnostics().ownerEvent(event))); } catch { /* Owner delivery cannot authorize or veto. */ }
+    try { const safe = resources.diagnostics().ownerEvent(event); if (safe) options.onOwnerEvent?.(immutable(safe)); } catch { /* Owner delivery cannot authorize or veto. */ }
   };
   const resources = createRuntimeResources({ ...options, capabilities, env: { ...(options.env ?? process.env) },
     onCaptureHealth: () => deliver({ type: 'capture', capture: captureStatus() }),

@@ -20,6 +20,8 @@ import { ASSESSMENT_METADATA } from '../decision/assessment-contract.js';
 import { UNAVAILABLE_EVIDENCE_CONTEXT } from '../decision/evidence-context.js';
 import type { JudgeStatus } from './judge.js';
 import type { PreparedConfiguration } from './configuration.js';
+import type { OperationsRuntime } from './operations.js';
+import { realpath } from 'node:fs/promises';
 
 export interface RuntimeIdentity { host: string; sessionId: string; contextId: string }
 export interface Capabilities {
@@ -77,6 +79,7 @@ export interface RuntimeOptions {
   bindRecording?: (identity: InvocationIdentity & RuntimeIdentity & { cwd: string; mode: Mode }) => RecordingSink;
   emit?: (stage: string, data: RuntimeReportData, archiveData?: Record<string, unknown>) => void;
   observationLimits?: Partial<ObservationLimits>;
+  operations?: OperationsRuntime;
   onAssessment?: (identity: InvocationIdentity, status: ObservationState, result?: ReturnType<Consequences['permission']>, reason?: string) => void;
 }
 export interface Readiness { profile: string; questionVersion: string; eligible: boolean; policy: Policy; config?: GuardConfig; unavailable?: string; ruleCount: number }
@@ -109,6 +112,7 @@ class SessionGuard {
   private disabled = new Set<string>();
   private recordings = new Map<string, { sink: RecordingSink; assessmentDone: boolean; executionDone: boolean }>();
   private permissionReports = new Set<() => void>();
+  private projectDirectory?: string;
 
   constructor(private options: RuntimeOptions, capabilities: Capabilities, shared: { resultCallIds: Set<string>; ambiguousResults: Set<string> }, private queue: ObservationQueue, private resolution: ActionResolution) {
     const selected = readMode(options.env);
@@ -136,6 +140,8 @@ class SessionGuard {
     if (['assessment', 'decision', 'assessment-status', 'permission'].includes(stage)) data = {
       ...judgeReport(this.options.judgeStatus), configuration: this.options.configuration?.status, ...data };
     if (!this.eligible || this.options.activation.read() !== 'on') return;
+    if (stage === 'execution' && typeof data.invocationId === 'string' && ['executed', 'failed', 'unknown'].includes(String(data.outcome)))
+      this.options.operations?.result(data.invocationId, data.outcome as 'executed' | 'failed' | 'unknown');
     if (typeof data.invocationId === 'string' && STAGES.includes(stage as Stage)) {
       capture(this.recordings.get(data.invocationId)?.sink, stage as Stage, () => ({ ...data, ...archiveData }));
       const entry = this.recordings.get(data.invocationId);
@@ -203,6 +209,7 @@ class SessionGuard {
 
   activationChanged(value: Activation): void {
     if (value !== 'on') { this.invalidate(value === 'off' ? 'tenet-off' : 'control-unavailable'); this.observations.clear(); }
+    if (value === 'on' && this.projectDirectory && this.eligible) this.options.operations?.registerProject(this.projectDirectory);
   }
 
   shutdown(): void {
@@ -218,6 +225,9 @@ class SessionGuard {
     const selected = await selectPolicies(cwd, env);
     if (starting !== this.loadToken) return undefined;
     this.eligible = selected.eligible;
+    this.projectDirectory = selected.eligible ? await realpath(cwd).catch(() => undefined) : undefined;
+    if (starting !== this.loadToken) return undefined;
+    if (this.projectDirectory && selected.eligible && this.options.activation.read() === 'on') this.options.operations?.registerProject(this.projectDirectory);
     this.policy = freeze({ available: false, contractVersion: 'policy-sources-v1', candidates: selected.candidates, failedRole: selected.candidates.find(c => c.failure)?.role, reason: 'policy-unavailable' });
     if (!selected.eligible) {
       this.config = undefined;
@@ -273,6 +283,18 @@ class SessionGuard {
     const { signal, observationSignal } = invocationContext;
     const identity: InvocationIdentity & RuntimeIdentity = { ...ASSESSMENT_METADATA, host: call.host, contextId: call.contextId, sessionId: call.sessionId,
       callId: call.callId, toolName: call.toolName, argumentDigest: '', combinedPolicyDigest: selectedPolicy.available ? selectedPolicy.combinedDigest : null, invocationId: randomUUID() };
+    const activity = this.projectDirectory ? this.options.operations?.begin({ ...identity, cwd: this.projectDirectory, mode: this.mode }) : undefined;
+    const activitySignal = this.mode === 'observe' ? observationSignal : signal;
+    const cancelled = () => {
+      if (activitySignal.reason === 'session-shutdown') activity?.interrupt();
+      else activity?.settle('cancelled');
+    };
+    activitySignal.addEventListener('abort', cancelled, { once: true });
+    if (activitySignal.aborted) cancelled();
+    let background = false;
+    const settled = (outcome: import('./operations.js').AssessmentOutcome, durationMs?: number) => {
+      activity?.settle(outcome, durationMs); activitySignal.removeEventListener('abort', cancelled);
+    };
     let submitted = false;
     let sink: RecordingSink | undefined;
     try { sink = this.options.bindRecording?.({ ...identity, cwd: call.cwd, mode: this.mode }); }
@@ -292,6 +314,7 @@ class SessionGuard {
       ...this.metadata, request: 'not-yet-submitted', adapterCoverage: this.capabilities }));
     const authorization = this.authorizations.begin(invocationContext, {
       call, identity, policy: selectedPolicy,
+      activity,
       ready: () => !this.unavailable && this.policy === selectedPolicy
         && this.session?.host === identity.host && this.session.sessionId === identity.sessionId,
       unavailable: () => this.unavailable,
@@ -302,6 +325,7 @@ class SessionGuard {
       approval: (outcome, ruleIds) => this.record('approval', { ...identity, outcome, ruleIds }),
       disabled: () => { this.disabled.add(callKey); },
       finalized: permission => {
+        activity?.permission(permission.outcome === 'released' ? 'released' : 'blocked');
         if (permission.outcome === 'released') this.trackRelease(callKey, identity);
         this.publishPermission(() => this.record('permission', { ...identity, ...permission }),
           !!call.onAuthorization && permission.outcome === 'released');
@@ -314,6 +338,7 @@ class SessionGuard {
         evidenceContext: UNAVAILABLE_EVIDENCE_CONTEXT,
         ruleIds: [], diagnostics: [], rules: selectedPolicy.available ? selectedPolicy.rules.map(({ id, line, enforcement, text, origin }) => ({ id, line, enforcement, text, origin })) : [], approvalRules: [] };
       authorization.commit(permission);
+      settled('dropped');
       this.queue.submit(Number.POSITIVE_INFINITY, observationSignal, async () => 'unavailable', (status, reason) => {
         if (this.options.activation.read() !== 'on') return;
         this.record('assessment-status', { ...identity, status, reason, profile: this.profile, queueWaitMs: 0 });
@@ -382,6 +407,8 @@ class SessionGuard {
         let terminalReason: string | undefined;
         let providerDuration = 0;
         const status = (state: ObservationState, reason?: string, waitMs?: number) => {
+          if (state === 'pending') activity?.queued();
+          else settled(state);
           if (state === 'pending' || this.options.activation.read() === 'on')
             this.record('assessment-status', { ...identity, status: state, reason: reason ?? terminalReason,
               evidenceContext: resultPermission?.evidenceContext ?? UNAVAILABLE_EVIDENCE_CONTEXT,
@@ -392,12 +419,15 @@ class SessionGuard {
           if (state !== 'pending' && this.options.activation.read() === 'on')
             try { this.options.onAssessment?.(identity, state, resultPermission, reason ?? terminalReason); } catch { /* Best effort. */ }
         };
+        background = true;
         this.queue.submit(bytes, observationSignal, async () => {
           if (!current()) return 'unavailable';
           if (!await fresh()) return 'unavailable';
+          activity?.analyzing();
           const result = await decide({ policy: snapshot.policy, action: snapshot.action, trajectory: snapshot.trajectory, resolvedAction: snapshot.resolvedAction,
             evidenceLimits: snapshot.evidence, cwd: snapshot.cwd, judge: this.options.judge, judgeIdentity: this.options.judgeStatus, config: snapshot.config, signal: observationSignal, recording });
           providerDuration = result.durationMs;
+          settled(result.assessment ? 'completed' : 'unavailable', result.durationMs);
           if (!current()) return 'unavailable';
           if (!await fresh()) return 'unavailable';
           if (!current()) return 'unavailable';
@@ -421,12 +451,14 @@ class SessionGuard {
           const outcome = new Consequences('observe', selectedPolicy); outcome.assessed(result);
           resultPermission = outcome.permission();
           return 'completed';
-        }, status);
+        }, status, waitMs => activity?.reserved(waitMs));
         return undefined;
       }
       if (!await fresh()) return block('policy-stale');
+      activity?.analyzing();
       const result = await decide({ policy: selectedPolicy, action, trajectory, resolvedAction: resolved.evidence, evidenceLimits: selectedConfig.evidence,
         cwd: call.cwd, judge: this.options.judge, judgeIdentity: this.options.judgeStatus, config: selectedConfig.decision, signal, recording });
+      settled(result.assessment ? 'completed' : 'unavailable', result.durationMs);
       authorization.assessed(result);
       try { call.onDecision?.(result); } catch { /* Owner reporting cannot change authorization. */ }
       if (!current()) return block('guard-state-changed');
@@ -445,6 +477,8 @@ class SessionGuard {
         { timeoutMs: selectedConfig.approvalTimeoutMs, trusted: this.capabilities.trustedApproval });
     } catch {
       return block('guard-error');
+    } finally {
+      if (!background) settled('unavailable');
     }
   }
 
@@ -530,7 +564,7 @@ export class GuardRuntime {
     if (context) this.session(context)?.invalidate(reason, context);
     else for (const session of this.sessions.values()) session.invalidate(reason);
   }
-  activationChanged(value: Activation): void { for (const session of this.sessions.values()) session.activationChanged(value); }
+  activationChanged(value: Activation): void { for (const session of this.sessions.values()) session.activationChanged(value); if (value !== 'on') this.options.operations?.suspend(); }
   /** Discard one ended host session; Pi's active-session shutdown contract remains unchanged. */
   closeSession(identity: RuntimeIdentity): void {
     const id = sessionKey(identity);

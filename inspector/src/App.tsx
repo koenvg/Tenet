@@ -1,12 +1,14 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import Operations from './Operations.js';
+import type { ArchiveAddress } from '../../src/runtime/operations.js';
 import { useArchive } from './archive-state.js';
 import SessionPicker from './SessionPicker.js';
 import RulePanel from './RulePanel.js';
 import { inventoryNote, RuleIcon, RuleStatusLabel } from './SessionRules.js';
 import './standalone.css';
 
-export default function App() {
-  const archive = useArchive(), initiator = useRef<HTMLElement | null>(null);
+function InspectorWorkspace({ active }: { active: boolean }) {
+  const archive = useArchive(active), initiator = useRef<HTMLElement | null>(null);
   const [projectInput, setProjectInput] = useState('');
   const { reader, issues, health, rules } = archive;
   const captureIssues = !!(issues.length || health.length);
@@ -55,6 +57,34 @@ export default function App() {
         <p>No settings or rules can be changed here.</p>
       </footer>
     </main>
-    <RulePanel archive={archive} initiator={initiator} />
+    <RulePanel archive={archive} initiator={initiator} active={active} />
   </div>;
+}
+
+const workspace = () => {
+  const params = new URLSearchParams(window.location.search);
+  return params.has('session') || params.has('invocation') || params.get('view') !== 'operations' ? 'inspector' : 'operations';
+};
+export default function App() {
+  const [view, setView] = useState(workspace);
+  const [inspectorMounted, setInspectorMounted] = useState(view === 'inspector');
+  useEffect(() => {
+    const restore = () => { const next = workspace(); setView(next); if (next === 'inspector') setInspectorMounted(true); };
+    window.addEventListener('popstate', restore); return () => window.removeEventListener('popstate', restore);
+  }, []);
+  const navigate = (next: 'operations' | 'inspector', address?: ArchiveAddress) => {
+    const url = new URL(window.location.href); url.search = ''; url.hash = '';
+    if (address) { url.searchParams.set('session', address.session); url.searchParams.set('invocation', address.invocation); }
+    else url.searchParams.set('view', next);
+    if (url.href !== window.location.href) window.history.pushState(null, '', url);
+    setView(next); if (next === 'inspector') setInspectorMounted(true);
+    window.dispatchEvent(new Event('popstate'));
+  };
+  return <><header className="workspace-bar"><span className="workspace-wordmark">TENET</span><nav aria-label="Workspace">
+    <button aria-current={view === 'operations' ? 'page' : undefined} onClick={() => navigate('operations')}>Operations</button>
+    <button aria-current={view === 'inspector' ? 'page' : undefined} onClick={() => navigate('inspector')}>Inspector</button></nav><span className="workspace-local">Local workspace · read-only</span></header>
+    <Operations active={view === 'operations'} openInspector={address => navigate('inspector', address)} />
+    {inspectorMounted && <div className="inspector-workspace" hidden={view !== 'inspector'}>
+      <InspectorWorkspace active={view === 'inspector'} /></div>}
+  </>;
 }

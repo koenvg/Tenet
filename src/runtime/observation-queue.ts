@@ -3,7 +3,7 @@ export const OBSERVATION_LIMITS: Readonly<ObservationLimits> = Object.freeze({ r
 export type ObservationState = 'pending' | 'completed' | 'unavailable' | 'dropped' | 'cancelled';
 
 type Job = { bytes: number; queuedAt: number; signal: AbortSignal; run: (waitMs: number) => Promise<'completed' | 'unavailable'>;
-  status: (state: ObservationState, reason?: string, waitMs?: number) => void;
+  status: (state: ObservationState, reason?: string, waitMs?: number) => void; reserved?: (waitMs: number) => void; queuedMono: number;
   started: boolean; done: boolean; waitMs: number; timer?: ReturnType<typeof setTimeout>; cancel: () => void };
 
 /** FIFO, drop-newest scheduler. A cancelled provider never holds a slot even if it ignores abort. */
@@ -19,14 +19,14 @@ export class ObservationQueue {
     if (Object.values(this.limits).some(v => !Number.isSafeInteger(v) || v < 1) || this.limits.ageMs > 2147483647) throw new Error('invalid-observation-limits');
   }
   health() { return { running: this.running, waiting: this.waiting.length, retainedBytes: this.bytes, ...this.counts, limits: this.limits }; }
-  submit(bytes: number, signal: AbortSignal, run: Job['run'], status: Job['status']): void {
+  submit(bytes: number, signal: AbortSignal, run: Job['run'], status: Job['status'], reserved?: Job['reserved']): void {
     if (signal.aborted) { status('cancelled', 'host-cancelled'); this.counts.cancelled++; return; }
     if (!Number.isSafeInteger(bytes) || bytes > this.limits.bytes || this.bytes + bytes > this.limits.bytes ||
       (this.running >= this.limits.running && this.waiting.length >= this.limits.waiting)) {
       status('dropped', bytes > this.limits.bytes || this.bytes + bytes > this.limits.bytes ? 'snapshot-capacity' : 'queue-capacity');
       this.counts.dropped++; return;
     }
-    const job: Job = { bytes, signal, run, status, queuedAt: Date.now(), started: false, done: false, waitMs: 0, cancel: () => {} };
+    const job: Job = { bytes, signal, run, status, reserved, queuedMono: performance.now(), queuedAt: Date.now(), started: false, done: false, waitMs: 0, cancel: () => {} };
     job.cancel = () => this.finish(job, 'cancelled', typeof signal.reason === 'string' ? signal.reason.slice(0, 256) : 'host-cancelled');
     this.bytes += bytes;
     this.active.add(job);
@@ -57,6 +57,7 @@ export class ObservationQueue {
       this.waiting.shift();
       job.started = true; job.waitMs = Date.now() - job.queuedAt; this.running++;
       if (job.timer) clearTimeout(job.timer);
+      job.reserved?.(Math.max(0, performance.now() - job.queuedMono));
       void Promise.resolve().then(() => job.run(job.waitMs)).then(
         state => this.finish(job, state), () => this.finish(job, 'unavailable', 'guard-error'));
     }

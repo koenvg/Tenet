@@ -7,6 +7,8 @@ import type { Activation } from './activation.js';
 import type { Mode } from './config.js';
 import type { Approval, Call, InvocationIdentity, RuntimeIdentity } from './guard.js';
 import type { ResolvedInvocation } from './resolved-action.js';
+import type { RequestActivity } from './operations.js';
+import { randomUUID } from 'node:crypto';
 
 const scope = (identity: RuntimeIdentity) => JSON.stringify([identity.host, identity.sessionId, identity.contextId]);
 type Veto = { block: true; reason: string } | undefined;
@@ -20,6 +22,7 @@ interface AuthorizationOptions {
   call: Call;
   identity: InvocationIdentity & RuntimeIdentity;
   policy: Policy;
+  activity?: RequestActivity;
   ready(): boolean;
   unavailable(): string | undefined;
   policyStale(): void;
@@ -135,9 +138,14 @@ class InvocationAuthorization {
     if (!unchanged()) return this.block('arguments-changed');
     if (result.decision === 'ASK' && this.mode === 'enforce') {
       if (!approval.trusted || !call.approve) return this.block('approval-unavailable', result.ruleIds, result.diagnostics, true);
-      const outcome = await confirmInvocation({ policy, action, ruleIds: result.ruleIds,
-        timeoutMs: approval.timeoutMs, signal: this.context.signal,
-        valid: async () => this.current() && unchanged() && await fresh() && this.current() && unchanged() }, call.approve);
+      const attempt = randomUUID();
+      this.options.activity?.approval(attempt, true);
+      let outcome: Approval;
+      try {
+        outcome = await confirmInvocation({ policy, action, ruleIds: result.ruleIds,
+          timeoutMs: approval.timeoutMs, signal: this.context.signal,
+          valid: async () => this.current() && unchanged() && await fresh() && this.current() && unchanged() }, call.approve);
+      } finally { this.options.activity?.approval(attempt, false); }
       if (!this.current()) return this.block('guard-state-changed');
       this.options.approval(outcome, result.ruleIds);
       if (outcome !== 'approved') return this.block(`approval-${outcome}`);

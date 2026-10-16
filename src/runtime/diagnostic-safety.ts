@@ -52,7 +52,9 @@ export function diagnosticSafety(secrets: readonly (string | undefined)[]) {
     const { returnedModel: _returnedModel, ...rest } = value;
     return { ...rest, ...(recorded ? judgeReport(recorded) : {}), rules: rules(value.rules) };
   };
-  const ownerEvent = (event: OwnerEvent): OwnerEvent => {
+  const ownerEvent = (event: OwnerEvent): OwnerEvent | undefined => {
+    if ('identity' in event && (Object.values(event.identity).some(withheld) || withheld(event.callId)
+      || 'report' in event && event.report && [event.report.callId, event.report.toolName].some(withheld))) return;
     if (event.type === 'capture') return { ...event, capture: captureStatus(event.capture) };
     if (event.type === 'permission' || event.type === 'assessment') return { ...event, ...(event.report ? { report: report(event.report) } : {}) };
     return event;
@@ -64,6 +66,8 @@ export function diagnosticSafety(secrets: readonly (string | undefined)[]) {
       version: value.capabilities.version === null ? null : text(value.capabilities.version),
       profile: value.capabilities.profile === null ? null : text(value.capabilities.profile), limitations: value.capabilities.limitations.map(v => text(v)) } });
   const ownerRecord = (value: RuntimeReportData): RuntimeReportData | undefined => {
+    if ([value.host, value.sessionId, value.contextId, value.callId, value.toolName, value.cwd]
+      .some(v => typeof v === 'string' && withheld(v))) return;
     if ([value.assessment, value.resolvedAction].some(contentUnsafe)) return;
     const { returnedModel: _returnedModel, ...rest } = value;
     const recorded = recordedJudgeReport(value);
