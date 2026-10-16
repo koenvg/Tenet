@@ -6,6 +6,7 @@ import { overviewSchema } from './overview-contract.js';
 import { supportsTenetProvider } from './supported-provider.js';
 
 import { pickerHandlers } from './picker.js';
+import { dashboardHandlers } from './dashboard.js';
 /** Owner-facing RPC only. No agent tool, message, hook or assessment is registered. */
 export default function plugin(bb: BbPluginApi) {
   const settings = bb.settings.define({
@@ -29,6 +30,8 @@ export default function plugin(bb: BbPluginApi) {
   };
   bb.rpc.register(rpcContract, {
     ...pickerHandlers(bb.sdk),
+    ...dashboardHandlers(bb.sdk, async () => (await settings.get()).recordingDirectories,
+      (input, hostId) => host.call('readDashboard', input, { hostId })),
     async status({ threadId }) {
       try {
         const selected = await target(threadId);

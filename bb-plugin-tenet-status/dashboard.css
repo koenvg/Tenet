@@ -1,0 +1,24 @@
+.tenet-dashboard { padding:16px; min-width:0; container-type:inline-size; font-size:14px; overflow-wrap:break-word; }
+.tenet-dashboard .dashboard-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+.tenet-dashboard button { min-height:44px; max-width:100%; white-space:normal; }
+.dashboard-table { width:100%; table-layout:fixed; border-collapse:collapse; font:inherit; }
+.dashboard-table th, .dashboard-table td { padding:16px 8px; border-bottom:1px solid var(--border); vertical-align:top; text-align:left; font-weight:400; overflow-wrap:break-word; }
+.dashboard-table thead th { color:var(--muted-foreground); font-weight:500; }
+.dashboard-table td { font-variant-numeric:tabular-nums; }
+.tenet-dashboard .dashboard-target { display:flex; align-items:center; box-sizing:border-box; width:100%; min-width:44px; min-height:44px; margin:0; padding:8px; border:0; border-radius:2px; background:transparent; color:inherit; font:inherit; text-align:left; text-decoration:underline; text-underline-offset:4px; cursor:pointer; overflow-wrap:break-word; }
+.dashboard-table th:has(.dashboard-target), .dashboard-table td:has(.dashboard-target) { padding:8px 0; }
+.tenet-dashboard .dashboard-target:hover { background:var(--muted); }
+.tenet-dashboard :focus-visible { outline:2px solid var(--foreground); outline-offset:2px; }
+@container (max-width:48rem) {
+  .dashboard-table, .dashboard-table tbody, .dashboard-table thead { display:block; }
+  .dashboard-table colgroup { display:none; }
+  .dashboard-rules tr { display:grid; grid-template-columns:1fr 1fr; }
+  .dashboard-rules tr > :first-child { grid-column:1 / -1; }
+  .dashboard-rules tbody tr { border-bottom:1px solid var(--border); }
+  .dashboard-rules tbody th { border:0; padding-bottom:0; }
+  .dashboard-rules td { border:0; padding-top:8px; }
+  .dashboard-failures thead { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+  .dashboard-failures tbody tr { display:block; padding:16px 0; border-bottom:1px solid var(--border); }
+  .dashboard-failures tbody th, .dashboard-failures tbody td { display:block; border:0; padding:8px; }
+  .dashboard-failures [data-label]::before { content:attr(data-label); display:block; color:var(--muted-foreground); font-weight:500; margin-bottom:4px; }
+}

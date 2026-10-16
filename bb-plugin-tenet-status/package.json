@@ -14,7 +14,8 @@
     "name": "Tenet Status",
     "description": "Read-only TENET recorded call summaries and findings for BB Pi threads.",
     "branding": {
-      "icon": "ShieldAlert"
+      "icon": "./icons/tenet.svg",
+      "experimental_icons": { "tenet": "./icons/tenet.svg" }
     },
     "server": "./.server-workspace/server.js",
     "app": "./app.tsx",

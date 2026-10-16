@@ -6,6 +6,8 @@ import { directory } from '../src/recording/files.js';
 import { hostContract, unavailable, unavailableFindings } from './contract.js';
 import { emptyOverview } from '../src/inspector/bb-summary.js';
 import { overviewSchema } from './overview-contract.js';
+import { dashboardHost } from './dashboard-host.js';
+const dashboard = dashboardHost();
 
 // Retain validated metadata for incremental bounded refreshes on this machine.
 const indexes = new Map<string, ArchiveIndex>();
@@ -30,6 +32,7 @@ async function refreshedIndex(recordingDirectory?: string): Promise<ArchiveIndex
 export default experimental_defineHostEntry({
   contract: hostContract,
   handlers: {
+    readDashboard: dashboard.readDashboard,
     async readStatus({ threadId, recordingDirectory }) {
       const index = await refreshedIndex(recordingDirectory);
       return index?.threadStatus(threadId) ?? unavailable();
@@ -43,5 +46,5 @@ export default experimental_defineHostEntry({
       return overviewSchema.parse(index ? await index.threadOverview(threadId, selection) : emptyOverview());
     },
   },
-  dispose() { indexes.clear(); },
+  async dispose() { await dashboard.dispose(); await Promise.all([...indexes.values()].map(index => index.close())); indexes.clear(); },
 });
