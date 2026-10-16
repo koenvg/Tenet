@@ -6,7 +6,7 @@ import { rpcContract } from './contract';
 /** The convenience useRpc client has no signal option in SDK 0.6.15. */
 export function useSummaryRpc() {
   const sdk = useSdk(), pluginId = experimental_usePluginId();
-  return useCallback(<M extends 'overview' | 'pickerProjects' | 'pickerThreads' | 'pickerSelection'>(
+  return useCallback(<M extends 'overview' | 'pickerProjects' | 'pickerThreads' | 'pickerSelection' | 'dashboard' | 'dashboardContributors'>(
     method: M, input: z.input<(typeof rpcContract)[M]['input']>, signal?: AbortSignal,
   ): Promise<z.output<(typeof rpcContract)[M]['output']>> => sdk.plugins.callRpc({
     pluginId, method, input: input as JsonValue, signal,

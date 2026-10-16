@@ -85,7 +85,7 @@ test('main routes round-trip bounded opaque selection, preserve old findings lin
   assert.deepEqual(parseMainRoute(`overview/${threadId}`), { kind: 'overview', projectId: undefined, threadId, selection: {} });
   assert.deepEqual(parseMainRoute(threadId), { kind: 'findings', threadId });
   assert.deepEqual(parseMainRoute(''), { kind: 'projects' });
-  assert.deepEqual(parseMainRoute(`project/${projectId}`), { kind: 'threads', projectId });
+  assert.deepEqual(parseMainRoute(`project/${projectId}`), { kind: 'dashboard', projectId });
   for (const path of [`overview/${threadId}/call/${selection.callId}`, `overview/${threadId}/session/native`,
     `overview/${threadId}/category/pass`, `overview/${threadId}/session/${selection.sessionId}/host/host_fixture0001`,
     `overview/${threadId}?recordingDirectory=/tmp`, `project/${projectId}/overview/${threadId}/category/`, 'x'.repeat(513)])

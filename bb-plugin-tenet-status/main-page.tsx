@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useBbNavigate, type PluginNavPanelProps } from '@get-bb/plugin-sdk/app';
 import { useSummaryRpc } from './summary-rpc';
 import type { PickerSelection, ProjectPage, ThreadPage } from './picker-contract';
@@ -7,6 +7,7 @@ import { OverviewPanel } from './overview-panel';
 import { DetailsPage } from './details-page';
 import { liveRead } from './live-read';
 import type { OverviewSelection } from '../src/inspector/bb-summary';
+import { DashboardPanel, type DashboardClient, type DashboardReturn } from './dashboard-view';
 
 export interface PickerClient {
   projects: (cursor?: string, signal?: AbortSignal) => Promise<ProjectPage>;
@@ -23,55 +24,60 @@ export function MainPage({ subPath }: PluginNavPanelProps) {
     threads: (projectId, cursor, signal) => call('pickerThreads', { projectId, ...(cursor ? { cursor } : {}) }, signal),
     selection: (threadId, projectId, signal) => call('pickerSelection', { threadId, ...(projectId ? { projectId } : {}) }, signal),
   }), [call]);
+  const dashboard = useMemo<DashboardClient>(() => ({
+    read: (input, signal) => call('dashboard', input, signal),
+    contributors: (input, signal) => call('dashboardContributors', input, signal),
+  }), [call]);
   const go = useCallback((path: string) => navigate.toPluginPanel('findings', { subPath: path }), [navigate]);
-  return <MainPageView subPath={subPath} client={client} navigate={go}
+  return <MainPageView subPath={subPath} client={client} dashboard={dashboard} navigate={go}
     overview={props => <OverviewPanel {...props} />} findings={threadId => <DetailsPage subPath={threadId} />} />;
 }
-export function MainPageView({ subPath, client, navigate, overview, findings }: {
-  subPath: string; client: PickerClient; navigate: (path: string) => void;
+export function MainPageView({ subPath, client, navigate, overview, findings, dashboard }: {
+  subPath: string; client: PickerClient; dashboard?: DashboardClient; navigate: (path: string) => void;
   overview: (props: OverviewProps) => ReactNode; findings: (threadId: string) => ReactNode;
 }) {
   const route = useMemo(() => parseMainRoute(subPath), [subPath]);
+  const retained = useRef<DashboardReturn | null>(null);
+  const remember = useCallback((value: DashboardReturn | null) => { retained.current = value; }, []);
+  if (!('projectId' in route) || route.projectId !== retained.current?.projectId) retained.current = null;
   return <section aria-label="TENET main page" className="tenet-main min-w-0 w-full text-foreground" style={{ minWidth: 0, width: '100%' }}>
     <header className="flex flex-wrap items-center gap-3 p-4" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, padding: 16 }}>
-      <h1 className="text-xl font-semibold">TENET overview</h1>
-      {route.kind !== 'projects' && <button className={button} onClick={() => navigate('')}>Choose project</button>}
+      <h1 className="text-xl font-semibold">TENET</h1>
+      {['overview', 'findings', 'invalid'].includes(route.kind) && <button className={button} onClick={() => navigate('')}>Choose project</button>}
     </header>
-    {route.kind === 'projects' && <Picker key="projects" client={client} navigate={navigate} />}
-    {route.kind === 'threads' && <Picker key={route.projectId} projectId={route.projectId} client={client} navigate={navigate} />}
+    {route.kind === 'dashboard' && dashboard && <DashboardPanel key={route.projectId} projectId={route.projectId} retained={retained.current} remember={remember} client={dashboard} navigate={navigate} />}
+    {route.kind === 'projects' && <Picker client={client} navigate={navigate} />}
     {route.kind === 'overview' && <SelectedThread key={`${route.projectId ?? ''}:${route.threadId}`} route={route} client={client} navigate={navigate} overview={overview} />}
     {route.kind === 'findings' && findings(route.threadId)}
     {route.kind === 'invalid' && <p role="alert" className="p-4">Invalid Tenet selection. Choose a project to start again. No archive requested.</p>}
   </section>;
 }
-function Picker({ client, projectId, navigate }: { client: PickerClient; projectId?: string; navigate: (path: string) => void }) {
+function Picker({ client, navigate }: { client: PickerClient; navigate: (path: string) => void }) {
   const [cursor, setCursor] = useState<string | undefined>();
-  const [page, setPage] = useState<ProjectPage | ThreadPage | null>(null);
+  const [page, setPage] = useState<ProjectPage | null>(null);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     let current = true;
     const controller = new AbortController();
     setPage(null); setError('');
-    liveRead(projectId ? client.threads(projectId, cursor, controller.signal) : client.projects(cursor, controller.signal), controller.signal)
+    liveRead(client.projects(cursor, controller.signal), controller.signal)
       .then(value => { if (current) setPage(value); }, () => { controller.abort(); if (current) setError('Selection list unavailable. Retry from the first page.'); });
     return () => { current = false; controller.abort(); };
-  }, [client, projectId, cursor, retry]);
-  return <section aria-label={projectId ? 'Pi threads' : 'Projects'} className="space-y-3 p-4" style={{ padding: 16, overflowWrap: 'anywhere' }}>
-    <h2>{projectId ? 'Choose a Pi thread' : 'Choose a project'}</h2>
-    <p>Only the selected thread reads its archive. Stopped threads can show retained history if their machine and archive are reachable.</p>
+  }, [client, cursor, retry]);
+  return <section aria-label="Projects" className="space-y-3 p-4" style={{ padding: 16, overflowWrap: 'anywhere' }}>
+    <h2>Choose a project</h2>
     {!page && !error && <p role="status">Reading BB metadata…</p>}
     {error && <p role="alert">{error}</p>}
-    {page && !page.items.length && <p role="status">{projectId ? 'No Pi threads on this metadata page. Check the next page if available.' : 'No projects on this page.'}</p>}
+    {page && !page.items.length && <p role="status">No projects on this page.</p>}
     {page && <ul style={{ listStyle: 'none', padding: 0, display: 'grid', gap: 8 }}>
       {page.items.map(item => <li key={item.id}><button className={button} style={{ maxWidth: '100%', whiteSpace: 'normal', textAlign: 'left', overflowWrap: 'anywhere' }}
-        onClick={() => navigate(projectId ? overviewPath(item.id, {}, projectId) : `project/${item.id}`)}>
-        {item.label || item.id}{'status' in item && <span> · {item.status}{item.archived ? ' · archived' : ''}</span>}
+        onClick={() => navigate(`project/${item.id}`)}>
+        {item.label || item.id}
       </button></li>)}
     </ul>}
-    {page?.next && <button className={button} onClick={() => setCursor(page.next!)}>Next {projectId ? 'threads' : 'projects'}</button>}
+    {page?.next && <button className={button} onClick={() => setCursor(page.next!)}>Next projects</button>}
     {(cursor || error) && <button className={button} onClick={() => { setCursor(undefined); setRetry(v => v + 1); }}>First page / Retry</button>}
-    <p>Empty or unlinked recording history is unknown, not pass. Raw evidence stays in the standalone inspector on the selected machine.</p>
   </section>;
 }
 function SelectedThread({ route, client, navigate, overview }: {
@@ -90,7 +96,7 @@ function SelectedThread({ route, client, navigate, overview }: {
   }, [client, route.threadId, route.projectId, retry]);
   const projectId = route.projectId ?? selected?.project?.id;
   return <section aria-label="Selected Pi thread" style={{ minWidth: 0 }}>
-    {projectId && <button className={button} style={{ margin: 16 }} onClick={() => navigate(`project/${projectId}`)}>Choose Pi thread</button>}
+    {projectId && <button className={button} style={{ margin: 16 }} onClick={() => navigate(`project/${projectId}`)}>Back to project rules</button>}
     {!selected && <p role="status" className="p-4">Checking selected thread…</p>}
     {selected?.state === 'ready' && selected.thread && selected.project
       ? <><p className="px-4" style={{ padding: '0 16px', overflowWrap: 'anywhere' }}>{selected.project.label} / {selected.thread.label} · {selected.thread.status}{selected.thread.archived ? ' · archived' : ''}</p>

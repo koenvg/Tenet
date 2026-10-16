@@ -29,16 +29,18 @@ export async function mainSyntheticRead(threadId: string, selection: OverviewSel
   fixtureReads.push({ threadId, machine: threadId === remote ? 'synthetic-machine-b' : 'synthetic-machine-a', selection: { ...selection } });
   if (threadId === noHistory) return { ...emptyOverview(), state: 'available', coverage: 'unknown', issues: [] };
   const session = selection.sessionId ?? syntheticOverview.sessionId!;
-  const alternate = session === 'a'.repeat(64);
-  const allowedCalls = alternate ? ['b'.repeat(64)] : syntheticOverview.calls.map(call => call.id);
-  if (![syntheticOverview.sessionId, 'a'.repeat(64)].includes(session) || selection.callId && !allowedCalls.includes(selection.callId))
+  const alternate = ['a'.repeat(64), 'c'.repeat(64)].includes(session);
+  const allowedCalls = alternate ? [(session === 'c'.repeat(64) ? 'd' : 'b').repeat(64)] : syntheticOverview.calls.map(call => call.id);
+  if (![syntheticOverview.sessionId, 'a'.repeat(64), 'c'.repeat(64)].includes(session) || selection.callId && !allowedCalls.includes(selection.callId))
     throw new Error('Synthetic selection rejected');
   const data = alternate ? syntheticRead({ callId: syntheticOverview.calls[0]!.id }) : syntheticRead(selection);
   data.sessions.push({ ...data.sessions[0]!, id: 'a'.repeat(64), calls: 1,
     categoryCounts: { violation: 1, uncertainty: 0, approval: 0, unavailable: 0, pending: 0 } });
+  if (session === 'c'.repeat(64)) data.sessions.push({ ...data.sessions.at(-1)!, id: session });
   data.linkedCalls = 4; data.failures = 1; data.sessionId = session;
   if (alternate) {
     const selected = data.selected!;
+    selected.identity!.toolName = 'bash';
     selected.identity!.callId = 'synthetic-selected-fail';
     selected.decision = 'BLOCK'; selected.reason = 'policy-fail'; selected.categories = ['violation'];
     selected.noRulesClassifiedViolated = false;
@@ -46,7 +48,7 @@ export async function mainSyntheticRead(threadId: string, selection: OverviewSel
       contribution: 'blocking-gates', gateIds: ['rule-fail'], result: { outcome: { choice: 'FAIL', probabilities: { FAIL: .99 } },
         evidence: { choice: 'SUFFICIENT', probabilities: { SUFFICIENT: .99 } } } }));
     selected.reportedViolations = reportedViolations(selected.rules, true, false);
-    data.selectedId = 'b'.repeat(64);
+    data.selectedId = allowedCalls[0]!;
     data.calls = [{ ...data.calls[0]!, id: data.selectedId, callId: selected.identity!.callId,
       decision: selected.decision, categories: ['violation'] }];
     data.calls = data.calls.filter(row => !selection.category || row.categories.includes(selection.category));

@@ -6,6 +6,8 @@ import { MainPage } from './main-page';
 import { overviewPath } from './main-route';
 import { syntheticPicker, syntheticThread, mainSyntheticRead, projectA, projectB, stopped, noHistory, nonPi, deleted } from './main.preview-fixture';
 import { syntheticOverview } from './overview.preview-fixture';
+import { syntheticDashboard } from './dashboard.preview-fixture';
+import { dashboardMethods } from './dashboard-contract';
 
 afterEach(() => vi.useRealTimers());
 const rpc = {
@@ -16,17 +18,26 @@ const rpc = {
 };
 const sdk = { threads: { get: ({ threadId }: any) => syntheticThread(threadId) as any } };
 
-test('registered main root pages metadata only and sends project/thread choices through BB history', async () => {
+test('registered main root selects a project then automatically shows recorded rule percentages', async () => {
+  const source = syntheticDashboard();
   const app = await loadPluginApp(() => import('./app'));
-  const slot = renderSlot(app.navPanels[0]!, { subPath: '' }, { sdk, rpc });
+  const slot = renderSlot(app.navPanels[0]!, { subPath: '' }, { sdk, rpc: { ...rpc,
+    dashboard: input => source.read(dashboardMethods.dashboard.input.parse(input)),
+    dashboardContributors: input => source.contributors(dashboardMethods.dashboardContributors.input.parse(input)),
+  } });
   try {
     fireEvent.click(await slot.findByRole('button', { name: 'Next projects' }));
     fireEvent.click(await slot.findByRole('button', { name: 'Synthetic remote project' }));
     expect(slot.inspection.navigateCalls.at(-1)).toEqual({ method: 'toPluginPanel', path: 'findings', options: { subPath: `project/${projectB}` } });
-    slot.lifecycle.rerender(<MainPage subPath={`project/${projectA}`} />);
-    fireEvent.click(await slot.findByRole('button', { name: /Stopped Pi/ }));
-    expect(slot.inspection.navigateCalls.at(-1)).toEqual({ method: 'toPluginPanel', path: 'findings', options: { subPath: overviewPath(stopped, {}, projectA) } });
-    expect(summaryCalls(slot).every(c => c.method.startsWith('picker'))).toBe(true);
+    expect(summaryCalls(slot).map(c => c.method)).toEqual(['pickerProjects', 'pickerProjects']);
+    slot.lifecycle.rerender(<MainPage subPath={`project/${projectB}`} />);
+    const rule = await slot.findByRole('button', { name: 'Ask before publishing.' });
+    expect(rule.closest('tr')?.textContent).toBe('Ask before publishing.90%10%');
+    fireEvent.click(rule);
+    expect(await slot.findByRole('table', { name: 'Failures' })).toBeTruthy();
+    expect(summaryCalls(slot).filter(call => call.method === 'dashboardContributors')).toEqual([
+      { method: 'dashboardContributors', input: { token: 'synthetic-run', rule: '1'.repeat(64), expectedRevision: 2 } },
+    ]);
     expect(slot.inspection.sdkCalls.every(call => call.method === 'plugins.callRpc')).toBe(true);
   } finally { slot.lifecycle.unmount(); }
 });
@@ -135,7 +146,7 @@ test('main scope switch disposes mount and ignores a late summary completion', a
   const slot = renderSlot(app.navPanels[0]!, { subPath: overviewPath(stopped, {}, projectA) }, { sdk, rpc: { ...rpc, overview: read } });
   try {
     await waitFor(() => expect(read).toHaveBeenCalledOnce());
-    slot.lifecycle.rerender(<MainPage subPath="" />);
+    slot.lifecycle.rerender(<MainPage subPath="projects" />);
     await slot.findByRole('button', { name: 'Synthetic local project' });
     resolve(structuredClone(syntheticOverview));
     await Promise.resolve();
@@ -163,4 +174,65 @@ for (const end of ['close', 'timeout'] as const) test(`late selected-thread meta
     expect(read).not.toHaveBeenCalled();
   } finally { slot.lifecycle.unmount(); }
   expect(vi.getTimerCount()).toBe(0);
+});
+
+
+for (const stale of ['unchanged', 'revision', 'expired', 'access', 'detail-revision'] as const) test(`dashboard return revalidates retained failure position, stale=${stale}`, async () => {
+  const source = syntheticDashboard('paging'); let returning = false;
+  const read = vi.fn(async (input: Parameters<typeof source.read>[0]) => {
+    const page = await source.read(input);
+    if (returning && stale === 'access') throw Error('access revoked');
+    if (returning && stale === 'expired') return { ...page, state: 'restart-required' as const, rows: [] };
+    return returning && stale === 'revision' ? { ...page, revision: page.revision + 1 } : page;
+  });
+  const app = await loadPluginApp(() => import('./app'));
+  const slot = renderSlot(app.navPanels[0]!, { subPath: `project/${projectA}` }, { sdk, rpc: { ...rpc,
+    dashboard: input => read(dashboardMethods.dashboard.input.parse(input)),
+    dashboardContributors: input => returning && stale === 'detail-revision' ? Promise.resolve({ state: 'restart-required', items: [], next: null }) : source.contributors(dashboardMethods.dashboardContributors.input.parse(input)),
+  } });
+  try {
+    fireEvent.click(await slot.findByRole('button', { name: 'Ask before publishing.' }));
+    fireEvent.click(await slot.findByRole('button', { name: 'Next failures' }));
+    await slot.findByText('Showing 51–51 of 51 failures');
+    fireEvent.click(slot.getByRole('link', { name: 'Open call' }));
+    const path = (slot.inspection.navigateCalls.at(-1) as any).options.subPath;
+    slot.lifecycle.rerender(<MainPage subPath={path} />);
+    await slot.findByRole('button', { name: 'Back to project rules' });
+    returning = true;
+    slot.lifecycle.rerender(<MainPage subPath={`project/${projectA}`} />);
+    if (stale !== 'unchanged') {
+      expect((await slot.findByRole('alert')).textContent).toContain('Results cleared');
+      expect(slot.queryByRole('table')).toBeNull();
+    } else {
+      await slot.findByText('Showing 51–51 of 51 failures');
+      await waitFor(() => expect(document.activeElement).toBe(slot.getByRole('link', { name: 'Open call' })));
+    }
+    expect(read.mock.calls.filter(([input]) => input.kind === 'start')).toHaveLength(1);
+    expect(read.mock.calls.at(-1)?.[0].kind).toBe('results');
+  } finally { slot.lifecycle.unmount(); }
+});
+
+
+test('late restoration cannot reveal old rows after leaving project scope', async () => {
+  const source = syntheticDashboard(); let settle!: (page: Awaited<ReturnType<typeof source.read>>) => void;
+  const app = await loadPluginApp(() => import('./app'));
+  const slot = renderSlot(app.navPanels[0]!, { subPath: `project/${projectA}` }, { sdk, rpc: { ...rpc,
+    dashboard: input => { const parsed = dashboardMethods.dashboard.input.parse(input); return parsed.kind === 'results' ? new Promise(resolve => { settle = resolve; }) : source.read(parsed); },
+    dashboardContributors: input => source.contributors(dashboardMethods.dashboardContributors.input.parse(input)),
+  } });
+  try {
+    fireEvent.click(await slot.findByRole('button', { name: 'Ask before publishing.' }));
+    fireEvent.click(await slot.findByRole('link', { name: 'Open call' }));
+    const path = (slot.inspection.navigateCalls.at(-1) as any).options.subPath;
+    slot.lifecycle.rerender(<MainPage subPath={path} />);
+    await slot.findByRole('button', { name: 'Back to project rules' });
+    slot.lifecycle.rerender(<MainPage subPath={`project/${projectA}`} />);
+    await waitFor(() => expect(settle).toBeTypeOf('function'));
+    expect(slot.queryByRole('table')).toBeNull();
+    slot.lifecycle.rerender(<MainPage subPath="" />);
+    await slot.findByRole('button', { name: 'Synthetic local project' });
+    await act(async () => settle(await source.read({ kind: 'results', token: 'synthetic-run' })));
+    expect(slot.queryByRole('table')).toBeNull();
+    expect(slot.queryByRole('link', { name: 'Open call' })).toBeNull();
+  } finally { slot.lifecycle.unmount(); }
 });

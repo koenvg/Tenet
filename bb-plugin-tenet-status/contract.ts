@@ -2,6 +2,7 @@ import { defineRpcContract } from '@get-bb/plugin-sdk';
 import { z } from 'zod';
 import { evaluatorFailureCodes } from '../src/inspector/finding-view.js';
 import { overviewSchema, overviewSelection } from './overview-contract.js';
+import { dashboardMethods, dashboardHostMethods } from './dashboard-contract.js';
 
 import { pickerMethods } from './picker-contract.js';
 export const threadIdSchema = z.string().regex(/^thr_[a-z0-9]{8,64}$/);
@@ -31,10 +32,10 @@ export const findingsSchema = z.object({ coverage: statusSchema.shape.coverage, 
 export type Findings = z.infer<typeof findingsSchema>;
 export const unavailableFindings = (): Findings => ({ coverage: 'unavailable', linkedCalls: 0, issues: ['host-or-archive-unavailable'], items: [], next: null });
 const findingsRequest = z.object({ ...request.shape, cursor: z.string().min(1).max(512).optional() }).strict();
-export const hostContract = defineRpcContract({ readStatus: { input: z.object({ ...request.shape,
+export const hostContract = defineRpcContract({ ...dashboardHostMethods, readStatus: { input: z.object({ ...request.shape,
   recordingDirectory: z.string().max(4096).optional() }).strict(), output: statusSchema },
   readFindings: { input: z.object({ ...findingsRequest.shape, recordingDirectory: z.string().max(4096).optional() }).strict(), output: findingsSchema },
   readOverview: { input: z.object({ ...request.shape, ...overviewSelection, recordingDirectory: z.string().max(4096).optional() }).strict(), output: overviewSchema } });
-export const rpcContract = defineRpcContract({ ...pickerMethods, status: { input: request, output: statusSchema },
+export const rpcContract = defineRpcContract({ ...pickerMethods, ...dashboardMethods, status: { input: request, output: statusSchema },
   findings: { input: findingsRequest, output: findingsSchema },
   overview: { input: z.object({ ...request.shape, ...overviewSelection }).strict(), output: overviewSchema } });

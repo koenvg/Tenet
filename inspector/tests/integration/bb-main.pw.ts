@@ -1,6 +1,6 @@
 import { expect, test } from '../browser-shell-fixture.js';
 import type { Page } from 'playwright';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { syntheticOverview } from '../../../bb-plugin-tenet-status/overview.preview-fixture.js';
 const stopped = 'thr_stopped0001';
@@ -10,14 +10,68 @@ const artifacts = resolve('coverage/inspector-artifacts/tenet54');
 test.beforeAll(async ({}, testInfo) => { testInfo.setTimeout(30_000); await mkdir(artifacts, { recursive: true }); });
 const reads = (page: Page) => page.evaluate(() => (window as any).tenetPreview.reads as { threadId: string; machine: string; selection: unknown }[]);
 
-test('main picker reads no archives until selection; history restores scope/call/filter across simulated machines', async ({ page, shellOrigin: origin }) => {
+for (const width of [1440, 390]) test(`project rules to flat failures at ${width}px supports keyboard, exact links and Back`, async ({ page, shellOrigin: origin }) => {
+  await page.setViewportSize({ width, height: 1000 });
+  await page.goto(`${origin}main.preview.html?host-query=keep`);
+  await page.getByRole('heading', { name: 'Choose a project' }).waitFor();
+  expect(await reads(page)).toHaveLength(0);
+  expect(await page.getByRole('button', { name: /scan|dashboard/i }).count()).toBe(0);
+  await page.getByRole('button', { name: 'Synthetic local project', exact: true }).press('Enter');
+  const rules = page.getByRole('table', { name: 'Project rules' });
+  await rules.waitFor();
+  expect(await rules.getByRole('columnheader').allTextContents()).toEqual(['Rule', 'Passing', 'Failing']);
+  expect(await rules.getByRole('row').nth(1).innerText()).toContain('90%');
+  expect(await rules.getByRole('row').nth(1).innerText()).toContain('10%');
+  expect(await rules.getByRole('row').nth(2).innerText()).toContain('100%');
+  expect(await rules.getByRole('row').nth(5).innerText()).toContain('Not checked');
+  expect(await reads(page)).toHaveLength(0);
+  expect(await page.getByText('History details', { exact: true }).count()).toBe(0);
+  expect(await page.locator('details').count()).toBe(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const metrics = await rules.evaluate(element => {
+    const cell = element.querySelector('td')!, header = element.querySelector('th')!;
+    const style = getComputedStyle(cell), headerStyle = getComputedStyle(header);
+    return { fontSize: style.fontSize, padding: style.padding, numerals: style.fontVariantNumeric,
+      color: style.color, secondary: headerStyle.color, width: element.getBoundingClientRect().width };
+  });
+  expect(metrics.fontSize).toBe('14px'); expect(metrics.numerals).toBe('tabular-nums');
+  console.log(`Project rules ${width}px computed styles ${JSON.stringify(metrics)}`);
+  await rules.getByRole('button', { name: 'Ask before publishing.' }).press('Enter');
+  const failures = page.getByRole('table', { name: 'Failures' });
+  await failures.waitFor();
+  expect(await failures.getByRole('columnheader').allTextContents()).toEqual(['Thread', 'Tool', 'When', 'Open']);
+  expect(await failures.getByRole('row').count()).toBe(2);
+  expect(await failures.innerText()).toContain('Prepare release notes');
+  expect(await failures.innerText()).toContain('bash');
+  expect(await rules.count()).toBe(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await failures.getByRole('link', { name: 'Open call' }).press('Enter');
+  if (width === 390) await page.getByRole('button', { name: 'Summary', exact: true }).click();
+  await page.locator('.recorded-call').waitFor();
+  const callPath = new URL(page.url()).hash;
+  expect(callPath).toMatch(/^#project\/proj_synthetic0001\/overview\/thr_stopped0001\/session\/[a-f0-9]{64}\/call\/[a-f0-9]{64}$/);
+  expect((await reads(page)).at(-1)?.threadId).toBe(stopped);
+  expect(await page.locator('.action-preview, .evidence-dock, .question-json').count()).toBe(0);
+  await page.goBack(); await failures.waitFor();
+  await expect(failures.getByRole('link', { name: 'Open call' })).toBeFocused();
+  expect(await page.evaluate(() => (window as any).tenetPreview.dashboardReads)).toEqual(['start', 'advance', 'results']);
+  await page.getByRole('button', { name: 'Back to rules' }).press('Enter'); await rules.waitFor();
+  await expect(rules.getByRole('button', { name: 'Ask before publishing.' })).toBeFocused();
+  await rules.getByRole('button', { name: 'Keep credentials private.' }).click();
+  await page.getByText('No recorded failures for this rule.').waitFor();
+  await page.getByRole('button', { name: 'Back to rules' }).press('Enter'); await rules.waitFor();
+  expect(await page.getByText('History details', { exact: true }).count()).toBe(0);
+  expect(await page.getByText(/Recorded rules, not a live inventory|Unknown, not applicable|Capture is best-effort/).count()).toBe(0);
+  await page.getByRole('button', { name: 'Change project' }).press('Enter');
+  await page.getByRole('button', { name: 'Next projects' }).click();
+  await page.getByRole('button', { name: 'Synthetic remote project', exact: true }).click();
+  await page.getByRole('heading', { name: 'Synthetic remote project' }).waitFor();
+  expect(new URL(page.url()).search).toBe('?host-query=keep');
+});
+test('main call history restores scope/call/filter across simulated machines', async ({ page, shellOrigin: origin }) => {
   await page.setViewportSize({ width: 1440, height: 1050 });
   try {
-    await page.goto(`${origin}main.preview.html?host-query=keep`);
-    await page.getByRole('button', { name: 'Synthetic local project', exact: true }).press('Enter');
-    await page.getByRole('button', { name: /Stopped Pi/ }).waitFor();
-    expect(await reads(page)).toHaveLength(0);
-    await page.getByRole('button', { name: /Stopped Pi/ }).press('Enter');
+    await page.goto(`${origin}main.preview.html?host-query=keep#${stoppedPath}`);
     await page.locator('.call-row').first().waitFor();
     expect(await page.locator('.session-counts').innerText()).toContain('2 evaluator failures');
     await page.getByLabel('Finding category').selectOption('unavailable');
@@ -25,18 +79,13 @@ test('main picker reads no archives until selection; history restores scope/call
     await page.locator(`[data-call-id="${syntheticOverview.calls[2]!.id}"]`).click();
     await expect.poll(() => page.locator('.recording-details dd').first().textContent()).toContain('synthetic-provider-error-2');
     const selectionPath = new URL(page.url()).hash;
-    await page.getByRole('button', { name: 'Choose project', exact: true }).click();
-    await page.getByRole('button', { name: 'Next projects' }).click();
-    await page.getByRole('button', { name: 'Synthetic remote project', exact: true }).click();
-    await page.getByRole('button', { name: /Remote Pi/ }).click();
+    await page.evaluate(() => (window as any).tenetPreview.navigate('project/proj_synthetic0002/overview/thr_remote00001'));
     await expect.poll(() => page.locator('.recording-details dd').first().textContent()).toContain('remote-synthetic');
     expect((await reads(page)).map(r => r.machine)).toContain('synthetic-machine-b');
-    await page.goBack(); await page.getByRole('heading', { name: 'Choose a Pi thread' }).waitFor();
-    await page.goBack(); await page.getByRole('heading', { name: 'Choose a project' }).waitFor();
     await page.goBack();
     await expect.poll(() => page.locator('.recording-details dd').first().textContent()).toContain('synthetic-provider-error-2');
     expect(new URL(page.url()).hash).toBe(selectionPath);
-    await page.goForward(); await page.getByRole('heading', { name: 'Choose a project' }).waitFor();
+    await page.goForward(); await expect.poll(() => page.locator('.recording-details dd').first().textContent()).toContain('remote-synthetic');
     expect(new URL(page.url()).search).toBe('?host-query=keep');
   } finally { await page.close(); }
 });
@@ -51,9 +100,8 @@ for (const [width, narrow] of [[1440, false], [1440, true], [390, false]] as con
       unexpected.push(url.href); return route.abort();
     });
     try {
-      await page.goto(`${origin}main.preview.html#${stoppedPath}`);
+      await page.goto(`${origin}main.preview.html${narrow ? '?narrow=1' : ''}#${stoppedPath}`);
       await page.locator('.call-row').first().waitFor();
-      if (narrow) await page.getByRole('button', { name: 'Toggle 390px container' }).click();
       const compact = narrow || width === 390;
       expect(await page.getByRole('button', { name: 'Calls', exact: true }).isVisible()).toBe(compact);
       if (compact) {
@@ -102,16 +150,109 @@ test('unlinked, unsupported, deleted, changed-scope, forged links and old findin
     await page.getByRole('heading', { name: 'Focused flagged rules' }).waitFor();
     expect(new URL(page.url()).hash).toBe(`#${stopped}`);
     const before = (await reads(page)).length;
-    for (const [button, message] of [['Non-Pi link', /supports Pi threads only/], ['Deleted link', /unavailable or deleted/],
-      ['Changed-scope link', /project changed/]] as const) {
-      await page.getByRole('button', { name: button, exact: true }).click(); await page.getByText(message).waitFor();
+    for (const [path, message] of [['project/proj_synthetic0001/overview/thr_nonpi000001', /supports Pi threads only/], ['project/proj_synthetic0001/overview/thr_deleted0001', /unavailable or deleted/],
+      ['project/proj_synthetic0002/overview/thr_stopped0001', /project changed/]] as const) {
+      await page.evaluate(path => (window as any).tenetPreview.navigate(path), path); await page.getByText(message).waitFor();
       expect(await page.locator('.call-row, .common-summary').count()).toBe(0); expect(await reads(page)).toHaveLength(before);
     }
-    await page.getByRole('button', { name: 'Forged record link' }).click();
+    await page.evaluate(path => (window as any).tenetPreview.navigate(path), `${stoppedPath}/session/${'f'.repeat(64)}/call/${'e'.repeat(64)}`);
     await page.getByText(/Read unavailable or selection rejected/).waitFor();
     expect(await page.locator('.call-row, .common-summary').count()).toBe(0);
     await page.evaluate(path => (window as any).tenetPreview.navigate(path), noHistoryPath);
     await page.getByText('No recordings linked to this thread. Assessment unknown, not pass.').waitFor();
-    await page.screenshot({ path: `${artifacts}/main-unknown.png`, fullPage: true });
   } finally { await page.close(); }
+});
+
+
+test('51 failures restore the final range and originating call after browser Back', async ({ page, shellOrigin: origin }) => {
+  await page.goto(`${origin}main.preview.html?case=paging#project/proj_synthetic0001`);
+  await page.getByRole('button', { name: 'Ask before publishing.' }).click();
+  await page.getByText('Showing 1–50 of 51 failures', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Next failures' }).press('Enter');
+  await page.getByText('Showing 51–51 of 51 failures', { exact: true }).waitFor();
+  await expect(page.getByRole('heading', { name: 'Failures', exact: true })).toBeFocused();
+  const link = page.getByRole('link', { name: 'Open call' });
+  const href = await link.getAttribute('href');
+  await link.press('Enter');
+  await page.getByRole('button', { name: 'Back to project rules' }).waitFor();
+  await page.goBack();
+  await page.getByText('Showing 51–51 of 51 failures', { exact: true }).waitFor();
+  await expect(link).toBeFocused(); expect(await link.getAttribute('href')).toBe(href);
+  await page.getByRole('button', { name: 'Previous failures' }).click();
+  await page.getByText('Showing 1–50 of 51 failures', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Next failures' }).click();
+  await page.getByText('Showing 51–51 of 51 failures', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'First failures' }).click();
+  await page.getByText('Showing 1–50 of 51 failures', { exact: true }).waitFor();
+  expect(await page.getByRole('link', { name: 'Open call' }).count()).toBe(50);
+  expect(await page.evaluate(() => (window as any).tenetPreview.dashboardReads)).toEqual(['start', 'advance', 'results']);
+});
+
+test('expired dashboard return clears retained rates and failures without a hidden rescan', async ({ page, shellOrigin: origin }) => {
+  await page.goto(`${origin}main.preview.html?case=expired-return#project/proj_synthetic0001`);
+  await page.getByRole('button', { name: 'Ask before publishing.' }).click();
+  await page.getByRole('link', { name: 'Open call' }).click();
+  await page.getByRole('button', { name: 'Back to project rules' }).waitFor();
+  await page.goBack();
+  await page.getByRole('alert').filter({ hasText: 'Results cleared' }).waitFor();
+  expect(await page.getByRole('table').count()).toBe(0);
+  expect(await page.evaluate(() => (window as any).tenetPreview.dashboardReads)).toEqual(['start', 'advance', 'results']);
+});
+
+
+test('dashboard ergonomic targets and readable reflow use real light and dark tokens', async ({ page, shellOrigin: origin }) => {
+  test.setTimeout(30_000);
+  const measurements: unknown[] = [];
+  for (const theme of ['light', 'dark']) {
+    for (const [name, width, scale] of [['desktop', 1440, 1], ['mobile', 390, 1], ['text200', 390, 2]] as const) {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.goto(`${origin}main.preview.html?theme=${theme}&view=${name}#project/proj_synthetic0001`);
+      const rules = page.getByRole('table', { name: 'Project rules' }); await rules.waitFor();
+      if (scale === 2) await page.addStyleTag({ content: '.tenet-dashboard, .tenet-dashboard p, .tenet-dashboard h2, .tenet-dashboard h3, .tenet-dashboard button { font-size:28px !important; }' });
+      for (const stage of ['rules', 'failures']) {
+        const table = page.getByRole('table', { name: stage === 'rules' ? 'Project rules' : 'Failures' });
+        await table.waitFor();
+        expect(await table.getByRole('columnheader').allTextContents()).toEqual(stage === 'rules' ? ['Rule', 'Passing', 'Failing'] : ['Thread', 'Tool', 'When', 'Open']);
+        if (stage === 'failures') {
+          const head = await table.locator('thead').evaluate(el => { const css = getComputedStyle(el); return { clipPath: css.clipPath, width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height }; });
+          if (width === 390) expect(head).toEqual({ clipPath: 'inset(50%)', width: 1, height: 1 });
+          expect(await table.innerText()).toContain('Prepare release notes'); expect(await table.innerText()).toContain('bash');
+          expect(await table.locator('time').getAttribute('datetime')).toBe('2023-11-14T22:13:20.000Z');
+          expect(await table.getByRole('link', { name: 'Open call' }).getAttribute('href')).toContain('/session/');
+        }
+        const metrics = await table.evaluate(el => {
+          const targets = Array.from(el.querySelectorAll<HTMLElement>('.dashboard-target')).map(target => {
+            const rect = target.getBoundingClientRect(); return { width: rect.width, height: rect.height, label: target.textContent };
+          });
+          const cells = Array.from(el.querySelectorAll<HTMLElement>('th, td')).filter(cell => { const head = cell.closest('thead'); return !head || getComputedStyle(head).clipPath === 'none'; }).map(cell => {
+            const rect = cell.getBoundingClientRect(); return { text: cell.textContent, width: rect.width, fontSize: getComputedStyle(cell).fontSize, wordBreak: getComputedStyle(cell).overflowWrap };
+          });
+          const root = getComputedStyle(document.documentElement);
+          return { overflow: document.documentElement.scrollWidth > innerWidth, targets, cells, foreground: root.getPropertyValue('--foreground'), background: root.getPropertyValue('--background'), muted: root.getPropertyValue('--muted-foreground') };
+        });
+        expect(metrics.overflow).toBe(false);
+        for (const target of metrics.targets) { expect(target.height).toBeGreaterThanOrEqual(44); expect(target.width).toBeGreaterThanOrEqual(44); }
+        expect(metrics.foreground.trim()).toBe(theme === 'dark' ? '#edeeed' : '#171918');
+        expect(metrics.background.trim()).toBe(theme === 'dark' ? '#202321' : '#fff');
+        if (scale === 2) {
+          expect(metrics.cells.every(cell => cell.fontSize === '28px')).toBe(true);
+          expect(metrics.cells.every(cell => cell.width >= 140)).toBe(true);
+        }
+        measurements.push({ theme, name, stage, ...metrics });
+        if (process.env.TENET_AUDIT_VISUAL === '1') await page.screenshot({ path: `/tmp/tenet-audit-fixed-${theme}-${name}-${stage}.png`, fullPage: true });
+        if (stage === 'rules') await page.getByRole('button', { name: 'Ask before publishing.' }).click();
+      }
+    }
+    await page.setViewportSize({ width: 390, height: 240 });
+    await page.goto(`${origin}main.preview.html?icons=1&theme=${theme}`);
+    await page.getByRole('region', { name: 'T icon sizes' }).waitFor();
+    for (const size of [16, 20, 24, 32]) {
+      const icon = page.getByRole('img', { name: `TENET ${size}px`, exact: true });
+      const bounds = await icon.boundingBox(); expect(bounds?.width).toBe(size); expect(bounds?.height).toBe(size);
+      expect(await icon.evaluate(el => getComputedStyle(el).maskImage)).toContain('/icons/tenet.svg');
+    }
+    expect((await page.request.get(`${origin}icons/tenet.svg`)).status()).toBe(200);
+    if (process.env.TENET_AUDIT_VISUAL === '1') await page.screenshot({ path: `/tmp/tenet-audit-fixed-${theme}-icons.png`, fullPage: true });
+  }
+  if (process.env.TENET_AUDIT_VISUAL === '1') await writeFile('/tmp/tenet-audit-fixed-measurements.json', JSON.stringify(measurements, null, 2));
 });

@@ -107,6 +107,6 @@ function ThreadStatus({ threadId }: { threadId: string }) {
 export default definePluginApp(app => {
   // The action is absent on non-Pi threads, rather than opening an empty panel there.
   app.slots.experimental_threadHeaderAction({ id: 'tenet-rules', title: 'T', component: ThreadRules });
-  app.slots.threadPanelAction({ id: 'tenet-overview', title: 'TENET overview', icon: 'ShieldAlert', layout: 'flush', component: OverviewPanel });
-  app.slots.navPanel({ id: 'tenet-findings', title: 'TENET', icon: 'ShieldAlert', path: 'findings', component: MainPage });
+  app.slots.threadPanelAction({ id: 'tenet-overview', title: 'TENET overview', icon: 'tenet-status/tenet', layout: 'flush', component: OverviewPanel });
+  app.slots.navPanel({ id: 'tenet-findings', title: 'TENET', icon: 'tenet-status/tenet', path: 'findings', component: MainPage });
 });

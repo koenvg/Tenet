@@ -4,11 +4,12 @@ import { threadIdSchema } from './contract.js';
 import { recordId } from './overview-contract.js';
 import type { OverviewSelection } from '../src/inspector/bb-summary.js';
 
-export type MainRoute = { kind: 'projects' } | { kind: 'threads'; projectId: string }
+export type MainRoute = { kind: 'dashboard'; projectId: string } | { kind: 'projects' }
   | { kind: 'overview'; projectId?: string; threadId: string; selection: OverviewSelection }
   | { kind: 'findings'; threadId: string } | { kind: 'invalid' };
 export function parseMainRoute(path: string): MainRoute {
   if (!path) return { kind: 'projects' };
+  if (path === 'projects') return { kind: 'projects' };
   if (threadIdSchema.safeParse(path).success) return { kind: 'findings', threadId: path };
   if (path.length > 512) return { kind: 'invalid' };
   const parts = path.split('/');
@@ -16,7 +17,7 @@ export function parseMainRoute(path: string): MainRoute {
   if (parts[0] === 'project') {
     parts.shift(); projectId = parts.shift();
     if (!pickerProjectId.safeParse(projectId).success) return { kind: 'invalid' };
-    if (!parts.length) return { kind: 'threads', projectId: projectId! };
+    if (!parts.length) return { kind: 'dashboard', projectId: projectId! };
   }
   if (parts.shift() !== 'overview') return { kind: 'invalid' };
   const threadId = parts.shift();

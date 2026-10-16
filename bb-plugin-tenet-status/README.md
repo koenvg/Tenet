@@ -1,6 +1,6 @@
 # Read Tenet status in BB
 
-Use this experimental plugin to browse recorded Pi calls from the main Tenet page or beside a BB conversation. Existing history needs a readable exact-linked archive on the thread's machine, not a running Pi process.
+Use this experimental BB plugin to choose a project, read its recorded rule rates and inspect failures. You can also browse calls beside a conversation. Existing history needs a readable, exactly linked archive on the thread's machine, not a running Pi process.
 
 New capture needs the installed Tenet Pi extension, an owner policy and recording enabled. The plugin does not activate Tenet, launch Pi, change enforcement, approve actions or supply TypeSafe credentials.
 
@@ -29,16 +29,52 @@ Only new Pi records with a valid BB-provided `BB_THREAD_ID` link to the thread. 
 
 ## Browse from the main Tenet page
 
-After installing the plugin, use this experimental BB navigation path for retained Pi history. A stopped Pi process needs no restart or evaluator credentials for these reads. Its BB thread metadata, machine connection and private archive must still be reachable.
+After installing the plugin, open **TENET** in BB navigation. This experimental current-machine view works with stopped Pi processes when their BB metadata, connected machines and private archives remain reachable. No evaluator credentials are needed for reading.
 
-1. Open **TENET** in BB navigation. Choose a project, then a Pi thread. **Next projects** and **Next threads** continue the bounded metadata pages. A thread page can contain no Pi threads; continue if another page is available. Archived threads appear after the ordinary pages.
-2. Choose a **Linked session**, a **Finding category** and a call. The main page uses the same summary workspace as the thread tab and standalone inspector. Missing or unlinked history shows unknown, not pass.
-3. Use browser **Back** and **Forward** to return to a project, thread, session, category or call selection. BB owns this history. Links contain only bounded scope identifiers and opaque record identifiers, not archive paths, machine selectors or raw payloads.
-4. Use **Choose Pi thread** or **Choose project** to change scope. **View flagged rules** opens the existing focused findings route. Old thread findings links still work.
+Policy previews can contain secrets. Selecting a project reads its accessible recorded Pi history, including hidden, archived and pi-subagents threads. It does not call TypeSafe, change policy or read raw call details for counts.
 
-The picker reads BB metadata only; it does not scan project machines or archives. The overview reads only the selected thread's archive through BB's existing environment-to-machine routing. Non-Pi, deleted, unreadable and changed-project selections clear old results and request no unsupported archive.
+1. Choose a project. The picker reads BB metadata only. **Next projects** continues its 50-name pages.
+2. Read the automatically loaded **Rule**, **Passing** and **Failing** table. It includes PASS-only rules and recorded declarations without scored checks. A zero denominator displays **Not checked**.
+3. Select a rule to see its flat **Failures** table. Each row names the thread, tool and time. **Open call** opens that exact recorded call in the existing overview.
 
-Picker output contains at most 50 project names or Pi threads per page. Thread reads inspect one 50-row BB metadata window at a time. The current SDK has no project-page API, so the owner RPC pages its project list without requesting included threads.
+   **Next failures**, **Previous failures** and **First failures** move through 50-row pages. The displayed range identifies the current page. **Back to rules** returns to the rates; no failures produces a plain empty state.
+4. Use **Change project** to choose another project. **Refresh** replaces the run. **Cancel** stops further loading requests and labels retained results partial. There is no interval polling in the project overview.
+
+`Project → Rule / Passing / Failing → Failures → Open call` is the main flow. One short warning appears beside the table when history is materially partial or unavailable.
+
+Rate descriptions expose the scored denominators to assistive technology. The counting and coverage reference below explains the limits; there is no technical details panel in the project display.
+
+### Understand recorded rule rates
+
+Passing is trusted recorded PASS / (PASS + FAIL); failing is trusted recorded FAIL / (PASS + FAIL). Unknown, not applicable, invalid, unavailable, approval-only and unchecked observations are unscored.
+
+A trusted selected PASS can coexist with uncertainty gates. These rates describe recorded outcomes, not safety or compliance probabilities. BLOCK, permission and execution do not create checks.
+
+Identical complete recorded wording merges across branches, policy versions, declaration IDs and enforcement severity. Integrity rules stay separate from owner rules. Public native session-rule identities remain version-qualified.
+
+The host hashes the full exact wording, not the bounded preview. Different suffixes remain distinct even when previews match; missing wording stays invocation-isolated.
+
+Each qualified invocation contributes one passed, failed or unscored observation per logical rule. For duplicate wording in one invocation, any trusted FAIL yields failed; passing requires every matching declaration to have trusted selected PASS; otherwise the observation is unscored.
+
+Retries do not add observations. Failure-detail rows contain exactly the retained failing invocations counted by the selected rule.
+
+The table describes retained recorded declarations, not a live inventory of today's policy files. Finished enumeration still means best-effort capture. No recordings is unknown, not a fabricated rule inventory or pass.
+
+Processed, partial, unprocessed and unavailable are separate thread buckets. Unknown is a subset of processed threads: the exact association search completed with no eligible linked history. Capped or unvisited work stays unprocessed, not unknown or “no recordings.”
+
+Linked threads with useful retained observations and omissions stay partial. Unavailable means owner resolution or host access failed without linked observations. Machines are observed at different times, with no former-host search.
+
+Changed access, project membership, provider, environment, machine or archive settings invalidate the run and clear results on the next request. Runs expire after ten minutes. A failed continuation clears results; use **Refresh** to retry rather than combining incompatible snapshots.
+
+### Inspect a failing call
+
+1. In a rule's **Failures** table, select **Open call**. Choose a **Linked session**, **Finding category** and call in the existing summary workspace as needed. Missing or unlinked history is unknown, not pass.
+2. Use browser **Back** and **Forward** to restore project, thread, session, category or call selection. BB owns this history. Links contain bounded scope and opaque record identifiers, not archive paths, machine selectors or raw payloads.
+
+   Returning from **Open call** restores the rule, failure range and originating call focus only after fresh owner access and revision checks. An unchanged retained run needs no new scan. Expired or changed history clears results and offers **Refresh**.
+3. Use **Back to project rules** or **Choose project** to change selection. **View flagged rules** and old thread findings links keep the focused findings route.
+
+An overview reads only its selected thread's archive. Non-Pi, deleted, unreadable and changed-project selections clear old results without requesting an unsupported archive. The project picker contains at most 50 names per page. The current SDK has no project-page API, so the owner RPC pages its authorized metadata list without requesting included threads.
 
 Live reads preserve the selected session, call, category and valid rule selection. They keep loaded older pages while adding the newest calls. Same-thread Back/Forward changes the selected detail without restarting loaded history.
 
@@ -117,9 +153,39 @@ Coverage is always incomplete. Files can be absent, disabled, dropped or not yet
 
 ## Limits and privacy
 
+A project run retains one project ID and at most 128 threads. Each discovery step reads one 50-thread window, with hidden and archived threads included; at most 512 windows are processed per run. Project runs resolve only the selected project. The metadata picker uses the SDK's unpaged `projects.list({ includePersonal: true })` and returns 50-name pages. The upstream metadata response itself is not bounded by this plugin.
+
+Each reading step resolves at most eight new targets or advances one destination. Before returning results or contributor pages, the owner rechecks every retained target against current access and placement; the 128-thread cap bounds these checks. Rule and failure pages contain at most 50 items.
+
+Strict dashboard requests accept scope, opaque run/continuation tokens or result selection only. Failure requests also require `expectedRevision`, a nonnegative integer matching the displayed summary revision. A mismatch returns `restart-required` with no items and clears the view's results; use **Refresh** to load history again.
+
+The owner retains at most four runs, with 16 MiB of contribution data and 32 MiB of retry responses per run. Old runs are evicted or expire after ten minutes. Limits of 10,000 invocations and 4,096 rule rows stop acceptance with visible limited coverage. Immutable step responses replay retries without adding counts; result cursors bind to the current revision.
+
+A host admits at most four active ten-minute runs. Completed runs release admission slots and enter a separate four-run FIFO retry cache. Evicted or expired tokens require a fresh run.
+
+Each run retains at most 16 MiB of retry replies, with a 1 MiB reserve before another chunk. Completion, expiry and disposal close traversal cursors; completion clears the active timer.
+
+Dashboard acquisition makes at most 128 scanning advances. Each advance allows 128 root-entry reads, 512 filesystem-entry work slots, 256 stage reads and 16 MiB of input bytes. Traversal resumes at its cursor rather than requiring a complete retained global archive.
+
+Unrelated records are compacted after exact schema, host and thread filtering. A work cap leaves unvisited threads unprocessed. Useful groups from completed sessions remain; unfinished-session groups are omitted.
+
+Selected facts have an 8 MiB charged serialized-retention budget and at most 10,000 invocation groups. Each invocation permits 256 stages and 256 KiB of charged facts. Overflow omits the entire invocation rather than scoring truncated history.
+
+Folding processes at most one invocation and 65 observations per advance. These byte limits account for retained serialized facts, not measured JavaScript heap.
+
+The same traversal retains only the latest sequence and loss flag per writer, capped at 16,384 writers. Latest recorded failures, dropped records or drain timeouts add an archive-wide `writer-loss` warning, including when the health record belongs to another thread. These health facts do not change rule observations or rates.
+
+Limits, archive issues and capture loss are coverage reasons, not rule outcomes. Writer-health overflow reports limited coverage. Known omitted invocation counts are lower bounds; omitted-thread facts and reasons also matter when the numeric count is zero. No persistent index or database is created.
+
+The browser keeps one return selection in its main-page parent, never in persistent storage. It contains one bounded rule row, run/revision, one rule-page cursor, at most 128 failure-page cursors and one originating call path. It retains no failure pages.
+
+Changing project, leaving project scope, refreshing, invalidating or unmounting the parent discards it. Each return rereads authorized owner results and the revision-bound failure page before restoring call focus. Direct links work without retained state; reloading the page starts fresh.
+
+Dashboard counts use the metadata snapshot and existing recorded-rule fold after exact schema-3/4/5, `host === 'pi'` and BB-thread filtering. They never request selected-call detail or reread evidence. Refreshes do not share a persistent reverse index. Cancelling or unmounting stops browser continuation; already dispatched host work can settle and retained host state expires within ten minutes.
+
 The host caches validated metadata. Each refresh shares a 256-stage/16-MiB parse budget across sessions. The overview performs no full detail read per timeline row. It rereads only the selected call, capped at 64 stages / 16 MiB. The separate focused findings RPC retains its five-candidate page and the same per-candidate detail cap.
 
-The host constructs strict allowlisted summaries before serialization. The owner request accepts only a thread ID, opaque linked session/call IDs, a category and scoped cursors. It rejects extra fields, client machine IDs, archive paths and native-session selectors.
+The host constructs strict allowlisted summaries before serialization. The per-thread owner request accepts only a thread ID, opaque linked session/call IDs, a category and scoped cursors. It rejects extra fields, client machine IDs, archive paths and native-session selectors.
 
 The owner response includes an opaque 64-character `readScope` for its resolved thread, environment, machine and archive. It contains no path or machine selector and is not accepted in requests. The adapter never combines different scopes.
 
@@ -178,9 +244,9 @@ If the mount is missing or stale, rebuild the summary library before restarting 
 
 ### Try the main page offline
 
-With the same checkout-only Vite preview running, open `http://127.0.0.1:4174/main.preview.html`. Choose a project and stopped Pi thread, then a linked session, category and call. Try Back/Forward, the remote-project page, the empty-history thread, rejected-link controls and the 390px container.
+With the same checkout-only Vite preview running, open `http://127.0.0.1:4174/main.preview.html`. Choose a project, read its rule rates, select **Ask before publishing.**, then inspect the single failure row and **Open call**. The mixed example shows nine passing checks and one failing check, or 90% / 10%. PASS-only, mostly passing, failing and unchecked rules demonstrate the other states.
 
-Expect separate evaluator failures, selected FAIL findings and archive warnings. The preview uses authored fixtures for two simulated machines and makes no real archive or evaluator request.
+Try **Back to rules**, **Change project** and browser Back/Forward. Use a 390px viewport, or add `?narrow=1` for a narrow container. Optional development fixtures are available at `main.preview.html?fixtures=1`; its small selector provides limited, empty, unavailable, unprocessed, expired-return, error, slow/cancellable and 51-failure paging states. The page has one **Synthetic preview** label, not production fixture controls. All data is authored and reads no real archive or evaluator.
 
 Stop the preview with Ctrl+C. To restart it, run the commands in [Try the panel offline](#try-the-panel-offline) again. The synthetic shell models navigation; it does not prove installed BB history, native panels or deployed machine routing.
 ### Try live browsing and recovery offline

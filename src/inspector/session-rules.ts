@@ -11,7 +11,7 @@ import { evaluatorFailureCodes } from './finding-view.js';
 const FACT_LIMIT = 64;
 export const SESSION_RULE_LIMIT = 1024;
 export const RULE_CHECK_LIMIT = 4096;
-type Declaration = { revision: string; id: string; builtin: boolean; preview: string | null; origin: SessionRule['origin'] };
+type Declaration = { revision: string; wordingDigest: string | null; id: string; builtin: boolean; preview: string | null; origin: SessionRule['origin'] };
 type AssessmentFacts = {
   digest: string; membership: string; legacy: boolean; applicability: boolean; integrityCandidate: string | null;
   forbiddenIntegrity: string[]; forbiddenOverflow: boolean; hasFail: boolean;
@@ -28,7 +28,7 @@ export interface SessionRuleStage {
 }
 export interface InvocationRuleFacts {
   invocation: string; revision: string; status: RuleStatus; inventoryReasons: string[]; omitted: number;
-  rules: { row: SessionRule; check: RuleCheck | null }[];
+  rules: { row: SessionRule; wordingDigest: string | null; check: RuleCheck | null }[];
 }
 const bounded = (value: unknown, limit = 256): string | null => typeof value === 'string' && value.length > 0 && value.length <= limit ? value : null;
 const membership = (ids: string[]) => sessionKey(JSON.stringify([...ids].sort()));
@@ -81,8 +81,8 @@ export function sessionRuleStage(record: ArchiveRecord): SessionRuleStage {
       && new Set([...ids, integrityId]).size === ids.length + 1;
     const previews = recordedRulePreviews(data, stage) ?? [];
     const declarations: Declaration[] = rules.slice(0, FACT_LIMIT).flatMap(rule => bounded(object(rule).id) === null ? [] : [{
-      id: rule.id, revision: sessionKey(JSON.stringify(rule)), builtin: false, origin: declarationOrigin(record, rule, policy), preview: previews.find(preview => preview.id === rule.id)?.preview.value ?? null }]);
-    if (integrityId !== null) declarations.push({ id: integrityId, revision: sessionKey(JSON.stringify([integrity.id, integrity.text])), builtin: true, origin: null, preview: previews.find(preview => preview.id === integrityId)?.preview.value ?? null });
+      id: rule.id, wordingDigest: typeof rule.text === 'string' && rule.text.length > 0 ? sessionKey(rule.text) : null, revision: sessionKey(JSON.stringify(rule)), builtin: false, origin: declarationOrigin(record, rule, policy), preview: previews.find(preview => preview.id === rule.id)?.preview.value ?? null }]);
+    if (integrityId !== null) declarations.push({ id: integrityId, wordingDigest: typeof integrity.text === 'string' && integrity.text.length > 0 ? sessionKey(integrity.text) : null, revision: sessionKey(JSON.stringify([integrity.id, integrity.text])), builtin: true, origin: null, preview: previews.find(preview => preview.id === integrityId)?.preview.value ?? null });
     const knownIdentity = record.schemaVersion === 5 || bounded(policy.source, 8192) !== null && bounded(policy.digest) !== null
       && (policy.target == null || bounded(policy.target, 8192) !== null);
     fact.snapshot = { identity: knownIdentity ? bounded(recordedPolicyIdentity(record.schemaVersion, policy), 8192) : null, declarations,
@@ -172,7 +172,7 @@ export function foldInvocationRules(invocation: string, callId: string, stages: 
       callId: bounded(callId), callIdOmitted: bounded(callId) === null,
       timestamp: row.timestamp, status, outcome: trusted ? selected?.outcome ?? null : null, gates: gateIds, trusted, reason: checkReason,
       profile, questionVersion, inputVersion };
-    return { row, check };
+    return { row, check, wordingDigest: declaration.wordingDigest };
   });
   let status: RuleStatus = attempted ? trusted ? 'unchecked' : 'unclear' : 'unchecked';
   for (const rule of rules) status = combineRuleStatus(status, rule.row.status);

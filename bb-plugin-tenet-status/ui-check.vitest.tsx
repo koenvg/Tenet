@@ -458,11 +458,11 @@ describe('Pi thread rule action', () => {
       expect(slot.queryByText(/Some flagged calls could not be read/)).toBeNull();
     } finally { slot.lifecycle.unmount(); }
   });
-  it('opens the sidebar root with metadata only and no findings or archive RPC', async () => {
+  it('opens the sidebar root with metadata-only project choices and no archive RPC', async () => {
     const app = await loadPluginApp(() => import('./app'));
     const slot = renderSummarySlot(app.navPanels[0]!, { subPath: '' }, { rpc: { pickerProjects: () => ({ items: [], next: null }),
       findings: () => { throw new Error('must not call'); } } });
-    try { expect(await slot.findByText('No projects on this page.')).toBeTruthy(); expect(summaryCalls(slot).map(call => call.method)).toEqual(['pickerProjects']); }
+    try { expect(await slot.findByText('No projects on this page.')).toBeTruthy(); expect(summaryCalls(slot)).toEqual([{ method: 'pickerProjects', input: {} }]); }
     finally { slot.lifecycle.unmount(); }
   });
   it.each([false, true])('polls while closed without remounting the Gate logo and removes a stale FAIL badge (compact %s)', async isCompactViewport => {
