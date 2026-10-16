@@ -4,25 +4,65 @@ import { definePluginApp, useBbNavigate, useRpc, useSdk } from '@get-bb/plugin-s
 import { MainPage } from './main-page';
 import type { Status, rpcContract } from './contract';
 import { liveRead } from './live-read';
-import { CoverageDetails } from './coverage-details';
 import { StatusIcon } from './status-icon';
 import { OverviewPanel } from './overview-panel';
 import { supportsTenetProvider } from './supported-provider';
+import './thread-logo.css';
 
-function ThreadRules(props: { threadId: string; isCompactViewport: boolean }) {
-  return <ThreadStatus key={props.threadId} {...props} />;
+type HeaderAttention =
+  | { kind: 'checking' | 'unavailable' | 'unknown' | 'no-flags'; failCalls: 0; summary: string }
+  | { kind: 'review'; failCalls: number; summary: string };
+
+function deriveHeaderAttention(status: Status | null, loading: boolean): HeaderAttention {
+  if (!status) return loading
+    ? { kind: 'checking', failCalls: 0, summary: 'Checking recordings.' }
+    : { kind: 'unavailable', failCalls: 0, summary: 'Status unavailable right now.' };
+  if (status.coverage === 'unavailable') return { kind: 'unavailable', failCalls: 0, summary: 'Status unavailable right now.' };
+
+  const { assessments, notices, linkedCalls, coverage } = status;
+  const failCalls = coverage === 'partial' ? status.failures : 0;
+  const reasons: string[] = [];
+  if (assessments?.unavailable) reasons.push(`${assessments.unavailable} evaluator ${assessments.unavailable === 1 ? 'assessment' : 'assessments'} unavailable.`);
+  for (const state of ['pending', 'dropped', 'cancelled', 'incomplete'] as const) {
+    const count = assessments?.[state] ?? 0;
+    if (count > 0) reasons.push(`${count} ${count === 1 ? 'assessment' : 'assessments'} ${state}.`);
+  }
+  if (notices?.approvals) reasons.push(`${notices.approvals} ${notices.approvals === 1 ? 'call' : 'calls'} had an approval condition.`);
+  if (notices?.uncertain) reasons.push(`${notices.uncertain} ${notices.uncertain === 1 ? 'call' : 'calls'} had an uncertain result.`);
+  if (!assessments && notices?.incomplete) reasons.push(`${notices.incomplete} ${notices.incomplete === 1 ? 'call' : 'calls'} had missing or unfinished checks.`);
+  if (status.issues.length > 0) reasons.push('Archive warnings may include other threads.');
+
+  const description: string[] = [];
+  if (linkedCalls === 0) description.push('No linked recordings. Rule status unknown.');
+  else if (coverage === 'unknown') description.push('Recording coverage unknown. Rule status unknown.');
+  if (coverage === 'partial') description.push(failCalls > 0
+    ? `${failCalls} recorded FAIL ${failCalls === 1 ? 'call' : 'calls'}.`
+    : 'No recorded FAIL calls.');
+  description.push(...reasons);
+  if (!assessments) description.push('Assessment status unknown.');
+  else if (assessments.completed !== linkedCalls) description.push('Completed assessment count does not match linked calls.');
+  if (!notices) description.push('Notice status unknown.');
+  if (coverage === 'partial') description.push('Some calls may be missing.');
+  const summary = description.join(' ');
+
+  if (failCalls > 0 || reasons.length > 0) return { kind: 'review', failCalls, summary };
+  const unknown = coverage === 'unknown' || linkedCalls === 0 || !assessments || !notices || assessments.completed !== linkedCalls;
+  return { kind: unknown ? 'unknown' : 'no-flags', failCalls: 0, summary };
 }
-function ThreadStatus({ threadId, isCompactViewport }: { threadId: string; isCompactViewport: boolean }) {
+
+function ThreadRules({ threadId }: { threadId: string }) {
+  return <ThreadStatus key={threadId} threadId={threadId} />;
+}
+function ThreadStatus({ threadId }: { threadId: string }) {
   const sdk = useSdk();
   const navigate = useBbNavigate();
   const rpc = useRpc<typeof rpcContract>();
   const [isPi, setIsPi] = useState(false);
-  const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<Status | null>(null);
   const [loading, setLoading] = useState(false);
   useEffect(() => {
     let current = true;
-    setIsPi(false); setOpen(false); setStatus(null);
+    setIsPi(false); setStatus(null);
     sdk.threads.get({ threadId }).then(thread => { if (current) setIsPi(supportsTenetProvider(thread.providerId)); }, () => {});
     return () => { current = false; };
   }, [sdk, threadId]);
@@ -42,49 +82,31 @@ function ThreadStatus({ threadId, isCompactViewport }: { threadId: string; isCom
     const interval = setInterval(refresh, 10_000);
     return () => { current = false; clearInterval(interval); controller.abort(); };
   }, [isPi, rpc, threadId]);
-  useEffect(() => {
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false); };
-    document.addEventListener('keydown', escape);
-    return () => document.removeEventListener('keydown', escape);
-  }, []);
   if (!isPi) return null;
 
-  const callLabel = (count: number) => `${count} recorded ${count === 1 ? 'call' : 'calls'}`;
-  return <div className="relative">
-    <Button variant="outline" size="sm" type="button" aria-label="TENET rule status" aria-expanded={open} aria-controls={`tenet-status-${threadId}`}
-      className="rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-accent" onClick={() => setOpen(value => !value)}>
-      {isCompactViewport ? 'T' : 'TENET rules'}
-      {status?.coverage === 'partial' && status.failures > 0 && <span className="ml-1 rounded bg-accent px-1 font-semibold"
-        aria-label={`${status.failures} recorded FAIL ${status.failures === 1 ? 'call' : 'calls'}`}>{status.failures}</span>}
+  const attention = deriveHeaderAttention(status, loading);
+  return <div>
+    <Button variant="outline" size="sm" type="button" aria-label="TENET rule status"
+      aria-describedby={`tenet-attention-${threadId}`} title={attention.summary}
+      className="tenet-thread-status gap-1.5 rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-accent" onClick={() => navigate.openThreadPanel({ actionId: 'tenet-overview', title: 'TENET overview', params: null })}>
+      <span className="tenet-gate-logo" aria-hidden="true">
+        <span className="tenet-gate-logo__fallback">T</span>
+        <span className="tenet-gate-logo__full" />
+        <span className="tenet-gate-logo__piece tenet-gate-logo__left" />
+        <span className="tenet-gate-logo__piece tenet-gate-logo__right" />
+        <span className="tenet-gate-logo__piece tenet-gate-logo__stem" />
+      </span>
+      <StatusIcon name={attention.kind} />
+      {attention.failCalls > 0 && <span className="shrink-0 rounded bg-accent px-1 font-semibold"
+        aria-label={`${attention.failCalls} recorded FAIL ${attention.failCalls === 1 ? 'call' : 'calls'}`}>{attention.failCalls}</span>}
     </Button>
-    {open && <section id={`tenet-status-${threadId}`} role="region" aria-label="TENET rule status"
-      className="fixed inset-x-2 top-14 z-50 mt-2 max-h-[calc(100dvh-4.5rem)] w-auto space-y-3 overflow-y-auto rounded-lg border border-border bg-background p-4 text-sm text-foreground shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:max-h-[65vh] sm:w-[min(22rem,calc(100vw-1rem))]">
-      <div className="flex items-center justify-between gap-3"><h2 className="font-semibold">TENET status</h2>
-        <Button variant="outline" size="sm" type="button" aria-label="Close TENET status" className="rounded-sm hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" onClick={() => setOpen(false)}>Close</Button></div>
-      {loading && !status && <p role="status">Checking recordings...</p>}
-      {!loading && !status && <p role="status">Status unavailable right now.</p>}
-      {status?.coverage === 'unavailable' && <p role="status">Status unavailable right now.</p>}
-      {status?.coverage === 'unknown' && <div role="status" className="space-y-1">
-        <p className="font-medium">No recordings linked to this thread yet.</p>
-        <p>Rule status is unknown.</p>
-      </div>}
-      {status?.coverage === 'partial' && <div role="status" className="space-y-1">
-        <p className="text-base font-semibold">{status.failures
-          ? `${status.failures} flagged ${status.failures === 1 ? 'call' : 'calls'}`
-          : `No flagged calls in ${callLabel(status.linkedCalls)}.`}</p>
-      </div>}
-      {status && <CoverageDetails {...status} />}
-      <Button variant="outline" size="sm" type="button" className="w-full"
-        onClick={() => { if (navigate.openThreadPanel({ actionId: 'tenet-overview', title: 'TENET overview', params: null })) setOpen(false); }}>Open thread overview</Button>
-      <Button variant="outline" size="sm" type="button" className="flex w-full items-center justify-between gap-3 rounded-md bg-foreground px-3 py-2.5 text-xs font-medium text-background hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-        onClick={() => { setOpen(false); navigate.toPluginPanel('findings', { subPath: threadId }); }}>View flagged rules<StatusIcon name="arrow" /></Button>
-    </section>}
+    <span id={`tenet-attention-${threadId}`} className="sr-only">{attention.summary}</span>
   </div>;
 }
 
 export default definePluginApp(app => {
   // The action is absent on non-Pi threads, rather than opening an empty panel there.
-  app.slots.experimental_threadHeaderAction({ id: 'tenet-rules', title: 'TENET rules', component: ThreadRules });
+  app.slots.experimental_threadHeaderAction({ id: 'tenet-rules', title: 'T', component: ThreadRules });
   app.slots.threadPanelAction({ id: 'tenet-overview', title: 'TENET overview', icon: 'ShieldAlert', layout: 'flush', component: OverviewPanel });
   app.slots.navPanel({ id: 'tenet-findings', title: 'TENET', icon: 'ShieldAlert', path: 'findings', component: MainPage });
 });
