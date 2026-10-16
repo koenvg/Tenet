@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { assertDelivery } from './delivery-contract.js';
 import { isolatedEnvironment, isolatedArgs } from './isolated-environment.js';
-import { ConsumerInterrupted, verifyRuntimeConsumers, verifyDeclarationConsumer } from './delivery-consumers.js';
+import { ConsumerInterrupted, ConsumerShutdownError, verifyRuntimeConsumers, verifyDeclarationConsumer } from './delivery-consumers.js';
 
 export async function verifyArchive(archive: string): Promise<void> {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-relocated-')));
@@ -17,6 +17,7 @@ export async function verifyArchive(archive: string): Promise<void> {
     assert.ok(!overrides.HOME, 'use a validated fixture environment for each owner home');
     return execFileSync(file, isolatedArgs(file, args), { cwd, env: { ...env, ...overrides }, encoding: 'utf8', timeout: 180_000 });
   };
+  let retained = false;
   try {
     // Reject links and path traversal before extraction, including contaminated tar fixtures.
     for (const name of run('tar', ['-tzf', resolve(archive)], root).trim().split('\n'))
@@ -185,14 +186,20 @@ export async function verifyArchive(archive: string): Promise<void> {
     assert.deepEqual(await readdir(recordings), retained);
     assert.equal(await readFile(join(project, 'TENET.md'), 'utf8'), 'Rule; BLOCK; Ask before overwriting owner-demo.txt.\n');
     console.log('Isolated Pi registration and removal passed; owner settings untouched.');
-  } finally { await rm(root, { recursive: true, force: true }); }
+  } catch (error) {
+    retained = error instanceof ConsumerShutdownError;
+    throw error;
+  } finally { if (!retained) await rm(root, { recursive: true, force: true }); }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (!process.argv[2]) throw new Error('Usage: bun scripts/verify-delivery.ts archive.tar.gz');
   try { await verifyArchive(process.argv[2]); }
   catch (error) {
-    if (!(error instanceof ConsumerInterrupted)) throw error;
-    process.exitCode = error.exitCode;
+    if (error instanceof ConsumerShutdownError && error.interruption) {
+      console.error(error.message);
+      process.exitCode = error.interruption.exitCode;
+    } else if (error instanceof ConsumerInterrupted) process.exitCode = error.exitCode;
+    else throw error;
   }
 }

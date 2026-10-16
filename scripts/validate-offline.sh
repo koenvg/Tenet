@@ -47,6 +47,12 @@ cleanup() {
       exit "$status"
     fi
   fi
+  local consumer_state
+  if ! consumer_state=$(find -P "$root" -name .tenet-consumer-state -print -quit) || [[ -n $consumer_state ]]; then
+    echo "Consumer shutdown unconfirmed; retained temporary state at $root." >&2
+    (( status != 0 )) || status=1
+    exit "$status"
+  fi
   rm -rf -- "$root" || { (( status != 0 )) || status=1; }
   exit "$status"
 }

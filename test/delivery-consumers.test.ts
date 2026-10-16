@@ -11,7 +11,37 @@ import { isolatedEnvironment } from '../scripts/isolated-environment.js';
 
 const repository = fileURLToPath(new URL('..', import.meta.url));
 
-async function checkout(check: (root: string, checkout: string) => Promise<void>) {
+type FixtureDescendant = { pid: number; group: number };
+type DescendantEvidence = (root: string) => Promise<FixtureDescendant[]>;
+
+async function cleanupFixture(root: string, evidence: DescendantEvidence, pollMs = 5,
+  kill: typeof process.kill = process.kill.bind(process)) {
+  try {
+    const descendants = await evidence(root);
+    for (const server of descendants) {
+      assert.ok(Number.isSafeInteger(server.pid) && server.pid > 0 && Number.isSafeInteger(server.group) && server.group > 0,
+        'fixture evidence identifies a positive descendant PID and process group');
+    }
+    let killError: unknown;
+    for (const group of new Set(descendants.map(server => server.group))) {
+      try { kill(-group, 'SIGKILL'); }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'EPERM') killError ??= error;
+        else if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
+      }
+    }
+    const remaining = () => descendants.filter(server => alive(server.pid, kill) || alive(-server.group, kill));
+    for (let i = 0; i < 200 && remaining().length; i++) await sleep(pollMs);
+    if (remaining().length && killError) throw killError;
+    assert.deepEqual(remaining(), [], 'fixture descendants stopped before ancestor cleanup');
+  } catch (error) {
+    throw new Error(`retained fixture root ${root}, descendant evidence and .tenet-consumer-state markers`, { cause: error });
+  }
+  await rm(root, { recursive: true, force: true });
+}
+
+async function checkout(check: (root: string, checkout: string) => Promise<void>,
+  evidence: DescendantEvidence = async () => []) {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-consumer-test-')));
   const copy = join(root, 'checkout');
   try {
@@ -24,7 +54,7 @@ async function checkout(check: (root: string, checkout: string) => Promise<void>
     }
     await symlink(join(repository, 'node_modules'), join(copy, 'node_modules'), 'dir');
     await check(root, copy);
-  } finally { await rm(root, { recursive: true, force: true }); }
+  } finally { await cleanupFixture(root, evidence, 10); }
 }
 
 async function run(root: string, copy: string) {
@@ -159,13 +189,104 @@ for (const failure of ['assertion', 'timeout']) {
   });
 }
 
-function alive(pid: number): boolean {
-  try { process.kill(pid, 0); return true; }
+function alive(pid: number, kill: typeof process.kill = process.kill.bind(process)): boolean {
+  try { kill(pid, 0); return true; }
   catch (error) { if ((error as NodeJS.ErrnoException).code === 'ESRCH') return false; throw error; }
 }
 
-for (const entry of ['canonical', 'standalone'] as const) for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-  test(`${entry} delivery stage stops the real SDK consumer and inspector before cleanup on ${signal}`, { timeout: 120_000 }, async () => {
+test('parent fixture cleanup confirms absence after a transient group kill EPERM', async () => {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-cleanup-test-')));
+  const child = spawn('node', ['-e', 'setInterval(() => {}, 1000)'], { detached: true, stdio: 'ignore' });
+  const done = new Promise<void>((resolve, reject) => { child.once('error', reject); child.once('close', () => resolve()); });
+  const pid = child.pid;
+  assert.ok(pid);
+  const evidence: DescendantEvidence = async () => [{ pid, group: pid }];
+  const kill = process.kill.bind(process);
+  const transientKill: typeof process.kill = (pid, signal) => {
+    const result = kill(pid, signal);
+    if (signal === 'SIGKILL') throw Object.assign(new Error('transient group permission failure'), { code: 'EPERM' });
+    return result;
+  };
+  try {
+    await writeFile(join(root, '.tenet-consumer-state'), 'owned marker');
+    await cleanupFixture(root, evidence, 5, transientKill);
+    assert.equal(existsSync(root), false, 'confirmed disappearance permits removal despite a signal error');
+  } finally {
+    if (existsSync(root)) await cleanupFixture(root, evidence);
+    await done;
+  }
+});
+
+for (const failure of ['kill-error', 'probe-error', 'still-alive'] as const) {
+  test(`parent fixture cleanup retains root and marker after ${failure}`, async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-cleanup-test-')));
+    const child = spawn('node', ['-e', 'setInterval(() => {}, 1000)'], { detached: true, stdio: 'ignore' });
+    const done = new Promise<void>((resolve, reject) => { child.once('error', reject); child.once('close', () => resolve()); });
+    assert.ok(child.pid);
+    const evidence = [{ pid: child.pid, group: child.pid }];
+    const readEvidence: DescendantEvidence = async root => JSON.parse(await readFile(join(root, 'descendants.json'), 'utf8'));
+    await writeFile(join(root, 'descendants.json'), JSON.stringify(evidence));
+    await writeFile(join(root, '.tenet-consumer-state'), 'owned marker');
+    const kill = process.kill.bind(process);
+    const failingKill: typeof process.kill = (pid, signal) => {
+      if ((failure === 'kill-error' && signal === 'SIGKILL') || (failure === 'probe-error' && signal === 0))
+        throw Object.assign(new Error(`deliberate ${failure}`), { code: 'EPERM' });
+      if (failure === 'still-alive' && signal === 0) return true;
+      return kill(pid, signal);
+    };
+    try {
+      await assert.rejects(cleanupFixture(root, readEvidence, 5, failingKill), error => {
+        assert.ok(error instanceof Error);
+        assert.ok(error.message.includes(`retained fixture root ${root}`));
+        assert.match(error.message, /\.tenet-consumer-state/);
+        if (failure !== 'still-alive') assert.equal((error.cause as NodeJS.ErrnoException).code, 'EPERM');
+        else assert.match(String(error.cause), /fixture descendants stopped before ancestor cleanup/);
+        return true;
+      });
+      assert.equal(await readFile(join(root, '.tenet-consumer-state'), 'utf8'), 'owned marker');
+      assert.deepEqual(await readEvidence(root), evidence);
+      if (failure === 'kill-error') assert.equal(alive(child.pid), true);
+    } finally {
+      await cleanupFixture(root, readEvidence);
+      await done;
+    }
+    assert.equal(existsSync(root), false, 'confirmed absence permits fixture removal');
+  });
+}
+
+for (const failure of ['assertion', 'timeout'] as const) {
+  test(`parent fixture cleanup stops descendants after subprocess ${failure}`, async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-cleanup-test-')));
+    const readEvidence: DescendantEvidence = async root => JSON.parse(await readFile(join(root, 'descendants.json'), 'utf8'));
+    try {
+      const result = spawnSync('node', ['--input-type=module', '-e', `
+import { spawn } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+const root = ${JSON.stringify(root)};
+writeFileSync(root + '/.tenet-consumer-state', 'owned marker');
+const child = spawn('node', ['-e', 'setInterval(() => {}, 1000)'], { detached: true, stdio: 'ignore' });
+child.once('spawn', () => {
+  writeFileSync(root + '/descendants.json', JSON.stringify([{ pid: child.pid, group: child.pid }]));
+  ${failure === 'assertion' ? "throw new Error('deliberate subprocess assertion');" : 'setInterval(() => {}, 1000);'}
+});
+`], { encoding: 'utf8', timeout: 1000 });
+      if (failure === 'assertion') {
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /deliberate subprocess assertion/);
+      } else assert.equal((result.error as NodeJS.ErrnoException).code, 'ETIMEDOUT');
+      const evidence = await readEvidence(root);
+      assert.equal(evidence.length, 1);
+      for (const server of evidence) assert.equal(alive(server.pid), true);
+      assert.equal(await readFile(join(root, '.tenet-consumer-state'), 'utf8'), 'owned marker');
+    } finally { await cleanupFixture(root, readEvidence); }
+    assert.equal(existsSync(root), false, 'parent stops the orphan before fixture removal');
+  });
+}
+
+for (const entry of ['canonical', 'standalone'] as const) for (const signal of ['SIGINT', 'SIGTERM'] as const)
+  for (const shutdown of ['immediate', 'delayed', 'blocked', 'denied'] as const) {
+  const retained = shutdown === 'blocked' || shutdown === 'denied';
+  test(`${entry} delivery stage ${retained ? 'retains state for a blocked' : 'stops the real'} SDK consumer and inspector before cleanup on ${signal}${shutdown === 'immediate' ? '' : ` (${shutdown})`}`, { timeout: 120_000 }, async () => {
     await checkout(async (root, copy) => {
       const realBun = spawnSync('which', ['bun'], { encoding: 'utf8' }).stdout.trim();
       const bin = join(root, 'bin'); await mkdir(bin);
@@ -182,6 +303,24 @@ exec ${JSON.stringify(realBun)} --no-env-file "$@"
       await chmod(wrapper, 0o700);
       const evidence = join(root, 'ready.json');
       const pendingEvidence = `${evidence}.pending`;
+      if (shutdown !== 'immediate') {
+        const runner = join(copy, 'scripts/delivery-consumers.ts');
+        await writeFile(runner, `
+const realKill = process.kill.bind(process);
+const deferredGroups = new Set<number>();
+process.kill = (pid, signal) => {
+  if (pid >= 0 || signal !== 'SIGKILL') return realKill(pid, signal);
+  ${shutdown === 'denied' ? "throw Object.assign(new Error('deliberate denied group kill'), { code: 'EPERM' });" : ''}
+  try { realKill(-pid, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
+  ${shutdown === 'blocked' ? "throw Object.assign(new Error('deliberate group kill failure'), { code: 'EPERM' });" : `
+  if (!deferredGroups.has(pid)) {
+    deferredGroups.add(pid);
+    setTimeout(() => { try { realKill(pid, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; } }, 150);
+  }
+  return true;`}
+};
+` + await readFile(runner, 'utf8'));
+      }
       const fixture = join(copy, 'scripts/fixtures/archive-consumer.mjs');
       const source = await readFile(fixture, 'utf8');
       const ready = 'const htmlResponse = await fetchHTTP(url);';
@@ -213,7 +352,6 @@ ${ready}`));
         child.once('close', code => { finished = true; resolve(code); });
       });
       let server: { consumer: number; inspector: number; url: string; state: string; lane: string } | undefined;
-      let cleanupError: unknown;
       try {
         for (let i = 0; i < 6_000 && !finished && !existsSync(evidence); i++) await sleep(10);
         assert.ok(existsSync(evidence), `SDK fixture reached real inspector readiness.\n${stdout}\n${stderr}`);
@@ -233,10 +371,13 @@ ${ready}`));
         assert.equal(await done, signal === 'SIGINT' ? 130 : 143, stdout + stderr);
         const observed = { consumerAlive: alive(server.consumer), inspectorAlive: alive(server.inspector),
           stateExists: existsSync(server.state), laneExists: existsSync(server.lane) };
-        console.log(`${signal} ${entry} delivery interruption: ${JSON.stringify(observed)}`);
-        assert.deepEqual(observed, { consumerAlive: false, inspectorAlive: false, stateExists: false, laneExists: entry === 'standalone' });
+        console.log(`${signal} ${entry} ${shutdown} delivery interruption: ${JSON.stringify(observed)}`);
+        assert.deepEqual(observed, { consumerAlive: shutdown === 'denied', inspectorAlive: retained,
+          stateExists: retained, laneExists: retained || entry === 'standalone' });
+        if (retained) assert.match(stderr, /retained temporary state/);
         assert.deepEqual(removedWhileAlive, [], 'temporary state must remain until both descendants stop');
-        await assert.rejects(fetch(server.url), /fetch|connect/i);
+        if (retained) assert.equal((await fetch(server.url)).status, 200);
+        else await assert.rejects(fetch(server.url), /fetch|connect/i);
         assert.ok(existsSync(join(root, 'cache')), 'unowned browser cache remains');
       } finally {
         if (!finished) {
@@ -244,19 +385,16 @@ ${ready}`));
           for (let i = 0; i < 500 && !finished; i++) await sleep(10);
           if (!finished) child.kill('SIGKILL');
         }
-        if (server && (alive(server.consumer) || alive(server.inspector))) {
-          try { process.kill(-server.consumer, 'SIGKILL'); }
-          catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') cleanupError = error; }
-          for (let i = 0; i < 200 && (alive(server.consumer) || alive(server.inspector)); i++) await sleep(10);
-        }
         await done;
       }
-      if (cleanupError) throw cleanupError;
+    }, async root => {
+      const server = JSON.parse(await readFile(join(root, 'ready.json'), 'utf8'));
+      return [{ pid: server.consumer, group: server.consumer }, { pid: server.inspector, group: server.consumer }];
     });
   });
 }
 
-for (const outcome of ['success', 'assertion', 'overflow', 'spawn', 'SIGINT', 'SIGTERM'] as const) {
+for (const outcome of ['success', 'marker', 'assertion', 'overflow', 'spawn', 'SIGINT', 'SIGTERM'] as const) {
   test(`shared consumer lifetime releases signal handlers after ${outcome}`, async () => {
     const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-lifetime-test-')));
     try {
@@ -267,17 +405,19 @@ for (const outcome of ['success', 'assertion', 'overflow', 'spawn', 'SIGINT', 'S
       const interrupted = outcome === 'SIGINT' || outcome === 'SIGTERM';
       const source = outcome === 'assertion' ? "throw new Error('lifetime-assertion');"
         : outcome === 'overflow' ? "process.stdout.write('x'.repeat(1_000_001)); setInterval(() => {}, 1000);"
-        : interrupted ? `import {writeFileSync} from 'node:fs';
+        : (interrupted || outcome === 'marker') ? `import {writeFileSync} from 'node:fs';
           writeFileSync(${JSON.stringify(join(root, 'ready'))}, 'ready'); setInterval(() => {}, 1000);` : '';
       for (const name of ['archive-consumer.mjs', 'archive-judge.mjs', 'archive-native.mjs', 'archive-offline-trap.mjs'])
         await writeFile(join(root, 'scripts/fixtures', name), source);
       await writeFile(join(root, 'check.ts'), `
 import assert from 'node:assert/strict';
+import { mkdirSync, existsSync } from 'node:fs';
 import { ConsumerInterrupted, verifyRuntimeConsumers } from './scripts/delivery-consumers.ts';
 const before = ['SIGINT', 'SIGTERM'].map(signal => process.listeners(signal));
 const context = { root: ${JSON.stringify(root)}, installation: ${JSON.stringify(root)}, consumer: ${JSON.stringify(join(root, 'consumer'))} };
 const outcome = ${JSON.stringify(outcome)};
 if (outcome === 'spawn') process.env.PATH = '/nonexistent-lifetime-path';
+if (outcome === 'marker') mkdirSync(context.root + '/.tenet-consumer-state');
 const running = verifyRuntimeConsumers(context);
 if (outcome === 'SIGINT' || outcome === 'SIGTERM') {
   const { existsSync } = await import('node:fs');
@@ -289,9 +429,10 @@ if (outcome === 'SIGINT' || outcome === 'SIGTERM') {
     && error.exitCode === (outcome === 'SIGINT' ? 130 : 143));
 } else if (outcome === 'success') await running;
 else {
-  const expected = { assertion: /lifetime-assertion/, overflow: /exceeded output limit/, spawn: { code: 'ENOENT' } };
+  const expected = { marker: { code: 'EISDIR' }, assertion: /lifetime-assertion/, overflow: /exceeded output limit/, spawn: { code: 'ENOENT' } };
   await assert.rejects(running, expected[outcome]);
 }
+if (outcome === 'marker') assert.equal(existsSync(context.root + '/ready'), false, 'marker creation failure must prevent spawn');
 assert.deepEqual(['SIGINT', 'SIGTERM'].map(signal => process.listeners(signal)), before);
 console.log('lifetime released after ${outcome}');
 `);
@@ -300,6 +441,113 @@ console.log('lifetime released after ${outcome}');
       assert.equal(result.status, 0, result.stdout + result.stderr);
       assert.match(result.stdout, new RegExp(`lifetime released after ${outcome}`));
     } finally { await rm(root, { recursive: true, force: true }); }
+  });
+}
+
+for (const outcome of ['success', 'error', 'SIGINT', 'SIGTERM', 'error+SIGTERM'] as const)
+  for (const shutdown of ['delayed', 'blocked', 'EPERM'] as const) {
+  test(`consumer group shutdown waits for a descendant beyond consumer close after ${outcome} (${shutdown})`, async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-group-test-')));
+    try {
+      await mkdir(join(root, 'scripts/fixtures'), { recursive: true });
+      await mkdir(join(root, 'consumer'));
+      await mkdir(join(root, 'evidence'));
+      for (const name of ['delivery-consumers.ts', 'isolated-environment.ts'])
+        await cp(join(repository, 'scripts', name), join(root, 'scripts', name));
+      const descendant = `
+import { createServer } from 'node:http';
+import { writeFileSync } from 'node:fs';
+const server = createServer((request, response) => response.end('still running'));
+server.listen(0, '127.0.0.1', () => writeFileSync(process.argv[1], JSON.stringify({
+  pid: process.pid, group: process.ppid, url: 'http://127.0.0.1:' + server.address().port
+})));
+`;
+      const fixture = `
+import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+const evidence = ${JSON.stringify(join(root, 'evidence'))} + '/' + process.pid + '.json';
+spawn('node', ['--input-type=module', '-e', ${JSON.stringify(descendant)}, evidence], { stdio: 'ignore' });
+for (let i = 0; i < 200 && !existsSync(evidence); i++) await new Promise(resolve => setTimeout(resolve, 5));
+if (!existsSync(evidence)) throw new Error('descendant not ready');
+${outcome === 'SIGINT' || outcome === 'SIGTERM' ? 'setInterval(() => {}, 1000);' : `process.exit(${outcome.startsWith('error') ? 1 : 0});`}
+`;
+      for (const name of ['archive-consumer.mjs', 'archive-judge.mjs', 'archive-native.mjs', 'archive-offline-trap.mjs'])
+        await writeFile(join(root, 'scripts/fixtures', name), fixture);
+      await writeFile(join(root, 'check.ts'), `
+import assert from 'node:assert/strict';
+import { readdirSync, readFileSync } from 'node:fs';
+import { ConsumerInterrupted, ConsumerShutdownError, verifyRuntimeConsumers } from './scripts/delivery-consumers.ts';
+const root = ${JSON.stringify(root)};
+const outcome = ${JSON.stringify(outcome)};
+const shutdown = ${JSON.stringify(shutdown)};
+let duringBarrier = false;
+const kill = process.kill.bind(process);
+const pending = new Map<number, ReturnType<typeof setTimeout>>();
+const evidence = () => readdirSync(root + '/evidence').map(name => JSON.parse(readFileSync(root + '/evidence/' + name, 'utf8')));
+const alive = pid => { try { kill(pid, 0); return true; } catch (error) { if (error.code === 'ESRCH') return false; throw error; } };
+process.kill = (pid, signal) => {
+  if (pid < 0 && signal === 0 && shutdown === 'EPERM') throw Object.assign(new Error('deliberate probe failure'), { code: 'EPERM' });
+  if (pid >= 0 || signal !== 'SIGKILL') return kill(pid, signal);
+  if (outcome === 'error+SIGTERM' && !duringBarrier) {
+    duringBarrier = true;
+    setTimeout(() => kill(process.pid, 'SIGTERM'), 25);
+  }
+  if (shutdown === 'EPERM') return kill(pid, signal);
+  if (!pending.has(pid)) {
+    try { kill(-pid, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
+    if (shutdown === 'blocked') throw Object.assign(new Error('deliberate group kill failure'), { code: 'EPERM' });
+    pending.set(pid, setTimeout(() => {
+      try { kill(pid, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
+      pending.delete(pid);
+    }, 150));
+  }
+  return true;
+};
+try {
+  let failure;
+  const running = verifyRuntimeConsumers({ root, installation: root, consumer: root + '/consumer' }).catch(error => { failure = error; });
+  if (outcome === 'SIGINT' || outcome === 'SIGTERM') {
+    for (let i = 0; i < 200 && evidence().length === 0; i++) await new Promise(resolve => setTimeout(resolve, 5));
+    assert.equal(evidence().length, 1);
+    kill(process.pid, outcome);
+  }
+  await running;
+  const interrupted = outcome.startsWith('SIG') || outcome === 'error+SIGTERM';
+  const exitCode = outcome === 'SIGINT' ? 130 : 143;
+  if (shutdown !== 'delayed') {
+    assert.ok(failure instanceof ConsumerShutdownError);
+    assert.equal(failure.interruption?.exitCode, interrupted ? exitCode : undefined);
+    if (outcome.startsWith('error')) assert.match(failure.cause.message, /check.mjs exited 1/);
+    else if (interrupted) assert.equal(failure.cause, failure.interruption);
+    if (shutdown === 'blocked') assert.equal(failure.shutdownCause.cause.message, 'deliberate group kill failure');
+  } else if (interrupted) {
+    assert.ok(failure instanceof ConsumerInterrupted);
+    assert.equal(failure.exitCode, exitCode);
+  } else if (outcome === 'error') assert.match(failure.message, /check.mjs exited 1/);
+  else assert.equal(failure, undefined);
+  const remaining = evidence().filter(server => alive(server.pid));
+  const http = await Promise.all(remaining.map(async server => (await fetch(server.url)).status));
+  console.log('barrier-observation', JSON.stringify({ outcome, shutdown, pendingGroups: pending.size, liveDescendants: remaining.length, http }));
+  assert.equal(remaining.length, shutdown === 'blocked' ? 1 : 0, 'consumer result waits for shutdown or explicitly reports retained ownership');
+  assert.deepEqual(http, shutdown === 'blocked' ? [200] : []);
+  assert.equal(readFileSync(root + '/.tenet-consumer-state', 'utf8'), '');
+} finally {
+  process.kill = kill;
+  for (const timer of pending.values()) clearTimeout(timer);
+}
+`);
+      const env = await isolatedEnvironment(root, join(root, 'owner'));
+      const result = spawnSync('bun', ['--no-env-file', 'check.ts'], { cwd: root, env, encoding: 'utf8', timeout: 15_000 });
+      console.log(result.stdout);
+      assert.equal(result.status, 0, result.stdout + result.stderr);
+    } finally {
+      await cleanupFixture(root, async root => {
+        const files = await readdir(join(root, 'evidence'));
+        assert.ok(files.length, 'fixture recorded descendant ownership');
+        return await Promise.all(files.map(async name => JSON.parse(await readFile(join(root, 'evidence', name), 'utf8')) as FixtureDescendant));
+      });
+      console.log('regression descendants absent');
+    }
   });
 }
 

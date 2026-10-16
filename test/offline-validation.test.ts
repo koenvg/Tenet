@@ -59,6 +59,11 @@ const entry={args,cwd:process.cwd(),home:os.homedir(),root:process.env.TMPDIR,en
 if(args.join(' ')==='run sdk:build'){
  fs.mkdirSync(root+'/unsafe-permission-fixture',{mode:0o755});
  if((fs.statSync(root+'/unsafe-permission-fixture').mode&0o777)!==0o755)throw new Error('runner masked explicit unsafe fixture permissions');
+ if(control.marker){
+  const state=control.marker==='symlink'?root+'/external-marker':process.env.TMPDIR+'/nested/custom-lifetime';
+  fs.mkdirSync(state,{recursive:true});fs.writeFileSync(state+'/.tenet-consumer-state','');
+  if(control.marker==='symlink')fs.symlinkSync(state,process.env.TMPDIR+'/linked-state');
+ }
  if(!control.hold){
   entry.probes=[];
   for(const command of [[realBun,'probe.cjs'],['bun','probe.cjs'],[realBun,'run','nested'],[realBun,'-e',"const {spawnSync}=require('node:child_process');const p=spawnSync(process.execPath,['probe.cjs'],{encoding:'utf8',cwd:'nested'});process.stdout.write(p.stdout);process.exit(p.status)"]]){
@@ -70,7 +75,10 @@ if(args.join(' ')==='run sdk:build'){
  }
 }
 fs.appendFileSync(root+'/trace.jsonl',JSON.stringify(entry)+'\\n');
-if(control.hold===args.join(' ')){
+if(control.ownerDeath&&args.join(' ')==='run inspector:build'){
+ const owner=cp.spawn(realBun,['--no-env-file',root+'/owner.ts',process.env.TMPDIR],{stdio:'inherit'});
+ owner.on('exit',()=>process.exit(37));
+}else if(control.hold===args.join(' ')){
  if(control.startupDelayMs) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,control.startupDelayMs);
  const child=cp.spawn(node,['-e',"process.on('SIGINT',()=>process.exit(0));process.on('SIGTERM',()=>"+(control.stubborn?'{}':'process.exit(0)')+");setInterval(()=>{},1000);console.log(process.pid)"],{stdio:['ignore','pipe','inherit']});
  child.stdout.pipe(process.stdout);
@@ -211,6 +219,118 @@ for (const tool of ['cat', 'rm']) {
     });
   }
 }
+
+for (const reason of ['nested-marker', 'discovery-error'] as const)
+  for (const outcome of ['success', 'failure', 'SIGINT', 'SIGTERM'] as const) {
+  test(`offline lane retains state on ${reason} after ${outcome}`, async () => {
+    const interrupted = outcome === 'SIGINT' || outcome === 'SIGTERM';
+    const f = await fixture({ marker: reason === 'nested-marker', fail: outcome === 'failure' ? 'run test' : undefined,
+      hold: interrupted ? 'run inspector:build' : undefined });
+    let lane: string | undefined;
+    let pid: number | undefined;
+    if (reason === 'discovery-error') {
+      await writeFile(join(f.root, 'bin/find'), '#!/bin/sh\nexit 11\n');
+      await chmod(join(f.root, 'bin/find'), 0o700);
+    }
+    const child = f.start();
+    const lines = createInterface({ input: child.stdout! });
+    const ready = interrupted ? once(lines, 'line') : undefined;
+    const done = result(child);
+    try {
+      if (interrupted) {
+        pid = await Promise.race([ready!.then(([line]) => Number(line)), done.then(() => 0)]);
+        assert.ok(pid && pid > 0, 'fixture reached the blocking child');
+        child.kill(outcome);
+      }
+      const output = await done;
+      const trace = await f.trace();
+      assert.ok(trace[0], 'fixture recorded the retained lane');
+      lane = trace[0].root;
+      assert.equal(output.code, outcome === 'SIGINT' ? 130 : outcome === 'SIGTERM' ? 143 : outcome === 'failure' ? 37 : 1, output.stderr);
+      assert.match(output.stderr, /retained temporary state/);
+      await access(lane);
+      if (reason === 'nested-marker') await access(join(lane, 'nested/custom-lifetime/.tenet-consumer-state'));
+      if (pid) assert.throws(() => process.kill(pid!, 0), { code: 'ESRCH' });
+      await access(join(f.root, 'cache'));
+    } finally {
+      lines.close(); child.kill('SIGTERM'); await done;
+      lane ??= (await f.trace())[0]?.root;
+      if (lane) await rm(lane, { recursive: true, force: true });
+      await rm(f.root, { recursive: true, force: true });
+    }
+  });
+}
+
+test('offline retention inspection does not follow a link to unowned state', async () => {
+  const f = await fixture({ marker: 'symlink' });
+  try {
+    const output = await result(f.start());
+    assert.equal(output.code, 0, output.stderr);
+    const trace = await f.trace();
+    assert.ok(trace[0], 'fixture recorded the cleaned lane');
+    await absent(trace[0].root);
+    await access(join(f.root, 'external-marker/.tenet-consumer-state'));
+    await access(join(f.root, 'cache'));
+  } finally { await rm(f.root, { recursive: true, force: true }); }
+});
+
+test('offline lane retains a nested detached consumer after its owner dies before reporting', async () => {
+  const f = await fixture({ ownerDeath: true });
+  const ready = join(f.root, 'detached-ready.json');
+  await writeFile(join(f.root, 'owner.ts'), `
+import { cp, mkdir, writeFile } from 'node:fs/promises';
+const root = process.argv[2] + '/nested/custom-lifetime';
+await mkdir(root + '/scripts/fixtures', { recursive: true });
+await mkdir(root + '/consumer');
+for (const name of ['delivery-consumers.ts', 'isolated-environment.ts'])
+  await cp(${JSON.stringify(repository)} + '/scripts/' + name, root + '/scripts/' + name);
+await writeFile(root + '/scripts/fixtures/archive-consumer.mjs', ${JSON.stringify(`
+import { writeFileSync, renameSync } from 'node:fs';
+writeFileSync(${JSON.stringify(ready + '.pending')}, JSON.stringify({ consumer: process.pid, owner: process.ppid, state: process.env.TMPDIR }));
+renameSync(${JSON.stringify(ready + '.pending')}, ${JSON.stringify(ready)});
+setInterval(() => {}, 1000);
+`)});
+const { verifyRuntimeConsumers } = await import(root + '/scripts/delivery-consumers.ts');
+await verifyRuntimeConsumers({ root, installation: root, consumer: root + '/consumer' });
+`);
+  const child = f.start();
+  const done = result(child);
+  let evidence: { consumer: number; owner: number; state: string } | undefined;
+  let lane: string | undefined;
+  try {
+    for (let i = 0; i < 600 && !evidence; i++) {
+      try { evidence = JSON.parse(await readFile(ready, 'utf8')); }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; await sleep(5); }
+    }
+    assert.ok(evidence, 'detached consumer reached readiness');
+    const trace = await f.trace();
+    assert.ok(trace[0], 'fixture recorded the detached consumer lane');
+    lane = trace[0].root;
+    await access(join(evidence.state, '.tenet-consumer-state'));
+    process.kill(evidence.owner, 'SIGKILL');
+    const output = await done;
+    assert.equal(output.code, 37, output.stderr);
+    assert.match(output.stderr, /retained temporary state/);
+    process.kill(evidence.consumer, 0);
+    await access(evidence.state);
+    await access(lane);
+    await access(join(f.root, 'cache'));
+  } finally {
+    child.kill('SIGTERM'); await done;
+    if (evidence) {
+      try { process.kill(-evidence.consumer, 'SIGKILL'); }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error; }
+      for (let i = 0; i < 200; i++) {
+        try { process.kill(evidence.consumer, 0); } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ESRCH') break; throw error; }
+        await sleep(5);
+      }
+      assert.throws(() => process.kill(evidence!.consumer, 0), { code: 'ESRCH' }, 'detached fixture stopped before retained state removal');
+    }
+    lane ??= (await f.trace())[0]?.root;
+    if (lane) await rm(lane, { recursive: true, force: true });
+    await rm(f.root, { recursive: true, force: true });
+  }
+});
 
 test('framework configurations do not load dotenv in the offline lane', async () => {
   const root = await realpath(await mkdtemp('/tmp/tenet-framework-test-'));
