@@ -11,7 +11,7 @@ afterEach(() => { vi.useRealTimers(); });
 const threadId = 'thr_abcdefgh1234';
 const tick = async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); };
 
-test('Pi header sends identical focus requests, preserves finding count and focused findings route', async () => {
+test('Pi header sends identical direct panel requests without inventing a FAIL count or opening a popup', async () => {
   const app = await loadPluginApp(() => import('./app'));
   expect(app.threadPanelActions[0]?.layout).toBe('flush');
   const slot = renderSlot(app.threadHeaderActions[0]!, { threadId, projectId: 'project', isCompactViewport: false }, {
@@ -20,15 +20,17 @@ test('Pi header sends identical focus requests, preserves finding count and focu
     rpc: { status: () => ({ coverage: 'partial', linkedCalls: 3, failures: 0, issues: [], assessments: { completed: 1, unavailable: 2, pending: 0, dropped: 0, cancelled: 0, incomplete: 0, reasons: [{ code: 'provider-error', count: 2 }] } }) },
   });
   try {
-    for (let n = 0; n < 2; n++) { fireEvent.click(await slot.findByRole('button', { name: 'TENET rule status' })); fireEvent.click(await slot.findByRole('button', { name: 'Open thread overview' })); }
-    expect(slot.inspection.navigateCalls.filter(c => c.method === 'openThreadPanel')).toEqual([
+    for (let n = 0; n < 2; n++) fireEvent.click(await slot.findByRole('button', { name: 'TENET rule status' }));
+    expect(slot.inspection.navigateCalls).toEqual([
       { method: 'openThreadPanel', options: { actionId: 'tenet-overview', title: 'TENET overview', params: null } },
       { method: 'openThreadPanel', options: { actionId: 'tenet-overview', title: 'TENET overview', params: null } },
     ]);
     expect(slot.queryByLabelText(/recorded FAIL/)).toBeNull();
-    fireEvent.click(slot.getByRole('button', { name: 'TENET rule status' }));
-    fireEvent.click(slot.getByRole('button', { name: 'View flagged rules' }));
-    expect(slot.inspection.navigateCalls.at(-1)).toEqual({ method: 'toPluginPanel', path: 'findings', options: { subPath: threadId } });
+    expect(slot.getByRole('button', { name: 'TENET rule status' }).textContent).toBe('T');
+    expect(slot.queryByRole('region')).toBeNull();
+    for (const name of ['Open thread overview', 'View flagged rules', 'Close TENET status']) {
+      expect(slot.queryByRole('button', { name })).toBeNull();
+    }
   } finally { slot.lifecycle.unmount(); }
 });
 

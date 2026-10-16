@@ -1,0 +1,149 @@
+/* Alpha masks from the approved ImageGen Gate artwork, downsampled to 128px. */
+.tenet-gate-logo__full { --tenet-gate-mask: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAQAAABpN6lAAAAEy0lEQVR42u2dO48jRRCAv+rp28eBIOEXICIkfg4SAfALENGttLB3CwsnDiEC+AmkSIRI/ARCkBABAQEhwQWcgDvbM0XgWU+Pe8Y3D49lpqskW/PoZ3W9q90GAwMDAwMDA4NEQTZXDkHLzxo0eBuC1upq7Wr9XKNedFNj+6q5RvW8XnK7jap/jd63zXX9trDFr2FFeJ1zFKHAlVgMKSBcowrXgpYrsL5StKSk23UpEARHgSI4lALKq3WpsMY2Va4pQCiCNXebsiEFSLmiiivHHtOIlLNQlBW/rGtI2c0pv/JqQgv/J6/xBEH95lGBsiIL1lo68VKdImjgQGnh4epOy4XYrqtRuxJ81yWV1ui5mtXtXdW6klUSwAeDl7IraSDG3QJ0m526lqzu4roaDDx8Jy0t7O5ZGpimhgC2pj5Mk4zXRfQej+wcRXsLeqv8bm81KeGvlfav82/CCHBpGoBpTTtEgKSNgEgI8hy7f25QpM4CDRQwlY4/TgHYIAM0TUJwG57IE5t34lpAUxeCLnVTuEENSpqk4PfgC+gkTrNO6opvvF8/2h2WhohPPBXp2X57dGnPtmqFgKFq8Al3N+HNKsa4HaSCrMdqKQU5rhZ0kyiM5hD+4cVx/qAfJQQLMr7jhpdZlXFfIgQoQsaSt/iYFVmHVnM8n/ENp6yIMxRS9ix4/uIT3iUfwL4ulgEZQ5RJzjv8xNcdyv4ehdp3cf8f/Nahzfd5e9D0G1hgKC8J8BXnfM4JeWsbnhWnPcfl8BsKiHt1LLnmhmIA5Wo4Wz/SFBaUJY+4yzV+k8CIWaXo3W7RWms9/YdcsewlWRoF6T5CYo4FD7guswqd4jDPhWxHG44VN1yxGDT9FjXIKDUIS2445wOyVirYlyubseIRlwNXP1L4bi861eFYcMmn5JWftR9bvWH1P+KSRZlRHJ2D8BF+ZLB7ueA+Z1y0UIEbbbQIjpwvuAiIv994NUrr4WuCqmi1tqRDs45n3GPBVWNp11kNtsuAnIdc8BQfELL0lP9CEdJOZQme4TjZg2fxIS9xj2UkwaWXEHQNT+7wJe8BZyNHmQGnoRBUYMGbvEBe5vS3V0tr+zUIsrm3hmv49oyMZxM4sJ7v+TbQW1obgyvNY4LdCfV8swZ5xKf8u35XUcCPE/ud2eh06d/8MJ07zCBTuN2a7yrX2zl1PBI7jdHvHPQ027HGCMHpYmNwVAjwHDo4OKOe/vcIkEOmaY6VAtz8EHCnV+mT+SEgT50C3IRm0wzV4AyFoE8dAZq6IXQwrp6HDCB1FtDUWUDMDkjbR5ujFiB1FvBYPMDsAI5PFR4jAnSeFFCkzgJ+V5I6opUE7ABJ2xASC4klZwiRuhAkdXdYjAXMHU47MZK0DNA97RBJSAgmbAjpiLMsZkEBYlFhiwiljQC1/QEzRYDrfC6QmC+QOAKUA4ZQLSJ0hEQ9Y0tQTQsc3X7hY80MuXmmxjRlUzjrpQaz1DdJJb1LTGyHyGzdYbG8gG2UNASYO5xqZghsf4CxgAnBXslRtR9MJBoPkNS3yqptkrLkKLP8HUd4Yt32ITj1P0YpDscCh0PAOa7jmYIZ4w9LOjLCFJQ3eKXx+MOmI9GEx/yMwbxEk+t57Jn9GZqBgYGBgYGBwbTwH8L1Tv6KTW5kAAAAAElFTkSuQmCC"); }
+.tenet-gate-logo__left { --tenet-gate-mask: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAQAAABpN6lAAAACaUlEQVR42u3ay27TQBTG8f8Zm6YNEvAcvA8SG96iC8SlomJRpG7gQXgXFmzhFbgtUBN7DosMji9JW7lR7NTfL6o0qR07PnM8nktAREREZKKsKgUMT38rXtta543PeqO0+r93zuLVJ9qlqEoYRQYYTznBMSIh1U89A+q1uq5pw1MGrEqOp0z6nxcRwwhEHCPgREglxyn5SjmGIMz4Vl3CPl8/edK4Efcur0oRpyCr1XX3Xm5mjW/IiPp7Nh5nffc72fC1n9e+vKVLsA1N5PUNaPt2uu2eg9Z9OwOs99exQ24EQ5XGPs2nQGjdvxMOQJh2ACZLAbihLXdlwMQDYNMJwMT7AXH4XrnaAAVAXeER9gPuvXwHYwE/5EFzfufhsG2Y8ekGyMb6mF0HoO9j8A/zFD6vplW8NWEOkI0zB/I7NYKRjM+c85gizfvSCYBjZCx5zjsKsvEGIOvVhJa84AufbrHv985U+6gC0LcrbMBHTvjAEeXWY+QUzMbdBvTtChvOkgvmnJETt4QgjncBbBdTYoEFbzlLqwo3PTHu3WjQCGQsOeeCIi2rHexYwHsfJbDgJe8pDy0EYUdTYIGcBW+43BqCMM45h7zRUMWtfTm7tits6RKvOGXB6417G04k1rb5GJZj1j3BYwJHOzjaKx5xyrLT7ucYR53QPBhDABxY8IyHlGlNP7Q6LV7VodXqfL01NrYek3HVOdNfflDUMm51lF9D58D+GqwZ8w0L55Hfw4agPljZnfIQfyQ11LkmOhstIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIi0ts/A3naEOYknjYAAAAASUVORK5CYII="); }
+.tenet-gate-logo__right { --tenet-gate-mask: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAQAAABpN6lAAAACZ0lEQVR42u3aT27TQBTH8e+bTFQWgLgHV0KcALGrVKkSqKgCCXEJtux7E1Ys2bFASCzaqHX8WCS1x47jpm6RJ/HvU6lS40k6f948z3gCIiIiIhNlo9cg9NbOMcBbNfak7t54jY3ym21dXS01+FlEwIyXzDE8GTVrRYBRJmMeqrJpBNh6RJ0AnSVWpXx9teD7+DFgwAv+4CP8/OLZqgZx9BgsgYLQOXtvxzEdyfr3bZnmODdjqKz+qj/dmdWjH7OYhNZRdU8qnl6zjqlrWye0dbzX0/8Ys81EtmOGst5stv0T/O6b0CHzXe7C6oAp3P6n2wE27Q6YfBIspz4FJh0Bphyw4278sNttWghNPALQbVBJMJ/tcO8s/S+P9KpHcDHztbrf2WA/xAhwSpaEqnG+8WTIcQLGJU8fth/MsQOWRD7ylSMKmo/H6oqXGJG/fOA1ywGZLOQcAQ785McOJd/yalDz9yAJRgKxioDN8A3c8I4zygFp0NPMkW8SLCm3HF2smn/OKTfMBnSA7cNeYNZT/UDBGadcD2r+ntwGtzd/RsEnTgaOPo1DuIwjIPSM/ntOuCY0zocGn0HEvRr9wJLPHCfB7/eKAm8dkWfRAd4OyvUip3uFcM4xC2LyHrtn/jfKNHbG74A51kp5c4x5x6SY84U3wJNHSLBHuSRB5zdFK5ALIpcdG9jIBd+q2LDGAtnX3xuovx1gG+fNnpwjLrhaXbPR5/XzZM1fv3rFYirfEXqc1cGQHUcmHWAPeh4gIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiMj3/AKaEztUywdSnAAAAAElFTkSuQmCC"); }
+.tenet-gate-logo__stem { --tenet-gate-mask: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAQAAABpN6lAAAABu0lEQVR42u2bMU6DMQxGP6ehBTohcQ2uxF0YGTkaF2EFqT8xAwsVFUqWKNjvda3kX19sx4kdCQAAAAAAAAAAAAAAAAAAAAAAAAAgKLasLWdxgnnAQbfdq2p618ecz6qTrGx61LO2Lnubqp70oqotigCSdNSdvMvjmoqOsz5rngAu16nL3kn7eaFZJ2ab71/fP6d9V1E8S/9eAJtZBazqASWeAFdD/97HE+AzuweMWdrFE2DRo9A8AWp2AXzNAm2eANOiOkYOUPYQ8OwhYNQBuc9oEXcBZQ+BKu4DqAO03la4ogAe0wNa9hCovy7J//KVBHWA5S6EjCuxdIWQsidBZT8OGyHAcTh3YyR1DvAhSx4zBxi9wd71t9weYNwKcyOUWwBnPiCoAKVTBIu6C4jD0Egl2LgRSpwEA1eCzi6w3Lzwqp2hErM15plL4d3QNrjLPiSVekrMmBAJexw2+gIMSiIAx+GsnSGJ+QBCgCQ41Bx1HkwkvQ+w7KOyzpAUzVGFfMfRfrwgt7NBmPOhmKY2LwTmCXCjokP3fnEdyzFNrgfdq12wZxdW2/SmV0Gs1FSGbPmqL0wAAAAAwvAFd21CYEWNRnkAAAAASUVORK5CYII="); }
+
+.tenet-gate-logo {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.tenet-gate-logo__full,
+.tenet-gate-logo__piece {
+  display: none;
+}
+
+@supports (mask-image: url("")) or (-webkit-mask-image: url("")) {
+  .tenet-gate-logo__fallback {
+    display: none;
+  }
+
+  .tenet-gate-logo__full,
+  .tenet-gate-logo__piece {
+    position: absolute;
+    inset: 2px;
+    display: block;
+    background: currentColor;
+    -webkit-mask-image: var(--tenet-gate-mask);
+    mask-image: var(--tenet-gate-mask);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+    mask-mode: alpha;
+    animation-duration: 3.8s;
+    animation-iteration-count: 1;
+  }
+
+  /* The full silhouette replaces the pieces at rest to avoid antialias seams. */
+  .tenet-gate-logo__full {
+    animation-name: tenet-gate-assembled;
+    animation-timing-function: steps(1, end);
+  }
+
+  .tenet-gate-logo__piece {
+    visibility: hidden;
+    animation-timing-function: cubic-bezier(.16, 1, .3, 1), steps(1, end);
+  }
+
+  .tenet-gate-logo__left {
+    animation-name: tenet-gate-left, tenet-gate-retire;
+  }
+
+  .tenet-gate-logo__right {
+    animation-name: tenet-gate-right, tenet-gate-retire;
+  }
+
+  .tenet-gate-logo__stem {
+    transform-origin: 50% 31%;
+    animation-name: tenet-gate-stem, tenet-gate-retire;
+  }
+
+  /* Retain the initial animation so leaving hover or focus cannot restart it. */
+  .tenet-thread-status:is(:hover, :focus-visible) .tenet-gate-logo__full {
+    animation-name: tenet-gate-assembled, tenet-gate-assembled-replay;
+  }
+
+  .tenet-thread-status:is(:hover, :focus-visible) .tenet-gate-logo__left {
+    animation-name: tenet-gate-left, tenet-gate-retire, tenet-gate-left-replay, tenet-gate-retire-replay;
+  }
+
+  .tenet-thread-status:is(:hover, :focus-visible) .tenet-gate-logo__right {
+    animation-name: tenet-gate-right, tenet-gate-retire, tenet-gate-right-replay, tenet-gate-retire-replay;
+  }
+
+  .tenet-thread-status:is(:hover, :focus-visible) .tenet-gate-logo__stem {
+    animation-name: tenet-gate-stem, tenet-gate-retire, tenet-gate-stem-replay, tenet-gate-retire-replay;
+  }
+
+  @keyframes tenet-gate-assembled {
+    0%, 36% { opacity: 0; }
+    37%, 100% { opacity: 1; }
+  }
+
+  @keyframes tenet-gate-assembled-replay {
+    0%, 36% { opacity: 0; }
+    37%, 100% { opacity: 1; }
+  }
+
+  @keyframes tenet-gate-retire {
+    0%, 36% { visibility: visible; }
+    37%, 100% { visibility: hidden; }
+  }
+
+  @keyframes tenet-gate-retire-replay {
+    0%, 36% { visibility: visible; }
+    37%, 100% { visibility: hidden; }
+  }
+
+  @keyframes tenet-gate-left {
+    0%, 3% { opacity: 0; transform: translateX(-38%) scaleX(.6); }
+    18%, 100% { opacity: 1; transform: none; }
+  }
+
+  @keyframes tenet-gate-left-replay {
+    0%, 3% { opacity: 0; transform: translateX(-38%) scaleX(.6); }
+    18%, 100% { opacity: 1; transform: none; }
+  }
+
+  @keyframes tenet-gate-right {
+    0%, 3% { opacity: 0; transform: translateX(38%) scaleX(.6); }
+    18%, 100% { opacity: 1; transform: none; }
+  }
+
+  @keyframes tenet-gate-right-replay {
+    0%, 3% { opacity: 0; transform: translateX(38%) scaleX(.6); }
+    18%, 100% { opacity: 1; transform: none; }
+  }
+
+  @keyframes tenet-gate-stem {
+    0%, 9% { opacity: 0; transform: translateY(30%) scaleY(.25); }
+    29%, 100% { opacity: 1; transform: none; }
+  }
+
+  @keyframes tenet-gate-stem-replay {
+    0%, 9% { opacity: 0; transform: translateY(30%) scaleY(.25); }
+    29%, 100% { opacity: 1; transform: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tenet-thread-status .tenet-gate-logo > .tenet-gate-logo__full,
+    .tenet-thread-status .tenet-gate-logo > .tenet-gate-logo__piece {
+      animation: none;
+    }
+
+    .tenet-gate-logo__full {
+      opacity: 1;
+    }
+
+    .tenet-gate-logo__piece {
+      visibility: hidden;
+      transform: none;
+    }
+  }
+}
