@@ -1,23 +1,14 @@
-import { afterAll, beforeAll, expect, test } from 'vitest';
-import { chromium, type Browser, type Page } from 'playwright';
-import { createServer, type ViteDevServer } from 'vite';
+import { expect, test } from '../browser-shell-fixture.js';
+import type { Page } from 'playwright';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-let server: ViteDevServer, browser: Browser, origin: string;
 const artifacts = resolve('coverage/inspector-artifacts/tenet55');
-beforeAll(async () => {
-  server = await createServer({ configFile: false, root: resolve('bb-plugin-tenet-status'), server: { host: '127.0.0.1', port: 0 } });
-  await server.listen(); origin = server.resolvedUrls!.local[0]!;
-  // Readiness is checked before Chromium starts, not inferred from a process ID.
-  expect((await fetch(`${origin}live.preview.html`)).status).toBe(200);
-  browser = await chromium.launch({ headless: true }); await mkdir(artifacts, { recursive: true });
-});
-afterAll(async () => { await browser?.close(); await server?.close(); });
+test.beforeAll(async ({}, testInfo) => { testInfo.setTimeout(30_000); await mkdir(artifacts, { recursive: true }); });
 const resources = (page: Page) => page.evaluate(() => (window as any).tenetResources.snapshot());
 const reads = (page: Page): Promise<{ threadId: string; selection: unknown; aborted?: boolean }[]> => page.evaluate(() => (window as any).tenetLivePreview.reads.map((r: any) => ({ threadId: r.threadId, selection: r.selection, aborted: r.signal?.aborted })));
-async function open(entry: string, width = 1440) {
-  const page = await browser.newPage({ viewport: { width, height: 1000 } });
+async function open(page: Page, origin: string, entry: string, width = 1440) {
+  await page.setViewportSize({ width, height: 1000 });
   await page.clock.install();
   await page.addInitScript(() => {
     const intervals = new Set<number>(), timeouts = new Set<number>(), observers = new Set<object>();
@@ -44,8 +35,8 @@ async function rulePage(page: Page) {
   await page.getByRole('button', { name: /Built-in integrity/ }).press('Enter');
   await page.getByText('Recorded rules 17–19 of 19. At most 16 rules per page.', { exact: true }).waitFor();
 }
-for (const entry of ['panel', 'main']) for (const width of [390, 1440]) test(`${entry} live history and rules at ${width}px viewport / 390px container`, async () => {
-  const page = await open(entry, width);
+for (const entry of ['panel', 'main']) for (const width of [390, 1440]) test(`${entry} live history and rules at ${width}px viewport / 390px container`, async ({ page, shellOrigin: origin }) => {
+  await open(page, origin, entry, width);
   try {
     await page.getByRole('button', { name: 'More sessions', exact: true }).press('Enter');
     await expect.poll(() => page.getByLabel('Linked session').locator('option').count()).toBe(55);
@@ -97,8 +88,8 @@ for (const entry of ['panel', 'main']) for (const width of [390, 1440]) test(`${
   } finally { await page.close(); }
 });
 
-for (const entry of ['panel', 'main']) test(`${entry}: rejected cursor, disconnect, timeout, manual retry and pending scope cleanup`, async () => {
-  const page = await open(entry);
+for (const entry of ['panel', 'main']) test(`${entry}: rejected cursor, disconnect, timeout, manual retry and pending scope cleanup`, async ({ page, shellOrigin: origin }) => {
+  await open(page, origin, entry);
   try {
     await page.getByRole('button', { name: 'Summary', exact: true }).press('Enter'); await rulePage(page);
     await page.getByRole('button', { name: 'Reject cursors', exact: true }).click(); await page.clock.runFor(10_000);

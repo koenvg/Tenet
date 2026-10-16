@@ -1,10 +1,10 @@
 # Inspector tests
 
-Use this developer-checkout guide to test the local inspector UI without evaluator calls or a signed-in browser. The supported suites use disposable headless Chromium. Neither connects to Arc, needs a CDP endpoint, uses a signed-in profile, or calls the evaluator.
+Use this developer-checkout guide to test the local inspector UI without evaluator calls or a signed-in browser. The two browser lanes use disposable headless Chromium. Neither connects to Arc, needs a CDP endpoint, uses a signed-in profile, or calls the evaluator.
 
-## Set up and run both suites
+## Set up and run all three lanes
 
-Use Node 22.19+ for the Pi-backed fixtures and Bun 1.3.14+. SDK-only consumers have a lower Node 22.12+ minimum; that is not the full inspector-test requirement. CI uses Node 22 and Bun 1.3.14.
+Use Node 22.19+ for the Pi-backed fixtures and Bun 1.3.14+. SDK-only consumers have a lower Node 22.12+ minimum; that is not the full inspector-test requirement. CI uses Node 22 and Bun 1.4.3.
 
 1. From the repository root, install locked dependencies and Chromium:
 
@@ -16,14 +16,14 @@ Use Node 22.19+ for the Pi-backed fixtures and Bun 1.3.14+. SDK-only consumers h
 
    On Linux CI, use `bunx playwright install --with-deps chromium` for browser system libraries. Installation can download packages; the suites do not make external requests.
 
-2. Open the [isolated validation shell](../../CONTRIBUTING.md#check-a-change), then build the SDK and shared library. Pi-backed fixtures import the SDK; BB preview tests import the generated shared summary.
+2. Open the [isolated validation shell](../../CONTRIBUTING.md#run-focused-checks-in-a-clean-shell), then build the SDK and shared library. Pi-backed fixtures import the SDK; BB preview tests import the generated shared summary.
 
    ```sh
    bun run sdk:build
    bun run summary:build
    ```
 
-3. Run static checks, then both UI suites:
+3. Run static checks, then all three Inspector lanes:
 
    ```sh
    bun run typecheck
@@ -31,7 +31,7 @@ Use Node 22.19+ for the Pi-backed fixtures and Bun 1.3.14+. SDK-only consumers h
    CI=1 bun run inspector:test
    ```
 
-The test command runs the component suite, builds the client, then runs the built-app suite. Success means the checks exit zero and Vitest reports passing tests. See [the full offline validation order](../../CONTRIBUTING.md#check-a-change) for application, BB plugin, and delivery checks. These tests do not establish live provider connectivity or active owner hooks.
+The test command checks discovery, runs Node infrastructure tests, mounts components in Vitest Browser Mode, then builds and runs Playwright Test journeys. Success means every command exits zero and both runners report passing tests. See [the full offline validation order](../../CONTRIBUTING.md#check-a-change) for application, BB plugin, and delivery checks. These tests do not establish live provider connectivity or active owner hooks.
 
 ## Component suite
 
@@ -55,8 +55,8 @@ The API mock rejects unexpected or non-local requests. This suite does not check
 The shared summary tests divide coverage by boundary:
 
 - `components/rules.vitest.ts` owns public-mount rendering across viewport and container widths. It covers 16-row and 3-row bounds, truncated and missing text, integrity selection and technical thresholds, and WARN call selection and rule detail. It also covers keyboard paging, inert text, overflow, and destruction.
-- `integration/bb-rules.vitest.ts` uses the real preview and adapter with the generated summary in one 390px panel inside a 1440px window. It owns rule paging and page-one reset after each call switch. It also covers provider failure, summary privacy, host isolation, keyboard navigation between Calls and Summary, close, and unmount.
-- `integration/bb-panel.vitest.ts` owns the responsive preview shell width variants.
+- `integration/bb-rules.pw.ts` uses the real preview and adapter with the generated summary in one 390px panel inside a 1440px window. It owns rule paging and page-one reset after each call switch. It also covers provider failure, summary privacy, host isolation, keyboard navigation between Calls and Summary, close, and unmount.
+- `integration/bb-panel.pw.ts` owns the responsive preview shell width variants.
 
 The synthetic preview does not test a real BB host or native focus behavior. Real archive, HTTP, capture, and production-asset tests remain independent of these checks.
 
@@ -65,10 +65,16 @@ The synthetic preview does not test a real BB host or native focus behavior. Rea
 To run only the built app, complete setup and SDK build above, then run from the repository root:
 
 ```sh
-CI=1 bun run inspector:test:browser
+CI=1 bun run inspector:test:journeys
 ```
 
-This command builds the client first. Node Vitest starts a temporary loopback inspector with that production build and launches disposable headless Playwright Chromium. Synthetic archives, real local HTTP, and independent browser contexts cover desktop/mobile layout, keyboard and pointer controls, and recorded assessment detail.
+This command builds the client first. Playwright Test starts a temporary loopback inspector with that production build and launches disposable headless Playwright Chromium. Synthetic archives, real local HTTP, and independent browser contexts cover desktop/mobile layout, keyboard and pointer controls, and recorded assessment detail.
+
+`integration/bb-*.pw.ts` tests browser shells with simulated BB host reads. These synthetic Vite previews check shell routing, history, polling, disposal and host-style isolation. They do not prove native BB focus, persistence or deployed-host behavior.
+
+Journeys run with one worker, no retries, 20-second test deadlines and 30-second setup/teardown allowances. Automatic traces, video, screenshots and HTML reports are disabled. Playwright discards automatic runner output, including raw error contexts, after each case.
+
+Intentional screenshots use synthetic data. Shared diagnostics retain bounded, sanitized failure evidence outside the runner output directory.
 
 Integration tests cover live session discovery, delayed execution, selected-session warning scoping, reconnecting polls, project filtering, cursor pagination, deep links beyond the first page, waiting sessions, corrupt/interrupted capture, and recovery after server errors. Here, live session discovery means local capture, not live provider evaluation. Each case cleans up its archive, server, and context. Tests block and check non-local browser requests. They make no production evaluator request.
 
@@ -78,6 +84,21 @@ Integration tests cover live session discovery, delayed execution, selected-sess
 2. For Pi-generated fixtures, use `guardHarness.shutdownCaptured()`. It waits for clean current capture, shuts down once, and requires the existing terminal owner status to report zero loss and a completed drain. Shutdown can enqueue additional execution stages. Keep raw `emit('session_shutdown')` for deliberate failure tests.
 3. For a valid invocation deep link, wait for `withInspector.open()` to render invocation detail. A document `load` event does not finish archive selection. Put semantic assertions after that boundary; do not extend their poll deadlines to cover setup.
 
+## Run infrastructure and discovery checks
+
+From the repository root inside the clean focused-check shell, run:
+
+```sh
+bun run inspector:test:node
+bun run inspector:test:discovery
+```
+
+Node Vitest collects only `node/*.vitest.ts` and checks recording completion, trace privacy and deliberate Playwright failures through the journey fixtures. The child config selects `diagnostics/fixture.case.pw.ts` or `diagnostics/debugger.case.pw.ts` by target.
+
+These isolated children cover real deadlines and interruption, debugger setup faults, browser guards before and after context closure, and shared-suite reuse. Neither is an ordinary journey.
+
+The discovery guard uses runner collection commands. It requires positive, disjoint component, Node and journey file sets, two isolated children, no Bun collection and all three lanes in `inspector:test`. It reports file counts, not executed test counts. Both checks must exit zero. Infrastructure needs the SDK build from setup; its command builds inspector assets before running children.
+
 ## Separate call-fact regressions
 
 `test/inspector-presentation.test.ts` retains the execution/permission matrix and historical contract cases. `test/inspector-call-facts.test.ts` checks named facts, future/unknown values, invalid completed assessments and strict shared-context requirements. Assessment, approval and scores cannot establish execution.
@@ -86,9 +107,9 @@ Integration tests cover live session discovery, delayed execution, selected-sess
 
 Component tests check the named Tenet permission, Tool result and Assessment fields. The list shares ordinary context only for displayed calls that establish it. `components/context.vitest.ts` changes filters, loads another page and adds a late result without replacing selected detail. Independent violation, uncertainty and approval findings stay visible. Lifecycle status is not repeated as summary badges.
 
-`integration/status.vitest.ts` retains desktop and 390px checks, historical schemas 1 through 4, exact evidence, scores, thresholds, questions, actual observe-mode blocks and permission/result contradictions. Delayed assessment and result stages preserve the invocation link, mounted exact-data regions, Recorded data disclosures, evidence DOM node and scroll position.
+`integration/status.pw.ts` retains desktop and 390px checks, historical schemas 1 through 4, exact evidence, scores, thresholds, questions, actual observe-mode blocks and permission/result contradictions. Delayed assessment and result stages preserve the invocation link, mounted exact-data regions, Recorded data disclosures, evidence DOM node and scroll position.
 
-`integration/call-facts.vitest.ts` serves an authored fictional archive through the built app. It checks pending, dropped, cancelled, incomplete, unavailable and invalid assessments, successful and failed results, observe ASK, separate approval and all overlapping findings. `integration/summary-preview.vitest.ts` captures the minimal desktop/mobile first view. Existing archive checks retain direct filters, the public group API, deep links and partial-coverage indicators and issue disclosures.
+`integration/call-facts.pw.ts` serves an authored fictional archive through the built app. It checks pending, dropped, cancelled, incomplete, unavailable and invalid assessments, successful and failed results, observe ASK, separate approval and all overlapping findings. `integration/summary-preview.pw.ts` captures the minimal desktop/mobile first view. Existing archive checks retain direct filters, the public group API, deep links and partial-coverage indicators and issue disclosures.
 
 These are recorded-data presentation tests, not live accuracy measurements. Fixture actions never execute. No result is inferred from released permission or approval. A failed result does not prove there were no external effects.
 
@@ -106,9 +127,9 @@ Session / archive holds project/session selection, More sessions, manual refresh
 
 `components/navigation.vitest.ts` checks command/path-first rows, the direct select, active filters, both pagination controls and empty selection. It checks healthy, unknown, indexing and capture-only archive states, plus mobile access to exact reader/file/writer details and restart guidance.
 
-`integration/navigation.vitest.ts` checks desktop, 1380px/460px sidebar and mobile states, native controls, genuine zero-match reset, individual hashed call links, history and no UI group requests. Unchanged polls retain selected detail and Recording issues disclosures, focus, scroll and private URLs. Existing archive/history, resizing, status and delayed-stage cases remain.
+`integration/navigation.pw.ts` checks desktop, 1380px/460px sidebar and mobile states, native controls, genuine zero-match reset, individual hashed call links, history and no UI group requests. Unchanged polls retain selected detail and Recording issues disclosures, focus, scroll and private URLs. Existing archive/history, resizing, status and delayed-stage cases remain.
 
-`integration/complete-flow.vitest.ts` checks the assembled 390px route with native keyboard input. It reaches the last compact rule, scrolls exact records to the end, retains focus/scroll across a real poll, selects a true zero-match category by type-ahead, resets the filter and scrolls Recording issues. A complete fictional call and a later partial archive are separate states.
+`integration/complete-flow.pw.ts` checks the assembled 390px route with native keyboard input. It reaches the last compact rule, scrolls exact records to the end, retains focus/scroll across a real poll, selects a true zero-match category by type-ahead, resets the filter and scrolls Recording issues. A complete fictional call and a later partial archive are separate states.
 
 Direct API and Bun regressions preserve group identities, counters, references, bounds and overflow without a group view.
 
@@ -130,7 +151,7 @@ Browser Back tests check selected-call association, action preview, submitted ev
 
 Native disclosures and the exact-data region retain keyboard access. Text roles use the existing sans and monospace families, fixed rem sizes and readable body text. Desktop, narrow and enlarged-root-text checks cover wrapping, bounded records and 44px disclosure targets.
 
-`integration/rule-explanations.vitest.ts` checks complete exact rule/question records despite a truncated response at 1103px and 390px. Real unchanged polls retain the data node, disclosure, focus, inner/outer scroll, exact values and invocation URL.
+`integration/rule-explanations.pw.ts` checks complete exact rule/question records despite a truncated response at 1103px and 390px. Real unchanged polls retain the data node, disclosure, focus, inner/outer scroll, exact values and invocation URL.
 
 Native disclosures stay closed on a new selection and remain mounted through polls. Tests open public entry points before interaction. Superseded explanation, readable-question and meter assertions are replaced by exact-data, absence, keyboard and mounted-state checks; historical and status semantics remain covered.
 
@@ -140,7 +161,7 @@ Record identifiers are bounded read-only fields. Coverage explanations and inter
 
 `components/recorded-data.vitest.ts` checks full submitted edit strings, arbitrary/missing/malformed arguments, exact null values, shared state/history/reference pools, loss markers, policy identity, all rule questions/choices/mappings, precision, response truncation/unavailability, validation and approval. All rule and question JSON uses one named native disclosure, independent of raw response availability, not a format switch.
 
-`integration/recorded-data-preview.vitest.ts` serves authored fictional edit/policy/question/response/loss cases. It captures desktop/mobile Recorded data and questions. Real polls test delayed request/result stages, lossless UTF-16 identities and stable exact-data nodes, evidence nodes, focus, open disclosures, scroll and unchanged URLs. Existing history, threshold, status and pagination tests use the new destinations without removing their semantic cases.
+`integration/recorded-data-preview.pw.ts` serves authored fictional edit/policy/question/response/loss cases. It captures desktop/mobile Recorded data and questions. Real polls test delayed request/result stages, lossless UTF-16 identities and stable exact-data nodes, evidence nodes, focus, open disclosures, scroll and unchanged URLs. Existing history, threshold, status and pagination tests use the new destinations without removing their semantic cases.
 
 The Observe plus blocked-permission regression keeps the counterfactual assessment visible in the first view, without opening Recorded data. No archived fact is repaired or rejected.
 
@@ -154,16 +175,16 @@ Build the SDK and inspector first, as shown in [the contributor checks](../../CO
 bun test --isolate --max-concurrency=1 --timeout=30000
 ```
 
-On Bun 1.3.14, plain all-file `bun test` can register `node:test` files inside another running test and time out long startup cases. The isolated serial run passes. Vitest files use `.vitest.ts` so Bun does not collect them. `bun run typecheck` and `bun run inspector:check` cover static checks.
+On Bun 1.3.14, plain all-file `bun test` can register `node:test` files inside another running test and time out long startup cases. Use the isolated serial command for those cases. Vitest files use `.vitest.ts` and journeys use `.pw.ts` so Bun does not collect them. `bun run typecheck` and `bun run inspector:check` cover static checks.
 
 ## Chromium cannot start or a test fails
 
 - Check the browser installation and Linux system libraries first.
 - If Pi fixtures cannot import the SDK, run `bun run sdk:build` before retrying.
-- For a `withInspector` fixture failure, inspect its unique directory under ignored `coverage/inspector-artifacts/playwright/failure-*/`. `report.json` records phase timestamps, request timings, console and page errors, browser state, server health, and cleanup results. Setup and navigation failures, callback failures, Vitest timeouts, and teardown failures use the same capture path.
+- For a `withInspector` fixture failure, inspect its unique directory under ignored `coverage/inspector-artifacts/playwright/failure-*/`. `report.json` records phase timestamps, request timings, console and page errors, browser state, server health, and cleanup results. Setup and navigation failures, callback failures, Playwright timeouts and interruptions, and teardown failures use the same capture path.
 - Inspect the report's omissions before drawing conclusions. Diagnostics have time, event, string, page, and byte limits. A failure before browser setup can retain only a report. Available browser evidence includes up to three page screenshots and a bounded `trace.zip` with snapshots. Traces omit network entries, headers, cookies, and source files.
 - Use only synthetic archives. Screenshots and trace snapshots can contain exact displayed recording text. Never point these tests at personal recordings or add credentials to fixtures. From the repository root, open an available trace with `bunx playwright show-trace <failure-directory>/trace.zip`. Replace `<failure-directory>` with the retained directory. Use the local viewer rather than uploading the trace to an external service.
 - Vitest Browser Mode may save component failures under ignored `.vitest/attachments/`. On failure, the offline CI job uploads that directory and built-app `failure-*` directories for seven days. It does not upload temporary archives, owner homes, or all of `coverage/`.
-- The built-app suite also runs deliberate failure subprocesses to check diagnostic retention and owned-resource cleanup. A deliberate 20-second timeout must fail in the subprocess and pass its enclosing regression. These checks add no retries or longer deadlines to existing browser cases.
+- The Node lane runs deliberate failure subprocesses to check diagnostic retention and owned-resource cleanup. A deliberate 20-second timeout must fail in the subprocess and pass its enclosing regression. These checks add no retries or longer deadlines to existing browser cases.
 
 Tests never overwrite tracked `.impeccable/review/` reference images. The user-facing `/tenet-inspector` command still opens Arc; Arc is not a test dependency.

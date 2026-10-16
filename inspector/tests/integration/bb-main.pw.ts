@@ -1,23 +1,16 @@
-import { afterAll, beforeAll, expect, test } from 'vitest';
-import { chromium, type Browser, type Page } from 'playwright';
-import { createServer, type ViteDevServer } from 'vite';
+import { expect, test } from '../browser-shell-fixture.js';
+import type { Page } from 'playwright';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 const stopped = 'thr_stopped0001';
 const stoppedPath = `project/proj_synthetic0001/overview/${stopped}`;
 const noHistoryPath = 'project/proj_synthetic0001/overview/thr_nohistory01';
-let server: ViteDevServer, browser: Browser, origin: string;
 const artifacts = resolve('coverage/inspector-artifacts/tenet54');
-beforeAll(async () => {
-  server = await createServer({ configFile: false, root: resolve('bb-plugin-tenet-status'), server: { host: '127.0.0.1', port: 0 } });
-  await server.listen(); origin = server.resolvedUrls!.local[0]!;
-  browser = await chromium.launch({ headless: true }); await mkdir(artifacts, { recursive: true });
-});
-afterAll(async () => { await browser?.close(); await server?.close(); });
+test.beforeAll(async ({}, testInfo) => { testInfo.setTimeout(30_000); await mkdir(artifacts, { recursive: true }); });
 const reads = (page: Page) => page.evaluate(() => (window as any).tenetPreview.reads as { threadId: string; machine: string; selection: unknown }[]);
 
-test('main picker reads no archives until selection; history restores scope/call/filter across simulated machines', async () => {
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1050 } });
+test('main picker reads no archives until selection; history restores scope/call/filter across simulated machines', async ({ page, shellOrigin: origin }) => {
+  await page.setViewportSize({ width: 1440, height: 1050 });
   try {
     await page.goto(`${origin}main.preview.html?host-query=keep`);
     await page.getByRole('button', { name: 'Synthetic local project', exact: true }).press('Enter');
@@ -47,8 +40,8 @@ test('main picker reads no archives until selection; history restores scope/call
   } finally { await page.close(); }
 });
 for (const [width, narrow] of [[1440, false], [1440, true], [390, false]] as const)
-  test(`shared main summary at ${width}px window / ${narrow ? '390px' : 'full'} container is keyboard-safe, inert and raw-free`, async () => {
-    const page = await browser.newPage({ viewport: { width, height: 1100 } });
+  test(`shared main summary at ${width}px window / ${narrow ? '390px' : 'full'} container is keyboard-safe, inert and raw-free`, async ({ page, shellOrigin: origin }) => {
+    await page.setViewportSize({ width, height: 1100 });
     const errors: string[] = [], unexpected: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.route('**/*', route => {
@@ -91,8 +84,8 @@ for (const [width, narrow] of [[1440, false], [1440, true], [390, false]] as con
       expect(errors).toEqual([]); expect(unexpected).toEqual([]);
     } finally { await page.close(); }
   });
-test('unlinked, unsupported, deleted, changed-scope, forged links and old findings never show prior clean-looking data', async () => {
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1050 } });
+test('unlinked, unsupported, deleted, changed-scope, forged links and old findings never show prior clean-looking data', async ({ page, shellOrigin: origin }) => {
+  await page.setViewportSize({ width: 1440, height: 1050 });
   try {
     await page.goto(`${origin}main.preview.html#${stoppedPath}`);
     await page.locator('.call-row').first().waitFor();

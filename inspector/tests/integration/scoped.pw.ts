@@ -1,16 +1,13 @@
-import { afterAll, beforeAll, expect, test } from 'vitest';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { expect, test } from '../playwright-fixture.js';
+import { mkdir } from 'node:fs/promises';
 import { recordSessionKey, recordInvocationKey } from '../../../src/recording/archive.js';
 import { recordScopedFixture, scopedIdentity } from '../../../test/scoped-recording-fixture.js';
-import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
 import { openRecordedData, reveal } from '../ui-navigation.js';
 
-beforeAll(launchBrowser);
-afterAll(closeBrowser);
 const address = { ...scopedIdentity, schemaVersion: 5 };
 const link = `/?session=${recordSessionKey(address)}&invocation=${recordInvocationKey(address)}`;
 
-for (const width of [1280, 390]) test(`offline scoped inspector preview at ${width}px preserves separate inputs and recorded versions`, async () => {
+for (const width of [1280, 390]) test(`offline scoped inspector preview at ${width}px preserves separate inputs and recorded versions`, async ({ withInspector }) => {
   await withInspector(`scoped-${width}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.locator('.decision-summary').waitFor();
@@ -39,6 +36,5 @@ for (const width of [1280, 390]) test(`offline scoped inspector preview at ${wid
     await page.screenshot({ path: `coverage/inspector-artifacts/scoped-preview/ordinary-${width}.png` });
     await panel.locator('.evidence-section').nth(2).scrollIntoViewIfNeeded();
     await page.screenshot({ path: `coverage/inspector-artifacts/scoped-preview/protection-${width}.png` });
-    await writeFile(`coverage/inspector-artifacts/scoped-preview/page-${width}.html`, await page.content());
   }, { base: false, seed: directory => recordScopedFixture(directory), path: link });
 });

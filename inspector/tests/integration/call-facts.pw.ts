@@ -1,9 +1,6 @@
-import { afterAll, beforeAll, expect, test } from 'vitest';
-import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
+import { expect, test } from '../playwright-fixture.js';
 import { seedCallFacts, statusCases, statusLink } from './call-facts-fixture.js';
-beforeAll(launchBrowser);
-afterAll(closeBrowser);
-test('all fictional lifecycle and overlap facts remain distinct in the built app', async () => {
+test('all fictional lifecycle and overlap facts remain distinct in the built app', async ({ withInspector }) => {
   await withInspector('call-facts-matrix', async ({ page, open, app }) => {
     for (const item of statusCases) {
       const linked = await open(statusLink(item.id));

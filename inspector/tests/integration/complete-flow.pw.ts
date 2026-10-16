@@ -1,16 +1,13 @@
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { expect, test } from '../playwright-fixture.js';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { launchBrowser, closeBrowser, withInspector } from './fixture.js';
 import { seedRuleExplanations, ruleExplanationLink } from './rule-explanation-fixture.js';
 import { seedNavigation, navigationPath } from './navigation-fixture.js';
 
-beforeAll(launchBrowser);
-afterAll(closeBrowser);
 
 // Authored fictional archives only. Exercise real native keyboard scrolling, not assigned scrollTop.
-test('390px complete flow keeps native filtering, issues and every compact/exact rule usable', async () => {
+test('390px complete flow keeps native filtering, issues and every compact/exact rule usable', async ({ withInspector }) => {
   await withInspector('complete-flow-native-mobile', async ({ page, app, directory }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator('.decision-summary').waitFor();

@@ -53,7 +53,7 @@ The runner builds the SDK, inspector, summary and website first. It then validat
 
 The complete Bun suite uses `--isolate --max-concurrency=1 --timeout=30000`. Its stdout and stderr go to a regular file that is replayed afterward.
 
-Application types, delivery consumers, inspector types and both browser suites follow. Plugin TypeScript and configured Vitest checks run last. Nested SDK and inspector rebuilds remain part of their existing commands.
+Application types, delivery consumers, inspector types and all three Inspector lanes (Node infrastructure, mounted UI and browser journeys) follow. Plugin TypeScript and configured Vitest checks run last. Nested SDK and inspector rebuilds remain part of their existing commands.
 
 The lane runs `bun run delivery:check` to compile fresh delivery APIs and inspector assets in a disposable installation. It runs the maintained SDK, doctor, configuration and report consumers under Node and Bun, then checks `scripts/fixtures/archive-types.ts` against fresh declarations.
 
@@ -68,6 +68,8 @@ If the worker group still exists after forced shutdown, the runner reports and r
 Browser executable caches and checkout build output remain. Use separate worktrees for concurrent runs because builds share checkout output.
 
 The inspector uses disposable headless Chromium, not a signed-in browser. See [inspector test coverage and failures](inspector/tests/README.md).
+
+`bun run inspector:test` checks discovery and runs all three Inspector lanes. Inside the clean focused shell, select `inspector:test:components` for mounted UI behavior, `inspector:test:journeys` for Playwright Test journeys, or `inspector:test:node` for infrastructure and diagnostic subprocesses. The last two commands build inspector assets first. Keep all three required for complete validation.
 
 Offline success does not prove live evaluator accuracy, provider connectivity or active host hooks. For website changes, also follow [the separate local website check](docs/DEPLOYMENT.md#build-and-verify-locally).
 

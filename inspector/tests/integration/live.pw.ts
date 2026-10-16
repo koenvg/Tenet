@@ -1,14 +1,11 @@
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { expect, test } from '../playwright-fixture.js';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { sessionKey, qualifiedSessionKey } from '../../../src/recording/archive.js';
 import { HistoricalArchiveWriter as ArchiveWriter } from '../../../test/legacy-recording-fixture.js';
 import { SCHEMA_VERSION } from '../../../src/recording/contract.js';
-import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
 import { openRecordedData, reveal } from '../ui-navigation.js';
 
-beforeAll(launchBrowser);
-afterAll(closeBrowser);
 
 const assets = { base: true, seed: async (directory: string) => {
   const unrelated = join(directory, sessionKey('unrelated-session'));
@@ -16,7 +13,7 @@ const assets = { base: true, seed: async (directory: string) => {
   await writeFile(join(unrelated, 'pending.tmp'), 'in progress', { mode: 0o600 });
 } };
 
-test('fresh visits select the latest call without displaying another session’s warning', async () => {
+test('fresh visits select the latest call without displaying another session’s warning', async ({ withInspector }) => {
   await withInspector('fresh-selection', async ({ page, app }) => {
     await page.locator('.decision-summary').waitFor();
     expect(await page.locator('.call-row[aria-pressed="true"]').count()).toBe(1);
@@ -33,7 +30,7 @@ test('fresh visits select the latest call without displaying another session’s
   }, assets);
 });
 
-test('polling discovers another session and delayed execution without losing the selected rule or evidence scroll', async () => {
+test('polling discovers another session and delayed execution without losing the selected rule or evidence scroll', async ({ withInspector }) => {
   await withInspector('live-updates', async ({ page, directory, recorded }) => {
     const concerning = recorded!.records.find(record => record.callId === 'concerning')!;
     if (concerning.schemaVersion !== SCHEMA_VERSION) throw new Error('Current capture requires the current recording schema');
@@ -84,7 +81,7 @@ test('polling discovers another session and delayed execution without losing the
   }, assets);
 });
 
-test('polling reconnects after transient failures without changing selection or showing unrelated warnings', async () => {
+test('polling reconnects after transient failures without changing selection or showing unrelated warnings', async ({ withInspector }) => {
   await withInspector('poll-reconnection', async ({ page }) => {
     await page.locator('.decision-summary').waitFor();
     const id = await page.locator('.call-row[aria-pressed="true"] .call-id').textContent();

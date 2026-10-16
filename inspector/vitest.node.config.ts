@@ -5,9 +5,7 @@ export default defineConfig({
   envDir: false,
   root: fileURLToPath(new URL('..', import.meta.url)),
   test: {
-    // Node owns the temporary archive and drives a disposable headless Chromium.
-    // The suffix keeps Bun's test runner from collecting Vitest files.
-    include: ['inspector/tests/debugger.vitest.ts', 'inspector/tests/integration/**/*.vitest.ts', 'inspector/tests/diagnostics/*.vitest.ts'],
+    include: ['inspector/tests/node/**/*.vitest.ts'],
     environment: 'node',
     fileParallelism: false,
     maxWorkers: 1,

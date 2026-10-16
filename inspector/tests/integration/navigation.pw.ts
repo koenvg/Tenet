@@ -1,11 +1,8 @@
-import { afterAll, beforeAll, expect, test } from 'vitest';
-import { launchBrowser, closeBrowser, withInspector } from './fixture.js';
+import { expect, test } from '../playwright-fixture.js';
 import { seedNavigation, navigationPath } from './navigation-fixture.js';
 import { reveal } from '../ui-navigation.js';
-beforeAll(launchBrowser);
-afterAll(closeBrowser);
 
-for (const width of [1380, 1103, 390]) test(`direct category filter and individual calls retain mounted state without group requests at ${width}px`, async () => {
+for (const width of [1380, 1103, 390]) test(`direct category filter and individual calls retain mounted state without group requests at ${width}px`, async ({ withInspector }) => {
   await withInspector('navigation', async ({ page, app }) => {
     await page.setViewportSize({ width, height: 1000 });
     const groupRequests: string[] = [];

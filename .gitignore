@@ -10,3 +10,5 @@ site/dist/
 delivery/
 dist/
 examples/dist/
+test-results/
+playwright-report/

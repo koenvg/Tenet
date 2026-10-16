@@ -1,12 +1,9 @@
 import { mkdir } from 'node:fs/promises';
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { expect, test } from '../playwright-fixture.js';
 import { FixtureArchiveWriter } from '../../../test/archive-fixture.js';
 import { readArchive, recordInvocationKey, recordSessionKey } from '../../../src/recording/archive.js';
-import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
 import { reveal } from '../ui-navigation.js';
 
-beforeAll(launchBrowser);
-afterAll(closeBrowser);
 
 const identity = { sessionId: 'assessment-duration', invocationId: 'timed-call', callId: 'timed-call',
   toolName: 'read', cwd: '/synthetic', mode: 'observe' as const };
@@ -14,7 +11,7 @@ const hostIdentity = { ...identity, host: 'pi', contextId: 'main' };
 
 for (const schema of [1, 2, 3, 4, 5] as const) {
   for (const duration of schema < 3 ? [undefined] : [1475, 0, undefined]) {
-    test(`schema ${schema} labels assessment duration ${duration ?? 'unknown'} without claiming provider latency`, async () => {
+    test(`schema ${schema} labels assessment duration ${duration ?? 'unknown'} without claiming provider latency`, async ({ withInspector }) => {
       const address = { ...(schema === 1 ? identity : hostIdentity), schemaVersion: schema };
       const path = `/?session=${recordSessionKey(address)}&invocation=${recordInvocationKey(address)}`;
       const status = { status: 'unavailable', reason: 'provider-error', queueWaitMs: 42,

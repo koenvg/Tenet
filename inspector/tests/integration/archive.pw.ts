@@ -1,15 +1,12 @@
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { expect, test } from '../playwright-fixture.js';
 import { sessionKey, qualifiedSessionKey, recordInvocationKey } from '../../../src/recording/archive.js';
 import { FixtureArchiveWriter as ArchiveWriter } from '../../../test/archive-fixture.js';
 import { recordFailureFixture } from '../../../test/failure-fixture.js';
-import { closeBrowser, launchBrowser, withInspector } from './fixture.js';
 import { openRecordedData, reveal } from '../ui-navigation.js';
 
-beforeAll(launchBrowser);
-afterAll(closeBrowser);
 
 const call = async (page: import('playwright').Page, id: string) => {
   await page.locator('.call-row').filter({ has: page.locator('.call-id', { hasText: new RegExp(`^${id}$`) }) }).click();
@@ -24,7 +21,7 @@ const openPicker = async (page: import('playwright').Page) => {
   await picker.locator('input[aria-label="Project directory"]').waitFor({ state: 'visible' });
 };
 
-test('project filters and cursor pagination retain a safe deep link through background refresh', async () => {
+test('project filters and cursor pagination retain a safe deep link through background refresh', async ({ withInspector }) => {
   const arbitrary = '../雪 ?#%';
   await withInspector('filtered-pagination', async ({ page, open }) => {
     await page.locator('.invocation').waitFor();
@@ -85,7 +82,7 @@ test('project filters and cursor pagination retain a safe deep link through back
   } });
 });
 
-test('fresh link opens an older session omitted from the first picker page', async () => {
+test('fresh link opens an older session omitted from the first picker page', async ({ withInspector }) => {
   const oldKey = sessionKey('older-session');
   await withInspector('older-session-link', async ({ page, app }) => {
     const firstPage = await (await fetch(`${app.origin}/api/sessions`)).json();
@@ -103,7 +100,7 @@ test('fresh link opens an older session omitted from the first picker page', asy
   } });
 });
 
-test('unrecorded linked session waits without borrowing another session’s calls', async () => {
+test('unrecorded linked session waits without borrowing another session’s calls', async ({ withInspector }) => {
   const emptyKey = sessionKey('not-yet-recorded');
   await withInspector('empty-linked-session', async ({ page }) => {
     await page.getByRole('heading', { name: 'Waiting for recorded calls' }).waitFor();
@@ -117,7 +114,7 @@ test('unrecorded linked session waits without borrowing another session’s call
   }, { path: `/?session=${emptyKey}` });
 });
 
-test('corrupt and interrupted captures remain unavailable, and archive errors recover', async () => {
+test('corrupt and interrupted captures remain unavailable, and archive errors recover', async ({ withInspector }) => {
   await withInspector('failure-history', async ({ page }) => {
     await page.locator('.invocation').waitFor();
     await openPicker(page);
@@ -173,7 +170,7 @@ test('corrupt and interrupted captures remain unavailable, and archive errors re
   } });
 });
 
-test('mixed schema-1 Pi and host-qualified Pi/Claude links keep evidence and outcomes separate', async () => {
+test('mixed schema-1 Pi and host-qualified Pi/Claude links keep evidence and outcomes separate', async ({ withInspector }) => {
   await withInspector('mixed-host-archive', async ({ page, app, open }) => {
     const sessions = (await (await fetch(`${app.origin}/api/sessions`)).json()).sessions as Array<{ id: string; host: string; contextId: string }>;
     expect(sessions).toHaveLength(4);
@@ -216,7 +213,7 @@ test('mixed schema-1 Pi and host-qualified Pi/Claude links keep evidence and out
   } });
 });
 
-test('real archive preserves group API, direct category filtering, individual links and newer-record notices', async () => {
+test('real archive preserves group API, direct category filtering, individual links and newer-record notices', async ({ withInspector }) => {
   const key = sessionKey('triage-browser');
   await withInspector('triage-browser', async ({ page, app, open }) => {
     await page.locator('.invocation').waitFor();
@@ -296,7 +293,7 @@ test('real archive preserves group API, direct category filtering, individual li
   } });
 });
 
-test('schema 3 lifecycle deep links keep pending and dropped apart from permission and execution', async () => {
+test('schema 3 lifecycle deep links keep pending and dropped apart from permission and execution', async ({ withInspector }) => {
   const key = qualifiedSessionKey('pi', 'lifecycle-browser', 'main');
   await withInspector('lifecycle-browser', async ({ page, app, open }) => {
     await page.locator('.invocation').waitFor();
@@ -330,7 +327,7 @@ test('schema 3 lifecycle deep links keep pending and dropped apart from permissi
   } });
 });
 
-test('schema 3 pending deep link is ready after a delayed archive response', async () => {
+test('schema 3 pending deep link is ready after a delayed archive response', async ({ withInspector }) => {
   const key = qualifiedSessionKey('pi', 'delayed-lifecycle', 'main');
   await withInspector('delayed-lifecycle', async ({ page, app, open }) => {
     await page.locator('.invocation').waitFor();

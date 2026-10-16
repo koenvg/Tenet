@@ -11,5 +11,5 @@
     "paths": { "@/*": ["./web/*"] },
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "scripts/*.ts", "test/**/*.ts", "eval/**/*.ts", "inspector/tests/**/*.ts", "inspector/vitest.config.ts"]
+  "include": ["src/**/*.ts", "scripts/*.ts", "test/**/*.ts", "eval/**/*.ts", "inspector/tests/**/*.ts", "inspector/*.config.ts"]
 }
