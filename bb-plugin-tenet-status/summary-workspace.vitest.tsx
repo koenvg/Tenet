@@ -11,9 +11,11 @@ test('React mounts and updates safe summaries, then disposes under StrictMode wi
   const actions = { selectCall: vi.fn(), filterCategory: vi.fn(), refresh: vi.fn() };
   const input = { model: structuredClone(previewInput.model), actions };
   const screen = render(<StrictMode><SummaryWorkspaceMount {...input} /></StrictMode>);
+  fireEvent.click(screen.getByText('Recording details', { exact: true }));
   await waitFor(() => expect(screen.getByRole('region', { name: 'Actual execution' }).textContent).toContain('Ran'));
   expect(screen.container.querySelectorAll('.tenet-summary-workspace')).toHaveLength(1);
-  expect(screen.getByText('Call synthetic-pass')).toBeTruthy();
+  expect(screen.getByRole('group', { name: 'Recording details' }).textContent).toContain('synthetic-pass');
+  expect(screen.getByText('synthetic-pass', { exact: true }).textContent).toBe('synthetic-pass');
   fireEvent.click(screen.getByRole('button', { name: 'Refresh archive' }));
   expect(actions.refresh).toHaveBeenCalledOnce();
   const next = { ...input, model: { ...input.model, selected: { ...input.model.selected!, execution: 'unknown', permission: 'released' } } };

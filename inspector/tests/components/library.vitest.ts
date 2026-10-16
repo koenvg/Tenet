@@ -50,7 +50,7 @@ test('summary updates retain open checks and rule selection only within the same
   try {
     await tick();
     await page.getByText('Why this assessment', { exact: true }).click();
-    await page.getByText(/Browse all rules/).click();
+    await page.getByText(/^Browse all rules/).click();
     await page.getByRole('button', { name: /Record every file edit/ }).click();
     await page.getByRole('button', { name: 'More rules', exact: true }).click();
     expect(actions.loadMoreRules).toHaveBeenCalledOnce();
@@ -58,6 +58,7 @@ test('summary updates retain open checks and rule selection only within the same
     workspace.update({ model: { ...model, selected: standaloneSummary(makeView({ execution: 'executed' })) }, actions });
     await tick();
     await expect.element(page.getByRole('heading', { name: 'Rule at line 9' })).toBeVisible();
+    await page.getByText('Recording details', { exact: true }).click();
     await expect.element(page.getByRole('region', { name: 'Actual execution' }).getByText('Ran', { exact: true })).toBeVisible();
     workspace.update({ model: { ...model, selectedId: 'second', selected: standaloneSummary(makeView({ callId: 'second' })) }, actions });
     await tick();

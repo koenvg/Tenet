@@ -34,8 +34,8 @@ for (const entry of ['panel', 'main'] as const) test(`${entry}: live append pres
     fireEvent.change(slot.getByLabelText('Linked session'), { target: { value: liveId(1054) } }); await settle();
     fireEvent.click(explorer().getByRole('button', { name: 'More invocations' })); await settle();
     expect(slot.container.querySelectorAll('.call-row')).toHaveLength(70);
-    fireEvent.click(slot.getByText('live-1', { exact: true })); await settle();
-    fireEvent.click(slot.getByText('Why this assessment')); fireEvent.click(slot.getByText(/Browse all rules/));
+    fireEvent.click(slot.container.querySelector<HTMLButtonElement>(`[data-call-id="${liveId(2001)}"]`)!); await settle();
+    fireEvent.click(slot.getByText('Why this assessment')); fireEvent.click(slot.getByText(/^Browse all rules/));
     fireEvent.click(detail().getByRole('button', { name: 'More rules' })); await settle();
     fireEvent.click(rules().getByRole('button', { name: /Built-in integrity/ })); await settle();
     const selected = { sessionId: liveId(1054), callId: liveId(2001) };
@@ -52,14 +52,14 @@ for (const entry of ['panel', 'main'] as const) test(`${entry}: live append pres
     }
     fixture.append(); await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
     expect(slot.container.querySelectorAll('.call-row')).toHaveLength(71);
-    expect(slot.getByText('Call live-1')).toBeTruthy();
+    expect(slot.getByText('live-1')).toBeTruthy();
     expect(slot.getByLabelText('Linked session').querySelectorAll('option')).toHaveLength(55);
     expect(explorer().queryByRole('button', { name: 'More invocations' })).toBeNull();
     expect(rules().getByRole('button', { name: /Built-in integrity/ }).getAttribute('aria-pressed')).toBe('true');
     expect(slot.getByText('Recorded rules 17–19 of 19. At most 16 rules per page.')).toBeTruthy();
     fireEvent.click(archive().getByRole('button', { name: 'Refresh archive' })); await settle();
     expect(slot.container.querySelectorAll('.call-row')).toHaveLength(50);
-    expect(slot.getByText('Call live-1')).toBeTruthy();
+    expect(slot.getByText('live-1')).toBeTruthy();
     expect((slot.getByLabelText('Linked session') as HTMLSelectElement).value).toBe(selected.sessionId);
     expect(summaryCalls(slot).at(-1)?.input).toMatchObject(selected);
     expect((summaryCalls(slot).at(-1)?.input as any)?.ruleCursor).toBeUndefined();
@@ -115,7 +115,7 @@ test('metadata and summary transports receive scope-owned signals; unmount, time
   const threadArgs = slot.inspection.sdkCalls.find(c => c.method === 'threads.get')!.args[0] as { signal: AbortSignal };
   expect(args.signal.aborted).toBe(false);
   await act(async () => { await vi.advanceTimersByTimeAsync(8_000); }); expect(args.signal.aborted).toBe(true);
-  expect(slot.queryByText('Call synthetic-provider-error-1')).toBeNull();
+  expect(slot.queryByText('synthetic-provider-error-1')).toBeNull();
   slot.lifecycle.unmount(); finish(structuredClone(syntheticOverview)); await settle();
   expect(threadArgs.signal.aborted).toBe(true); expect(vi.getTimerCount()).toBe(0);
   expect(document.querySelector('.tenet-summary-workspace')).toBeNull();

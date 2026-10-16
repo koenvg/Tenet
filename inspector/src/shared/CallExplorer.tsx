@@ -9,9 +9,9 @@ interface Props {
   calls: SummaryCall[]; selectedId: string; category: FindingCategory | '';
   loading: boolean; unavailable: boolean; more: boolean;
   selectCall(id: string): void; filterCategory(category: FindingCategory | ''): void; loadMore?: () => void;
-  showCallLabels?: boolean; explorerId?: string; filterId?: string;
+  explorerId?: string; filterId?: string;
 }
-export default function CallExplorer({ calls, selectedId, category, loading, unavailable, more, selectCall, filterCategory, loadMore, showCallLabels = true, explorerId, filterId }: Props) {
+export default function CallExplorer({ calls, selectedId, category, loading, unavailable, more, selectCall, filterCategory, loadMore, explorerId, filterId }: Props) {
   return <aside id={explorerId} className="explorer" aria-label="Call explorer">
     <div className="pane-heading"><h2>Recent calls</h2></div>
     <div className="triage-tools"><label>Finding category
@@ -19,13 +19,13 @@ export default function CallExplorer({ calls, selectedId, category, loading, una
         <option value="">All recorded calls</option>{findingCategories.map(c => <option key={c} value={c}>{categoryLabels[c]}</option>)}
       </select>
     </label></div>
-    <nav className="call-list" aria-label="Invocations">{calls.map(item => {
+    <nav className="call-list" aria-label="Invocations">{calls.map((item, index) => {
       const status = primaryStatus(item), concern = callConcern(item);
       return <Button variant="ghost" key={item.id} className="call-row" data-call-id={item.id} aria-pressed={selectedId === item.id} onClick={() => selectCall(item.id)}>
         <DecisionIcon kind={item.toolName === 'bash' ? 'action' : ['read', 'write', 'edit'].includes(item.toolName) ? 'document' : 'tool'} />
         <span className="call-copy">
-          <span className="call-top"><strong>{toolLabel(item.toolName)}</strong><time>{timestamp(item.timestamp)}</time></span>
-          <span className="call-id" hidden={!showCallLabels}>{item.callId}</span>
+          <span className="call-top"><strong>{toolLabel(item.toolName || 'Unknown tool')}</strong></span>
+          <span className="call-meta"><span>Call {index + 1}</span><time>{timestamp(item.timestamp)}</time></span>
           <span className="call-state" title={status.explanation}><StatusChip value={status.label} tone={status.tone} icon={status.icon} showIcon /><span className="call-mode">{modeLabel(item.mode)}</span></span>
           {concern && <small className={`call-concern ${concern.tone} ${status.inconsistency ? 'recording-inconsistency' : ''}`} title={concern.description}>{concern.text}</small>}
         </span>

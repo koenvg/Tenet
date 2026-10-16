@@ -7,7 +7,7 @@ import { rulesSyntheticRead } from '../../../bb-plugin-tenet-status/rules.previe
 for (const [viewport, width] of [[390, 390], [1280, 390], [1280, 1000]]) test(`rule paging and keyboard access in ${width}px container at ${viewport}px`, async () => {
   await page.viewport(viewport!, 900);
   const target = document.createElement('div'); target.style.width = `${width}px`; target.style.maxWidth = '100%'; document.body.append(target);
-  let selection: { callId?: string; ruleCursor?: string } = {};
+  let selection: { callId?: string; ruleCursor?: string } = { callId: '15'.padStart(64, '0') };
   let workspace: ReturnType<typeof mountSummaryWorkspace>;
   function input() {
     const data = rulesSyntheticRead(selection);
@@ -20,8 +20,11 @@ for (const [viewport, width] of [[390, 390], [1280, 390], [1280, 1000]]) test(`r
   try {
     await tick();
     if (width! < 650) await page.getByRole('button', { name: 'Summary', exact: true }).click();
+    const compact = target.querySelector('.recorded-call')!.textContent;
+    expect(compact).toContain('19 reported violations. Showing 16.');
+    expect(compact).toContain('printf "authored  FAIL"');
     await page.getByText('Why this assessment', { exact: true }).click();
-    await page.getByText(/Browse all rules/).click();
+    await page.getByText(/^Browse all rules/).click();
     await expect.element(page.getByText('Recorded rules 1–16 of 19. At most 16 rules per page.')).toBeVisible();
     expect(target.querySelectorAll('.rule-row')).toHaveLength(16);
     expect((window as any).archiveExecuted).toBeUndefined(); expect(target.querySelector('script')).toBeNull();
@@ -34,6 +37,7 @@ for (const [viewport, width] of [[390, 390], [1280, 390], [1280, 1000]]) test(`r
     await userEvent.keyboard('{Enter}');
     await expect.element(page.getByText('Recorded rules 17–19 of 19. At most 16 rules per page.')).toBeVisible();
     expect(target.querySelectorAll('.rule-row')).toHaveLength(3);
+    expect(target.querySelector('.recorded-call')!.textContent).toBe(compact);
     await page.getByRole('button', { name: /Built-in integrity/ }).click();
     await expect.element(page.getByRole('heading', { name: 'Built-in integrity' })).toBeVisible();
     await page.getByText('Probabilities and rule details', { exact: true }).click();
@@ -42,13 +46,15 @@ for (const [viewport, width] of [[390, 390], [1280, 390], [1280, 1000]]) test(`r
     [...target.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === 'First rule page')!.focus();
     await userEvent.keyboard('{Enter}');
     await expect.element(page.getByText('Recorded rules 1–16 of 19. At most 16 rules per page.')).toBeVisible();
+    expect(target.querySelector('.recorded-call')!.textContent).toBe(compact);
     expect(target.scrollWidth).toBeLessThanOrEqual(target.clientWidth);
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
     if (width! < 650) await page.getByRole('button', { name: 'Calls', exact: true }).click();
-    await page.getByRole('button', { name: /synthetic-WARN/ }).click();
-    await expect.element(page.getByText('Call synthetic-WARN', { exact: true })).toBeVisible();
+    target.querySelector<HTMLButtonElement>(`[data-call-id="${'16'.padStart(64, '0')}"]`)!.click();
+    await page.getByText('Recording details', { exact: true }).click();
+    await expect.element(page.getByRole('group', { name: 'Recording details' }).getByText('synthetic-WARN', { exact: true })).toBeVisible();
     await page.getByText('Why this assessment', { exact: true }).click();
-    await page.getByText(/Browse all rules/).click();
+    await page.getByText(/^Browse all rules/).click();
     await page.getByRole('button', { name: /Line 1 / }).click();
     await expect.element(page.getByRole('region', { name: 'Selected rule', exact: true }).getByText('WARN', { exact: true })).toBeVisible();
   } finally { await workspace.destroy(); expect(target.childElementCount).toBe(0); target.remove(); }

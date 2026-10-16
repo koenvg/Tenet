@@ -39,7 +39,7 @@ for (const width of [1000, 390]) test(`both adapters have the same safe content,
   await match();
   await leftUI.getByText('Why this assessment', { exact: true }).click();
   await leftUI.getByRole('button', { name: 'Inspect evidence confidence' }).click();
-  await rightUI.getByText(/Browse all rules/).click();
+  await rightUI.getByText(/^Browse all rules/).click();
   await rightUI.getByRole('button', { name: /Record every file edit/ }).click();
   await match();
   await leftUI.getByText('Probabilities and rule details', { exact: true }).click();
@@ -53,7 +53,8 @@ for (const width of [1000, 390]) test(`both adapters have the same safe content,
   if (width === 390) await rightUI.getByRole('button', { name: 'Calls', exact: true }).click();
   await rightUI.getByRole('combobox', { name: 'Finding category' }).selectOptions('unavailable');
   await expect.poll(() => left.querySelector('select')?.value).toBe('unavailable');
-  await rightUI.getByRole('button', { name: /synthetic-failure/ }).click();
+  right.querySelector<HTMLButtonElement>('[data-call-id="synthetic-failure"]')!.click();
+  await leftUI.getByText('Recording details', { exact: true }).click();
   await expect.element(leftUI.getByText('Recorded assessment: unavailable · provider-error.', { exact: true })).toBeVisible();
   await expect.element(rightUI.getByText('Recorded assessment: unavailable · provider-error.', { exact: true })).toBeVisible();
   await expect.poll(() => snapshot(right)).toEqual(snapshot(left));

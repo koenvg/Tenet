@@ -16,7 +16,9 @@ test('offline adapter rule paging and call resets in a 390px panel inside a 1440
   try {
     await page.goto(`${origin}overview.preview.html?rules`); await page.locator('.call-row').first().waitFor();
     await page.getByRole('button', { name: 'Summary', exact: true }).focus(); await page.keyboard.press('Enter');
-    expect(await page.locator('.recorded-context').innerText()).toContain('Contract 3 · Questions recorded-v3');
+    await page.getByText('Recording details', { exact: true }).press('Enter');
+    await expect(page.getByRole('group', { name: 'Recording details' }).getByText('3', { exact: true })).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Recording details' }).getByText('recorded-v3', { exact: true })).toBeVisible();
     expect(await page.locator('.primary-status').innerText()).toContain('Released');
     expect(await page.locator('.common-summary').innerText()).toContain('Execution unknown. Released permission does not prove dispatch or execution.');
     await page.locator('.why-disclosure > summary').press('Enter'); await page.locator('.other-rules > summary').press('Enter');
@@ -25,13 +27,14 @@ test('offline adapter rule paging and call resets in a 390px panel inside a 1440
     await page.screenshot({ path: `${artifacts}/adapter-narrow-panel-page2.png`, fullPage: true });
     await page.getByRole('button', { name: 'First rule page', exact: true }).click();
     await expect.poll(() => page.locator('.other-rules').innerText()).toContain('Recorded rules 1–16 of 19.');
-    for (const name of ['FAIL', 'WARN', 'integrity', 'approval', 'uncertainty', 'provider failure']) {
+    for (const [index, name] of ['FAIL', 'WARN', 'integrity', 'approval', 'uncertainty', 'provider failure'].entries()) {
       await page.getByRole('button', { name: 'More rules', exact: true }).click();
       await expect.poll(() => page.locator('.other-rules').innerText()).toContain('Recorded rules 17–19 of 19.');
       await page.getByRole('button', { name: 'Calls', exact: true }).focus(); await page.keyboard.press('Enter');
-      await page.locator('.call-row').filter({ hasText: `synthetic-${name}` }).click();
+      await page.locator(`[data-call-id="${(21 + index).toString(16).padStart(64, '0')}"]`).click();
       await page.getByRole('button', { name: 'Summary', exact: true }).focus(); await page.keyboard.press('Enter');
-      await expect.poll(() => page.locator('.recorded-context').innerText()).toContain(`Call synthetic-${name}`);
+      await page.getByText('Recording details', { exact: true }).press('Enter');
+      await expect(page.getByRole('group', { name: 'Recording details' }).getByText(`synthetic-${name}`, { exact: true })).toBeVisible();
       await page.locator('.why-disclosure > summary').press('Enter'); await page.locator('.other-rules > summary').press('Enter');
       expect(await page.locator('.other-rules').innerText()).toContain('Recorded rules 1–16 of 19.');
       if (name === 'provider failure') expect(await page.locator('.assessment-state').first().innerText()).toBe('Recorded assessment: unavailable · provider-error.');

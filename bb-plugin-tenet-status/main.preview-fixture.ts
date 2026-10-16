@@ -2,6 +2,7 @@ import type { PickerClient } from './main-page';
 import { syntheticOverview, syntheticRead } from './overview.preview-fixture';
 import { emptyOverview, type OverviewSelection, type ThreadOverview } from '../src/inspector/bb-summary';
 
+import { reportedViolations } from '../src/inspector/summary-display';
 export const projectA = 'proj_synthetic0001', projectB = 'proj_synthetic0002';
 export const stopped = 'thr_stopped0001', remote = 'thr_remote00001', noHistory = 'thr_nohistory01';
 export const nonPi = 'thr_nonpi000001', deleted = 'thr_deleted0001';
@@ -44,6 +45,7 @@ export async function mainSyntheticRead(threadId: string, selection: OverviewSel
     selected.rules = selected.rules.map(rule => ({ ...rule, text: '<script>window.archiveExecuted=true</script>',
       contribution: 'blocking-gates', gateIds: ['rule-fail'], result: { outcome: { choice: 'FAIL', probabilities: { FAIL: .99 } },
         evidence: { choice: 'SUFFICIENT', probabilities: { SUFFICIENT: .99 } } } }));
+    selected.reportedViolations = reportedViolations(selected.rules, true, false);
     data.selectedId = 'b'.repeat(64);
     data.calls = [{ ...data.calls[0]!, id: data.selectedId, callId: selected.identity!.callId,
       decision: selected.decision, categories: ['violation'] }];

@@ -30,7 +30,7 @@ async function open(page: Page, origin: string, entry: string, width = 1440) {
 }
 async function rulePage(page: Page) {
   await page.getByText('Why this assessment', { exact: true }).click();
-  await page.getByText(/Browse all rules/).click();
+  await page.getByText(/^Browse all rules/).click();
   await page.getByRole('button', { name: 'More rules', exact: true }).press('Enter');
   await page.getByRole('button', { name: /Built-in integrity/ }).press('Enter');
   await page.getByText('Recorded rules 17–19 of 19. At most 16 rules per page.', { exact: true }).waitFor();
@@ -43,7 +43,7 @@ for (const entry of ['panel', 'main']) for (const width of [390, 1440]) test(`${
     await page.getByLabel('Linked session').selectOption((1054).toString(16).padStart(64, '0'));
     await page.getByRole('button', { name: 'More invocations', exact: true }).press('Enter');
     await expect.poll(() => page.locator('.call-row').count()).toBe(70);
-    await page.getByText('live-1', { exact: true }).click();
+    await page.locator(`[data-call-id="${(2001).toString(16).padStart(64, '0')}"]`).click();
     await page.getByRole('button', { name: 'Summary', exact: true }).waitFor();
     await rulePage(page);
     const before = await resources(page);
@@ -51,7 +51,7 @@ for (const entry of ['panel', 'main']) for (const width of [390, 1440]) test(`${
     await page.getByRole('button', { name: 'Append recorded stage', exact: true }).click();
     await page.clock.runFor(10_000);
     await expect.poll(() => page.locator('.call-row').count()).toBe(71);
-    expect(await page.locator('.call-label').innerText()).toBe('Call live-1');
+    expect(await page.locator('.recording-details dd').first().textContent()).toBe('live-1');
     expect(await page.getByRole('button', { name: /Built-in integrity/ }).getAttribute('aria-pressed')).toBe('true');
     expect(await page.getByLabel('Linked session').locator('option').count()).toBe(55);
     expect(await page.getByRole('button', { name: 'More invocations', exact: true }).count()).toBe(0);
@@ -71,16 +71,16 @@ for (const entry of ['panel', 'main']) for (const width of [390, 1440]) test(`${
     await page.screenshot({ path: resolve(artifacts, `${entry}-${width}-rules.png`), fullPage: true });
     if (entry === 'main') {
       await page.getByRole('button', { name: 'Calls', exact: true }).press('Enter');
-      await page.getByText('live-2', { exact: true }).click();
-      await expect.poll(() => page.locator('.call-label').innerText()).toBe('Call live-2');
-      await page.goBack(); await expect.poll(() => page.locator('.call-label').innerText()).toBe('Call live-1');
+      await page.locator(`[data-call-id="${(2002).toString(16).padStart(64, '0')}"]`).click();
+      await expect.poll(() => page.locator('.recording-details dd').first().textContent()).toBe('live-2');
+      await page.goBack(); await expect.poll(() => page.locator('.recording-details dd').first().textContent()).toBe('live-1');
       expect(await page.locator('.call-row').count()).toBe(71);
-      await page.goForward(); await expect.poll(() => page.locator('.call-label').innerText()).toBe('Call live-2');
+      await page.goForward(); await expect.poll(() => page.locator('.recording-details dd').first().textContent()).toBe('live-2');
       expect(await page.locator('.call-row').count()).toBe(71);
     }
     await page.getByRole('button', { name: 'Refresh archive', exact: true }).press('Enter');
     await expect.poll(() => page.locator('.call-row').count()).toBe(50);
-    expect(await page.locator('.call-label').innerText()).toBe(entry === 'main' ? 'Call live-2' : 'Call live-1');
+    expect(await page.locator('.recording-details dd').first().textContent()).toBe(entry === 'main' ? 'live-2' : 'live-1');
     await page.getByRole('button', { name: 'Close workspace', exact: true }).press('Enter');
     await expect.poll(() => page.locator('.tenet-summary-workspace').count()).toBe(0);
     expect(await resources(page)).toEqual({ intervals: 0, timeouts: 0, observers: 0 });

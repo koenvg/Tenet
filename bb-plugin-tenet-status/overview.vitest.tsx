@@ -83,7 +83,7 @@ test.each(['pi', 'pi-subagents'])('real panel mounts shared safe summary, displa
     fireEvent.click(slot.getByRole('button', { name: 'Refresh archive' }));
     expect(await slot.findByText('Host or archive unavailable. No current result.')).toBeTruthy();
     expect(slot.getByText('Calls unavailable. Missing records are not a pass.')).toBeTruthy();
-    expect(slot.queryByText('Call synthetic-provider-error-1')).toBeNull();
+    expect(slot.queryByText('synthetic-provider-error-1')).toBeNull();
   } finally { slot.lifecycle.unmount(); }
 });
 
@@ -125,9 +125,9 @@ test('panel adapter reads scoped rule pages through overview only and resets pag
     sdk: { threads: { get: async () => ({ providerId: 'pi' }) as any } }, rpc: { overview: read },
   });
   try {
-    await slot.findByText('Call synthetic-pass');
+    await slot.findByText('synthetic-pass');
     fireEvent.click(slot.getByRole('button', { name: 'Summary', hidden: true }));
-    fireEvent.click(slot.getByText('Why this assessment')); fireEvent.click(slot.getByText(/Browse all rules/));
+    fireEvent.click(slot.getByText('Why this assessment')); fireEvent.click(slot.getByText(/^Browse all rules/));
     fireEvent.click(slot.getByRole('button', { name: 'More rules' }));
     await slot.findByText('Recorded rules 17–19 of 19. At most 16 rules per page.');
     expect(slot.container.querySelectorAll('.rule-row')).toHaveLength(3);
@@ -136,8 +136,8 @@ test('panel adapter reads scoped rule pages through overview only and resets pag
     await slot.findByText('Recorded rules 1–16 of 19. At most 16 rules per page.');
     expect(read.mock.calls.at(-1)![0].ruleCursor).toBeUndefined();
     fireEvent.click(slot.getByRole('button', { name: 'Calls', hidden: true }));
-    fireEvent.click(slot.getByText('synthetic-WARN'));
-    await slot.findByText('Call synthetic-WARN');
+    fireEvent.click(slot.container.querySelector<HTMLButtonElement>(`[data-call-id="${'16'.padStart(64, '0')}"]`)!);
+    await slot.findByText('synthetic-WARN');
     expect(read.mock.calls.at(-1)![0].ruleCursor).toBeUndefined();
     expect(summaryCalls(slot).every(c => c.method === 'overview')).toBe(true);
     expect(slot.container.querySelector('script')).toBeNull();

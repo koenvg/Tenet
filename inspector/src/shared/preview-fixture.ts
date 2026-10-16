@@ -1,5 +1,6 @@
 import type { SummaryWorkspaceInput, SummaryDecision } from './model.js';
 
+import { reportedViolations, uncertainGates } from '../../../src/inspector/summary-display.js';
 // Authored safe summaries only. No archive, policy file or provider is read.
 const selected: SummaryDecision = {
   judge: { provider: 'typesafe', requestedModel: 'jev-latest', returnedModel: 'jev-authored-v1', judgeReportVersion: 'judge-report-v1',
@@ -45,6 +46,12 @@ export const previewSummaries: Record<string, SummaryDecision> = {
   'v2-injected': { ...selected, identity: { toolName: 'read', callId: 'v2-injected', mode: 'observe' },
     judge: { ...selected.judge, provider: 'injected', requestedModel: null, returnedModel: 'authored-injected', judgeReportVersion: 'judge-report-v2' } },
 };
+for (const view of Object.values(previewSummaries)) {
+  view.recordedAction = view.identity?.toolName === 'bash'
+    ? { field: 'command', text: 'printf "authored  preview"\n  echo 雪', truncated: false }
+    : { field: 'path', text: 'authored/recorded file.txt', truncated: false };
+  view.reportedViolations = reportedViolations(view.rules, view.assessmentStatus !== 'unavailable', view.rules.some(rule => uncertainGates(rule.gateIds)));
+}
 export const previewInput: SummaryWorkspaceInput = {
   model: { calls: [
     { id: 'synthetic-pass', callId: 'synthetic-pass', toolName: 'bash', timestamp: 1000, mode: 'observe',

@@ -111,7 +111,7 @@ test('missing and malformed captured arguments stay unavailable; valid keys use 
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test('private previews never enter non-empty BB status or finding projections', async () => {
+test('selected owner summaries allow only the recorded path; status and findings exclude private previews', async () => {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-preview-')));
   try {
     const writer = new FixtureArchiveWriter({ enabled: true, directory: root });
@@ -142,7 +142,8 @@ test('private previews never enter non-empty BB status or finding projections', 
     const overview = await index.threadOverview(identity.bbThreadId);
     const selected = await index.threadOverview(identity.bbThreadId, { sessionId: overview.sessionId!, callId: overview.selectedId! });
     for (const value of [overview, selected]) {
-      const json = JSON.stringify(value);
+      assert.deepEqual(value.selected?.recordedAction, { field: 'path', text: 'PRIVATE-PREVIEW-ONLY.txt', truncated: false });
+      const json = JSON.stringify({ ...value, selected: { ...value.selected, recordedAction: null } });
       for (const privateField of ['PRIVATE-PREVIEW-ONLY', 'FULL-EVIDENCE-ONLY', 'rulePreviews', 'actionPreview', 'arguments', 'PRIVATE-QUESTION-ONLY']) {
         assert.ok(!json.includes(privateField), `${privateField} must not enter the BB summary`);
       }

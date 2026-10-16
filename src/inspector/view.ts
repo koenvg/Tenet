@@ -34,6 +34,8 @@ export function invocationView(records: ArchiveRecord[]) {
   const recordedContext = contexts.find(c => c.preparation === 'completed') ?? contexts[0];
   const invalidRecordedAssessment = records.some(recordedAssessmentInvalid);
   return {
+    recordedAction: invocation.recordedAction,
+    assessmentUncertain: invocation.assessmentUncertain,
     identity: records[0] ? { host: records[0].host ?? 'pi', contextId: records[0].contextId ?? 'main',
       schemas: [...new Set(records.map(r => r.schemaVersion))],
       schemaVersion: records[0].schemaVersion, sessionId: records[0].sessionId, invocationId: records[0].invocationId,
@@ -65,11 +67,11 @@ export function invocationView(records: ArchiveRecord[]) {
     policy, evidence: inputs.sharedState, inputLayout: inputs.layout, inputScopes: inputs.scopes, submissions, response: Object.keys(response).length ? response : null,
     validation,
     rules: rules.map(({ rule, builtin, origin }) => {
-      const { result, diagnostic, contribution, recorded, thresholds } = invocation.forRule(rule.id);
+      const { result, diagnostic, contribution, recorded, thresholds, hasRecordedGates } = invocation.forRule(rule.id);
       const mapping = list(request.mapping).find(m => m.id === rule.id);
       const questions = object(inputs.questions);
       return { origin, id: text(rule.id), text: text(rule.text), line: rule.line ?? null, enforcement: text(rule.enforcement),
-        builtin, result: result ?? null,
+        builtin, hasRecordedGates, result: result ?? null,
         gates: diagnostic ?? null, gateIds: Array.isArray(recorded?.gates) ? recorded.gates.filter((g: unknown): g is string => typeof g === 'string') : null,
         contribution: text(contribution?.contribution),
         thresholds,

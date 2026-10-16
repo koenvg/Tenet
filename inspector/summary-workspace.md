@@ -4,7 +4,7 @@ Use this developer-checkout reference to build the shared React summary library.
 
 ## Build the library and plugin
 
-Use Bun 1.3.14+, Node 22.19+, the [locked development dependencies](../CONTRIBUTING.md#set-up) and an installed BB CLI for plugin builds. Keep `TYPESAFE_API_KEY` unset for offline checks. Do not use real archives in previews. Recorded rule text can contain secrets even when the summary excludes evidence.
+Use Bun 1.3.14+, Node 22.19+, the [locked development dependencies](../CONTRIBUTING.md#set-up) and an installed BB CLI for plugin builds. Keep `TYPESAFE_API_KEY` unset for offline checks. Do not use real archives in previews. Recorded rule text and commands or paths can contain secrets even when the summary excludes evidence.
 
 1. From the repository root, build both local outputs:
 
@@ -51,7 +51,7 @@ Open `http://127.0.0.1:52351/comparison-preview.html` for the common-summary-onl
 
 Add `?container=390` to compare 390px containers inside a wide window. Check that shared fields have the same content, order and positions, not only that they fit. The preview starts without raw extensions, so omitted raw content cannot change the common layout.
 
-Select **Show standalone-only inspection**, or add `?raw=1`, to show Recorded data after the left summary. Submitted action, captured policy, exact questions, evidence, response and recording details stay in that private section; BB receives no raw values. The left workspace can become taller; its common summary rows retain their positions.
+Select **Show standalone-only inspection**, or add `?raw=1`, to show Recorded data after the left summary. Full submitted action, captured policy, exact questions, evidence, response and recording details stay in that private section. BB receives only the bounded selected command or path, not the raw argument object. The left workspace can become taller; its common summary rows retain their positions.
 
 ## Summary input
 
@@ -64,7 +64,19 @@ The source contract is [shared/model.ts](src/shared/model.ts). It is a presentat
 
 `SummaryCall` has an opaque ID, call/tool labels, timestamp, mode, recorded decision, permission, execution, categories, missing-stage codes, assessment status and safe failure code.
 
-`SummaryDecision` has call and tool identity, mode, recorded facts, approval, reason code, the recorded no-violation flag, rules and a required `judge` subset. It has no action, evidence, question or provider-response field.
+`SummaryDecision` has call and tool identity, mode, recorded facts, approval, reason code, the recorded no-violation flag, rules and a required `judge` subset.
+
+Its selected-only `recordedAction` contains one scalar `command`, `path` or `file_path` from the retained request, or `null` when unavailable. The 4096-UTF-8-byte bound preserves stored whitespace and marks shortening. No raw arguments, evidence, questions or provider responses enter this model.
+
+`reportedViolations` contains at most 16 compact selected-FAIL rule records, a whole-call total and a missing-snapshot count. WARN stays advisory.
+
+BB attribution uses the retained request snapshot, even when missing or empty. The begin snapshot applies only when no request was retained.
+
+The required `uncertain` flag covers all recorded rule facts before pagination or finding limits. Missing selected gates and any recorded gate other than `rule-fail` make the flag true. Unavailable assessments also set it true.
+
+The view uses this flag with the completeness check before showing a clean no-violation message. Neither adapter recalculates thresholds or uses current policy.
+
+Missing validation withholds the subset even when the stage fold says completed. Neither field enters call lists, status, findings, logs or URLs.
 
 `SummaryJudge` allowlists implementation, requested and returned aliases, judge report version, canonical origin, transport, authentication mode, experimental status and recorded configuration with per-field provenance. Both adapters use the pure recorded-only `summaryJudge` projection.
 
@@ -100,7 +112,9 @@ The standalone app uses `useArchive` in [archive-state.ts](src/archive-state.ts)
 
 Standalone Detail shows named permission, tool result and assessment facts, followed by two native disclosures. **Why this assessment** contains compact recorded-rule explanations. **Recorded data** contains submitted action, policy, exact evidence/questions, response and recording details. New selections close disclosures; unchanged polls keep them mounted. The standalone UI does not fetch groups.
 
-BB keeps [SummaryDetail.tsx](src/shared/SummaryDetail.tsx), its recorded map, selected-check controls and paginated rule summaries. Its Recorded judge disclosure and private RecordingDetails reuse RecordedJudgeFields for the same recorded labels and order. Those components still use [presentation.css](src/shared/presentation.css). The synthetic comparison also renders this safe summary on both sides; it is not proof of the private Inspector's layout.
+BB keeps [SummaryDetail.tsx](src/shared/SummaryDetail.tsx). Only the tool, recorded command or path and reported FAIL rule text stay open. **Recording details** holds assessment, mode, permission, execution, metadata and the privacy note.
+
+The map, selected-check controls, paginated rule browser and judge fields stay collapsed. Changing a rule page preserves the whole-call result. Missing snapshots, shortened text and omitted items remain explicit.
 
 The library entry is [library.tsx](src/shared/library.tsx). `mountSummaryWorkspace(target, input)` returns `update(input)` and asynchronous, idempotent `destroy()`. Updates after disposal do nothing. The entry exposes no raw-detail snippets, HTTP client, polling timer or global history handler.
 

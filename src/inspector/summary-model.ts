@@ -38,7 +38,17 @@ export interface SummaryExplanation {
   blockerCount: number; uncertaintyOnly: boolean;
   firstBlocker: (Pick<SummaryRule, 'builtin' | 'line' | 'result' | 'thresholds'> & { gate: string }) | null;
 }
+export interface SummaryAction {
+  field: 'command' | 'path' | 'file_path'; text: string; truncated: boolean;
+}
+export interface SummaryViolations {
+  assessment: 'validated' | 'unavailable'; uncertain: boolean;
+  items: (Pick<SummaryRule, 'id' | 'text' | 'textStatus' | 'omittedTextChars' | 'enforcement'> & { uncertain: boolean })[];
+  total: number; missingRuleSnapshots: number;
+}
 export interface SummaryDecision {
+  recordedAction?: SummaryAction | null;
+  reportedViolations?: SummaryViolations;
   judge: SummaryJudge;
   identity: { callId: string; toolName: string; mode: string } | null;
   decision: string; reason: string; permission: string; execution: string; approval: string;
