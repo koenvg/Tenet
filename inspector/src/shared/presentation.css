@@ -97,7 +97,7 @@
 .tenet-presentation .call-mode { color: var(--tenet-muted, #5b605e); font-size: 12px; }
 .tenet-presentation .call-concern { display: block; margin-top: 6px; font-size: 12px; }
 .tenet-presentation .call-concern.danger { color: #9b3534; }
-.tenet-presentation .call-concern.caution { color: #805516; }
+.tenet-presentation .call-concern.caution { color: var(--tenet-amber, #795617); }
 .tenet-presentation .call-concern.approval { color: #62419a; }
 .tenet-presentation .call-row .recording-inconsistency { padding: 0; border: 0; background: transparent; }
 .tenet-presentation .call-execution, .tenet-presentation .call-row small { font-size: 12px; }
