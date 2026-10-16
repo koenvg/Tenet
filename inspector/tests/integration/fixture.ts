@@ -84,7 +84,7 @@ export async function withInspector(
     const prepare = <T>(operation: Promise<T>) => diagnostics.prepare(operation, () => rm(directory, { recursive: true, force: true }));
     diagnostics.server(app.origin);
     diagnostics.enter('setup.context');
-    const context = await diagnostics.acquire('browser context', () => browser!.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce' }), context => context.close());
+    const context = await diagnostics.acquire('browser context', () => browser!.newContext({ baseURL: app.origin, viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce' }), context => context.close());
     await diagnostics.wait(diagnostics.observe(browser, context, app.origin, traceStore));
     const externalRequests: string[] = [], pageErrors: string[] = [];
     context.on('page', page => page.on('pageerror', error => pageErrors.push(error.message)));
@@ -106,7 +106,11 @@ export async function withInspector(
       const linked = new URL(path, app.origin);
       if (/^[a-f0-9]{64}$/.test(linked.searchParams.get('invocation') ?? '')) {
         // A document load does not finish the asynchronous archive selection.
-        await diagnostics.wait(next.locator('.invocation').waitFor());
+        await diagnostics.wait(next.locator('dialog[open] .invocation').waitFor());
+      } else if (/^[a-f0-9]{64}$/.test(linked.searchParams.get('rule') ?? '')) {
+        await diagnostics.wait(next.locator('dialog[open] .rule-panel-body h3').waitFor());
+      } else {
+        await diagnostics.wait(next.getByRole('heading', { name: 'Did this session follow the rules?' }).waitFor());
       }
       diagnostics.enter('test');
       return next;

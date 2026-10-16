@@ -37,8 +37,10 @@ test('delayed request and result preserve native disclosure state, focus, eviden
     const evidence = page.locator('.submitted-evidence');
     await evidence.evaluate(el => el.dataset.retention = 'same-evidence-node');
     let polls = 0;
-    page.on('response', response => { if (response.url().includes('/invocations/')) polls++; });
+    let exactReads = 0; page.on('request', request => { if (request.url().includes('/invocations/')) exactReads++; });
+    page.on('response', response => { if (response.url().includes('/rules?')) polls++; });
     await expect.poll(() => polls, { timeout: 10000 }).toBeGreaterThanOrEqual(2);
+    expect(exactReads).toBe(0);
     expect(await page.evaluate(() => document.activeElement?.className)).toBe('exact-rule-data');
     await seedRecordedData(directory);
     await expect.poll(() => page.locator('.submitted-fields').count(), { timeout: 10000 }).toBe(1);

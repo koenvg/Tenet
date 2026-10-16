@@ -1,219 +1,270 @@
-import type { FindingCategory } from '../../src/decision/finding-triage.js';
-import type { SessionSummary, InvocationSummary } from '../../src/inspector/archive-index.js';
+import type { SessionSummary } from '../../src/inspector/archive-index.js';
 import type { CaptureHealth, InvocationView } from '../../src/inspector/view.js';
 import type { ArchiveIssue } from '../../src/recording/archive.js';
+import type { SessionRulesPage, SelectedSessionRule, RuleChecksPage } from '../../src/inspector/session-rules-model.js';
 
+export type PanelSelection = { kind: 'closed' } | { kind: 'rule'; rule: string } | { kind: 'action'; rule: string | null; invocation: string };
+export type OpenRecord =
+  | { state: 'loading'; sourceRevision: string | null }
+  | { state: 'available'; sourceRevision: string | null; bytes: number; view: InvocationView }
+  | { state: 'unavailable'; sourceRevision: string | null; cause: 'source' | 'limit'; reason: string };
+const RECORD_LIMIT = 8, RECORD_BYTES = 32 * 1024 * 1024;
+const RECORD_LIMIT_REASON = 'Visible record limit reached (8 records / 32 MiB). Close another recorded action and retry.';
 type Reader = { build: string; supportedSchemas: number[]; unsupported: number; newerUnsupported: number; corrupt: number; indexing: boolean; otherIssues: number };
 type ArchiveState = {
-  sessions: SessionSummary[]; invocations: InvocationSummary[]; projects: string[];
-  session: string; invocation: string; error: string; project: string;
-  busy: boolean; timelineBusy: boolean; detailBusy: boolean; manualRefreshing: boolean;
-  view: InvocationView | null; issues: ArchiveIssue[]; health: CaptureHealth;
-  nextSession: string | null; nextInvocation: string | null; reader: Reader | null;
-  category: FindingCategory | '';
+  sessions: SessionSummary[]; session: string; panel: PanelSelection; project: string;
+  rules: SessionRulesPage | null; selected: SelectedSessionRule | null; checks: RuleChecksPage | null;
+  openRecords: Record<string, OpenRecord>; panelError: string;
+  error: string; busy: boolean; rulesBusy: boolean; panelBusy: boolean; manualRefreshing: boolean;
+  issues: ArchiveIssue[]; health: CaptureHealth; nextSession: string | null; reader: Reader | null;
 };
-type Read = 'sessions' | 'timeline' | 'detail' | 'refresh';
 type Request = { signal: AbortSignal; current: () => boolean; finish: () => void };
+class ArchiveError extends Error { constructor(public status: number) { super(status === 404 ? 'Recording not found. Refresh the archive or choose another session.' : `Archive request failed: ${status}. Try refreshing.`); } }
 const message = (e: unknown) => e instanceof Error ? e.message : 'Archive unavailable. Try refreshing.';
-const append = <T extends { id: string }>(loaded: T[], items: T[]) => [...loaded, ...items.filter(item => !loaded.some(old => old.id === item.id))];
+const merge = <T extends { id: string }>(a: T[], b: T[]) => [...a, ...b.filter(item => !a.some(old => old.id === item.id))];
 
-// Owns archive navigation and its lifetime. Rendering and DOM focus stay in the UI.
-// start() returns a mount-specific stop function; stopped controllers do not publish or read.
 export function createArchiveNavigation() {
-  let state: ArchiveState = {
-    sessions: [], invocations: [], projects: [], session: '', invocation: '', error: '', project: '',
-    busy: false, timelineBusy: false, detailBusy: false, manualRefreshing: false,
-    view: null, issues: [], health: [], nextSession: null, nextInvocation: null, reader: null,
-    category: '',
-  };
-  const listeners = new Set<() => void>();
-  const requests = new Map<Read, AbortController>();
+  let state: ArchiveState = { sessions: [], session: '', panel: { kind: 'closed' }, project: '', rules: null, selected: null, checks: null,
+    openRecords: {}, panelError: '', error: '', busy: false, rulesBusy: false, panelBusy: false, manualRefreshing: false,
+    issues: [], health: [], nextSession: null, reader: null };
+  const listeners = new Set<() => void>(), requests = new Map<string, AbortController>();
   let lifetime: object | null = null, navigation = {};
   function update(patch: Partial<ArchiveState>) {
     if (!lifetime) return;
-    state = { ...state, ...patch };
-    listeners.forEach(listener => listener());
+    const changed = Object.fromEntries(Object.entries(patch).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(state[key as keyof ArchiveState])));
+    if (!Object.keys(changed).length) return;
+    state = { ...state, ...changed }; listeners.forEach(listener => listener());
   }
-  function cancel(read: Read) {
-    requests.get(read)?.abort();
-    requests.delete(read);
-    if (read === 'refresh' && state.manualRefreshing) update({ manualRefreshing: false });
-  }
-  function begin(read: Read): Request | null {
+  function cancel(read: string) { requests.get(read)?.abort(); requests.delete(read); }
+  function begin(read: string): Request | null {
     if (!lifetime) return null;
-    if (read !== 'refresh') cancel('refresh');
+    if (read !== 'refresh') { cancel('refresh'); update({ manualRefreshing: false }); }
     cancel(read);
-    const controller = new AbortController();
-    requests.set(read, controller);
-    return { signal: controller.signal,
-      current: () => !!lifetime && requests.get(read) === controller && !controller.signal.aborted,
+    const mount = lifetime, controller = new AbortController(); requests.set(read, controller);
+    return { signal: controller.signal, current: () => lifetime === mount && requests.get(read) === controller && !controller.signal.aborted,
       finish: () => { if (requests.get(read) === controller) requests.delete(read); } };
   }
   function link(replace = false) {
-    const url = new URL(window.location.href);
-    url.search = ''; url.hash = '';
+    const url = new URL(window.location.href); url.search = ''; url.hash = '';
     if (state.session) url.searchParams.set('session', state.session);
-    if (state.invocation) url.searchParams.set('invocation', state.invocation);
-    if (url.href !== window.location.href) window.history[replace ? 'replaceState' : 'pushState'](null, '', url);
+    if (state.panel.kind !== 'closed' && state.panel.rule) url.searchParams.set('rule', state.panel.rule);
+    if (state.panel.kind === 'action') url.searchParams.set('invocation', state.panel.invocation);
+    if (url.href !== location.href) history[replace ? 'replaceState' : 'pushState'](null, '', url);
   }
   async function api(path: string, request: Request) {
     const response = await fetch(path, { cache: 'no-store', credentials: 'same-origin', mode: 'same-origin', signal: request.signal });
-    if (!response.ok) throw new Error(response.status === 404 ? 'Recording not found. Refresh sessions or choose another call.' : `Archive request failed: ${response.status}. Try refreshing.`);
+    if (!response.ok) throw new ArchiveError(response.status);
     return response.json();
   }
-  // Initial loads, cursor loads and refreshes use the same pagination path.
-  async function page<T>(path: string, field: 'sessions' | 'invocations', request: Request, count = 0, cursor?: string) {
-    const items: T[] = [];
-    let next: string | null = cursor ?? null, issues: ArchiveIssue[] = [], health: CaptureHealth = [], reader: Reader | null = null;
+  async function page(path: string, field: 'sessions' | 'items', request: Request, count = 50, cursor?: string) {
+    let items: any[] = [], next = cursor ?? null, data: any;
     do {
-      const url = new URL(path, window.location.origin);
-      if (count) url.searchParams.set('limit', String(Math.min(100, Math.max(50, count) - items.length)));
+      const url = new URL(path, location.origin); url.searchParams.set('limit', String(Math.min(100, Math.max(50, count - items.length))));
       if (next) url.searchParams.set('cursor', next);
-      const data = await api(url.pathname + url.search, request);
+      data = await api(url.pathname + url.search, request);
       if (!request.current()) return null;
-      items.push(...data[field]); next = data.next; issues = data.issues; health = data.captureHealth; reader = data.reader ?? null;
-    } while (count && next && items.length < Math.max(50, count));
-    return { items, next, issues, health, reader };
+      items = merge(items, data[field]); next = data.next;
+    } while (next && items.length < count);
+    return { ...data, [field]: items, next };
+  }
+  const metadata = (data: any) => ({ reader: data.reader ?? null, issues: data.issues ?? [], health: data.captureHealth ?? [] });
+  const rulePath = (session = state.session) => `/api/sessions/${session}/rules`;
+  function availableRecord(view: InvocationView, sourceRevision: string | null, records: Record<string, OpenRecord>, id: string): OpenRecord {
+    const text = JSON.stringify(view), bytes = new TextEncoder().encode(text).byteLength;
+    const retained = Object.entries(records).flatMap(([key, record]) => key !== id && record.state === 'available' ? [record] : []);
+    if (retained.length >= RECORD_LIMIT || retained.reduce((sum, record) => sum + record.bytes, bytes) > RECORD_BYTES)
+      return { state: 'unavailable', sourceRevision, cause: 'limit', reason: RECORD_LIMIT_REASON };
+    const previous = records[id];
+    return { state: 'available', sourceRevision, bytes, view: previous?.state === 'available' && JSON.stringify(previous.view) === text ? previous.view : view };
+  }
+  async function snapshot(request: Request, sessionsCount = state.sessions.length, ruleCount = state.rules?.items.length ?? 50, checkCount = state.checks?.items.length ?? 50, retryRecords = false): Promise<Partial<ArchiveState> | null> {
+    const session = state.session, panel = state.panel, project = state.project;
+    const path = rulePath(session);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const data = await page(`/api/sessions?${new URLSearchParams(project ? { project } : {})}`, 'sessions', request, Math.max(50, sessionsCount));
+        if (!data) return null;
+        const patch: Partial<ArchiveState> = { sessions: data.sessions, nextSession: data.next, ...metadata(data) };
+        if (!session) return patch;
+        const rules = await page(path, 'items', request, ruleCount);
+        if (!rules) return null;
+        const row = data.sessions.find((s: SessionSummary) => s.id === session);
+        if (row && row.revision !== rules.revision) throw new ArchiveError(409);
+        Object.assign(patch, { rules, ...metadata(rules), panelError: '' });
+        const rule = panel.kind === 'closed' ? null : panel.rule;
+        if (rule) {
+          try {
+            const selected = await api(`${path}/${rule}?revision=${rules.revision}`, request);
+            const checks = await page(`${path}/${rule}/checks?revision=${rules.revision}`, 'items', request, checkCount);
+            if (!request.current() || !checks) return null;
+            Object.assign(patch, { selected, checks });
+          } catch (e) {
+            if (e instanceof ArchiveError && e.status === 409) throw e;
+            if (!request.current()) return null;
+            Object.assign(patch, { selected: null, checks: null, panelError: `Recorded rule unavailable. ${message(e)}` });
+          }
+        }
+        const openRecords = { ...state.openRecords }; let read = false;
+        const visible = new Set((patch.checks?.items ?? []).map(check => check.invocation));
+        if (panel.kind === 'action') visible.add(panel.invocation);
+        for (const id of Object.keys(openRecords)) if (!visible.has(id)) delete openRecords[id];
+        for (const [id, previous] of Object.entries(openRecords)) {
+          if (previous.state === 'unavailable' && previous.cause === 'limit' && !retryRecords) continue;
+          if (previous.state !== 'available' && Object.values(openRecords).filter(record => record.state === 'available').length >= RECORD_LIMIT) {
+            openRecords[id] = { state: 'unavailable', sourceRevision: rules.revision, cause: 'limit', reason: RECORD_LIMIT_REASON }; continue;
+          }
+          if (previous.sourceRevision === rules.revision && previous.state !== 'loading' && !(retryRecords && previous.state === 'unavailable')) continue;
+          read = true;
+          try {
+            const detail = await api(`/api/sessions/${session}/invocations/${id}`, request);
+            if (!request.current()) return null;
+            openRecords[id] = availableRecord(detail.view, rules.revision, openRecords, id);
+          } catch (e) {
+            if (e instanceof ArchiveError && e.status === 409) throw e;
+            if (!request.current()) return null;
+            openRecords[id] = { state: 'unavailable', sourceRevision: rules.revision, cause: 'source', reason: `Recorded action unavailable. ${message(e)}` };
+          }
+        }
+        if (read) {
+          await api(`${path}?limit=1&revision=${rules.revision}`, request);
+          if (!request.current()) return null;
+        }
+        Object.assign(patch, { openRecords });
+        return patch;
+      } catch (e) { if (!(e instanceof ArchiveError && e.status === 409 && attempt === 0)) throw e; }
+    }
+    return null;
   }
   async function loadSessions(cursor?: string) {
     const request = begin('sessions'); if (!request) return;
-    update({ busy: true, error: '' });
-    const query = new URLSearchParams(); if (state.project) query.set('project', state.project);
+    update({ busy: true });
     try {
-      const data = await page<SessionSummary>(`/api/sessions?${query}`, 'sessions', request, 0, cursor);
-      if (!data) return;
-      const sessions = cursor ? append(state.sessions, data.items) : data.items;
-      update({ sessions, projects: [...new Set([...state.projects, ...sessions.flatMap(s => s.projects)])].sort(),
-        nextSession: data.next, reader: data.reader,
-        ...(!state.session ? { issues: data.issues, health: data.health } : {}) });
-      return true;
+      let data, restarted = false;
+      const path = `/api/sessions?${new URLSearchParams(state.project ? { project: state.project } : {})}`;
+      try { data = await page(path, 'sessions', request, 50, cursor); }
+      catch (e) { if (!(e instanceof ArchiveError && e.status === 409)) throw e; restarted = true; data = await page(path, 'sessions', request, Math.max(50, state.sessions.length)); }
+      if (data && request.current()) update({ sessions: cursor && !restarted ? merge(state.sessions, data.sessions) : data.sessions, nextSession: data.next, ...(!state.session ? metadata(data) : {}) });
+      return !!data;
     } catch (e) { if (request.current()) update({ error: message(e) }); }
     finally { if (request.current()) update({ busy: false }); request.finish(); }
   }
-  async function loadTimeline(cursor?: string) {
+  async function loadRules(cursor?: string, retry = true) {
     if (!state.session) return;
-    const request = begin('timeline'); if (!request) return;
-    update({ timelineBusy: true });
-    const query = new URLSearchParams(); if (state.category) query.set('category', state.category);
+    const request = begin('rules'); if (!request) return;
+    update({ rulesBusy: true });
     try {
-      const data = await page<InvocationSummary>(`/api/sessions/${state.session}?${query}`, 'invocations', request, 0, cursor);
-      if (!data) return;
-      update({ invocations: cursor ? append(state.invocations, data.items) : data.items,
-        nextInvocation: data.next, issues: data.issues, health: data.health, reader: data.reader });
-      return true;
-    } catch (e) { if (request.current()) update({ error: message(e) }); }
-    finally { if (request.current()) update({ timelineBusy: false }); request.finish(); }
+      if (cursor && state.rules) {
+        const data = await page(`${rulePath()}?revision=${state.rules.revision}`, 'items', request, 50, cursor);
+        if (data) update({ rules: { ...data, items: merge(state.rules.items, data.items) } });
+      } else { const patch = await snapshot(request); if (patch) update({ ...patch, error: '' }); }
+    } catch (e) {
+      if (request.current() && retry && e instanceof ArchiveError && e.status === 409) { request.finish(); return loadRules(undefined, false); }
+      if (request.current()) update({ error: message(e) });
+    } finally { if (request.current()) update({ rulesBusy: false }); request.finish(); }
   }
-  async function selectSession(id: string, updateLink = true, openLatest = true) {
+  async function selectSession(id: string, updateLink = true) {
     if (!lifetime) return false;
-    const selected = navigation = {};
-    for (const read of ['timeline', 'detail', 'refresh'] as const) cancel(read);
-    update({ session: id, invocation: '', view: null, error: '', issues: [], health: [], detailBusy: false, timelineBusy: false,
-      invocations: [], nextInvocation: null });
+    const token = navigation = {}; for (const key of [...requests.keys()]) cancel(key);
+    update({ session: id, panel: { kind: 'closed' }, rules: null, selected: null, checks: null, openRecords: {}, panelError: '', error: '', rulesBusy: false, panelBusy: false, busy: false, manualRefreshing: false });
     if (updateLink) link();
-    const timelineLoaded = id ? await loadTimeline() : true;
-    // A failed list read does not invalidate navigation to an explicitly linked call.
-    if (!lifetime || selected !== navigation) return false;
-    if (timelineLoaded && openLatest && state.invocations[0]) {
-      const loading = selectInvocation(state.invocations[0].id, false), selectedCall = navigation;
-      await loading;
-      if (!lifetime || selectedCall !== navigation) return false;
-      if (updateLink) link(true);
-    }
-    return true;
+    if (id) await loadRules();
+    return !!lifetime && token === navigation;
   }
-  async function selectInvocation(id: string, updateLink = true) {
+  async function selectRule(rule: string, updateLink = true) {
+    if (!lifetime || !state.session) return;
+    navigation = {}; cancel('refresh'); cancel('panel'); cancel('rules');
+    update({ panel: { kind: 'rule', rule }, selected: null, checks: null, openRecords: {}, panelError: '', error: '' }); if (updateLink) link();
+    const request = begin('panel'); if (!request) return;
+    update({ panelBusy: true });
+    try { const patch = await snapshot(request); if (patch) update(patch); }
+    catch (e) { if (request.current()) update({ error: message(e) }); }
+    finally { if (request.current()) update({ panelBusy: false }); request.finish(); }
+  }
+  async function loadChecks() {
+    if (!state.checks?.next || state.panel.kind === 'closed' || !state.panel.rule) return;
+    const request = begin('panel'); if (!request) return;
+    update({ panelBusy: true });
+    try {
+      const data = await page(`${rulePath()}/${state.panel.rule}/checks?revision=${state.checks.revision}`, 'items', request, 50, state.checks.next);
+      if (data) update({ checks: { ...data, items: merge(state.checks.items, data.items) } });
+    } catch (e) {
+      if (request.current()) {
+        try {
+          if (e instanceof ArchiveError && e.status === 409) { const patch = await snapshot(request); if (patch && request.current()) update({ ...patch, error: '' }); }
+          else throw e;
+        } catch (failure) { if (request.current()) update({ error: `Checks are stale; reconnecting automatically. ${message(failure)}` }); }
+      }
+    } finally { if (request.current()) update({ panelBusy: false }); request.finish(); }
+  }
+  async function selectInvocation(invocation: string, updateLink = true, rule: string | null = state.panel.kind === 'closed' ? null : state.panel.rule) {
     if (!lifetime || !state.session) return;
     navigation = {};
-    cancel('refresh');
-    if (id === state.invocation && state.view) return;
-    const request = begin('detail'); if (!request) return;
-    update({ invocation: id, view: null, error: '', detailBusy: true });
-    if (updateLink) link();
+    const previous = rule === null || (state.panel.kind !== 'closed' && state.panel.rule !== rule) ? {} : state.openRecords;
+    update({ panel: { kind: 'action', rule, invocation }, openRecords: previous }); if (updateLink) link();
+    if (state.openRecords[invocation]?.state === 'available') return;
+    const request = begin('panel'); if (!request) return;
+    const sourceRevision = state.rules?.revision ?? null;
+    update({ openRecords: { ...state.openRecords, [invocation]: { state: 'loading', sourceRevision } }, panelBusy: false });
     try {
-      const data = await api(`/api/sessions/${state.session}/invocations/${id}`, request);
-      if (!request.current()) return;
-      update({ view: data.view, issues: data.issues, health: data.captureHealth, reader: data.reader ?? null });
-    } catch (e) { if (request.current()) update({ error: message(e) }); }
-    finally { if (request.current()) update({ detailBusy: false }); request.finish(); }
+      if (sourceRevision !== null) {
+        const patch = await snapshot(request);
+        if (patch && request.current()) update({ ...patch, error: '' });
+      } else {
+        const data = await api(`/api/sessions/${state.session}/invocations/${invocation}`, request);
+        if (request.current()) update({ openRecords: { ...state.openRecords, [invocation]: availableRecord(data.view, null, state.openRecords, invocation) } });
+      }
+    } catch (e) {
+      if (request.current()) update({ openRecords: { ...state.openRecords, [invocation]: { state: 'unavailable', sourceRevision, cause: 'source', reason: `Recorded action unavailable; reconnecting automatically. ${message(e)}` } } });
+    } finally { request.finish(); }
   }
-  function filterCategory(category: FindingCategory | '') {
-    if (!lifetime) return;
-    cancel('refresh');
-    update({ category, invocations: [], nextInvocation: null });
-    if (state.session) void loadTimeline();
+  function closeInvocation(invocation: string) {
+    if (!lifetime || !state.openRecords[invocation]) return;
+    cancel('panel'); cancel('refresh'); cancel('rules');
+    const openRecords = { ...state.openRecords }; delete openRecords[invocation];
+    const panel = state.panel.kind === 'action' && state.panel.invocation === invocation
+      ? state.panel.rule ? { kind: 'rule' as const, rule: state.panel.rule } : { kind: 'closed' as const } : state.panel;
+    update({ openRecords, panel, panelBusy: false, rulesBusy: false, manualRefreshing: false }); link();
   }
-  function filterProjects(project: string) {
+  function closePanel() {
     if (!lifetime) return;
-    update({ project });
-    void selectSession(''); void loadSessions();
+    navigation = {}; cancel('panel'); cancel('refresh'); cancel('rules');
+    update({ panel: { kind: 'closed' }, openRecords: {}, selected: null, checks: null, panelError: '', panelBusy: false, rulesBusy: false, manualRefreshing: false }); link();
   }
   async function restoreLink(initial = false) {
-    if (!lifetime) return;
-    const params = new URLSearchParams(window.location.search);
-    const selectedSession = params.get('session') ?? '', selectedInvocation = params.get('invocation') ?? '';
-    void selectSession('', false);
-    if ((selectedSession && !/^[a-f0-9]{64}$/.test(selectedSession)) || (selectedInvocation && (!selectedSession || !/^[a-f0-9]{64}$/.test(selectedInvocation)))) {
-      update({ error: 'Invalid session or invocation link. Choose a session from the archive.' }); return;
-    }
-    if (selectedSession) {
-      if (await selectSession(selectedSession, false, !selectedInvocation) && selectedInvocation) await selectInvocation(selectedInvocation, false);
+    const params = new URLSearchParams(location.search), session = params.get('session') ?? '', rule = params.get('rule') ?? '', invocation = params.get('invocation') ?? '';
+    if ([session, rule, invocation].some(id => id && !/^[a-f0-9]{64}$/.test(id)) || ((rule || invocation) && !session)) { update({ error: 'Invalid session, rule or invocation link. Choose a recorded session.' }); return; }
+    const selected = navigation = {};
+    if (session) {
+      const loading = selectSession(session, false), token = navigation;
+      if (!await loading || !lifetime || token !== navigation) return;
+      if (rule) { const loadingRule = selectRule(rule, false), ruleToken = navigation; await loadingRule; if (!lifetime || ruleToken !== navigation) return; }
+      if (invocation) await selectInvocation(invocation, false, rule || null);
     } else if (initial && state.sessions.length) {
       const latest = state.sessions.reduce((a, b) => b.timestamp > a.timestamp ? b : a);
-      if (await selectSession(latest.id, false)) link(true);
-    }
+      await selectSession(latest.id, false); if (lifetime) link(true);
+    } else if (selected === navigation) await selectSession('', false);
   }
   async function refreshLive(manual = false) {
-    if (!lifetime || requests.has('refresh') || state.busy || state.timelineBusy || state.detailBusy) return;
+    if (!lifetime || requests.size) return;
     const request = begin('refresh'); if (!request) return;
     if (manual) update({ manualRefreshing: true });
-    const selectedSession = state.session, selectedInvocation = state.invocation;
-    try {
-      const query = new URLSearchParams(); if (state.project) query.set('project', state.project);
-      const sessionData = await page<SessionSummary>(`/api/sessions?${query}`, 'sessions', request, Math.max(50, state.sessions.length));
-      if (!sessionData) return;
-      let invocations = state.invocations, nextInvocation = state.nextInvocation, view = state.view;
-      let issues = sessionData.issues, health = sessionData.health;
-      if (selectedSession) {
-        const query = new URLSearchParams(); if (state.category) query.set('category', state.category);
-        const invocationData = await page<InvocationSummary>(`/api/sessions/${selectedSession}?${query}`, 'invocations', request, Math.max(50, state.invocations.length));
-        if (!invocationData) return;
-        invocations = invocationData.items; nextInvocation = invocationData.next; issues = invocationData.issues; health = invocationData.health;
-        if (selectedInvocation) {
-          const detail = await api(`/api/sessions/${selectedSession}/invocations/${selectedInvocation}`, request);
-          if (!request.current()) return;
-          view = detail.view; issues = detail.issues; health = detail.captureHealth;
-        }
-      }
-      // Publish only changed fields, once every read has completed. Keep unchanged detail references.
-      const patch: Partial<ArchiveState> = { sessions: sessionData.items, nextSession: sessionData.next, reader: sessionData.reader,
-        projects: [...new Set([...state.projects, ...sessionData.items.flatMap(s => s.projects)])].sort(),
-        invocations, nextInvocation, view, issues, health,
-        ...(state.error.startsWith('Live updates paused;') ? { error: '' } : {}) };
-      const changed = Object.fromEntries(Object.entries(patch).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(state[key as keyof ArchiveState])));
-      if (Object.keys(changed).length) update(changed);
-    } catch (e) { if (request.current()) update({ error: `Live updates paused; reconnecting automatically. ${message(e)}` }); }
-    finally { if (request.current() && manual) update({ manualRefreshing: false }); request.finish(); }
+    try { const patch = await snapshot(request, undefined, undefined, undefined, manual); if (patch && request.current()) update({ ...patch, error: '' }); }
+    catch (e) { if (request.current()) update({ error: `Live updates paused; reconnecting automatically. ${message(e)}` }); }
+    finally { if (request.current()) update({ manualRefreshing: false }); request.finish(); }
   }
   return {
     getSnapshot: () => state,
     subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
     start() {
       if (lifetime) throw new Error('Archive navigation is already started.');
-      const mount = lifetime = {}, selected = navigation = {};
-      update({ busy: false, timelineBusy: false, detailBusy: false, manualRefreshing: false });
-      void loadSessions().then(loaded => { if (loaded && lifetime === mount && selected === navigation && !state.error) return restoreLink(true); });
-      const restore = () => { void restoreLink(); };
-      window.addEventListener('popstate', restore);
-      const timer = setInterval(refreshLive, 2000);
-      return () => {
-        if (lifetime !== mount) return;
-        lifetime = null; navigation = {};
-        for (const read of requests.keys()) cancel(read);
-        clearInterval(timer); window.removeEventListener('popstate', restore);
-      };
+      const mount = lifetime = {}, token = navigation = {};
+      void loadSessions().then(loaded => { if (loaded && lifetime === mount && token === navigation) return restoreLink(true); });
+      const restore = () => { void restoreLink(); }; window.addEventListener('popstate', restore);
+      const timer = setInterval(() => refreshLive(), 2000);
+      return () => { if (lifetime !== mount) return; lifetime = null; navigation = {}; for (const key of [...requests.keys()]) cancel(key); clearInterval(timer); window.removeEventListener('popstate', restore); };
     },
-    loadSessions, loadTimeline, selectSession, selectInvocation, filterCategory, filterProjects,
+    loadSessions, loadRules, loadChecks, selectSession, selectRule, selectInvocation, closeInvocation, closePanel,
+    filterProjects(project: string) { update({ project }); void selectSession(''); void loadSessions(); },
     refreshArchive: () => refreshLive(true),
   };
 }

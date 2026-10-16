@@ -1,119 +1,68 @@
 import { createElement } from 'react';
-import '../../src/components.css';
-import '../../../web/theme.css';
 import { afterEach, expect, test, vi } from 'vitest';
 import { render } from 'vitest-browser-react';
 import { page, userEvent } from 'vitest/browser';
 import App from '../../src/App.js';
-import { makeView } from './fixtures.js';
+import { ruleUIFixture, other } from './rule-ui-fixture.js';
 import '../../src/style.css';
+import '../../src/components.css';
 import '../../src/summary.css';
-const session = 'a'.repeat(64), id = 'b'.repeat(64);
 afterEach(() => { vi.unstubAllGlobals(); history.replaceState(null, '', location.pathname); });
 
-function archive({ empty = false, warning = false, unknown = false, indexing = false, capture = false } = {}) {
-  const requests: string[] = [];
-  vi.stubGlobal('fetch', vi.fn(async (input: string) => {
-    const url = new URL(input, location.href); requests.push(url.pathname);
-    const reader = unknown ? null : { build: 'fictional-reader', supportedSchemas: [1, 2, 3, 4], unsupported: warning ? 1 : 0, newerUnsupported: warning ? 1 : 0, corrupt: warning ? 2 : 0, indexing: warning || indexing, otherIssues: warning ? 1 : 0 };
-    const call = { id, callId: 'fictional-call', toolName: 'edit', timestamp: 100, updated: 100, mode: 'observe', permission: 'released', execution: 'unknown', decision: 'BLOCK', assessmentStatus: 'validated', missing: [], categories: ['uncertainty'], actionPreview: { value: 'src/fictional.ts', key: 'path', shortened: false } };
-    const common = { reader, issues: warning || capture ? [{ reason: 'unsafe-record', file: 'fictional.json' }] : [], captureHealth: warning || capture ? [{ writerId: 'fictional-writer', failed: 7, dropped: 8, drainTimeouts: 9 }] : [] };
-    if (url.pathname === '/api/sessions') return Response.json({ ...common, sessions: [{ id: session, sessionId: 'fictional', projects: ['/fictional'], host: 'pi', contextId: 'main', timestamp: 100, started: 1, invocations: 2, categoryCounts: { uncertainty: 2, approval: 1 } }], next: url.searchParams.has('cursor') ? null : 'more-sessions' });
-    if (url.pathname.includes('/invocations/')) return Response.json({ ...common, view: makeView({ callId: 'fictional-call' }) });
-    return Response.json({ ...common, invocations: url.searchParams.has('cursor') || empty || url.searchParams.get('category') === 'violation' ? [] : [call], next: 'more-calls' });
-  }));
-  return requests;
-}
-
-test('direct filter keeps active state, reset and both pagination controls reachable without selection', async () => {
-  await page.viewport(1280, 900); const requests = archive({ empty: true });
-  const screen = await render(createElement(App));
-  await expect.element(screen.getByText('No recorded invocations in this session.', { exact: true })).toBeVisible();
-  expect(requests.some(path => path.endsWith('/groups'))).toBe(false);
-  expect(screen.container.querySelectorAll('.inspection-switch')).toHaveLength(0);
-  const filter = screen.getByRole('combobox', { name: 'Finding category' });
-  await expect.element(filter).toBeVisible();
-  await filter.selectOptions('violation');
-  await expect.element(filter).toHaveValue('violation');
-  await expect.element(screen.getByRole('button', { name: 'Clear filter' })).toBeVisible();
-  expect(screen.container.querySelector('.active-filter')?.textContent).toContain('Suspected violation');
-  expect(screen.container.querySelector('.repeated-uncertainty')).toBeNull();
-  (filter.element() as HTMLSelectElement).focus();
-  await userEvent.keyboard('{Tab}');
-  await expect.element(screen.getByRole('button', { name: 'Clear filter' })).toHaveFocus();
-  await expect.element(screen.getByRole('button', { name: 'More invocations' })).toBeVisible();
-  await screen.getByRole('button', { name: 'More invocations' }).click();
-  await screen.getByRole('button', { name: 'Clear filter' }).click();
-  await expect.element(filter).toHaveValue('');
-  await expect.element(screen.getByRole('button', { name: 'Clear filter' })).not.toBeInTheDocument();
-  await screen.getByText('Session / archive', { exact: true }).click();
-  await expect.element(screen.getByRole('button', { name: 'More sessions' })).toBeVisible();
-  await expect.element(screen.getByRole('button', { name: 'Refresh archive' })).toBeVisible();
-  await expect.element(screen.getByRole('button', { name: 'Filter projects' })).toBeVisible();
-  await expect.element(screen.getByText(/Reader fictional-reader/)).toBeVisible();
-  await screen.getByRole('button', { name: 'More sessions' }).click();
-  expect(location.href).not.toContain('fictional()');
-  expect(requests.some(path => path.endsWith('/groups'))).toBe(false);
-  expect(screen.container.querySelector('#finding-category option[value="uncertainty"]')?.textContent).toContain('(2)');
-  expect(screen.container.querySelector('.triage-tools')?.textContent).toContain('Categories can overlap.');
+test('native session radios close picker and restore trigger focus', async () => {
+  ruleUIFixture(); const screen = await render(createElement(App));
+  await expect.element(screen.getByRole('button', { name: /Do not publish secrets/ })).toBeVisible();
+  const trigger = screen.getByRole('button', { name: /^Session / });
+  await trigger.click();
+  await screen.getByRole('radio').nth(1).click();
+  await expect.poll(() => location.search).toBe(`?session=${other}`);
+  expect(document.querySelector('#rule-session-menu')?.matches(':popover-open')).toBe(false);
+  expect(document.activeElement).toBe(trigger.element());
+  expect(screen.container.querySelectorAll('.call-list, .workspace, .pane-resizer, select')).toHaveLength(0);
 });
 
-for (const unknown of [false, true]) test(`short archive state keeps exact recording issues reachable on mobile, unknown=${unknown}`, async () => {
-  await page.viewport(390, 1000); archive({ warning: true, unknown });
+for (const width of [390, 320]) test(`mobile rule panel fills ${width}px and restores row focus`, async () => {
+  await page.viewport(width, 844); ruleUIFixture();
   const screen = await render(createElement(App));
-  await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
-  expect(screen.container.querySelector('.session-picker')?.hasAttribute('open')).toBe(false);
-  await expect.element(screen.getByText(unknown ? 'Coverage unknown · capture issues' : 'Partial archive · capture issues', { exact: true })).toBeVisible();
-  expect(screen.container.querySelector('.recording-issues')?.hasAttribute('open')).toBe(false);
-  await expect.element(screen.getByText(/7 failed writes or snapshots/)).not.toBeVisible();
-  await screen.getByText('Recording issues', { exact: true }).click();
-  await expect.element(screen.getByText(/7 failed writes or snapshots, 8 dropped stages, 9 drain timeouts. Writer fictional-writer/)).toBeVisible();
-  await expect.element(screen.getByText(unknown ? /Reader compatibility is unknown/ : /Reader coverage: 1 unsupported/)).toBeVisible();
-  expect(screen.container.querySelector('.issues-body')?.textContent).toContain('not per call');
-  expect(screen.container.querySelector('.issues-body')?.textContent).toContain('They may include other sessions. Zero counters do not prove complete capture.');
-  expect(screen.container.querySelector('.issues-body')?.textContent).toContain('1 recording file issues. 1 writers reporting recording issues.');
-  expect(screen.container.querySelector('.issues-body')?.textContent).toContain('Their contents are not read.');
-  expect(screen.container.querySelector('.issues-body')?.textContent).toContain('A rebuild alone does not update a running reader.');
-  await screen.getByText('Recording issues', { exact: true }).click();
+  const row = screen.getByRole('button', { name: /Do not publish secrets/ });
+  await expect.element(row).toBeVisible(); await row.click();
+  await expect.element(screen.getByRole('dialog', { name: 'Rule details' })).toBeVisible();
+  expect(screen.container.querySelector('dialog')?.getBoundingClientRect().width).toBe(width);
   expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(innerWidth);
-  await screen.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Calls', exact: true }).click();
-  await expect.element(screen.getByRole('navigation', { name: 'Invocations' }).getByRole('button').nth(0)).toBeVisible();
-  await expect.element(screen.getByRole('combobox', { name: 'Finding category' })).toBeVisible();
+  expect(getComputedStyle(document.documentElement).overflow).toBe('hidden');
+  await screen.getByRole('button', { name: 'Close', exact: true }).click();
+  expect(document.activeElement).toBe(row.element());
+  expect(getComputedStyle(document.documentElement).overflow).not.toBe('hidden');
 });
 
-
-for (const [options, state, hasIssues] of [
-  [{ empty: true }, 'Supported records', false],
-  [{ empty: true, unknown: true }, 'Coverage unknown', true],
-  [{ empty: true, indexing: true }, 'Indexing archive', true],
-  [{ empty: true, capture: true }, 'Capture issues', true],
-] as const) test(`empty archive state is truthful and independent of selection: ${state}`, async () => {
-  await page.viewport(390, 844); archive(options);
+test('partial archive exposes exact scoped reader, file and writer diagnostics on demand', async () => {
+  await page.viewport(390, 844); ruleUIFixture({ warning: true });
   const screen = await render(createElement(App));
-  await expect.element(screen.getByText(state, { exact: true })).toBeVisible();
-  expect(screen.container.querySelectorAll('.recording-issues')).toHaveLength(hasIssues ? 1 : 0);
-  expect(screen.container.querySelector('.session-picker')?.hasAttribute('open')).toBe(false);
-  expect(screen.container.querySelector('.inspection .invocation')).toBeNull();
-  if (hasIssues) {
-    await screen.getByText('Recording issues', { exact: true }).click();
-    expect(screen.container.querySelector('.issues-body')?.textContent).toContain('A rebuild alone does not update a running reader.');
-    if (state === 'Indexing archive') expect(screen.container.querySelector('.reader-coverage')?.textContent).toContain('indexing is still in progress');
-    if (state === 'Capture issues') expect(screen.container.querySelector('.reader-coverage')?.textContent).toContain('0 unsupported schema records');
-  }
+  await expect.element(screen.getByText('Partial archive · capture issues', { exact: true })).toBeVisible();
+  expect(screen.container.querySelector('.recording-issues')?.hasAttribute('open')).toBe(false);
+  await screen.getByText('Recording issues and archive controls', { exact: true }).click();
+  await expect.element(screen.getByText(/7 failed writes or snapshots, 8 dropped stages, 9 drain timeouts/)).toBeVisible();
+  const text = screen.container.querySelector('.issues-body')?.textContent;
+  expect(text).toContain('Reader coverage, archive-wide: 1 unsupported schema records (1 newer), 2 corrupt records, 1 other issues');
+  expect(text).toContain('unsafe-record: fictional.json');
+  expect(text).toContain('Cumulative counters per writer, not per call. They may include other sessions. Zero counters do not prove complete capture.');
+  expect(text).toContain('Their contents are not read.');
+  expect(text).toContain('A rebuild alone does not update a running reader.');
+  expect(text).toContain('1 recording file issues. 1 writers reporting recording issues.');
+  await expect.element(screen.getByRole('button', { name: 'Refresh archive' })).toBeVisible();
 });
 
-test('commands and files lead compact call rows while tool names, times and exact previews remain available', async () => {
-  await page.viewport(1340, 1318); archive();
+test('empty, loading and transport error states retain recovery without automatic calls', async () => {
+  const f = ruleUIFixture({ empty: true });
+  let release!: (value: Response) => void;
+  f.intercept(() => new Promise(resolve => { release = resolve; }));
   const screen = await render(createElement(App));
-  await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
-  const row = screen.container.querySelector<HTMLElement>('.call-row')!;
-  expect(row.querySelector('.call-copy')?.firstElementChild?.className).toBe('call-preview');
-  expect(row.querySelector('.call-top')?.textContent).toContain('Edit file');
-  expect(row.querySelector('.call-preview-value')?.textContent).toBe('src/fictional.ts');
-  expect(getComputedStyle(row.querySelector('.call-preview-value')!).fontSize).toBe('14px');
-  expect(getComputedStyle(row.querySelector('.call-top strong')!).fontSize).toBe('12px');
-  expect(row.getBoundingClientRect().height).toBeLessThan(180);
-  const tools = screen.container.querySelector('.triage-tools')!;
-  expect(screen.container.querySelector('.repeated-uncertainty')).toBeNull();
-  expect(tools.compareDocumentPosition(screen.container.querySelector('.call-list')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  await expect.element(screen.container.querySelector<HTMLElement>('.rule-empty')!).toHaveTextContent('Reading archive…');
+  release(new Response('{}', { status: 503 }));
+  await expect.element(screen.getByRole('alert')).toHaveTextContent('Archive request failed: 503. Try refreshing.');
+  f.intercept(() => undefined);
+  await screen.getByText('Recording issues and archive controls', { exact: true }).click();
+  await screen.getByRole('button', { name: 'Refresh archive' }).click();
+  await expect.element(screen.getByText('Choose a recorded session to inspect its rules.', { exact: true })).toBeVisible();
+  expect(screen.container.querySelector('.invocation')).toBeNull();
 });

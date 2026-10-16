@@ -21,7 +21,7 @@ export async function startInspector(options: { directory: string; assets?: stri
   const hash = createHash('sha256');
   // Hash the modules in the current representation, source TS or delivered ESM.
   const extension = import.meta.url.endsWith('.ts') ? '.ts' : '.js';
-  for (const name of ['server', 'archive-index', 'view', '../decision/finding-triage', '../recording/contract', 'finding-view'])
+  for (const name of ['server', 'archive-index', 'view', '../decision/finding-triage', '../recording/contract', 'finding-view', 'session-rules', 'session-rules-model'])
     hash.update(await readFile(new URL(`${name}${extension}`, import.meta.url)));
   for (const [name, asset] of [...assets].sort(([a], [b]) => a.localeCompare(b))) hash.update(name).update(asset.content);
   const build = `tenet-reader-0.1.0/${options.assets ? 'assets' : 'dev'}-${hash.digest('hex').slice(0, 12)}`;
@@ -41,12 +41,14 @@ export async function startInspector(options: { directory: string; assets?: stri
       const url = new URL(req.url ?? '/', origin);
       const asset = assets.get(url.pathname);
       if (asset) { res.writeHead(200, { 'Content-Type': asset.type }); res.end(asset.content); return; }
-      const route = /^\/api\/sessions(?:\/([a-f0-9]{64})(?:\/(groups|invocations\/([a-f0-9]{64})))?)?$/.exec(url.pathname);
+      const route = /^\/api\/sessions(?:\/([a-f0-9]{64})(?:\/(groups|invocations\/([a-f0-9]{64})|rules(?:\/([a-f0-9]{64})(\/checks)?)?))?)?$/.exec(url.pathname);
       if (!route && url.pathname !== '/api/status') return reply(404, { error: 'not-found' });
       const offset = Number(url.searchParams.get('offset') ?? 0), limit = Number(url.searchParams.get('limit') ?? 50);
       if (!Number.isSafeInteger(offset) || offset < 0 || offset > 1000000 || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) return reply(400, { error: 'invalid-page' });
       const cursor = url.searchParams.get('cursor') ?? undefined, project = url.searchParams.get('project') ?? undefined;
       if ((cursor?.length ?? 0) > 512 || (project?.length ?? 0) > 8192) return reply(400, { error: 'invalid-page' });
+      const revision = url.searchParams.get('revision') ?? undefined;
+      if (revision !== undefined && !/^[a-f0-9]{64}$/.test(revision)) return reply(400, { error: 'invalid-page' });
       await index.refresh();
       const health = index.captureHealth(route?.[1]);
       const reader = { build, ...index.status() };
@@ -59,11 +61,23 @@ export async function startInspector(options: { directory: string; assets?: stri
           return reply(200, { sessions: result.items, next: result.next, reader, issues: index.issues(), indexing: index.indexing, captureHealth: health });
         }
         if (route[2] === 'groups') return reply(200, { groups: index.uncertaintyGroups(route[1]!), reader, issues: index.issues(route[1]), indexing: index.indexing, captureHealth: health });
+        if (route[2]?.startsWith('rules')) {
+          if (!index.hasSession(route[1])) return reply(index.indexing ? 503 : 404, { error: index.indexing ? 'indexing-in-progress' : 'not-found' });
+          const metadata = { reader, issues: index.issues(route[1]), indexing: index.indexing, captureHealth: health };
+          if (!route[4]) return reply(200, { ...index.sessionRules(route[1], { offset, limit, cursor, revision }), ...metadata });
+          if (route[5]) return reply(200, { ...index.ruleChecks(route[1], route[4], { offset, limit, cursor, revision }), ...metadata });
+          const selected = await index.selectedRule(route[1], route[4], revision);
+          return selected ? reply(200, { ...selected, ...metadata }) : reply(404, { error: 'not-found' });
+        }
         if (!route[3]) {
           const result = index.invocations(route[1]!, { offset, limit, cursor, category: category as typeof findingCategories[number] | undefined });
           return reply(200, { invocations: result.items, next: result.next, reader, issues: index.issues(route[1]), indexing: index.indexing, captureHealth: health });
         }
-      } catch { return reply(400, { error: 'invalid-page' }); }
+      } catch (error) {
+        if (error instanceof Error && error.message === 'stale-cursor') return reply(409, { error: 'stale-cursor' });
+        if (error instanceof Error && error.message === 'rule-not-found') return reply(404, { error: 'not-found' });
+        return reply(400, { error: 'invalid-page' });
+      }
       const detail = await index.detail(route[1]!, route[3]!);
       if (!detail.records.length) return reply(index.indexing ? 503 : 404, { error: index.indexing ? 'indexing-in-progress' : 'not-found' });
       return reply(200, { view: invocationView(detail.records), reader, issues: detail.issues, captureHealth: health });

@@ -3,12 +3,17 @@ import type { Page } from 'playwright';
 import { join, resolve } from 'node:path';
 import { recordedQuestion } from './browser-fixture.js';
 import { openRecordedData, reveal } from './ui-navigation.js';
+import { qualifiedSessionKey } from '../../src/recording/archive.js';
 const artifacts = resolve('coverage/inspector-artifacts/playwright');
-async function pickCall(p: Page, id: string) {
-  await p.locator('.call-row').filter({ has: p.locator('.call-id', { hasText: new RegExp(`^${id}$`) }) }).click();
-  await expect.poll(() => p.locator('.decision-title h2 span').textContent()).toBe(id);
-  await reveal(p, '.recorded-disclosure');
-  await reveal(p, '.recording-details');
+async function pickCall(p: Page, id: string, recorded = true) {
+  const session = qualifiedSessionKey('pi', 's', 'main'), origin = new URL(p.url()).origin;
+  const data = await (await p.request.get(`${origin}/api/sessions/${session}?limit=100`)).json();
+  const row = data.invocations.find((item: { callId: string }) => item.callId === id);
+  expect(row?.id).toMatch(/^[a-f0-9]{64}$/);
+  await p.goto(`${origin}/?session=${session}&invocation=${row.id}`);
+  await p.locator('.decision-summary').waitFor();
+  expect(await p.locator('.decision-title h2 span').textContent()).toBe(id);
+  if (recorded) { await reveal(p, '.recorded-disclosure'); await reveal(p, '.recording-details'); }
 }
 function watchCaptureWarnings() {
   const main = document.querySelector('main')!;
@@ -27,7 +32,8 @@ function watchCaptureWarnings() {
   return { stop() { inspect(observer.takeRecords()); observer.disconnect(); return seen; } };
 }
 export function registerDebuggerJourneys(test: ReturnType<typeof createDebuggerTest>) {
-  test('initial archive selection can outlast the semantic poll deadline', async ({ debuggerRun: { page: p, app } }) => {
+  test('initial archive selection can outlast the semantic poll deadline', async ({ debuggerRun }) => {
+    const p = debuggerRun.page;
     let delayed = false;
     await p.route(/\/api\/sessions(?:\?|$)/, async route => {
       if (!delayed) {
@@ -37,14 +43,14 @@ export function registerDebuggerJourneys(test: ReturnType<typeof createDebuggerT
       }
       await route.fallback();
     });
-    await openDebugger(p, app!.origin);
+    await openDebugger(p, debuggerRun.app.origin);
     expect(delayed).toBe(true);
-    expect(await p.locator('.call-row').count()).toBe(11);
+    expect(await p.locator('.rule-trigger').count()).toBeGreaterThan(0);
+    expect(await p.locator('.invocation').count()).toBe(0);
   });
-  for (const width of [1280, 390]) test(`default story and keyboard disclosures at ${width}px`, async ({ debuggerRun: { page: p } }) => {
-    await p.setViewportSize({ width, height: 844 });
-    if (width <= 900) await p.getByRole('navigation', { name: 'Workspace views' }).getByRole('button', { name: 'Calls' }).click();
-    await p.locator('.call-row').filter({ has: p.locator('.call-id', { hasText: /^summary$/ }) }).click();
+  for (const width of [1280, 390]) test(`default story and keyboard disclosures at ${width}px`, async ({ debuggerRun }) => {
+    const p = debuggerRun.page; await p.setViewportSize({ width, height: 844 });
+    await pickCall(p, 'summary', false);
     await p.locator('.story-action').waitFor();
     expect(await p.locator('.primary-status').innerText()).toContain('Successful');
     expect(await p.locator('.primary-status').innerText()).toContain('Observe');
@@ -66,96 +72,62 @@ export function registerDebuggerJourneys(test: ReturnType<typeof createDebuggerT
     expect(await p.locator('.lifecycle').isVisible()).toBe(true);
     expect(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
-  for (const [change, expected] of [
-    ['unrelated update', false],
-    ['warning added and removed', true],
-    ['warning text changed and restored', true],
-  ] as const) test(`capture warning watch detects only warning text: ${change}`, async ({ debuggerRun: { page: p } }) => {
-    await pickCall(p, 'summary');
-    const watch = await p.evaluateHandle(watchCaptureWarnings);
-    try {
-      await p.evaluate(change => {
-        const node = document.createElement('p');
-        const text = document.createTextNode('Refreshing archive');
-        node.append(text); document.querySelector('main')!.append(node);
-        if (change === 'warning added and removed') {
-          const warning = document.createElement('span');
-          warning.textContent = 'Capture may be incomplete.';
-          node.append(warning); warning.remove();
-        } else if (change === 'warning text changed and restored') {
-          text.data = 'Capture may be incomplete.';
-          text.data = 'Archive refreshed';
-        } else {
-          node.setAttribute('aria-live', 'polite');
-          text.data = 'Archive refreshed';
-        }
-        node.remove();
-      }, change);
-      expect(await watch.evaluate(watch => watch.stop())).toBe(expected);
-      expect(await p.locator('main').textContent()).not.toContain('Capture may be incomplete.');
-    } finally {
-      await watch.evaluate(watch => watch.stop());
-      await watch.dispose();
-    }
-  });
 
-  test('background refresh does not flash archive-wide warnings into the selected session', async ({ debuggerRun: { page: p, pageErrors } }) => {
-    await pickCall(p, 'summary');
+  test('background refresh does not flash archive-wide warnings into the selected session', async ({ debuggerRun }) => {
+    const p = debuggerRun.page; await pickCall(p, 'summary');
     let completedPolls = 0;
-    p.on('response', response => { if (response.url().includes('/invocations/')) completedPolls++; });
-    const before = await p.locator('.decision-title').boundingBox();
-    const watch = await p.evaluateHandle(watchCaptureWarnings);
-    try {
-      await p.waitForTimeout(4500);
-      expect(completedPolls).toBeGreaterThanOrEqual(2);
-      expect(await watch.evaluate(watch => watch.stop())).toBe(false);
-    } finally {
-      await watch.evaluate(watch => watch.stop());
-      await watch.dispose();
-    }
-    expect(await p.locator('.decision-title').boundingBox()).toEqual(before);
-    expect(await p.getByRole('region', { name: 'Recording issues' }).count()).toBe(1);
+    const rulesURL = new URL(`/api/sessions/${new URL(p.url()).searchParams.get('session')}/rules`, debuggerRun.app.origin);
+    p.on('response', async response => {
+      const url = new URL(response.url());
+      if (url.origin === rulesURL.origin && url.pathname === rulesURL.pathname && response.status() === 200 && await response.finished() === null) completedPolls++;
+    });
+    expect(await p.locator('.decision-summary').isVisible()).toBe(true);
+    const before = await p.locator('.decision-summary').boundingBox();
+    const mutations = await p.evaluate(() => new Promise<number>(resolve => {
+      let count = 0;
+      const observer = new MutationObserver(records => count += records.length);
+      observer.observe(document.querySelector('main')!, { subtree: true, childList: true, attributes: true, characterData: true });
+      setTimeout(() => { observer.disconnect(); resolve(count); }, 4500);
+    }));
+    expect(completedPolls).toBeGreaterThanOrEqual(2);
+    expect(mutations).toBe(0);
+    expect(await p.locator('.decision-summary').boundingBox()).toEqual(before);
+    expect(await p.locator('.recording-issues').count()).toBe(1);
     expect(await p.locator('.issues-body').textContent()).not.toContain('Capture may be incomplete.');
-    expect(pageErrors).toEqual([]);
+    expect(debuggerRun.pageErrors).toEqual([]);
   });
 
-  test('session switcher stays open during polling and project filtering', async ({ debuggerRun: { page: p, pageErrors } }) => {
-    const picker = p.locator('.session-picker');
-    await picker.locator('summary').click();
-    await expect.poll(() => picker.getAttribute('open')).not.toBeNull();
-    const filter = p.getByRole('combobox', { name: 'Project directory' });
-    await filter.fill('/historical');
-    let completedPolls = 0;
-    p.on('response', response => { if (response.url().includes('/invocations/')) completedPolls++; });
-    await expect.poll(() => completedPolls, { timeout: 10000 }).toBeGreaterThanOrEqual(2);
-    expect(await picker.getAttribute('open')).not.toBeNull();
+  test('native session picker and archive project input stay stable during polling', async ({ debuggerRun }) => {
+    const p = debuggerRun.page;
+    await p.locator('.rule-session-toggle').click();
+    await expect.poll(() => p.locator('#rule-session-menu').evaluate(el => el.matches(':popover-open'))).toBe(true);
+    await p.waitForResponse(response => response.url().includes('/api/sessions?'));
+    expect(await p.locator('#rule-session-menu').evaluate(el => el.matches(':popover-open'))).toBe(true);
+    await p.keyboard.press('Escape');
+    await reveal(p, '.recording-issues');
+    const filter = p.getByRole('textbox', { name: 'Project directory' }); await filter.fill('/historical');
+    await p.waitForResponse(response => response.url().includes('/api/sessions?'));
     expect(await filter.inputValue()).toBe('/historical');
     await p.getByRole('button', { name: 'Filter projects' }).click();
-    await expect.poll(() => p.locator('.session-row').count()).toBe(1);
-    expect(await picker.getAttribute('open')).not.toBeNull();
-    await p.getByRole('button', { name: 'All projects' }).click();
-    expect(await picker.getAttribute('open')).not.toBeNull();
-    await p.locator('.session-row').first().click();
-    await expect.poll(() => picker.getAttribute('open')).toBeNull();
-    expect(pageErrors).toEqual([]);
+    await p.locator('.rule-session-toggle').click();
+    await expect.poll(() => p.getByRole('radio').count()).toBe(1);
+    await p.getByRole('radio').click();
+    expect(await p.locator('#rule-session-menu').evaluate(el => el.matches(':popover-open'))).toBe(false);
+    expect(debuggerRun.pageErrors).toEqual([]);
   });
 
-  test('Focus sidebar scrolls independently and keeps the selected summary', async ({ debuggerRun: { page: p } }) => {
-    await p.setViewportSize({ width: 1440, height: 700 }); await pickCall(p, 'summary');
-    const list = p.locator('.explorer');
-    expect(await list.evaluate(el => getComputedStyle(el).flexDirection)).toBe('column');
-    expect(await list.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true);
-    const before = await p.locator('.invocation').evaluate(el => el.scrollTop);
-    await list.evaluate(el => el.scrollTop = 0);
-    await list.evaluate(el => el.scrollTop = el.scrollHeight);
-    expect(await p.locator('.invocation').evaluate(el => el.scrollTop)).toBe(before);
-    expect(await p.locator('.call-row[aria-pressed="true"] .call-id').textContent()).toBe('summary');
-    const sidebar = (await p.locator('.explorer').boundingBox())!;
-    expect((await p.locator('.inspection').boundingBox())!.x).toBeGreaterThanOrEqual(sidebar.x + sidebar.width);
+  test('native panel content scrolls independently of the locked rules page', async ({ debuggerRun }) => {
+    const p = debuggerRun.page; await p.setViewportSize({ width: 1440, height: 700 }); await pickCall(p, 'summary');
+    const background = await p.evaluate(() => scrollY), body = p.locator('.rule-panel-body');
+    await body.hover(); await p.mouse.wheel(0, 1000);
+    await expect.poll(() => body.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+    expect(await p.evaluate(() => scrollY)).toBe(background);
+    expect(await p.locator('.decision-title h2 span').textContent()).toBe('summary');
+    expect(await p.locator('.rule-panel-header').isVisible()).toBe(true);
   });
 
-  test('exact records are keyboard accessible and reduced motion stays static', async ({ debuggerRun: { page: p } }) => {
-    await pickCall(p, 'summary');
+  test('exact records are keyboard accessible and reduced motion stays static', async ({ debuggerRun }) => {
+    const p = debuggerRun.page; await pickCall(p, 'summary');
     await p.emulateMedia({ reducedMotion: 'reduce' });
     await p.locator('.exact-rules > summary').press('Enter');
     expect(await p.locator('.exact-rules').getAttribute('open')).not.toBeNull();
@@ -165,34 +137,24 @@ export function registerDebuggerJourneys(test: ReturnType<typeof createDebuggerT
     expect(await p.locator('.primary-status .map-connections').count()).toBe(0);
   });
 
-  test('pane dividers drag, respond to keys, clamp and retain their sizes across calls', async ({ debuggerRun: { page: p, pageErrors } }) => {
-    await pickCall(p, 'low-pass');
-    expect(await p.locator('input[type="range"]').count()).toBe(0);
-    const explorer = p.getByRole('separator', { name: 'Resize call explorer' });
-    const start = await explorer.boundingBox(); expect(start).not.toBeNull();
-    await p.mouse.move(start!.x + start!.width / 2, start!.y + 100);
-    await p.mouse.down(); await p.mouse.move(start!.x + start!.width / 2 + 80, start!.y + 100, { steps: 8 }); await p.mouse.up();
-    await expect.poll(() => explorer.getAttribute('aria-valuenow')).toBe('380');
-    expect(Math.round((await p.locator('.explorer').boundingBox())!.width)).toBe(380);
-    expect(await p.getByRole('separator', { name: 'Resize assessment pane' }).count()).toBe(0);
-    await explorer.press('End'); await explorer.press('ArrowRight');
-    expect(await explorer.getAttribute('aria-valuenow')).toBe('460');
-    await explorer.press('Home'); await explorer.press('ArrowLeft');
-    expect(await explorer.getAttribute('aria-valuenow')).toBe('220');
-    await explorer.press('Shift+ArrowRight');
-    expect(await explorer.getAttribute('aria-valuenow')).toBe('270');
-    await pickCall(p, 'unknown');
-    await openRecordedData(p, 'Questions');
-    expect(await explorer.getAttribute('aria-valuenow')).toBe('270');
-    expect(await p.locator('.pane-resizer.dragging').count()).toBe(0);
-    expect(pageErrors).toEqual([]);
+  test('native modal replaces resizers and traps keyboard focus until dismissed', async ({ debuggerRun }) => {
+    const p = debuggerRun.page; await pickCall(p, 'low-pass');
+    expect(await p.locator('input[type="range"], .pane-resizer').count()).toBe(0);
+    expect(await p.getByRole('separator').count()).toBe(0);
+    await p.getByRole('button', { name: 'Close', exact: true }).focus();
+    await p.keyboard.press('Shift+Tab');
+    expect(await p.evaluate(() => !!document.activeElement?.closest('dialog'))).toBe(true);
+    await p.keyboard.press('Escape');
+    expect(await p.locator('dialog[open]').count()).toBe(0);
+    expect(await p.locator('.rule-session-toggle').evaluate(el => document.activeElement === el)).toBe(true);
+    expect(debuggerRun.pageErrors).toEqual([]);
   });
 
-  test('Ran is neutral and finding tones are separate while exact recorded choices remain separate', async ({ debuggerRun: { page: p } }) => {
-    await pickCall(p, 'summary');
-    const ran = p.locator('.call-row[aria-pressed="true"] [data-list-fact="result"] .status-chip').first();
+  test('Ran is neutral and finding tones are separate while exact recorded choices remain separate', async ({ debuggerRun }) => {
+    const p = debuggerRun.page; await pickCall(p, 'summary');
+    const ran = p.locator('[data-fact="result"]').first();
     expect((await ran.textContent())?.trim()).toBe('Successful');
-    expect(await ran.evaluate(el => getComputedStyle(el).color)).toBe('rgb(70, 87, 107)');
+    expect(await ran.evaluate(el => getComputedStyle(el).color)).toBe('rgb(35, 37, 34)');
     expect(await ran.locator('svg[aria-hidden="true"]').count()).toBe(0);
     for (const [id, state, color, background] of [
       ['summary', 'caution', 'rgb(121, 86, 23)', 'rgb(252, 242, 222)'],
@@ -204,8 +166,8 @@ export function registerDebuggerJourneys(test: ReturnType<typeof createDebuggerT
       expect(await badge.evaluate(el => getComputedStyle(el).color)).toBe(color);
       expect(await badge.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
       expect(await badge.locator('svg[aria-hidden="true"]').count()).toBe(0);
-      expect(await p.locator('.call-row[aria-pressed="true"] .status-chip').count()).toBe(2);
-      expect(await p.locator('.call-row[aria-pressed="true"] .call-concern').count()).toBe(1);
+      expect(await p.locator('.call-row').count()).toBe(0);
+      expect(await p.locator('[data-fact="findings"]').textContent()).not.toBe('');
     }
     await pickCall(p, 'low-pass');
     await openRecordedData(p, 'Questions');
@@ -221,7 +183,8 @@ export function registerDebuggerJourneys(test: ReturnType<typeof createDebuggerT
     }
   });
 
-  test('exact records distinguish confidence, evidence, advice, approval and integrity without deriving gates', async ({ debuggerRun: { page: p, externalRequests, pageErrors } }) => {
+  test('exact records distinguish confidence, evidence, advice, approval and integrity without deriving gates', async ({ debuggerRun }) => {
+    const p = debuggerRun.page;
     for (const [id, gate] of [
       ['low-pass', 'outcome-confidence-below-threshold'], ['unknown', 'outcome-unknown'],
       ['approval', null], ['evidence', 'evidence-insufficient'],
@@ -245,12 +208,12 @@ export function registerDebuggerJourneys(test: ReturnType<typeof createDebuggerT
       expect(await p.locator('body').textContent()).not.toContain('Changed current policy');
     }
     await pickCall(p, 'summary');
-    expect((await p.locator('.call-row[aria-pressed="true"] [data-list-fact="result"] .status-chip').first().textContent())?.trim()).toBe('Successful');
-    expect(externalRequests).toEqual([]); expect(pageErrors).toEqual([]);
+    expect((await p.locator('[data-fact="result"]').first().textContent())?.trim()).toBe('Successful');
+    expect(debuggerRun.externalRequests).toEqual([]); expect(debuggerRun.pageErrors).toEqual([]);
   });
 
-  test('captured questions retain exact Markdown and hostile strings as inert JSON', async ({ debuggerRun: { page: p, externalRequests, pageErrors } }) => {
-    await pickCall(p, 'rich'); await openRecordedData(p, 'Questions');
+  test('captured questions retain exact Markdown and hostile strings as inert JSON', async ({ debuggerRun }) => {
+    const p = debuggerRun.page; await pickCall(p, 'rich'); await openRecordedData(p, 'Questions');
     const questions = p.locator('.exact-rules');
     const captured = JSON.parse((await questions.locator('pre').textContent())!);
     expect(captured.questionVersion).toBe('historical-test-v1');
@@ -260,11 +223,11 @@ export function registerDebuggerJourneys(test: ReturnType<typeof createDebuggerT
     expect(await questions.locator('script, img, iframe, a, object').count()).toBe(0);
     expect(await p.evaluate(() => (window as Window & { hostile?: boolean }).hostile)).toBeUndefined();
     expect(await questions.locator('.rich-markdown, .question-rich, .answer-choices').count()).toBe(0);
-    expect(externalRequests).toEqual([]); expect(pageErrors).toEqual([]);
+    expect(debuggerRun.externalRequests).toEqual([]); expect(debuggerRun.pageErrors).toEqual([]);
   });
 
-  test('evidence scroll survives opening exact records and adjacent disclosures', async ({ debuggerRun: { page: p } }) => {
-    await p.setViewportSize({ width: 1280, height: 700 }); await pickCall(p, 'low-pass');
+  test('evidence scroll survives opening exact records and adjacent disclosures', async ({ debuggerRun }) => {
+    const p = debuggerRun.page; await p.setViewportSize({ width: 1280, height: 700 }); await pickCall(p, 'low-pass');
     await openRecordedData(p);
     const evidence = p.locator('.submitted-evidence');
     const scroll = await evidence.evaluate(el => { el.scrollTop = 180; return el.scrollTop; });
@@ -294,26 +257,18 @@ export function registerDebuggerJourneys(test: ReturnType<typeof createDebuggerT
     expect(rules.every(Boolean)).toBe(true);
   }
 
-  test('sidebar and selected call do not overlap at intermediate widths or after resizing', async ({ debuggerRun: { page: p } }) => {
-    await pickCall(p, 'summary');
-    for (const width of [901, 1024, 1100]) {
+  test('panel and exact records remain bounded at intermediate widths', async ({ debuggerRun }) => {
+    const p = debuggerRun.page; await pickCall(p, 'summary');
+    for (const width of [901, 1024, 1100, 1280]) {
       await p.setViewportSize({ width, height: 900 });
-      const sidebar = (await p.locator('.explorer').boundingBox())!;
-      const workspace = (await p.locator('.inspection').boundingBox())!;
-      const divider = (await p.getByRole('separator', { name: 'Resize call explorer' }).boundingBox())!;
-      expect(workspace.x).toBeGreaterThanOrEqual(sidebar.x + sidebar.width);
-      expect(workspace.width).toBeGreaterThan(width / 2);
-      expect(Math.abs(divider.y - sidebar.y)).toBeLessThanOrEqual(1);
-      expect(Math.abs(divider.height - sidebar.height)).toBeLessThanOrEqual(1);
+      const panel = (await p.locator('.rule-panel').boundingBox())!;
+      expect(panel.x + panel.width).toBe(width); expect(panel.width).toBe(620);
       await expectBoundedSummary(p);
     }
-    await p.setViewportSize({ width: 1280, height: 900 });
-    await p.getByRole('separator', { name: 'Resize call explorer' }).press('End');
-    await expectBoundedSummary(p);
   });
 
-  test('mobile views retain selection, hide drag handles and avoid horizontal overflow', async ({ debuggerRun: { page: p } }) => {
-    await pickCall(p, 'rich');
+  test('mobile views retain selection, hide drag handles and avoid horizontal overflow', async ({ debuggerRun }) => {
+    const p = debuggerRun.page; await pickCall(p, 'rich');
     for (const width of [390, 320, 768]) {
       await p.setViewportSize({ width, height: 844 });
       expect(await p.getByRole('separator').count()).toBe(0);
@@ -323,34 +278,35 @@ export function registerDebuggerJourneys(test: ReturnType<typeof createDebuggerT
       await p.locator('.exact-rule-data').waitFor({ state: 'visible' });
       expect(await p.evaluate(() => document.activeElement?.className)).toBe('exact-rule-data');
       expect(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      await p.getByRole('button', { name: 'Calls', exact: true }).click();
-      await p.getByRole('button', { name: 'Selected call', exact: true }).click();
+      await p.locator('.recorded-disclosure > summary').click();
+      await p.locator('.recorded-disclosure > summary').click();
       await p.getByRole('region', { name: 'Exact rule records and captured questions', exact: true }).waitFor({ state: 'visible' });
       expect(await p.locator('.decision-title h2 span').textContent()).toBe('rich');
     }
   });
 
-  test('missing evidence is explicit and archive errors recover without a fake pass', async ({ debuggerRun: { page: p, externalRequests, pageErrors } }) => {
-    await pickCall(p, 'missing');
+  test('missing evidence is explicit and archive errors recover without a fake pass', async ({ debuggerRun }) => {
+    const p = debuggerRun.page; await pickCall(p, 'missing');
     expect(await p.locator('.decision-explanation').textContent()).toContain('timeout');
     const missing = JSON.parse((await p.locator('.exact-rule-data pre').textContent())!).rules[0];
     expect(missing.gateIds).toBeNull(); expect(missing.result).toBeNull();
     expect(await p.locator('.submitted-evidence').textContent()).toContain('Submitted evidence unavailable');
     expect(await p.locator('.lifecycle').textContent()).toContain('unknown');
     await p.route('**/api/sessions?*', route => route.fulfill({ status: 503, body: '{}' }));
-    await reveal(p, '.session-picker');
+    await p.getByRole('button', { name: 'Close', exact: true }).click(); await reveal(p, '.recording-issues');
     await p.getByRole('button', { name: 'Refresh archive', exact: true }).click();
     await p.getByRole('alert').waitFor();
     expect(await p.getByRole('alert').textContent()).toContain('503');
     await p.unroute('**/api/sessions?*');
     await p.getByRole('button', { name: 'Refresh archive', exact: true }).click();
     await p.getByRole('alert').waitFor({ state: 'hidden' });
+    await pickCall(p, 'missing');
     await p.getByRole('region', { name: 'Decision summary', exact: true }).waitFor();
-    expect(pageErrors).toEqual([]); expect(externalRequests).toEqual([]);
+    expect(debuggerRun.pageErrors).toEqual([]); expect(debuggerRun.externalRequests).toEqual([]);
   });
 
-  test('visual summary separates the policy result from execution and hides debugging data', async ({ debuggerRun: { page: p, externalRequests, pageErrors } }) => {
-    await pickCall(p, 'summary');
+  test('visual summary separates the policy result from execution and hides debugging data', async ({ debuggerRun }) => {
+    const p = debuggerRun.page; await pickCall(p, 'summary');
     await p.locator('.recorded-disclosure > summary').click();
     expect(await p.locator('.primary-status').textContent()).toContain('Shell command');
     expect(await p.locator('[data-fact="assessment"]').textContent()).toBe('Would block in enforce mode');
@@ -366,7 +322,7 @@ export function registerDebuggerJourneys(test: ReturnType<typeof createDebuggerT
     expect(await p.locator('.recorded-data').isVisible()).toBe(false);
     expect(await p.locator('.exact-rule-data').isVisible()).toBe(false);
     expect(await p.locator('.rule-question-link, .rule-outcome, .recorded-rule-facts, .confidence-note').count()).toBe(0);
-    expect(await p.locator('.call-id').first().isVisible()).toBe(false);
+    expect(await p.locator('.decision-title h2 span').first().isVisible()).toBe(false);
     for (const [width, height, name] of [[2233, 1282, 'user-2233'], [1536, 1024, 'comp'], [1440, 1000, 'desktop'], [390, 1000, 'mobile']] as const) {
       await p.setViewportSize({ width, height });
       await p.locator('.invocation').evaluate(el => el.scrollTop = 0);
@@ -377,11 +333,11 @@ export function registerDebuggerJourneys(test: ReturnType<typeof createDebuggerT
     expect(await p.locator('.exact-rules').getAttribute('open')).not.toBeNull();
     expect(await p.locator('.exact-rule-data').isVisible()).toBe(true);
     expect(await p.locator('.recorded-data').isVisible()).toBe(true);
-    expect(pageErrors).toEqual([]); expect(externalRequests).toEqual([]);
+    expect(debuggerRun.pageErrors).toEqual([]); expect(debuggerRun.externalRequests).toEqual([]);
   });
 
-  test('coverage distinguishes unsupported, partial, unavailable and historical records without guessing model rationale', async ({ debuggerRun: { page: p } }) => {
-    const coverage = p.getByRole('region', { name: 'Runtime evidence coverage' });
+  test('coverage distinguishes unsupported, partial, unavailable and historical records without guessing model rationale', async ({ debuggerRun }) => {
+    const p = debuggerRun.page, coverage = p.getByRole('region', { name: 'Runtime evidence coverage' });
     await pickCall(p, 'unknown');
     expect(await coverage.locator('dl > div').filter({ has: p.getByText('Action resolution', { exact: true }) }).locator('dd').textContent()).toBe('unsupported');
     expect(await p.locator('.summary-reason').textContent()).toContain('No rule was classified as violated');
@@ -418,8 +374,8 @@ export function registerDebuggerJourneys(test: ReturnType<typeof createDebuggerT
   });
 
 
-  test('exact compaction stays distinct from losses and the dock preserves the submitted pool without decoding', async ({ debuggerRun: { page: p } }) => {
-    await pickCall(p, 'compacted');
+  test('exact compaction stays distinct from losses and the dock preserves the submitted pool without decoding', async ({ debuggerRun }) => {
+    const p = debuggerRun.page; await pickCall(p, 'compacted');
     const coverage = p.getByRole('region', { name: 'Runtime evidence coverage' });
     expect(await coverage.textContent()).toContain('2 retained events, 2 known omissions');
     expect(await coverage.textContent()).toContain('2 shortened, 2 dropped, 0 prior omissions');
@@ -445,5 +401,36 @@ export function registerDebuggerJourneys(test: ReturnType<typeof createDebuggerT
     await coverage.scrollIntoViewIfNeeded();
     await p.screenshot({ path: join(artifacts, 'history-groups-mobile.png'), fullPage: true });
   });
-
+  for (const [change, expected] of [
+    ['unrelated update', false],
+    ['warning added and removed', true],
+    ['warning text changed and restored', true],
+  ] as const) test(`capture warning watch detects only warning text: ${change}`, async ({ debuggerRun: { page: p } }) => {
+    await pickCall(p, 'summary');
+    const watch = await p.evaluateHandle(watchCaptureWarnings);
+    try {
+      await p.evaluate(change => {
+        const node = document.createElement('p');
+        const text = document.createTextNode('Refreshing archive');
+        node.append(text); document.querySelector('main')!.append(node);
+        if (change === 'warning added and removed') {
+          const warning = document.createElement('span');
+          warning.textContent = 'Capture may be incomplete.';
+          node.append(warning); warning.remove();
+        } else if (change === 'warning text changed and restored') {
+          text.data = 'Capture may be incomplete.';
+          text.data = 'Archive refreshed';
+        } else {
+          node.setAttribute('aria-live', 'polite');
+          text.data = 'Archive refreshed';
+        }
+        node.remove();
+      }, change);
+      expect(await watch.evaluate(watch => watch.stop())).toBe(expected);
+      expect(await p.locator('main').textContent()).not.toContain('Capture may be incomplete.');
+    } finally {
+      await watch.evaluate(watch => watch.stop());
+      await watch.dispose();
+    }
+  });
 }

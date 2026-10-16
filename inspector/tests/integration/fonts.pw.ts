@@ -6,14 +6,14 @@ for (const width of [1280, 390]) test(`bundled wordmark font loads without netwo
   await withInspector(`wordmark-font-${width}`, async ({ page, externalRequests }) => {
     await page.setViewportSize({ width, height: 844 });
     await page.reload();
-    await page.locator('.app-bar h1').waitFor();
+    await page.locator('.rule-brand').waitFor();
     const fonts = await page.evaluate(async () => {
       const loaded = await document.fonts.load('700 34px "Kode Mono"', 'TENET');
       await document.fonts.ready;
       return {
         loaded: loaded.map(face => ({ family: face.family, status: face.status })),
         failed: [...document.fonts].filter(face => face.status === 'error').map(face => face.family),
-        wordmarkFamily: getComputedStyle(document.querySelector('.app-bar h1')!).fontFamily,
+        wordmarkFamily: getComputedStyle(document.querySelector('.rule-brand')!).fontFamily,
       };
     });
     expect(fonts.loaded).toEqual([{ family: 'Kode Mono', status: 'loaded' }]);
