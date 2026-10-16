@@ -21,9 +21,13 @@ for (const width of [1440, 390]) test(`synthetic BB panel is compact at 390px in
     await page.getByRole('button', { name: 'Summary', exact: true }).focus(); await page.keyboard.press('Enter');
     expect(await page.locator('.inspection').isVisible()).toBe(true);
     expect(await page.locator('.explorer').isVisible()).toBe(false);
+    expect(await page.locator('.assessment-state').first().isVisible()).toBe(false);
+    expect(await page.locator('.recorded-call').innerText()).toContain('Reported violations unavailable. No validated complete assessment.');
+    await page.getByText('Recording details', { exact: true }).press('Enter');
     expect(await page.locator('.assessment-state').first().innerText()).toBe('Recorded assessment: unavailable · provider-error.');
     expect(await page.locator('.primary-status').innerText()).toContain('Ran');
     expect(await page.locator('.session-counts').innerText()).toContain('0 selected FAIL · 2 evaluator failures');
+    await page.getByText('Recording details', { exact: true }).press('Enter');
     await page.locator('.why-disclosure > summary').press('Enter');
     expect(await page.locator('.decision-map').isVisible()).toBe(true);
     expect(await page.locator('.panel').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
@@ -57,7 +61,9 @@ test('desktop BB shared composition has the same common fields and no raw extens
     await page.getByRole('button', { name: 'Toggle 390px panel' }).click();
     expect(await page.getByRole('button', { name: 'Calls', exact: true }).isVisible()).toBe(false);
     expect(await page.locator('.inspection').isVisible()).toBe(true); expect(await page.locator('.explorer').isVisible()).toBe(true);
-    expect(await page.locator('.recorded-context').innerText()).toContain('Contract 4 · Questions synthetic-v1');
+    await page.getByText('Recording details', { exact: true }).press('Enter');
+    await expect(page.getByRole('group', { name: 'Recording details' }).getByText('4', { exact: true })).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Recording details' }).getByText('synthetic-v1', { exact: true })).toBeVisible();
     expect(await page.locator('.common-summary').innerText()).not.toContain('RAW-SENTINEL');
     await page.screenshot({ path: `${artifacts}/panel-desktop.png`, fullPage: true });
   } finally { await page.close(); }

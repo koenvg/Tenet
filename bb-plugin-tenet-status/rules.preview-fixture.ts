@@ -2,6 +2,7 @@ import type { OverviewSelection, ThreadOverview } from '../src/inspector/bb-summ
 import type { SummaryDecision, SummaryRule } from '../src/inspector/summary-model.js';
 import { syntheticOverview } from './overview.preview-fixture.js';
 import { summarizeBlockingRules } from '../src/inspector/summary-explanation.js';
+import { reportedViolations, uncertainGates } from '../src/inspector/summary-display.js';
 const id = (n: number) => n.toString(16).padStart(64, '0');
 const base = syntheticOverview.selected!;
 const rule = (n: number, choice = 'PASS', enforcement = 'BLOCK'): SummaryRule => ({
@@ -27,6 +28,8 @@ export function rulesSyntheticRead(selection: OverviewSelection): ThreadOverview
   rules[1]!.text = 'Recorded long rule '.repeat(110).slice(0, 2038) + ' [omitted]'; rules[1]!.textStatus = 'truncated'; rules[1]!.omittedTextChars = 962;
   rules[2]!.text = 'Rule text unavailable'; rules[2]!.textStatus = 'missing';
   const selected: SummaryDecision = { ...base, identity: { toolName: 'bash', callId: chosen.callId, mode: 'observe' },
+    recordedAction: { field: 'command', text: `printf "authored  ${cases[n]}"\n  echo 雪`, truncated: false },
+    reportedViolations: reportedViolations(rules, n !== 6, rules.some(rule => uncertainGates(rule.gateIds))),
     judge: { ...base.judge, returnedModel: n === 6 ? null : 'authored-returned' },
     metadata: { schemas: [3], questionVersion: 'recorded-v3', policyDigest: id(90), profile: 'legacy' },
     decision: n === 4 ? 'ASK' : n === 0 ? 'ALLOW' : 'BLOCK', reason: n === 6 ? 'provider-error' : 'recorded-decision',

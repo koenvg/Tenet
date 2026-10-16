@@ -54,7 +54,7 @@ After the separate installation steps above:
 
 1. Open a Pi thread, select **TENET rules**, then **Open thread overview**. BB opens a flush overview tab beside the conversation. Repeating the same open requests focus of the existing tab.
 2. Pick a **Linked session**. Use **More sessions** or **More invocations** for older records. Pages contain at most 50 summaries. **Finding category** filters recorded categories; one call can have several categories.
-3. Select a call. A narrow panel offers **Calls** and **Summary**, even inside a wide window. The common summary shows call identity, recorded contract metadata, assessment, findings, confidence or approval conditions, recorded decision, Tenet permission and execution separately.
+3. Select a call. The open summary shows the tool, one recorded command or path and reported violated rule text. A narrow panel offers **Calls** and **Summary**, even inside a wide window. Open **Recording details** for call identity, metadata, assessment, mode, permission, execution and privacy limits.
 4. Keep **Calls**, **Summary**, coverage and **Refresh archive** reachable in a narrow panel. These controls use the panel's width, not the window's width. Use the same [live-read and manual retry controls](#browse-from-the-main-tenet-page) as the main page. Closing, switching scope or reloading disposes its reader and shared mount.
 
 Evaluator failures use safe reason codes such as `provider-error`. They do not count as selected FAIL or unfinished assessments, even if the tool ran. Archive warnings appear in a separate disclosure and can concern other threads. No record means unknown, not pass.
@@ -65,7 +65,9 @@ Recorded rules use 16-rule pages. Open **Why this assessment**, then **Browse al
 
 ### Inspect raw evidence on the selected machine
 
-BB has no action preview, Evidence or Response view. To inspect those records, use the [standalone inspector instructions](../docs/inspector.md) on the same machine and with the same private archive setting. Keep its loopback listener local to that machine. Opening the BB panel does not start or expose a listener. Raw recordings can contain secrets; do not paste them into BB messages or notifications.
+BB shows one selected-only scalar `command`, `path` or `file_path` from the retained request, capped at 4096 UTF-8 bytes. It preserves stored whitespace and marks shortening. This recorded value is not proof that the tool ran.
+
+BB has no raw argument, Evidence or Response view. Use the [standalone inspector instructions](../docs/inspector.md) on the selected machine with the same private archive setting. Keep its loopback listener local. Opening the BB panel starts no listener. Recorded commands, paths and rules can contain secrets; do not paste them into BB messages or notifications.
 
 ## Read status
 
@@ -123,6 +125,10 @@ The owner response includes an opaque 64-character `readScope` for its resolved 
 
 Cursors are limited to 512 characters, labels to 256, recorded rule text to 2,048, issue lists to 20 codes, and session/call pages to 50 summaries. Rule pages contain at most 16 rules, including built-in integrity. Summary rules retain recorded thresholds, policy digest and contract versions; they do not read current policy files.
 
+The open selected summary lists at most 16 reported violations from the whole call, before rule-page slicing. Only validated selected `FAIL` outcomes qualify. WARN stays advisory, and uncertain FAILs remain labeled.
+
+Missing or invalid assessments never become a clean result. A total and missing-snapshot or text-omission notices identify content not displayed. Use the existing rule browser to continue; pages replace rather than accumulate.
+
 The call explanation uses bounded whole-call facts, separate from the browsed rule page. It keeps the recorded first blocking gate, scores and thresholds, total blocking-rule count and uncertainty-only marker.
 
 Loading another page does not change the call explanation or increase the 16-rule page limit. This context contains no additional rule text or raw payload.
@@ -139,11 +145,15 @@ Schema-5 summaries retain recorded source roles, paths, targets and digests with
 
 To inspect raw data, open the standalone inspector on the selected thread's machine with the same private archive. Follow the [checkout standalone inspector guide](../docs/inspector.md). A browser-local inspector or another machine's archive is not a substitute. Opening the BB summary starts no listener and adds no Evidence or Response endpoint.
 
-Exact thread association is checked before grouping or counting. A shared native session or resumed Pi session cannot supply another thread's calls. Missing unlinked history remains standalone-only. Policy text renders inertly, but can itself contain secrets. Summary-only access is not a confidentiality boundary against same-user code or an owner client. Raw arguments, command/file previews, submitted evidence, exact questions, provider bodies and error text stay host-local.
+Exact thread association is checked before grouping or counting. A shared native session or resumed Pi session cannot supply another thread's calls. Missing unlinked history remains standalone-only.
+
+Policy text renders inertly, but can itself contain secrets. Summary-only access is not a confidentiality boundary against same-user code or an owner client. The bounded selected command or path is an owner-only exception.
+
+Raw argument bags, private previews, submitted evidence, exact questions, provider bodies and error text stay host-local. Lists, status, findings, logs and URLs gain no action data.
 
 ## Shared summary build
 
-The checkout includes one React summary composition used directly by the standalone inspector and both BB entry points through a typed summary interface. Shared-field placement is the same in both hosts. Standalone action previews and raw inspection remain separate extensions.
+The checkout includes one React workspace layout for the standalone inspector and both BB entry points. BB uses the compact selected-call summary; the standalone inspector keeps its private detail view and action previews. The synthetic comparison checks the shared summary component, not the private inspector layout.
 
 Before importing the mount or running its tests, build the ignored `.summary-workspace/` output with `bun run summary:build` from the repository root. `bun run plugin:build` rebuilds that output, then builds the plugin. Building files installs or reloads nothing. A missing or stale shared artifact stops `npm run build` with the required command.
 

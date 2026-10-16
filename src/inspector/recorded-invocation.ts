@@ -3,6 +3,7 @@ import { recordedOrigin } from '../recording/policy-contract.js';
 import { recordedInputs } from '../recording/scoped.js';
 import { findingStage, foldFindingStages } from './finding-view.js';
 import { recordedDecisionFacts } from './recorded-decision.js';
+import { summaryAction, uncertainGates } from './summary-display.js';
 
 const object = (value: unknown): Record<string, any> => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const list = (value: unknown): Record<string, any>[] => Array.isArray(value) ? value.map(object) : [];
@@ -17,6 +18,8 @@ export function recordedInvocation(records: readonly ArchiveRecord[]) {
   const validation = stage('validation'), decision = stage('decision'), permission = stage('permission');
   const lifecycle = stage('assessment-status');
   const inputs = recordedInputs(request);
+  const proposedCall = inputs.layout === 'shared' ? inputs.sharedState?.action
+    : (inputs.scopes.find(scope => scope.kind === 'ordinary') ?? inputs.scopes.find(scope => scope.kind === 'policy-protection'))?.state.proposedToolCall;
   const config = object(assessmentStage.config ?? begin.config);
   const assessment = object(assessmentStage.assessment ?? validation.assessment);
   const results = list(assessment.rules), contributions = list(decision.contributions), diagnostics = list(decision.diagnostics);
@@ -30,12 +33,16 @@ export function recordedInvocation(records: readonly ArchiveRecord[]) {
       origin: rule.id === integrity.id ? null : recordedOrigin(originSchema, rule, policy) })) };
   }
   const availableSnapshot = snapshot(request.policy ?? begin.policy, inputs.integrity ?? begin.integrity);
+  // A retained request owns attribution even when it contains no policy snapshot.
+  const submittedSnapshot = records.some(record => record.stage === 'request') ? snapshot(request.policy, inputs.integrity) : snapshot(begin.policy, begin.integrity);
+  const ruleIds = new Set([...submittedSnapshot.rules.map(({ rule }) => rule.id), ...results.map(result => result.ruleId)]);
+  const assessmentUncertain = [...ruleIds].some(id => uncertainGates(list(selectedDiagnostics).find(rule => rule.ruleId === id)?.gates));
   return {
     begin, request, assessmentStage, validation, decision, permission, lifecycle, inputs, config, assessment,
+    recordedAction: summaryAction(proposedCall),
     findings: foldFindingStages(records.map(findingStage)), facts: recordedDecisionFacts(records),
     snapshot: availableSnapshot,
-    // A present request is authoritative for finding attribution even if its snapshot is missing.
-    submittedSnapshot: Object.keys(request).length ? snapshot(request.policy, inputs.integrity) : snapshot(begin.policy, begin.integrity),
+    submittedSnapshot, assessmentUncertain,
     missing: requiredStages.filter(name => !records.some(record => record.stage === name)),
     forRule(ruleId: unknown) {
       const contribution = contributions.find(value => value.ruleId === ruleId);

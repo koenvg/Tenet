@@ -28,7 +28,6 @@
 .tenet-summary-workspace.embedded .inspection { min-width: 0; overflow-wrap: anywhere; background: var(--tenet-chrome); border-radius: 16px; margin: 0 24px 20px 0; }
 .tenet-summary-workspace.embedded .invocation { height: auto; }
 .tenet-summary-workspace.embedded [role='alert'] { color: var(--tenet-danger); }
-.tenet-summary-workspace.embedded .call-id { overflow-wrap: anywhere; font-size: 12px; }
 @container tenet-summary (max-width: 650px) {
   .tenet-summary-workspace.embedded .mobile-nav { display: flex; }
   .tenet-summary-workspace.embedded .mobile-nav button { flex: 1; text-align: center; }

@@ -6,6 +6,7 @@ import type { Reason } from '../decision/contracts.js';
 import { evaluatorFailureCodes } from './finding-view.js';
 import { recordedInvocation } from './recorded-invocation.js';
 import { summarizeBlockingRules } from './summary-explanation.js';
+import { reportedViolations } from './summary-display.js';
 
 import { recordedJudge } from '../recording/native.js';
 import { summaryJudge } from './summary-judge.js';
@@ -51,8 +52,10 @@ export function projectSummaryDecision(records: ArchiveRecord[], ruleOffset = 0)
   const invocation = recordedInvocation(records);
   const { begin, request, findings, assessment, validation, facts } = invocation;
   const { policy, integrity, rules } = invocation.snapshot;
-  const valid = findings.evaluatorState.status === 'completed' && validation.valid === true;
-  const allRules: SummaryRule[] = rules.map(({ rule, builtin, origin }) => {
+  const valid = findings.evaluatorState.status === 'completed' && validation.valid === true
+    && !records.some(record => ['assessment', 'validation', 'decision', 'assessment-status'].includes(record.stage)
+      && (record.data.valid === false || record.data.validationIssue !== undefined));
+  const projectRule = ({ rule, builtin, origin }: typeof rules[number]): SummaryRule => {
     const { result: recordedResult, recorded: contribution, thresholds } = invocation.forRule(rule.id);
     const result = valid ? recordedResult : undefined;
     const text = typeof rule.text === 'string' ? rule.text : 'Rule text unavailable';
@@ -71,9 +74,16 @@ export function projectSummaryDecision(records: ArchiveRecord[], ruleOffset = 0)
         evidenceThreshold: probability(thresholds.evidenceThreshold) },
       evidenceGate: known(contribution?.evidenceGate, ['applicable', 'not-applicable', 'unavailable']),
       profile: summaryLabel(contribution?.profile ?? findings.profile) };
-  });
+  };
+  const allRules = rules.map(projectRule);
+  const submittedRules = invocation.submittedSnapshot.rules;
+  const reportedRules = submittedRules.map(projectRule).map((rule, index) => invocation.forRule(submittedRules[index]!.rule.id).hasRecordedGates
+    ? rule : { ...rule, gateIds: null });
   const summaryRules = allRules.slice(ruleOffset, ruleOffset + 16);
   return { identity: records[0] ? { callId: summaryLabel(records[0].callId), toolName: summaryLabel(records[0].toolName), mode: records[0].mode } : null,
+    recordedAction: invocation.recordedAction,
+    reportedViolations: reportedViolations(reportedRules, valid, invocation.assessmentUncertain,
+      list(assessment.rules).filter(result => result.outcome?.choice === 'FAIL' && !submittedRules.some(({ rule }) => rule.id === result.ruleId)).length),
     judge: summaryJudge(recordedJudge(records), findings.evaluatorState),
     metadata: { schemas: [...new Set(records.map(r => r.schemaVersion))], questionVersion: summaryLabel(request.questionVersion ?? begin.questionVersion),
       profile: summaryLabel(findings.profile), policyDigest: typeof (policy.combinedDigest ?? policy.digest) === 'string' && /^[a-f0-9]{64}$/.test(policy.combinedDigest ?? policy.digest) ? policy.combinedDigest ?? policy.digest : null },

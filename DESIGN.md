@@ -53,6 +53,12 @@ One short archive-state indicator replaces the two long top-level warnings. Reco
 
 The React standalone Inspector uses `useArchive` in `archive-state.ts` and the shared `SummaryWorkspace` layout. Its private call-list slot, `CallSummary.tsx`, `RecordedRule.tsx`, `RecordedConfidence.tsx` and `RecordedData.tsx` read private archive fields without adding them to the shared summary model or BB input. Shared BB summaries retain their own safe presentation and pagination contracts. None of these components evaluates policy.
 
+BB's selected summary intentionally includes one retained scalar `command`, `path` or `file_path`, bounded to 4096 UTF-8 bytes without whitespace normalization. Its open content is the tool, recorded value and at most 16 reported selected-FAIL rule texts with whole-call count and omission notices.
+
+Missing validation stays neutral. WARN and uncertainty stay labeled. Existing check-map, rule browsing, recording and judge disclosures remain collapsed. Mode, permission, execution and privacy prose live inside Recording details.
+
+This owner-only exception does not expose raw argument bags, evidence or provider bodies. The private sidebar preview remains separate and whitespace-normalized. Call lists, status, findings, logs and URLs gain no action data.
+
 PASS with a recorded confidence gate is uncertainty, not a selected violation. Exact outcome/evidence choices, all distributions, recorded thresholds and gates remain in the exact-data destination. Missing fields stay missing; non-applicable evidence has no invented score. The UI never compares against current settings.
 
 PASS can coexist with failed confidence. Missing or unknown data is not a pass. WARN does not block. Never invent evaluator reasoning or serial dependencies between independent checks.

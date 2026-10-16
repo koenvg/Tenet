@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { findingCategories } from '../src/decision/finding-triage.js';
 import { evaluatorFailureCodes } from '../src/inspector/finding-view.js';
 import { summaryChoices, summaryGates } from '../src/inspector/bb-summary.js';
+import { recordedActionMaxBytes } from '../src/inspector/summary-display.js';
 
 import { recordedJudgeReport } from '../src/recording/judge.js';
 import { recordedConfiguration } from '../src/recording/configuration.js';
@@ -26,6 +27,15 @@ const rule = z.object({ id: label, text: z.string().max(2048), line: count.nulla
   result: z.object({ outcome: score, evidence: score }).strict().nullable(), gateIds: z.array(z.enum(summaryGates)).max(8).nullable(),
   contribution: label, thresholds: z.object({ effectThreshold: probability.nullable(), evidenceThreshold: probability.nullable() }).strict(),
   evidenceGate: label, profile: label, textStatus: z.enum(['recorded', 'truncated', 'missing']).optional(), omittedTextChars: count.optional() }).strict();
+const recordedAction = z.object({ field: z.enum(['command', 'path', 'file_path']),
+  text: z.string().min(1).max(recordedActionMaxBytes).refine(text => new TextEncoder().encode(text).length <= recordedActionMaxBytes),
+  truncated: z.boolean() }).strict().nullable();
+const reportedViolations = z.object({ assessment: z.enum(['validated', 'unavailable']), uncertain: z.boolean(), total: count, missingRuleSnapshots: count,
+  items: z.array(z.object({ id: label, text: rule.shape.text, textStatus: rule.shape.textStatus,
+    omittedTextChars: rule.shape.omittedTextChars, enforcement: label, uncertain: z.boolean() }).strict()).max(16),
+}).strict().refine(value => value.assessment === 'unavailable'
+  ? value.uncertain && value.total === 0 && value.items.length === 0 && value.missingRuleSnapshots === 0
+  : value.missingRuleSnapshots <= value.total && value.items.length === Math.min(16, value.total - value.missingRuleSnapshots), 'incoherent reported violations');
 const explanation = z.object({ blockerCount: count, uncertaintyOnly: z.boolean(),
   firstBlocker: z.object({ builtin: z.boolean(), line: count.nullable(), gate: z.enum(summaryGates),
     result: rule.shape.result, thresholds: rule.shape.thresholds }).strict().nullable() }).strict();
@@ -60,6 +70,7 @@ export type JudgeSchemaMatchesModel = Assert<z.infer<typeof summaryJudgeSchema> 
 export type JudgeModelMatchesSchema = Assert<SummaryJudge extends z.infer<typeof summaryJudgeSchema> ? true : false>;
 const call = z.object({ ...facts, id: recordId, callId: label, toolName: label, timestamp: z.number(), mode: label }).strict();
 const selected = z.object({ ...facts, judge: summaryJudgeSchema, identity: z.object({ callId: label, toolName: label, mode: z.enum(['observe', 'enforce']) }).strict().nullable(),
+  recordedAction, reportedViolations,
   metadata: z.object({ schemas: z.array(z.number().int()).max(4), questionVersion: label, profile: label, policyDigest: recordId.nullable() }).strict(),
   reason: label, approval: label, noRulesClassifiedViolated: z.boolean(), explanation, rules: z.array(rule).max(16), omittedRules: count, missingRuleSnapshots: count.optional(),
   rulePage: z.object({ snapshot: recordId, offset: count, total: count, next: nullableCursor }).strict().optional() }).strict().refine(value => value.evaluatorState.status === 'completed' || value.judge.returnedModel === null, 'returned model without complete assessment');

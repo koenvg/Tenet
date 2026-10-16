@@ -28,16 +28,17 @@ export default function SummaryWorkspace({ model, actions, standalone = false, i
       {!!model.sessions?.length && <>
         <label>Linked session
           <select aria-label="Linked session" value={model.sessionId} disabled={model.loading} onChange={event => actions.selectSession?.(event.currentTarget.value)}>
-            {model.sessionId && !model.sessions.some(s => s.id === model.sessionId) && <option value={model.sessionId}>Selected older session · {model.sessionId.slice(0, 8)} · Load more sessions for counts</option>}
-            {model.sessions.map(s => <option key={s.id} value={s.id}>{new Date(s.started).toLocaleString()} · {s.calls} calls · {s.id.slice(0, 8)}</option>)}
+            {model.sessionId && !model.sessions.some(s => s.id === model.sessionId) && <option value={model.sessionId}>Selected older session · Load more sessions for counts</option>}
+            {model.sessions.map(s => <option key={s.id} value={s.id}>{new Date(s.started).toLocaleString()} · {s.calls} calls</option>)}
           </select>
         </label>
         {model.moreSessions && <Button variant="outline" disabled={model.loading} onClick={actions.loadMoreSessions}>More sessions</Button>}
         {session && <p className="session-counts">{session.calls} calls · {session.categoryCounts.violation} selected FAIL · {session.categoryCounts.unavailable} evaluator failures · {session.categoryCounts.uncertainty} uncertain · {session.categoryCounts.approval} approval conditions · {session.categoryCounts.pending} pending, dropped, cancelled or incomplete</p>}
       </>}
+      {model.sessionId && <details><summary>Session recording details</summary><p>{model.sessionId}</p></details>}
       {!!model.archiveWarnings?.length && <details><summary>Archive warnings</summary><p>These warnings can include records from other threads. They are not assessment failures.</p><ul>{model.archiveWarnings.map(code => <li key={code}>{code}</li>)}</ul></details>}
     </div>}
-    {explorer ?? <CallExplorer filterId={standalone ? 'finding-category' : undefined} showCallLabels={!standalone} explorerId={standalone ? 'call-explorer' : undefined} calls={model.calls} selectedId={model.selectedId ?? ''} category={model.category} loading={model.loading} unavailable={model.unavailable ?? false} more={model.moreCalls ?? false}
+    {explorer ?? <CallExplorer filterId={standalone ? 'finding-category' : undefined} explorerId={standalone ? 'call-explorer' : undefined} calls={model.calls} selectedId={model.selectedId ?? ''} category={model.category} loading={model.loading} unavailable={model.unavailable ?? false} more={model.moreCalls ?? false}
       selectCall={id => { setMobileView('assessment'); actions.selectCall(id); }} filterCategory={actions.filterCategory} loadMore={actions.loadMoreCalls} />}
     {standalone && <PaneResizer value={explorerWidth} onValueChange={setExplorerWidth} min={220} max={460} label="Resize call explorer" controls="call-explorer" />}
     <div className="inspection">

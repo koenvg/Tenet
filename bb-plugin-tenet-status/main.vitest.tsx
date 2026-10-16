@@ -42,15 +42,15 @@ test('stopped-thread main view reuses safe summaries; BB route restoration resto
     slot.lifecycle.rerender(<MainPage subPath={filtered} />);
     await waitFor(() => expect(slot.container.querySelectorAll('.call-row')).toHaveLength(2));
     const callId = syntheticOverview.calls[2]!.id;
-    fireEvent.click(slot.getByText('synthetic-provider-error-2'));
+    fireEvent.click(slot.container.querySelector<HTMLButtonElement>(`[data-call-id="${callId}"]`)!);
     const selected = overviewPath(stopped, { sessionId: syntheticOverview.sessionId!, callId, category: 'unavailable' }, projectA);
     expect(slot.inspection.navigateCalls.at(-1)).toEqual({ method: 'toPluginPanel', path: 'findings', options: { subPath: selected } });
     slot.lifecycle.rerender(<MainPage subPath={selected} />);
-    expect(await slot.findByText('Call synthetic-provider-error-2')).toBeTruthy();
+    expect(await slot.findByText('synthetic-provider-error-2')).toBeTruthy();
     slot.lifecycle.rerender(<MainPage subPath={path} />); // BB Back supplies the old subPath.
-    expect(await slot.findByText('Call synthetic-provider-error-1')).toBeTruthy();
+    expect(await slot.findByText('synthetic-provider-error-1')).toBeTruthy();
     slot.lifecycle.rerender(<MainPage subPath={selected} />); // BB Forward.
-    expect(await slot.findByText('Call synthetic-provider-error-2')).toBeTruthy();
+    expect(await slot.findByText('synthetic-provider-error-2')).toBeTruthy();
     fireEvent.change(slot.getByLabelText('Linked session'), { target: { value: 'a'.repeat(64) } });
     expect(slot.inspection.navigateCalls.at(-1)).toEqual({ method: 'toPluginPanel', path: 'findings', options: {
       subPath: overviewPath(stopped, { sessionId: 'a'.repeat(64), category: 'unavailable' }, projectA) } });
@@ -115,12 +115,12 @@ test.each([['pi', true], ['pi-subagents', true], ['codex', false], ['pi-prefix',
     try {
       await act(async () => { await vi.advanceTimersByTimeAsync(1); });
       expect(read).toHaveBeenCalledOnce();
-      expect(slot.container.textContent).toContain('Call synthetic-provider-error-1');
+      expect(slot.container.textContent).toContain('synthetic-provider-error-1');
       providerId = nextProvider;
       await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
       expect(read).toHaveBeenCalledTimes(accepted ? 2 : 1);
       if (accepted) {
-        expect(slot.container.textContent).toContain('Call synthetic-provider-error-1');
+        expect(slot.container.textContent).toContain('synthetic-provider-error-1');
         expect(read.mock.calls.at(-1)![0]).toMatchObject({ threadId: stopped });
       } else {
         expect(slot.container.textContent).toContain('This overview supports Pi threads only.');

@@ -2,6 +2,7 @@ import type { InvocationView } from '../../../src/inspector/view.js';
 import type { InvocationSummary } from '../../../src/inspector/archive-index.js';
 import type { SummaryCall, SummaryDecision, SummaryRule, SummaryScore, SummaryEvaluatorState } from './model.js';
 import { summarizeBlockingRules } from '../../../src/inspector/summary-explanation.js';
+import { reportedViolations } from '../../../src/inspector/summary-display.js';
 
 import { summaryJudge } from '../../../src/inspector/summary-judge.js';
 const score = (value: unknown): SummaryScore | null => {
@@ -32,6 +33,9 @@ export function standaloneRule(rule: InvocationView['rules'][number]): SummaryRu
 export function standaloneSummary(view: InvocationView & { evaluatorState?: SummaryEvaluatorState }): SummaryDecision {
   const rules = view.rules.map(standaloneRule);
   return {
+    recordedAction: view.recordedAction,
+    reportedViolations: reportedViolations(rules.map((rule, index) => view.rules[index]!.hasRecordedGates ? rule : { ...rule, gateIds: null }), view.validation.valid === true && !view.assessmentInvalid
+      && (view.evaluatorState?.status ?? view.assessmentStatus) === 'completed', view.assessmentUncertain),
     judge: summaryJudge(view.judge, view.evaluatorState ?? { status: 'incomplete', reason: null }),
     identity: view.identity ? { callId: view.identity.callId, toolName: view.identity.toolName, mode: view.identity.mode } : null,
     metadata: { schemas: view.identity?.schemas ?? [], questionVersion: String(view.questionVersion ?? 'unknown'),

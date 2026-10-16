@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from 'react';
 import type { SummaryDecision } from './model.js';
-import DecisionSummary from '../DecisionSummary.js';
+import DecisionSummary, { DecisionFacts } from '../DecisionSummary.js';
 import AssessmentMap from '../AssessmentMap.js';
 import RuleDetail from '../RuleDetail.js';
 import RuleRow from './RuleRow.js';
@@ -24,11 +24,6 @@ export default function SummaryDetail({ view, moreRules = false, loading = false
   return <section className="invocation tenet-presentation" aria-label="Invocation detail">
     <div className="summary-content"><section className="common-summary" aria-label="Common call summary">
       <header className="decision-header">
-        <div className="recorded-context">
-          <p className="call-label">Call {view.identity?.callId ?? 'Identity unavailable'}</p>
-          <p className="assessment-state">Recorded assessment: {view.evaluatorState?.status ?? view.assessmentStatus}{(view.evaluatorState?.reason ?? view.failure) ? ` · ${view.evaluatorState?.reason ?? view.failure}` : ''}.</p>
-          {view.metadata && <p className="assessment-state">Contract {view.metadata.schemas.join(', ')} · Questions {view.metadata.questionVersion} · Profile {view.metadata.profile}{view.metadata.policyDigest ? ` · Policy SHA-256 ${view.metadata.policyDigest}` : ''}</p>}
-        </div>
         <DecisionSummary view={view} />
       </header>
       <details className="why-disclosure disclosure"><summary>Why this assessment</summary>
@@ -45,17 +40,33 @@ export default function SummaryDetail({ view, moreRules = false, loading = false
             <nav className="rule-list" aria-label="Rules">{rules.map(item => <RuleRow key={item.id} rule={item} selected={item.id === rule?.id} select={() => {
               setSelected(item.id); onRuleSelect?.(item.id); inspectCheck('Selected rule');
             }} />)}</nav>
+            {!!view.omittedRules && <p role="status">{view.omittedRules} recorded rules are not shown on this page.{moreRules ? ' Use More rules to continue.' : view.rulePage?.offset ? ' Use First rule page to return.' : ''}</p>}
             {moreRules && loadMoreRules && <Button variant="ghost" className="text-button" disabled={loading} onClick={loadMoreRules}>More rules</Button>}
             {!!view.rulePage?.offset && restartRules && <Button variant="ghost" className="text-button" disabled={loading} onClick={restartRules}>First rule page</Button>}
           </details>
         </section>
       </details>
-      {!!view.omittedRules && <p role="status">{view.omittedRules} recorded rules are not shown on this page.{moreRules ? ' Use More rules to continue.' : view.rulePage?.offset ? ' Use First rule page to return.' : ''}</p>}
-      {!!view.missingRuleSnapshots && <p className="missing-data">{view.missingRuleSnapshots} assessed rules have no recorded snapshot. Their text and identity cannot be inspected here.</p>}
+      <details className="recording-details disclosure" aria-label="Recording details"><summary>Recording details</summary>
+        <dl className="record-fields judge-fields">
+          <div className="record-wide"><dt>Call ID</dt><dd>{view.identity?.callId ?? 'Identity unavailable'}</dd></div>
+          {!!view.missing.length && <div className="record-wide"><dt>Missing records</dt><dd>{view.missing.join(', ')}</dd></div>}
+          {view.metadata && <>
+            <div><dt>Contract</dt><dd>{view.metadata.schemas.join(', ')}</dd></div>
+            <div><dt>Questions</dt><dd>{view.metadata.questionVersion}</dd></div>
+            <div><dt>Profile</dt><dd>{view.metadata.profile}</dd></div>
+            {view.metadata.policyDigest && <div className="record-wide"><dt>Policy SHA-256</dt><dd>{view.metadata.policyDigest}</dd></div>}
+          </>}
+        </dl>
+        <div className="recorded-context">
+          <p className="assessment-state">Recorded assessment: {view.evaluatorState?.status ?? view.assessmentStatus}{(view.evaluatorState?.reason ?? view.failure) ? ` · ${view.evaluatorState?.reason ?? view.failure}` : ''}.</p>
+        </div>
+        <DecisionFacts view={view} />
+        {!!view.missingRuleSnapshots && <p className="missing-data">{view.missingRuleSnapshots} assessed rules have no recorded snapshot. Their text and identity cannot be inspected here.</p>}
+        <p className="summary-privacy-note">Only one bounded recorded command or path is shown here. It is not proof of execution. Raw arguments, evidence, exact questions and provider responses remain in the standalone inspector on the selected machine.</p>
+      </details>
       <details className="recorded-judge-disclosure disclosure"><summary>Recorded judge</summary>
         <dl className="record-fields judge-fields"><RecordedJudgeFields judge={view.judge} /></dl>
       </details>
-      <p className="summary-privacy-note">Raw evidence, action previews, exact questions and provider responses are separate from this summary. They remain in the standalone inspector on the selected machine.</p>
     </section></div>
   </section>;
 }
