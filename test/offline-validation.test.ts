@@ -319,9 +319,9 @@ await verifyRuntimeConsumers({ root, installation: root, consumer: root + '/cons
     child.kill('SIGTERM'); await done;
     if (evidence) {
       try { process.kill(-evidence.consumer, 'SIGKILL'); }
-      catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error; }
+      catch (error) { assert.equal((error as NodeJS.ErrnoException).code, 'ESRCH'); }
       for (let i = 0; i < 200; i++) {
-        try { process.kill(evidence.consumer, 0); } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ESRCH') break; throw error; }
+        try { process.kill(evidence.consumer, 0); } catch (error) { assert.equal((error as NodeJS.ErrnoException).code, 'ESRCH'); break; }
         await sleep(5);
       }
       assert.throws(() => process.kill(evidence!.consumer, 0), { code: 'ESRCH' }, 'detached fixture stopped before retained state removal');
