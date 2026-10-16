@@ -5,16 +5,6 @@ import { createSystemOneJudge } from '../src/decision/system-one.js';
 import { answer, sdkAnswers } from './helpers.js';
 import { readArchive } from '../src/recording/archive.js';
 
-async function waitForRecordedAssessment(directory: string, cwd: string, callId: string): Promise<void> {
-  const deadline = Date.now() + 5000;
-  do {
-    const archived = await readArchive(directory);
-    if (archived.records.some(r => r.cwd === cwd && r.callId === callId && r.stage === 'assessment-status' && r.data.status === 'completed')) return;
-    await new Promise(resolve => setTimeout(resolve, 10));
-  } while (Date.now() < deadline);
-  throw new Error(`Fixture assessment was not persisted: ${callId}`);
-}
-
 import { fixtureSubmissions } from './recording-fixture.js';
 
 export async function recordRuleFixture(directory: string) {
@@ -40,13 +30,17 @@ export async function recordRuleFixture(directory: string) {
     for (const kind of ['low-pass', 'unknown', 'approval', 'evidence', 'evidence-confidence', 'warn', 'integrity']) {
       await h.call(kind, { scenario: kind, text: '<script>window.hostile=true</script>', token: 'secret' });
       await h.assessed(kind);
-      // Assessment callbacks do not drain the bounded archive writer. Keep this
-      // loss-free fixture independent of local/CI filesystem throughput.
-      await waitForRecordedAssessment(directory, h.cwd, kind);
+      await h.captured();
     }
-    await h.emit('session_shutdown');
+    await h.shutdownCaptured();
     await writeFile(h.file, 'Rule; Changed current policy.');
     const archived = await readArchive(directory);
+    assert.deepEqual(archived.issues, [], 'Rule capture must satisfy archive validation');
+    for (const callId of ['low-pass', 'unknown', 'approval', 'evidence', 'evidence-confidence', 'warn', 'integrity']) {
+      const records = archived.records.filter(r => r.cwd === h.cwd && r.callId === callId);
+      assert.ok(records.some(r => r.stage === 'assessment-status' && r.data.status === 'completed'), `Missing completed assessment: ${callId}`);
+      assert.ok(records.some(r => r.stage === 'execution'), `Missing execution: ${callId}`);
+    }
     const requests = archived.records.filter(r => r.stage === 'request' && r.cwd === h.cwd);
     assert.equal(requests.length, 7);
     assert.deepEqual(fixtureSubmissions(archived.records.filter(r => r.cwd === h.cwd)).filter(s => s.status === 'completed').map((s: any) => s.payload), submitted);
