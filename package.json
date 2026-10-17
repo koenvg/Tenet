@@ -24,6 +24,7 @@
     "validate:offline": "env -u BASH_ENV -u ENV /bin/bash --noprofile --norc scripts/validate-offline.sh",
     "sdk:build": "bun --bun tsc -p tsconfig.sdk.json && bun --bun tsc -p tsconfig.sdk-example.json",
     "sdk:example": "bun run sdk:build && node examples/dist/sdk.js",
+    "mcp:check": "env -u BASH_ENV -u ENV /bin/bash --noprofile --norc scripts/check-mcp-hooks.sh",
     "smoke": "bun run sdk:build && bun test ./test/pi-smoke.test.ts",
     "typecheck": "bun run sdk:build && bun --bun tsc --noEmit && bun --bun tsc -p tsconfig.sdk-example.json --noEmit",
     "claude:bridge": "bun src/claude/cli.ts bridge",
@@ -60,6 +61,7 @@
   "devDependencies": {
     "@earendil-works/pi-ai": "1.1.0",
     "@earendil-works/pi-coding-agent": "1.1.0",
+    "@modelcontextprotocol/sdk": "1.32.1",
     "@radix-ui/react-slot": "1.4.0",
     "@radix-ui/react-tabs": "1.1.22",
     "@tailwindcss/vite": "4.3.3",
