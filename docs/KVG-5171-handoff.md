@@ -2,7 +2,7 @@
 
 ## Scope
 
-Implemented the live lifecycle slice of the approved `add-standalone-decision-inspector` OpenSpec change. The standalone inspector now refreshes persisted sessions, invocations and selected invocation detail every two seconds while remaining read-only and independent of Pi.
+Implemented the live lifecycle slice of the approved standalone decision inspector plan. The standalone inspector now refreshes persisted sessions, invocations and selected invocation detail every two seconds while remaining read-only and independent of Pi.
 
 ## Behavior
 
@@ -26,10 +26,9 @@ Implemented the live lifecycle slice of the approved `add-standalone-decision-in
 - `bun run typecheck`: passed.
 - `bun run inspector:check`: zero errors and warnings.
 - `bun run inspector:test`: production build and DOM/HTTP test passed.
-- `openspec validate add-standalone-decision-inspector --strict`: passed.
 - `git diff --check`: passed.
 - Impeccable detector reported the pre-existing selected-item side stripe; it was removed.
 
 ## Parent status
 
-OpenSpec task 4.5 is complete. The parent change remains open; unrelated unchecked tasks in `openspec/changes/add-standalone-decision-inspector/tasks.md` remain out of this ticket's scope.
+The parent change remains open; unrelated work remains out of this ticket's scope.

@@ -46,7 +46,6 @@ Passed:
 - `CI=1 bun run inspector:test`, 16 component and 24 browser tests passed
 - `bun run sdk:example` and `bun run smoke`, 4 smoke tests passed
 - `bun run package:archive` and `bun run package:verify delivery/tenet.tar.gz`, including registered observe/enforce and capture-opt-out owner flows under Node/Bun
-- `openspec validate coding-agent-first-sdk --strict`
 - `git diff --check`
 
 Initial full-suite setup lacked the BB plugin's separate test dependencies and used a sandbox temp path exceeding the Claude prototype's socket bound. Installing those dependencies and using `TMPDIR=/tmp` resolved those failures. One doctor subprocess run timed out during a slow full-suite run; focused and full reruns passed without changing its deadlines. An inspector before-each call-list poll also timed out once; the complete inspector rerun passed without source changes. These transient failures are not hidden as first-run passes.
@@ -55,7 +54,7 @@ Packaging installs dependencies through npm registry access or its cache. All as
 
 ## Scope and remaining limits
 
-The pre-implementation baseline is `2320f3295c3682b5303f5e6d8c9c84685f85ea73`. Changes are packaging/verification, doctor installation inspection, owner documentation and focused tests. No prompt, assessment profile, threshold, policy grammar, archive schema or external owner policy changed. Other in-flight OpenSpec artifacts remain untouched.
+The pre-implementation baseline is `2320f3295c3682b5303f5e6d8c9c84685f85ea73`. Changes are packaging/verification, doctor installation inspection, owner documentation and focused tests. No prompt, assessment profile, threshold, policy grammar, archive schema or external owner policy changed.
 
 Pi does not guarantee post-hook argument stability, exact native result correlation or stock authenticated action resolution. Tenet is not an OS sandbox or subprocess monitor. Same-user processes can change control and read evidence. Pending/lost assessment is not a pass, and default capture can contain secrets. Recording opt-out does not prevent provider disclosure. Claude remains an unverified prototype; scripted results prove mechanics, not live semantic accuracy.
 

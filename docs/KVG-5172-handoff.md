@@ -2,7 +2,7 @@
 
 ## Scope
 
-Implemented the cross-project browsing slice of `add-standalone-decision-inspector`, building on KVG-5168. OpenSpec tasks 3.1 and 4.2 are complete, bringing the parent to 12/22 tasks. The parent change remains open.
+Implemented the cross-project browsing slice of `add-standalone-decision-inspector`, building on KVG-5168. Planned tasks 3.1 and 4.2 are complete, bringing the parent to 12/22 tasks. The parent change remains open.
 
 ## Implementation
 
@@ -23,7 +23,6 @@ Verified with Bun 1.3.14 on macOS:
 - `bun run typecheck`: passed.
 - `bun run inspector:check`: zero errors and warnings.
 - `bun run inspector:test`: production build and DOM/HTTP tests passed.
-- `openspec validate add-standalone-decision-inspector --strict`: passed.
 - `git diff --check`: passed.
 
 New tests cover separate concurrent writer processes targeting the same and different projects, fresh-reader restarts, resumes, forks, reused call IDs, Unicode/path-like/NUL-containing original session IDs, session and invocation pagination, invalid/cross-query cursors, exact writer-to-evidence attribution, canonical project aliases, cache reuse, unsafe/corrupt files and byte/record limits. The guard regression verifies that late reused-ID result content cannot enter the next invocation's trajectory.

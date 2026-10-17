@@ -20,7 +20,6 @@ The existing replay supports `--set=cross-domain`. Its 21 synthetic fixtures cov
 | `bun test` | 219 passed across 22 files; 0 failed |
 | `bun run typecheck` | Passed |
 | `bun run smoke` | 3 passed; 0 failed |
-| `openspec validate generalize-rule-evaluation --strict` | Passed |
 | `git diff --check` | Passed |
 
 Test-first checkpoints demonstrated failures before replacing domain-specific question instructions, changing version metadata, adding cross-domain/control fixtures and enabling the replay set. SDK tests inspect submitted questions, rule references and label sets. They also check that changing rule text or order does not select different instructions. Replay tests verify authored outcomes, version/digest metadata, error-count denominators and non-execution. Existing decision, diagnostics, trajectory and approval-lifecycle tests verify advisory handling, integrity vetoes and fresh approval requirements, including recovered native approval records.

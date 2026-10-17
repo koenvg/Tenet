@@ -6,7 +6,7 @@ Implementation and all required offline checks are complete. The sole completion
 
 - Child `thr_i88wt8udb2`, parent `thr_29e5r6w599` coordinating TENET-20.
 - Clean implementation/review base `059223ee68eea25b4f15a79f107464d1df8807bc`, integrated TENET-22. TENET-21 and TENET-22 were verified done before mutation.
-- Approved source is PR 55 and `openspec/changes/improve-inspection-evidence/`.
+- Approved source is PR 55.
 - Model/provider/reasoning preserved as Pi `openai-codex/gpt-6.1-sol`, high.
 - Only TENET-23 is implemented. No duplicate pooling, call/result group retention, tool/domain branches, command parsing, semantic ranking or fuzzy echo normalization. TENET-24/25 remain separate tasks.
 - Parent owns acceptance, integration and dependency completion. No push, PR, merge, parent-worktree mutation or other implementation worker is authorized.

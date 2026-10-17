@@ -1,6 +1,6 @@
 # KVG-5096 handoff
 
-Implemented OpenSpec slice 4.1–4.3. Task 4.4 remains open. The ticket is not fully verified.
+Implemented planned slice 4.1–4.3. Task 4.4 remains open. The ticket is not fully verified.
 
 ## Changes
 

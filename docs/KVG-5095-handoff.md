@@ -2,7 +2,7 @@
 
 ## Delivered
 
-OpenSpec slice 3, tasks 3.1 through 3.3, is complete.
+Planned slice 3, tasks 3.1 through 3.3, is complete.
 
 `src/pi/approval.ts` serializes TENET's native confirmation dialogs. Each prompt displays the assessed session, tool/call identity, policy digest, original-argument digest and redacted arguments. Cancellation blocks the invocation immediately, but the dialog slot stays occupied until the underlying UI promise settles. This prevents an uncooperative or late UI response from overlapping the next confirmation. Queued calls are rechecked before display.
 

@@ -26,7 +26,7 @@ Verified with Bun 1.3.14 on macOS:
 - `bun run inspector:check`: zero errors and warnings.
 - `bun run inspector:test`: production frontend build and DOM/HTTP end-to-end test passed. Scripted pass and concern records survive writer shutdown; rule selection, integrity, hostile evidence and unknown execution are exercised.
 - `bun run inspector`: the documented launch command served the built app with HTTP 200 and CSP headers.
-- `git diff --check` and strict OpenSpec validation: passed.
+- `git diff --check`: passed.
 - A fresh Bun process started the backend and read the retained session with no evaluator credentials. The backend also bundled as five modules and served the retained session on Node 24.14.0. Node 22 was not run separately.
 - Arc's existing signed-in instance was used through its existing localhost CDP connection. Desktop and 390px layouts were inspected. Pass, concern and integrity selections worked. Submitted script markup remained visible text and did not execute. The token fragment was removed. No alternate browser was launched.
 
@@ -38,7 +38,7 @@ This ticket does not implement project filtering, deep links, live polling, lazy
 
 The queue exposes live owner counters, but durable recovery-health records and broader fault-injection coverage remain parent work. Working-directory metadata currently retains the captured host path; canonical project-path grouping remains with project filtering. The UI presents recorded fields and gate IDs rather than the parent's full friendly rule table and tab design.
 
-Only fully covered OpenSpec tasks are checked. Other tasks may contain implemented pieces but remain unchecked until their full behavior and verification are delivered. No retention expiry, migration, provider replay, policy editing or browser approval was added.
+Only fully covered planned tasks are checked. Other tasks may contain implemented pieces but remain unchecked until their full behavior and verification are delivered. No retention expiry, migration, provider replay, policy editing or browser approval was added.
 
 ## Authentication removal follow-up
 

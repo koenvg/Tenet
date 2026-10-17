@@ -8,7 +8,7 @@ Implementation and completion gates have passed. Ready for parent integration af
 - Original base: `2320f3295c3682b5303f5e6d8c9c84685f85ea73`, including TENET-21.
 - Branch: `bb/tenet-22-explain-evidence-coverage-end-to-end-thr_hjt5jpy8yn`.
 - This handoff is part of the implementation commit. The exact commit hash and final clean-worktree confirmation are recorded in the task completion comment and parent message.
-- Approved source: [PR 55](https://github.com/koenvg/Tenet/pull/55), local `openspec/changes/improve-inspection-evidence/` proposal, design, tasks and specs.
+- Approved source: [PR 55](https://github.com/koenvg/Tenet/pull/55).
 - Exactly one fresh-context read-only reviewer ran. Its two P2 findings and historical-contract gap were resolved test-first. No second review ran or is claimed. The reviewer did not attest to the later fixes; post-fix tests and checks establish their mechanical behavior.
 
 The earlier validation-blocked handoffs and logs remain historical evidence. This version supersedes their open-gate status. The task moves to `in_review` after the local commit and clean-state check. The parent owns integration and dependency status.

@@ -30,4 +30,4 @@ Validation used Bun 1.3.14 and Node 24.14.0 on macOS. GitHub validates its Linux
 
 ## Completion review scope
 
-Review the complete CI-fix diff, including this handoff, against pre-fix commit `f2d9cbbf5b832c5d19ce8ea1ef03763296fe7cf5`. The previously approved OpenSpec artifacts are already in that baseline and are unchanged by this fix. Review and remote CI outcomes are recorded in the PR discussion.
+Review the complete CI-fix diff, including this handoff, against pre-fix commit `f2d9cbbf5b832c5d19ce8ea1ef03763296fe7cf5`. Review and remote CI outcomes are recorded in the PR discussion.

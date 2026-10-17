@@ -35,7 +35,7 @@ Offline tests establish mechanics and report accounting, not live semantic quali
 | Browser/Arc connectivity | Not checked; no selected browser case |
 | Cleanup | Not authorized or performed |
 
-OpenSpec 5.3 remains open. Do not label this a completed live cross-tool demonstration. After explicit authorization, perform preflight and record actual evidence using the procedure. Keep primary-agent stopping/refusal, unavailable forms, provider errors, semantic failures, host dispatch gaps and remote uncertainty visible.
+Do not label this a completed live cross-tool demonstration. After explicit authorization, perform preflight and record actual evidence using the procedure. Keep primary-agent stopping/refusal, unavailable forms, provider errors, semantic failures, host dispatch gaps and remote uncertainty visible.
 
 ## Limits relevant to the next run
 

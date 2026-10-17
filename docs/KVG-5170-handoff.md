@@ -22,7 +22,7 @@ Final verification with Bun 1.3.14 on macOS:
 - `bun run typecheck`: passed.
 - `bun run inspector:check`: zero errors and warnings.
 - `bun run inspector:test`: production build and DOM/HTTP tests passed, including reader restart and failure-state selection.
-- `git diff --check` and strict OpenSpec validation: passed.
+- `git diff --check`: passed.
 
 Ten new focused tests cover retained provider failures and missing credentials; per-file corruption/unsupported/temporary states; unsafe response serialization; overflow; disk failure and recovery; bounded shutdown; actual child-process exit after evaluator submission with a torn temporary file; owner-only live/recovered context; timeout/cancellation ordering; and submission metadata surviving a missing payload. The existing recording on/off/disk-failing matrix still verifies both modes, approval behavior, permissions and executor counts. All provider traffic was scripted locally.
 
@@ -34,7 +34,7 @@ The Impeccable detector reported only the pre-existing selected-item inset strip
 
 Capture remains best-effort. A drain timeout is not proof of permanent loss. If storage never recovers or the process exits before a health write, only live owner reporting may be available. Temporary records may also be active writes, so the reader does not label every temporary file a confirmed crash. These are explicit product limits, not guarantees of transactional durability.
 
-Marked OpenSpec tasks 1.4 and 2.4 complete, bringing the parent change to 12/22. Broader indexing, project filtering, deep links, polling and full rule-table work remain under the parent. The change is not ready to archive. This slice was not separately run on Node 22; Bun tests include the pinned Pi smoke integration. No live-provider evaluation was performed.
+Marked planned tasks 1.4 and 2.4 complete, bringing the parent change to 12/22. Broader indexing, project filtering, deep links, polling and full rule-table work remain under the parent. The change is not ready to archive. This slice was not separately run on Node 22; Bun tests include the pinned Pi smoke integration. No live-provider evaluation was performed.
 
 ## Rebase onto main
 
@@ -46,4 +46,4 @@ After conflict resolution, all 188 tests, three Pi smoke tests, TypeScript check
 
 Rebased again onto `5544cd6`, which adds KVG-5172 archive indexing, canonical project metadata, project filtering, cursor pagination and deep links. Resolved four conflicted files while preserving those features and the failure inspector. The metadata index now retains only derived failure/assessment labels and numeric health counters, exposes distinct recording-issue categories, and serves capture health without rereading response payloads. Canonical project resolution also applies to recovered health records.
 
-Added a regression test comparing indexed failure summaries with detail views and checking that warm metadata/health queries do not reread evidence. After resolution, 196 tests, three Pi smoke tests, TypeScript and Svelte checks, production build, combined UI tests, diff checks and strict OpenSpec validation passed. Earlier descriptions of indexing, filtering and deep links as parent work describe the pre-rebase state. Arc visual checks were not repeated for this rebase.
+Added a regression test comparing indexed failure summaries with detail views and checking that warm metadata/health queries do not reread evidence. After resolution, 196 tests, three Pi smoke tests, TypeScript and Svelte checks, production build, combined UI tests and diff checks passed. Earlier descriptions of indexing, filtering and deep links as parent work describe the pre-rebase state. Arc visual checks were not repeated for this rebase.

@@ -38,4 +38,4 @@ The passing smoke tests cover owner findings excluded from model context and std
 
 The owner must restore a responsive Arc debugging connection, then rerun `bun run inspector:test:browser` and visually inspect historical and live synthetic sessions, rule selection and hostile evidence. DOM tests cover those behaviors but do not establish visual usability.
 
-All assessments used scripted offline responses. These results establish integration mechanics, not live semantic accuracy, provider quality or a tamper-resistant security boundary. Capture remains best-effort. Missing lifecycle stages do not prove success. This ticket remains visually blocked until Arc verification completes; the parent OpenSpec change is not archived.
+All assessments used scripted offline responses. These results establish integration mechanics, not live semantic accuracy, provider quality or a tamper-resistant security boundary. Capture remains best-effort. Missing lifecycle stages do not prove success. This ticket remains visually blocked until Arc verification completes.
