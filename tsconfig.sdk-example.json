@@ -5,6 +5,6 @@
     "rootDir": "examples",
     "outDir": "examples/dist"
   },
-  "include": ["examples/sdk.ts"],
+  "include": ["examples/sdk.ts", "examples/mcp-hooks/*.ts"],
   "exclude": []
 }
