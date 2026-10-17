@@ -2,7 +2,7 @@
 
 Use this guide before creating or editing user or developer documentation. It is the authoritative writing standard for new or changed Markdown and website docs, including readable explanations in technical references.
 
-Apply it to the text you change. Existing historical records, handoffs, OpenSpec records, legal text, policy files, and executable examples are out of scope. Preserve required protocol syntax and exact contracts.
+Apply it to the text you change. Existing historical records, handoffs, legal text, policy files, and executable examples are out of scope. Preserve required protocol syntax and exact contracts.
 
 ## Plan the reader's task
 

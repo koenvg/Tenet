@@ -37,7 +37,6 @@ The planned Svelte/Vite inspector runs locally, independently of Pi, with cross-
 ## Evidence on hand
 
 - `README.md` describes current guard behavior, operation, and limitations.
-- `openspec/changes/add-standalone-decision-inspector/` contains the planned inspector and recording requirements.
 - `test/` and `eval/` contain verification and evaluation material. Offline enforcement tests do not establish semantic accuracy.
 
 ## Product principles

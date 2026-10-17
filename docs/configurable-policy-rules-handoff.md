@@ -2,7 +2,7 @@
 
 ## Implementation complete
 
-Change: `add-configurable-policy-rules` (spec-driven). **16/16 tasks complete.** The owner explicitly authorized the agent to perform the one-line bundled policy migration after the 14/16-task checkpoint. The migrated root policy was verified to contain exactly the intended publication rule, and all checks below were rerun successfully. No commits were made and no live Jev calls were made for this change.
+Change: `add-configurable-policy-rules`. **16/16 tasks complete.** The owner explicitly authorized the agent to perform the one-line bundled policy migration after the 14/16-task checkpoint. The migrated root policy was verified to contain exactly the intended publication rule, and all checks below were rerun successfully. No commits were made and no live Jev calls were made for this change.
 
 The implementation now loads explicit `Rule;` declarations, creates immutable bounded policy snapshots, assesses every rule plus a built-in policy-integrity constraint in one SDK request, validates complete structured answers, and aggregates PASS / APPROVAL_REQUIRED / FAIL / UNKNOWN conservatively. Pi confirmation lists all approval-requiring rules, stays invocation-local, and cannot override failure or uncertainty. Freshness checks compare the policy digest and resolved target before release; a mismatch blocks until reload. Startup and version-2 audit records identify `policy-rules-v1`.
 
@@ -25,7 +25,6 @@ The new generic question contract needs a full Pi process restart. Check `policy
 | `bun test` | 50 tests passed across 6 files |
 | `bun run smoke` | 2 tests passed |
 | `bun run typecheck` | Passed |
-| `openspec validate add-configurable-policy-rules --strict` | Passed |
 | `git diff --check` | Passed |
 
 Policy, decision, SDK and Pi tests were run failing before the corresponding changes, then made green. README policy examples are parsed in temporary files without touching the active policy. Smoke tests use the actual pinned Pi loader and dispatcher, scripted assistant/Jev responses and dummy executors; policy-integrity failures and uncertainty never reach those executors.

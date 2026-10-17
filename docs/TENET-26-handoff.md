@@ -81,7 +81,7 @@ Candidate omissions report known source slots or emitted observations, not the e
 
 ## Original approved checklist reconciliation
 
-The original `openspec/changes/improve-inspection-evidence/tasks.md` checklist remains unticked. This map reconciles its wording against evidence rather than mechanically asserting every original step occurred.
+This map reconciles the original approved checklist against evidence rather than mechanically asserting every original step occurred.
 
 | Original items | Actual evidence or wording limit |
 | --- | --- |

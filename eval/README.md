@@ -1,6 +1,6 @@
 # Compare judge inputs and read historical diagnostics
 
-Use this developer-checkout guide to compare scoped judge inputs offline and review a separate Pika-only live plan. The later sections retain the historical local-work read/list diagnostic, not the broader OpenSpec evaluation suite. Those historical results do not validate the current question contract.
+Use this developer-checkout guide to compare scoped judge inputs offline and review a separate Pika-only live plan. The later sections retain the historical local-work read/list diagnostic. Those historical results do not validate the current question contract.
 
 ## Compare scoped judge inputs offline
 
@@ -42,7 +42,7 @@ If the report path exists, choose a new path. If approval is absent or mismatche
 
 ## Review a separate Pika-only live plan
 
-This section is a proposed plan, not authorization or an executable live command. The helper provides no live CLI and creates no live approval record. A source review, approved OpenSpec source or synthetic approval record in tests cannot authorize a live invocation.
+This section is a proposed plan, not authorization or an executable live command. The helper provides no live CLI and creates no live approval record. A source review, an approved implementation plan or synthetic approval record in tests cannot authorize a live invocation.
 
 Before any invocation, the operator must authorize the exact exported plan. Explicit standing USER authorization can cover the same bounded workload without a new per-command native approval prompt. The record must name the plan SHA-256, operator, authorization reference, recording time and expiry.
 

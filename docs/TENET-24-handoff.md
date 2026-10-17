@@ -6,7 +6,7 @@ Implementation and all post-fix offline gates pass. The sole fresh-context read-
 
 - Child `thr_u7dn7d2dps`, parent `thr_29e5r6w599` coordinating TENET-20.
 - Initial implementation/review base `8301e099e8402616b967ccad22237e19e88df698`, integrated TENET-23. Its task was verified `done` and this worktree clean before mutation.
-- Approved source is PR 55 and the complete local `openspec/changes/improve-inspection-evidence/` proposal, design, tasks and specs.
+- Approved source is PR 55.
 - Only TENET-24 is implemented. FIFO event eviction remains current. Call/result group retention belongs to TENET-25, which follows parent integration serially.
 - Pi `openai-codex/gpt-6.1-sol`, high reasoning, is preserved. No extra implementation worker is used.
 - Parent owns acceptance, integration and dependency status. No push, PR, main merge or parent-worktree mutation.

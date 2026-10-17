@@ -9,7 +9,7 @@ Changed the default inspector command to run the Svelte client through Vite for 
 - `bun inspector` starts the archive API on loopback, starts Vite on loopback, proxies `/api` to the archive server and prints the browser URL. Vite injects its HMR client, so edits under `inspector/` reload during development.
 - `bun run inspector:serve` serves the built `inspector/dist` assets from the standalone read-only backend.
 - Startup failures close any server already opened, and normal shutdown closes both the Vite and archive servers.
-- README launch instructions now distinguish development and production commands. OpenSpec task 4.1 is complete.
+- README launch instructions now distinguish development and production commands.
 
 ## Verification
 
@@ -20,4 +20,3 @@ Changed the default inspector command to run the Svelte client through Vite for 
 - `bun run inspector:test`: production build and both UI fixtures passed.
 - `bun inspector` manual process check: served an HTML page containing `/@vite/client`; proxied `/api/sessions` returned HTTP 200.
 - `git diff --check`: passed.
-- `bunx openspec validate add-standalone-decision-inspector --strict`: passed.

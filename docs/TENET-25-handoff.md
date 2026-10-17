@@ -6,7 +6,7 @@ Implementation and all required local gates pass. The sole reviewer found one P2
 
 - Child `thr_jwddrucre4`, parent `thr_29e5r6w599` coordinating TENET-20.
 - Initial implementation/review base `b2b3e2f0cf6fddf3606599e3c3af1eba5f7fab31`, integrated TENET-24. Both TENET-23 and TENET-24 were verified `done`, and the initial worktree was clean.
-- Approved source is PR 55 and all files in `openspec/changes/improve-inspection-evidence/`.
+- Approved source is PR 55.
 - Pi `openai-codex/gpt-6.1-sol`, high reasoning, remains unchanged. No extra implementation worker or second reviewer is authorized.
 - Only TENET-25 is implemented. TENET-26 owns the cross-domain comparison report.
 - Parent owns acceptance, integration and dependency status. No push, PR, main merge or parent-worktree mutation.
