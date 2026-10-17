@@ -84,6 +84,79 @@ For an installed archive, use `npm run inspector:serve` with the same variable. 
 
 For local frontend development only, `bun inspector` starts Vite with live reloading from the repository root. Vite development and preview try `http://127.0.0.1:52320/`, then successive ports if occupied. Both development and production retain loopback binding, Host/Origin checks and read-only routing. Plain URLs and reloads work without a token.
 
+## Monitor local Operations
+
+For Pi, SDK and Claude bridge activity, select **Operations** in the standalone app. Use the same selected recording directory as the runtime.
+
+This page reads local snapshots offline. It makes no provider request and has no approval controls. BB summaries remain separate.
+
+1. Select a project and a **Timing window** of 15 minutes or one hour.
+2. Select a count or state filter to find work. Search matches retained tool names, host names, project labels and invocation IDs. **Overview** shows a table. **Queue board** groups the current page by state.
+3. Select a request to read its independent assessment, permission and tool-result facts. Preparing and Finalizing are real intermediate states, not permission to run.
+4. If **Open in Inspector** is available, select it for the exact recording, including calls beyond the first archive page. Close the Inspector's recorded-action panel, then select **Operations** in the top workspace navigation to return to the dashboard. Escape closes request details and restores focus.
+5. Open **Coverage and retention** to check publication freshness, sample counts, omitted metadata, telemetry loss, archive loss and reader limits.
+
+Queued means observe work waiting for an observation slot. Analyzing begins at `decide()`, not slot reservation. Enforce bypasses that queue and shows **Not queued**.
+
+Observe can release permission while its assessment is still queued or analyzing. Awaiting approval refers to the bounded attempt in the host, not a guaranteed visible dialog. Finalizing still needs permission commitment and freshness checks.
+
+Current activity counts ignore the timing window. Completed and outcome counts use assessment completion within the selected window.
+
+Average and nearest-rank P95 analysis use all eligible retained returned `decide().durationMs` values, including unavailable results with a measured duration. Cancelled work without a returned duration is not a timing sample.
+
+Queue averages use actual observe slot reservations, not cancelled or expired waiting residence. Empty chart intervals are gaps. These measurements are neither isolated provider latency nor end-to-end tool latency.
+
+Recent publications establish only activity from observed runtimes. Stale, missing, malformed, unsupported or unreadable snapshots cannot establish current totals. **Unknown** is not zero.
+
+Partial counts do not include omitted work. Browser freshness expires independently of HTTP completion and is checked again when the tab resumes. A successful HTTP response does not establish provider connectivity or complete machine coverage.
+
+### Operations storage and limits
+
+Operations has one private atomic snapshot per SDK resource owner or Claude bridge, shared across its project runtimes. It is not a replay journal.
+
+After its first eligible activation, the owner keeps publishing even between sessions. Ending a session interrupts its unfinished assessment but does not close the owner or its active siblings. Only guard or bridge disposal publishes Closed and stops the writer; activation off uses Suspended instead.
+
+It uses `.operations-v1` inside the selected recording directory, with `0700` directories and `0600` files. Unsafe paths and files are rejected, not repaired.
+
+Recording off, invalid recording configuration, an external recording callback, dormant sessions and initially inactive activation create no Operations files or heartbeat.
+
+Turning activation off clears published activity to a payload-free suspended marker and stops heartbeats. Reactivation starts a new coverage interval. This does not change recording, enforcement or approval contracts.
+
+Snapshots contain bounded lifecycle facts, timings, opaque project keys and safe identity projections. They do not copy arguments, commands, source, policy, credentials or error text.
+
+Descriptions come only from the existing private archive preview after an exact indexed-address match. Those archive previews can still contain secrets. Missing, withheld, not-yet-indexed and budget-limited recordings remain explicit.
+
+| Bound | Limit |
+| --- | --- |
+| Projects per owner | 64 |
+| Active request details per owner | 256 |
+| Settled requests per owner | 1,024, for at most one hour |
+| Encoded request row | 2,048 bytes |
+| Encoded snapshot | 1 MiB |
+| Normal publication cadence | At most once per second; heartbeat every two seconds |
+| Cached runtime documents | 16; bounded refresh work every two seconds |
+| Snapshot read concurrency and bytes | Four reads at once, at most 16 MiB per refresh |
+| Discovery | 64 directory entries per refresh with a retained cursor |
+| Publication freshness | Ten seconds |
+| Returned request page | At most 100 rows |
+| Exact archive-description index | 8,192 stage references, at most 32 per invocation; 100 lookups per page |
+
+Settled rows are evicted before active details when the byte budget is reached. Omitted active work makes totals partial.
+
+The reader shares its 16-file read budget between round-robin cached refreshes and newly discovered candidates. It retains at most 64 candidate names. At full cache capacity, up to four candidate reads leave at least 12 cached refreshes per pass.
+
+Fresh active owners take priority over fresh idle owners, then closed, suspended, invalid or expired owners. Replacement reports `history-omitted`; skipped reads report `reader-budget`. These limits can omit retained history and make counts partial.
+
+Publication failures preserve the previous atomic file and appear in counters after a later successful write. A crash leaves last-known facts that expire, not invented terminal outcomes. Clean shutdown marks owned unfinished activity Interrupted.
+
+A running owner can remove valid telemetry snapshots older than 24 hours in bounded passes. This never removes recordings. There is no hard machine-wide disk bound under arbitrary process churn, and no cleanup without a running owner.
+
+Recording files still have no automatic expiry.
+
+If current activity is unknown, check local recording and activation settings, runtime version, private-path permissions and the displayed coverage issues. An older runtime does not publish Operations snapshots. Do not treat an empty dashboard as proof that no tools are running.
+
+Use the offline checks below for implementation validation, not proof of active host hooks.
+
 ## Shared summaries and standalone evidence
 
 The standalone Inspector and both BB overview entry points use one React workspace layout. The standalone reader adds private call rows and recorded-data disclosures through internal render slots. The BB plugin keeps its safe summary presentation and is built and installed separately; see [the BB overview guide](../bb-plugin-tenet-status/README.md). Its summary input excludes raw arguments, action previews, submitted evidence, exact questions and provider response bodies.

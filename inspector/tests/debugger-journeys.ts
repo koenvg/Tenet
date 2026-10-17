@@ -16,7 +16,7 @@ async function pickCall(p: Page, id: string, recorded = true) {
   if (recorded) { await reveal(p, '.recorded-disclosure'); await reveal(p, '.recording-details'); }
 }
 function watchCaptureWarnings() {
-  const main = document.querySelector('main')!;
+  const main = document.querySelector('main.rule-main')!;
   const warning = 'Capture may be incomplete.';
   let seen = main.textContent?.includes(warning) ?? false;
   const inspect = (records: MutationRecord[]) => {

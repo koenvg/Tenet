@@ -5,9 +5,11 @@ import { lstat, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ArchiveIndex } from './archive-index.js';
 import { invocationView } from './view.js';
+import { OperationsReader, operationsQuery } from './operations-reader.js';
 
 export async function startInspector(options: { directory: string; assets?: string; port?: number; strictPort?: boolean }) {
   const index = new ArchiveIndex(options.directory);
+  const operations = new OperationsReader(options.directory);
   const assets = new Map<string, { content: Buffer; type: string }>();
   if (options.assets) {
     const files = ['index.html', ...(await readdir(join(options.assets, 'assets'))).filter(f => /^[\w.-]+\.(js|css)$/.test(f)).map(f => `assets/${f}`)];
@@ -21,11 +23,19 @@ export async function startInspector(options: { directory: string; assets?: stri
   const hash = createHash('sha256');
   // Hash the modules in the current representation, source TS or delivered ESM.
   const extension = import.meta.url.endsWith('.ts') ? '.ts' : '.js';
-  for (const name of ['server', 'archive-index', 'view', '../decision/finding-triage', '../recording/contract', 'finding-view', 'session-rules', 'session-rules-model'])
+  for (const name of ['server', 'archive-index', 'view', '../decision/finding-triage', '../recording/contract', 'finding-view', 'session-rules', 'session-rules-model', 'operations-reader', '../runtime/operations', '../recording/files', 'action-preview'])
     hash.update(await readFile(new URL(`${name}${extension}`, import.meta.url)));
   for (const [name, asset] of [...assets].sort(([a], [b]) => a.localeCompare(b))) hash.update(name).update(asset.content);
   const build = `tenet-reader-0.1.0/${options.assets ? 'assets' : 'dev'}-${hash.digest('hex').slice(0, 12)}`;
   let origin = '';
+  let operationsIndexAt = -Infinity;
+  let operationsIndexRead: Promise<void> | undefined;
+  const refreshOperationsIndex = async () => {
+    if (performance.now() - operationsIndexAt >= 2000) {
+      operationsIndexAt = performance.now(); operationsIndexRead = index.refresh();
+    }
+    await operationsIndexRead;
+  };
   const server = createServer((req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -41,6 +51,19 @@ export async function startInspector(options: { directory: string; assets?: stri
       const url = new URL(req.url ?? '/', origin);
       const asset = assets.get(url.pathname);
       if (asset) { res.writeHead(200, { 'Content-Type': asset.type }); res.end(asset.content); return; }
+      if (url.pathname === '/api/operations') {
+        let query;
+        try { query = operationsQuery(url.searchParams); } catch { return reply(400, { error: 'invalid-query' }); }
+        await refreshOperationsIndex();
+        const view = await operations.read(query);
+        const descriptions = index.operationDescriptions(view.requests.flatMap(r => r.archive ? [r.archive] : []));
+        for (const row of view.requests) {
+          if (!row.archive) continue;
+          const joined = descriptions.find(d => d.session === row.archive!.session && d.invocation === row.archive!.invocation);
+          if (joined) { row.recording = joined.recording; row.description = joined.description; }
+        }
+        return reply(200, view);
+      }
       const route = /^\/api\/sessions(?:\/([a-f0-9]{64})(?:\/(groups|invocations\/([a-f0-9]{64})|rules(?:\/([a-f0-9]{64})(\/checks)?)?))?)?$/.exec(url.pathname);
       if (!route && url.pathname !== '/api/status') return reply(404, { error: 'not-found' });
       const offset = Number(url.searchParams.get('offset') ?? 0), limit = Number(url.searchParams.get('limit') ?? 50);
@@ -108,6 +131,6 @@ export async function startInspector(options: { directory: string; assets?: stri
       const httpClose = new Promise<void>((resolve, reject) => {
         server.close(error => error ? reject(error) : resolve()); server.closeAllConnections();
       });
-      await Promise.all([httpClose, index.close()]);
+      await Promise.all([httpClose, index.close(), operations.close()]);
     })() };
 }

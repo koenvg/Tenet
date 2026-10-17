@@ -16,19 +16,20 @@ function ActionDisclosure({ archive, invocation }: { archive: Archive; invocatio
     <summary>View recorded action <RuleIcon kind="chevron" /></summary><ExactAction archive={archive} invocation={invocation} />
   </details>;
 }
-export default function RulePanel({ archive, initiator }: { archive: Archive; initiator: RefObject<HTMLElement | null> }) {
+export default function RulePanel({ archive, initiator, active = true }: { archive: Archive; initiator: RefObject<HTMLElement | null>; active?: boolean }) {
   const dialog = useRef<HTMLDialogElement>(null), close = useRef<HTMLButtonElement>(null);
   const open = archive.panel.kind !== 'closed';
   const rule = archive.panel.kind === 'closed' ? null : archive.panel.rule;
   useLayoutEffect(() => {
     const element = dialog.current!;
+    if (!active) { element.close(); return; }
     if (open && !element.open) { element.showModal(); close.current?.focus(); }
     else if (!open && element.open) {
       element.close();
       const target = initiator.current?.isConnected ? initiator.current : document.querySelector<HTMLButtonElement>('.rule-session-toggle');
       target?.focus({ preventScroll: true });
     }
-  }, [open, initiator]);
+  }, [open, initiator, active]);
   return <dialog ref={dialog} className="rule-panel" aria-labelledby="rule-panel-heading" aria-describedby="rule-panel-note" onCancel={event => { event.preventDefault(); archive.closePanel(); }}
     onKeyDown={event => {
       if (event.key !== 'Tab') return;

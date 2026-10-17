@@ -18,14 +18,33 @@ async function fixture(outcome: 'PASS' | 'FAIL' | 'APPROVAL_REQUIRED', mode: 'en
   await writeFile(join(cwd, 'TENET.md'), 'Rule; BLOCK; Never publish.');
   const env = { ...await isolatedHome(dir), TENET_MODE: mode, TENET_CONTROL_PATH: join(dir, 'control.json'), TENET_RECORDING_DIR: join(dir, 'recordings'), ...overrides };
   const submitted: string[][] = [];
-  const server = await startBridge({ directory: dir, env, judge: async r => {
+  const ownerRecords: string[] = [];
+  const server = await startBridge({ directory: dir, env, onOwnerRecord: record => ownerRecords.push(JSON.stringify(record)), judge: async r => {
     submitted.push(r.policy.rules.map(rule => rule.text));
     assert.equal(r.resolvedAction?.status, 'unsupported', 'stock Claude has no executor resolver');
     return answer(r.policy, outcome);
   } });
   const hook = (event: Record<string, unknown>) => handleHook(JSON.stringify({ ...event, cwd }), { directory: dir, env, deadlineMs: 1200 });
-  return { dir, cwd, env, server, hook, submitted, close: async () => { await server.close(); await rm(dir, { recursive: true, force: true }); } };
+  return { dir, cwd, env, server, hook, submitted, ownerRecords, close: async () => { await server.close(); await rm(dir, { recursive: true, force: true }); } };
 }
+
+test('Claude Operations uses the same safe identity boundary and owner-scoped snapshots', async () => {
+  const f = await fixture('PASS', 'enforce', { TYPESAFE_API_KEY: 'claude-identity-sentinel' });
+  const { OperationsReader } = await import('../src/inspector/operations-reader.js');
+  const reader = new OperationsReader(join(f.dir, 'recordings'));
+  try {
+    await f.hook({ session_id: 'native', hook_event_name: 'SessionStart' });
+    assert.equal(await f.hook({ ...base, tool_name: 'claude-identity-sentinel' }), '{}\n');
+    await f.server.close();
+    const view = await reader.read({ window: 15 });
+    assert.equal(view.requests.length, 1);
+    assert.equal(view.requests[0]?.metadata, 'withheld');
+    assert.equal(view.requests[0]?.archive, undefined);
+    assert.equal(JSON.stringify(view).includes('claude-identity-sentinel'), false);
+    assert.equal(f.ownerRecords.join('').includes('claude-identity-sentinel'), false);
+    assert.ok(view.loss.withheld > 0);
+  } finally { await reader.close(); await f.close(); }
+});
 
 for (const mode of ['observe', 'enforce'] as const) {
   for (const value of ['external.md', 'missing.md', '', ' \t ']) {

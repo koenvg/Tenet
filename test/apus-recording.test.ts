@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { mkdir, mkdtemp, realpath, rm, writeFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createGuard } from '../dist/sdk/index.js';
-import { readArchive } from '../src/recording/archive.js';
+import { readArchive, recordSessionKey } from '../src/recording/archive.js';
 import { invocationView } from '../src/inspector/view.js';
 import { scriptedNative, APUS_MODEL, type NativeCall } from './apus-scripted.js';
 import { ArchiveWriter } from '../src/recording/archive.js';
@@ -86,7 +86,7 @@ test('native histories show every submitted mapping and deterministic selector, 
 test('archive reader rejects malformed or unknown native provenance without hiding malformed provider output', async () => recorded(async (home, cwd) => {
   const archive = await assess(home, cwd);
   const request = archive.records.find(r => r.stage === 'request')!;
-  const folder = join(archive.directory, (await readdir(archive.directory))[0]!);
+  const folder = join(archive.directory, recordSessionKey(request));
   const nativeRequest = archive.records.find(r => (r.data.value as any)?.kind === 'native-request')!;
   const selector = archive.records.find(r => (r.data.value as any)?.derivation === 'sole-allowed-facts-selector')!;
   const corrupt = [

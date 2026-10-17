@@ -33,7 +33,7 @@ export async function readPrivateFile(root: string, path: string): Promise<strin
   if (!contained(root, path)) throw new Error('outside-archive');
   await directory(root);
   await directory(dirname(path));
-  const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const info = await handle.stat();
     if (!info.isFile() || info.nlink !== 1 || !owned(info.mode, info.uid) || info.size > MAX_RECORD_BYTES) throw new Error('unsafe-record');

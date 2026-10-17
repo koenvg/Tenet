@@ -11,6 +11,8 @@ import { ArchiveWriter, recordingConfig } from '../recording/archive.js';
 import { deliverOwnerRecord } from '../runtime/owner-record.js';
 import type { OwnerRecord } from '../sdk/types.js';
 import { policySelectionIdentity } from '../runtime/policy-selection.js';
+import { OperationsRuntime } from '../runtime/operations.js';
+import { diagnosticSafety } from '../runtime/diagnostic-safety.js';
 export const MAX_FRAME = 128 * 1024;
 const MAX_SESSIONS = 128;
 const MAX_CONNECTIONS = 32;
@@ -215,11 +217,20 @@ export async function startBridge(options: { directory: string; env: Record<stri
   catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
   const activation = new ActivationStore(options.env.TENET_CONTROL_PATH);
   const archive = new ArchiveWriter(recordingConfig(options.env));
+  const diagnostics = () => diagnosticSafety(['TYPESAFE_API_KEY', options.env.TYPESAFE_API_KEY]);
+  const operations = archive.config.enabled ? new OperationsRuntime(archive.config, diagnostics, () => archive.health()) : undefined;
   const generation = randomUUID();
-  const runtime = new GuardRuntime({ env: options.env, judge: options.judge, activation,
-    emit: (stage, data) => deliverOwnerRecord(options.onOwnerRecord, stage, data, runtime.mode),
-    bindRecording: id => archive.bind({ host: id.host, sessionId: id.sessionId, contextId: id.contextId,
-      invocationId: id.invocationId, callId: id.callId, toolName: id.toolName, cwd: id.cwd, mode: id.mode }),
+  const runtime = new GuardRuntime({ env: options.env, judge: options.judge, activation, operations,
+    emit: (stage, data) => { const safe = diagnostics().ownerRecord(data); if (safe) deliverOwnerRecord(options.onOwnerRecord, stage, safe, runtime.mode); },
+    bindRecording: id => {
+      if (!diagnostics().recordingIdentity(id)) { archive.captureSuppressed(); return () => {}; }
+      const sink = archive.bind({ host: id.host, sessionId: id.sessionId, contextId: id.contextId,
+        invocationId: id.invocationId, callId: id.callId, toolName: id.toolName, cwd: id.cwd, mode: id.mode });
+      return (stage, data) => {
+        if (!diagnostics().recordingIdentity(id)) archive.captureSuppressed();
+        else diagnostics().recording(sink, () => archive.captureSuppressed())(stage, data);
+      };
+    },
   }, capabilities);
   const sessions = new Map<string, string>();
   const resuming = new Map<string, Promise<BridgeResponse>>();
@@ -313,6 +324,6 @@ export async function startBridge(options: { directory: string; env: Record<stri
     await new Promise<void>(resolve => server.close(() => resolve()));
     const stat = await lstat(path).catch(() => undefined);
     if (stat?.isSocket() && owner(stat)) await rm(path);
-    await archive.close();
+    await Promise.all([archive.close(), operations?.close(1000)]);
   } };
 }
