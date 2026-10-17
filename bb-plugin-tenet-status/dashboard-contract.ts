@@ -22,7 +22,10 @@ export const dashboardPage = z.object({ run: token, scope: dashboardScope, proje
   rows: z.array(row).max(50), next: token.nullable(), rowsNext: token.nullable() }).strict();
 const contributor = dashboardContribution.pick({ threadId: true, sessionId: true, callId: true, timestamp: true, toolName: true })
   .extend({ projectId, label: z.string().max(256) }).strict();
+const stopInput = z.object({ token }).strict();
+const stopOutput = z.object({ stopped: z.literal(true) }).strict();
 export const dashboardMethods = {
+  dashboardStop: { input: stopInput, output: stopOutput },
   dashboard: { input: z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('start'), scope: dashboardScope }).strict(),
     z.object({ kind: z.literal('advance'), token }).strict(),
@@ -42,7 +45,7 @@ export const dashboardHostMethods = { readDashboard: {
     // Association completion is not a capture guarantee. The omission count covers known retained groups; omittedThreads also covers unretained groups.
     association: z.enum(['pending', 'complete', 'partial']), omittedThreads: z.array(threadId).max(128), omittedInvocations: count,
     reasons: z.array(z.string().max(128)).max(20) }).strict(),
-} };
+}, stopDashboard: { input: stopInput, output: stopOutput } };
 export type DashboardScope = z.infer<typeof dashboardScope>;
 export type Coverage = z.infer<typeof coverageSchema>;
 export type ProjectRuleSummary = z.infer<typeof dashboardPage>;
@@ -52,3 +55,5 @@ export type ContributorRequest = z.infer<typeof dashboardMethods.dashboardContri
 export type ContributorPage = z.infer<typeof dashboardMethods.dashboardContributors.output>;
 export type HostDashboardRequest = z.infer<typeof dashboardHostMethods.readDashboard.input>;
 export type HostDashboardChunk = z.infer<typeof dashboardHostMethods.readDashboard.output>;
+export type DashboardStopRequest = z.infer<typeof stopInput>;
+export type DashboardStopAck = z.infer<typeof stopOutput>;

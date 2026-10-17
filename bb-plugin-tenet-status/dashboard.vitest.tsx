@@ -22,7 +22,7 @@ test('registered root is a metadata-only project picker, not a global dashboard'
 });
 test('project automatically loads Rule/Passing/Failing then one flat failure table and an exact call link', async () => {
   const source = syntheticDashboard(); const read = vi.fn(source.read); const contributors = vi.fn(source.contributors); const navigate = vi.fn();
-  const slot = render(<DashboardPanel projectId={projectA} client={{ read, contributors }} navigate={navigate} />);
+  const slot = render(<DashboardPanel projectId={projectA} client={{ read, contributors, stop: source.stop }} navigate={navigate} />);
   const table = await slot.findByRole('table', { name: 'Project rules' });
   expect(within(table).getAllByRole('columnheader').map(el => el.textContent)).toEqual(['Rule', 'Passing', 'Failing']);
   const mixed = within(table).getByRole('button', { name: 'Ask before publishing.' }).closest('tr')!;
@@ -49,7 +49,7 @@ test('project automatically loads Rule/Passing/Failing then one flat failure tab
 });
 for (const timestamp of [1e100, -1e100]) test(`unrepresentable recorded time ${timestamp} keeps failures and recovery controls usable`, async () => {
   const source = syntheticDashboard(); const read = vi.fn(source.read); const navigate = vi.fn();
-  const client: DashboardClient = { read, contributors: async (input, signal) => {
+  const client: DashboardClient = { read, stop: source.stop, contributors: async (input, signal) => {
     const page = await source.contributors(input, signal);
     return { ...page, items: page.items.map(item => ({ ...item, timestamp })) };
   } };
@@ -78,19 +78,31 @@ for (const [scenario, expected] of [['limited', 'Some history is missing'], ['em
       expect(slot.getByLabelText('Partial history').textContent).toBe('Some history is missing. Rates cover recorded checks only.');
     }
   });
-test('cancel, scope changes and unmount abort and refuse late results', async () => {
+test('cancel, scope changes and unmount observe initial metadata replies for late cleanup without advancing', async () => {
   const pending: { resolve: (page: typeof syntheticDashboardPage) => void; signal?: AbortSignal }[] = [];
-  const client: DashboardClient = { read: vi.fn((_, signal) => new Promise<typeof syntheticDashboardPage>(resolve => pending.push({ resolve, signal }))), contributors: vi.fn() };
+  const stop = vi.fn(async () => ({ stopped: true as const }));
+  const read = vi.fn((_, signal?: AbortSignal) => new Promise<typeof syntheticDashboardPage>(resolve => pending.push({ resolve, signal })));
+  const client: DashboardClient = { stop, read, contributors: vi.fn() };
   const slot = render(<DashboardPanel client={client} projectId={projectA} navigate={() => {}} />);
-  fireEvent.click(slot.getByRole('button', { name: 'Cancel' })); expect(pending[0]!.signal?.aborted).toBe(true);
-  await act(async () => pending[0]!.resolve(syntheticDashboardPage));
+  fireEvent.click(slot.getByRole('button', { name: 'Cancel' })); expect(pending[0]!.signal).toBeUndefined();
+  await act(async () => pending[0]!.resolve({ ...syntheticDashboardPage, run: 'cancelled-run' }));
+  expect(stop.mock.calls).toEqual([['cancelled-run']]);
   expect(slot.queryByRole('table')).toBeNull();
   fireEvent.click(slot.getByRole('button', { name: 'Refresh' }));
+  await act(async () => {});
   slot.rerender(<DashboardPanel client={client} projectId="proj_fixture0002" navigate={() => {}} />);
-  expect(pending[1]!.signal?.aborted).toBe(true);
-  await act(async () => pending[1]!.resolve(syntheticDashboardPage));
+  await act(async () => {});
+  expect(pending[1]!.signal).toBeUndefined();
+  await act(async () => pending[1]!.resolve({ ...syntheticDashboardPage, run: 'superseded-run' }));
   expect(slot.queryByRole('table')).toBeNull();
-  slot.unmount(); expect(pending[2]!.signal?.aborted).toBe(true);
+  slot.unmount(); expect(pending[2]!.signal).toBeUndefined();
+  await act(async () => pending[2]!.resolve({ ...syntheticDashboardPage, run: 'unmounted-run' }));
+  expect(stop.mock.calls).toEqual([['cancelled-run'], ['superseded-run'], ['unmounted-run']]);
+  expect(read.mock.calls.map(([input]) => input)).toEqual([
+    { kind: 'start', scope: { kind: 'project', projectId: projectA } },
+    { kind: 'start', scope: { kind: 'project', projectId: projectA } },
+    { kind: 'start', scope: { kind: 'project', projectId: 'proj_fixture0002' } },
+  ]);
 });
 for (const outcome of ['restart-required', 'failure'] as const) test(`failure detail ${outcome} clears aggregates and ignores late responses after refresh`, async () => {
   let finish!: () => void;
@@ -145,7 +157,7 @@ test('Cancel retains a one-FAIL summary revision and invalidates detail after th
         rows: [{ ...partial.rows[0]!, failed: 2, passing: 900 / 11, failing: 200 / 11 }] });
     }; });
   };
-  const slot = render(<DashboardPanel projectId={projectA} client={{ read, contributors }} navigate={() => {}} />);
+  const slot = render(<DashboardPanel projectId={projectA} client={{ read, contributors, stop: source.stop }} navigate={() => {}} />);
   await waitFor(() => expect(continuationSignal?.aborted).toBe(false));
   expect(slot.getByRole('cell', { name: '10% recorded failing; 1 FAIL of 10 scored checks' }).textContent).toBe('10%');
   fireEvent.click(slot.getByRole('button', { name: 'Cancel' }));

@@ -19,6 +19,7 @@ export const syntheticDashboardPage: DashboardPage = {
 export function syntheticDashboard(scenario: DashboardCase = 'recorded'): DashboardClient {
   let projectId = projectA;
   return {
+    async stop() { return { stopped: true }; },
     async read(input, signal) {
       if (scenario === 'slow') await new Promise<void>((resolve, reject) => {
         const timer = setTimeout(resolve, 3000);

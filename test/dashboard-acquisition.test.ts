@@ -65,13 +65,13 @@ test('six sequential completed refreshes do not consume active admission', () =>
 }));
 test('limited unsearched destinations are not processed or unknown', async () => {
   const calls = { project: 0, thread: 0, environment: 0 };
-  const owner = dashboardHandlers(sdk(calls), async () => '{}', async () => ({ state: 'limited', next: null, contributions: [], linkedThreads: [], invocations: 0, reasons: ['host-run-limit'], association: 'partial', omittedThreads: [], omittedInvocations: 0 } as any));
+  const owner = dashboardHandlers(sdk(calls), async () => '{}', { stop: async () => ({ stopped: true }), read: async () => ({ state: 'limited', next: null, contributions: [], linkedThreads: [], invocations: 0, reasons: ['host-run-limit'], association: 'partial', omittedThreads: [], omittedInvocations: 0 }) });
   const page = await finishOwner(owner);
   assert.deepEqual([page.coverage.processed, page.coverage.unknown, page.coverage.unprocessed], [0, 0, 1]);
 });
 test('each fresh pre/post pass shares project settings and environment reads', async () => {
   const calls = { project: 0, thread: 0, environment: 0, settings: 0 };
-  const owner = dashboardHandlers(sdk(calls, 8), async () => { calls.settings++; return '{}'; }, async () => ({ state: 'finished', next: null, contributions: [], linkedThreads: [], invocations: 0, reasons: [], association: 'complete', omittedThreads: [], omittedInvocations: 0 } as any));
+  const owner = dashboardHandlers(sdk(calls, 8), async () => { calls.settings++; return '{}'; }, { stop: async () => ({ stopped: true }), read: async () => ({ state: 'finished', next: null, contributions: [], linkedThreads: [], invocations: 0, reasons: [], association: 'complete', omittedThreads: [], omittedInvocations: 0 }) });
   let page = await owner.dashboard({ kind: 'start', scope: { kind: 'project', projectId } });
   for (let n = 0; n < 3; n++) page = await owner.dashboard({ kind: 'advance', token: page.next! });
   Object.keys(calls).forEach(key => { calls[key as keyof typeof calls] = 0; });
@@ -111,7 +111,7 @@ test('oversized selected invocations preserve other results and explicit partial
   const host = dashboardHost();
   try {
     const calls = { project: 0, thread: 0, environment: 0 };
-    const owner = dashboardHandlers(sdk(calls), async () => JSON.stringify({ [hostId]: root }), request => host.readDashboard(request));
+    const owner = dashboardHandlers(sdk(calls), async () => JSON.stringify({ [hostId]: root }), { read: request => host.readDashboard(request), stop: token => host.stopDashboard({ token }) });
     const page = await finishOwner(owner);
     assert.deepEqual([page.state, page.rows.length, page.coverage.processed, page.coverage.unknown, page.coverage.partial, page.coverage.unprocessed, page.coverage.omittedInvocations], ['limited', 2, 0, 0, 1, 0, 3]);
     assert.deepEqual(page.rows.map(r => [r.builtin, r.passed, r.failed]).sort(), [[false, 0, 1], [true, 1, 0]]);
@@ -192,7 +192,7 @@ test('per-step stage and input-byte budgets resume without dropping selected fac
 test('completed exact association search alone permits unknown coverage', async () => {
   for (const association of ['complete', 'partial', 'pending'] as const) {
     const calls = { project: 0, thread: 0, environment: 0 };
-    const owner = dashboardHandlers(sdk(calls), async () => '{}', async () => ({ state: 'limited', next: null, contributions: [], linkedThreads: [], invocations: 0, reasons: ['archive-work-limit'], association, omittedThreads: [], omittedInvocations: 0 }));
+    const owner = dashboardHandlers(sdk(calls), async () => '{}', { stop: async () => ({ stopped: true }), read: async () => ({ state: 'limited', next: null, contributions: [], linkedThreads: [], invocations: 0, reasons: ['archive-work-limit'], association, omittedThreads: [], omittedInvocations: 0 }) });
     const page = await finishOwner(owner);
     assert.deepEqual([page.coverage.processed, page.coverage.unknown, page.coverage.unprocessed, page.coverage.partial], association === 'complete' ? [1, 1, 0, 0] : [0, 0, 1, 0]);
   }
@@ -251,7 +251,7 @@ test('terminal archive work cap folds completed selected sessions and never inve
     assert.deepEqual([result.chunk.state, result.chunk.association, result.observations.length], ['limited', 'partial', 2]);
     assert.deepEqual(result.chunk.reasons, ['archive-work-limit']);
     const calls = { project: 0, thread: 0, environment: 0 };
-    const owner = dashboardHandlers(sdk(calls), async () => JSON.stringify({ [hostId]: root }), request => host.readDashboard(request.kind === 'start' ? { ...request, threads: ['thr_absent000001'] } : request));
+    const owner = dashboardHandlers(sdk(calls), async () => JSON.stringify({ [hostId]: root }), { read: request => host.readDashboard(request.kind === 'start' ? { ...request, threads: ['thr_absent000001'] } : request), stop: token => host.stopDashboard({ token }) });
     const page = await finishOwner(owner);
     assert.deepEqual([page.state, page.rows.length, page.coverage.processed, page.coverage.unknown, page.coverage.unprocessed], ['limited', 0, 0, 0, 1]);
   } finally { await host.dispose(); }
@@ -303,7 +303,7 @@ test('a session unfinished at the terminal work cap cannot publish its otherwise
 }));
 test('resolution shares its fresh authorization context and retained owner replies are immutable', async () => {
   const calls = { project: 0, thread: 0, environment: 0, settings: 0 };
-  const owner = dashboardHandlers(sdk(calls, 8), async () => { calls.settings++; return '{}'; }, async () => ({ state: 'finished', next: null, contributions: [], linkedThreads: [], invocations: 0, reasons: [], association: 'complete', omittedThreads: [], omittedInvocations: 0 }));
+  const owner = dashboardHandlers(sdk(calls, 8), async () => { calls.settings++; return '{}'; }, { stop: async () => ({ stopped: true }), read: async () => ({ state: 'finished', next: null, contributions: [], linkedThreads: [], invocations: 0, reasons: [], association: 'complete', omittedThreads: [], omittedInvocations: 0 }) });
   let page = await owner.dashboard({ kind: 'start', scope: { kind: 'project', projectId } });
   for (let n = 0; n < 2; n++) page = await owner.dashboard({ kind: 'advance', token: page.next! });
   Object.keys(calls).forEach(key => { calls[key as keyof typeof calls] = 0; });
@@ -321,10 +321,10 @@ for (const change of ['settings', 'environment', 'membership', 'provider', 'dele
   api.threads.get = async () => ({ id: threadId, projectId: changed && change === 'membership' ? 'proj_foreign0001' : projectId,
     providerId: changed && change === 'provider' ? 'codex' : 'pi', deletedAt: changed && change === 'deletion' ? 1 : null, environmentId: 'env_fixture0001' });
   api.environments.get = async () => ({ id: 'env_fixture0001', hostId: changed && change === 'environment' ? 'host_foreign0001' : hostId });
-  const owner = dashboardHandlers(api, async () => changed && change === 'settings' ? JSON.stringify({ [hostId]: '/synthetic/changed' }) : '{}', async () => {
+  const owner = dashboardHandlers(api, async () => changed && change === 'settings' ? JSON.stringify({ [hostId]: '/synthetic/changed' }) : '{}', { stop: async () => ({ stopped: true }), read: async () => {
     changed = true;
     return { state: 'finished', next: null, contributions: [], linkedThreads: [threadId], invocations: 1, reasons: [], association: 'complete', omittedThreads: [], omittedInvocations: 0 };
-  });
+  } });
   const page = await finishOwner(owner);
   assert.equal(page.state, 'restart-required'); assert.deepEqual(page.rows, []);
 });
@@ -333,7 +333,7 @@ test('one environment read per distinct environment in each pass, never shared a
   const api = sdk(calls, 8);
   api.threads.get = async ({ threadId: id }: any) => { calls.thread++; return { id, projectId, providerId: 'pi', environmentId: id === threadId ? 'env_fixture0001' : 'env_fixture0002' }; };
   api.environments.get = async ({ environmentId: id }: any) => { calls.environment++; return { id, hostId }; };
-  const owner = dashboardHandlers(api, async () => { calls.settings++; return '{}'; }, async () => ({ state: 'finished', next: null, contributions: [], linkedThreads: [], invocations: 0, reasons: [], association: 'complete', omittedThreads: [], omittedInvocations: 0 }));
+  const owner = dashboardHandlers(api, async () => { calls.settings++; return '{}'; }, { stop: async () => ({ stopped: true }), read: async () => ({ state: 'finished', next: null, contributions: [], linkedThreads: [], invocations: 0, reasons: [], association: 'complete', omittedThreads: [], omittedInvocations: 0 }) });
   const page = await finishOwner(owner);
   for (let n = 0; n < 2; n++) {
     Object.keys(calls).forEach(key => { calls[key as keyof typeof calls] = 0; });

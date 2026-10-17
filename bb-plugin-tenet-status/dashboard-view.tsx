@@ -7,7 +7,9 @@ import './dashboard.css';
 export interface DashboardClient {
   read: (input: DashboardRequest, signal?: AbortSignal) => Promise<DashboardPage>;
   contributors: (input: ContributorRequest, signal?: AbortSignal) => Promise<ContributorPage>;
+  stop: (token: string) => Promise<{ stopped: true }>;
 }
+type BrowserLoad = { controller: AbortController; closed: boolean; run?: string; cleanup?: Promise<void>; blockedBy?: BrowserLoad };
 type SelectedRule = { row: DashboardPage['rows'][number]; revision: number };
 type FailurePosition = { cursors: (string | undefined)[]; index: number; focus?: string };
 export type DashboardReturn = { projectId: string; run: string; revision: number; resultsCursor?: string; selected: SelectedRule; position: FailurePosition };
@@ -34,33 +36,63 @@ export function DashboardPanel({ client, navigate, projectId, retained, remember
   }, [selected]);
   const active = useRef<AbortController | null>(null);
   const latest = useRef<DashboardPage | null>(null);
+  const acquisition = useRef<BrowserLoad | null>(null);
+  const release = useCallback((load: BrowserLoad): Promise<void> => {
+    const token = load.run;
+    if (!token) return Promise.resolve();
+    if (load.cleanup) return load.cleanup;
+    const attempt = Promise.resolve().then(() => client.stop(token)).then(() => {});
+    load.cleanup = attempt;
+    void attempt.catch(() => { if (load.cleanup === attempt) load.cleanup = undefined; });
+    return attempt;
+  }, [client]);
+  const close = useCallback((load: BrowserLoad): Promise<void> => {
+    load.closed = true; load.controller.abort();
+    return release(load);
+  }, [release]);
   const invalidate = useCallback(() => {
+    if (acquisition.current) void close(acquisition.current).catch(() => {});
     active.current?.abort(); active.current = null; latest.current = null; setSelected(null); remember?.(null);
     setDisplay({ kind: 'error', page: null, message: changed });
-  }, [remember]);
+  }, [remember, close]);
   const start = useCallback(async () => {
+    const previous = acquisition.current;
+    if (previous) void close(previous).catch(() => {});
     active.current?.abort();
-    const controller = new AbortController(); active.current = controller; latest.current = null;
+    const load: BrowserLoad = { controller: new AbortController(), closed: false,
+      blockedBy: previous?.run ? previous : previous?.blockedBy };
+    acquisition.current = load;
+    const controller = load.controller; active.current = controller; latest.current = null;
     setSelected(null); setResultsCursor(undefined); setRestored(undefined); focusRule.current = null; remember?.(null);
     setDisplay({ kind: 'running', page: null });
     try {
-      let page = await liveRead(client.read({ kind: 'start', scope: { kind: 'project', projectId } }, controller.signal), controller.signal);
-      while (!controller.signal.aborted && active.current === controller) {
+      if (load.blockedBy) await release(load.blockedBy);
+      if (load.closed || acquisition.current !== load) return;
+      load.blockedBy = undefined;
+      const source = client.read({ kind: 'start', scope: { kind: 'project', projectId } });
+      void source.then(page => {
+        load.run = page.run;
+        if (load.closed) void release(load).catch(() => {});
+      }, () => {});
+      let page = await liveRead(source, controller.signal);
+      while (!load.closed && acquisition.current === load) {
         latest.current = page; setDisplay({ kind: page.next ? 'running' : 'ready', page });
         if (!page.next) break;
         page = await liveRead(client.read({ kind: 'advance', token: page.next }, controller.signal), controller.signal);
       }
     } catch {
-      if (!controller.signal.aborted && active.current === controller) {
-        controller.abort(); latest.current = null; setDisplay({ kind: 'error', page: null, message: 'History unavailable. Results cleared. Refresh to try again.' });
+      if (!load.closed && acquisition.current === load) {
+        void close(load).catch(() => {}); latest.current = null;
+        setDisplay({ kind: 'error', page: null, message: 'History unavailable. Results cleared. Refresh to try again.' });
       }
     }
-  }, [client, projectId, remember]);
+  }, [client, projectId, remember, close, release]);
   useEffect(() => {
     const saved = initial.current; initial.current = null;
     if (!saved || saved.projectId !== projectId) void start();
     else {
       const controller = new AbortController(); active.current = controller;
+      acquisition.current = { controller, closed: false, run: saved.run };
       void liveRead(client.read({ kind: 'results', token: saved.run, ...(saved.resultsCursor ? { cursor: saved.resultsCursor } : {}) }, controller.signal), controller.signal).then(page => {
         if (controller.signal.aborted || active.current !== controller) return;
         if (page.state === 'restart-required' || page.revision !== saved.revision || page.scope.projectId !== projectId) { invalidate(); return; }
@@ -68,8 +100,11 @@ export function DashboardPanel({ client, navigate, projectId, retained, remember
         focusRule.current = saved.selected.row.key; setSelected(saved.selected); setDisplay({ kind: 'ready', page });
       }, () => { if (!controller.signal.aborted && active.current === controller) invalidate(); });
     }
-    return () => { active.current?.abort(); active.current = null; };
-  }, [start, client, projectId, invalidate]);
+    return () => {
+      if (acquisition.current) void close(acquisition.current).catch(() => {});
+      active.current?.abort(); active.current = null;
+    };
+  }, [start, client, projectId, invalidate, close]);
   const page = display.page;
   const results = async (cursor?: string) => {
     if (!page) return;
@@ -92,6 +127,7 @@ export function DashboardPanel({ client, navigate, projectId, retained, remember
       </div>
     </header>
     {display.kind === 'running' && <p role="status">Loading rules… <button className={button} onClick={() => {
+      if (acquisition.current) void close(acquisition.current).catch(() => {});
       active.current?.abort(); active.current = null; setDisplay({ kind: 'cancelled', page: latest.current });
     }}>Cancel</button></p>}
     {display.kind === 'cancelled' && <p role="status">Loading cancelled. History is partial. Refresh to try again.</p>}

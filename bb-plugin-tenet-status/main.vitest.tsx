@@ -15,6 +15,7 @@ const rpc = {
   pickerThreads: ({ projectId, cursor }: any) => syntheticPicker.threads(projectId, cursor),
   pickerSelection: ({ threadId, projectId }: any) => syntheticPicker.selection(threadId, projectId),
   overview: ({ threadId, ...selection }: any) => mainSyntheticRead(threadId, selection),
+  dashboardStop: () => Promise.resolve({ stopped: true }),
 };
 const sdk = { threads: { get: ({ threadId }: any) => syntheticThread(threadId) as any } };
 
