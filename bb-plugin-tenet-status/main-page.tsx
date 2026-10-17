@@ -28,6 +28,7 @@ export function MainPage({ subPath }: PluginNavPanelProps) {
   const dashboard = useMemo<DashboardClient>(() => ({
     read: (input, signal) => call('dashboard', input, signal),
     contributors: (input, signal) => call('dashboardContributors', input, signal),
+    stop: token => call('dashboardStop', { token }),
   }), [call]);
   const go = useCallback((path: string) => navigate.toPluginPanel('findings', { subPath: path }), [navigate]);
   return <MainPageView subPath={subPath} client={client} dashboard={dashboard} navigate={go}
