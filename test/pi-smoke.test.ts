@@ -280,6 +280,43 @@ test('pinned Pi dispatch gates built-in, extension and dynamically registered to
     await invoke('dummy', { payload: { value: 'after-restart' } });
     assert.equal(executed.length, 10, 'fresh SDK session remains usable after shutdown and restart');
     assert.deepEqual(executed.at(-1), { payload: { value: 'after-restart' } });
+
+    // Pi 1.3 also dispatches calls made by orchestrators such as codemode through the native hooks.
+    const nestedResults: { isError?: boolean }[] = [];
+    extensionAPI.registerTool({ name: 'orchestrate', label: 'Orchestrate', description: 'Offline nested dispatcher',
+      parameters: Type.Object({ childOutcome: Type.String(), providerFailure: Type.Boolean() }),
+      async execute(_id, args, _signal, _onUpdate, ctx) {
+        outcome = args.childOutcome as Outcome; judgeFailure = args.providerFailure;
+        try {
+          const result = await ctx.executeTool('dummy', { payload: { value: 'nested' } });
+          nestedResults.push(result);
+          return result.result;
+        } finally { outcome = 'PASS'; judgeFailure = false; }
+      } });
+    integrity = 'PASS'; outcome = 'PASS'; approved = false;
+    const nested = (childOutcome: Outcome, providerFailure = false) => invoke('orchestrate', { childOutcome, providerFailure });
+    const beforeNested = executed.length, beforeConfirmations = confirmations;
+    await nested('PASS');
+    assert.equal(executed.length, beforeNested + 1, 'nested PASS reaches the executor once');
+    const child = assessed.at(-1)!;
+    assert.equal(child.toolName, 'dummy');
+    assert.match(child.callId!, /^smoke-\d+\/1$/, 'Pi assigns the nested call a distinct native identity');
+    assert.equal(child.argumentDigest, argumentDigest({ payload: { value: 'nested' } }));
+    await nested('FAIL');
+    assert.equal(nestedResults.at(-1)?.isError, true);
+    await nested('PASS', true);
+    assert.equal(nestedResults.at(-1)?.isError, true);
+    await nested('APPROVAL_REQUIRED');
+    assert.equal(nestedResults.at(-1)?.isError, true);
+    assert.equal(executed.length, beforeNested + 1, 'nested FAIL, provider failure and denied approval never execute');
+    approved = true;
+    await nested('APPROVAL_REQUIRED');
+    assert.equal(executed.length, beforeNested + 2, 'positive native consent releases only the nested call');
+    assert.equal(confirmations, beforeConfirmations + 2, 'only the two nested approval requests open native consent');
+    const nestedRecords = session.sessionManager.getEntries().flatMap(e => e.type === 'custom' && e.customType === 'tenet' ? [e.data as any] : []);
+    assert.ok(nestedRecords.some(r => r.stage === 'permission' && r.callId === child.callId && r.outcome === 'released'));
+    assert.ok(!nestedRecords.some(r => r.stage === 'execution' && r.callId === child.callId && r.outcome === 'succeeded'),
+      'nested dispatch does not strengthen Pi result-correlation guarantees');
   } finally {
     session?.dispose();
     globalThis.fetch = realFetch;
