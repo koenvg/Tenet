@@ -68,6 +68,43 @@ for (const width of [1440, 390]) test(`project rules to flat failures at ${width
   await page.getByRole('heading', { name: 'Synthetic remote project' }).waitFor();
   expect(new URL(page.url()).search).toBe('?host-query=keep');
 });
+for (const width of [1440, 390]) test(`51 failures preserve backward paging and keyboard focus at ${width}px`, async ({ page, shellOrigin: origin }) => {
+  await page.setViewportSize({ width, height: 1000 });
+  await page.goto(`${origin}main.preview.html?case=paging`);
+  await page.getByRole('button', { name: 'Synthetic local project', exact: true }).press('Enter');
+  await page.getByRole('button', { name: 'Ask before publishing.', exact: true }).press('Enter');
+  const failures = page.getByRole('table', { name: 'Failures', exact: true });
+  const calls = failures.getByRole('link', { name: 'Open call' });
+  const heading = page.getByRole('heading', { name: 'Failures', exact: true });
+  await expect(page.getByText('Showing 1–50 of 51 failures', { exact: true })).toBeVisible();
+  await expect(calls).toHaveCount(50);
+  const firstCall = await calls.first().getAttribute('href');
+  const next = page.getByRole('button', { name: 'Next failures', exact: true });
+  await next.press('Enter');
+  await expect(page.getByText('Showing 51–51 of 51 failures', { exact: true })).toBeVisible();
+  await expect(calls).toHaveCount(1);
+  await expect(next).toHaveCount(0);
+  await expect(heading).toBeFocused();
+  await page.screenshot({ path: `${artifacts}/tenet166-last-failure-${width}.png`, fullPage: true });
+  await page.keyboard.press('Tab');
+  await expect(calls).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Previous failures', exact: true })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByText('Showing 1–50 of 51 failures', { exact: true })).toBeVisible();
+  await expect(calls).toHaveCount(50);
+  await expect(calls.first()).toHaveAttribute('href', firstCall!);
+  await next.press('Enter');
+  await expect(heading).toBeFocused();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'First failures', exact: true })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByText('Showing 1–50 of 51 failures', { exact: true })).toBeVisible();
+  await expect(calls).toHaveCount(50);
+  await expect(calls.first()).toHaveAttribute('href', firstCall!);
+});
 test('main call history restores scope/call/filter across simulated machines', async ({ page, shellOrigin: origin }) => {
   await page.setViewportSize({ width: 1440, height: 1050 });
   try {
