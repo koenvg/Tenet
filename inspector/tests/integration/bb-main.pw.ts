@@ -10,6 +10,120 @@ const artifacts = resolve('coverage/inspector-artifacts/tenet54');
 test.beforeAll(async ({}, testInfo) => { testInfo.setTimeout(30_000); await mkdir(artifacts, { recursive: true }); });
 const reads = (page: Page) => page.evaluate(() => (window as any).tenetPreview.reads as { threadId: string; machine: string; selection: unknown }[]);
 
+for (const width of [900, 390]) test(`crowded project picker and dashboard scroll inside a constrained host at ${width}px`, async ({ page, shellOrigin: origin }) => {
+  await page.setViewportSize({ width, height: 460 });
+  await page.goto(`${origin}main.preview.html?crowded=1&host=constrained&case=paging`);
+  const main = page.getByRole('region', { name: 'TENET main page', exact: true });
+  const projects = page.getByRole('region', { name: 'Projects', exact: true });
+  const rows = projects.getByRole('listitem').getByRole('button');
+  const first = page.getByRole('button', { name: 'Synthetic local project', exact: true });
+  const last = page.getByRole('button', { name: 'Synthetic remote project', exact: true });
+  await expect(rows).toHaveCount(50);
+  await expect(first).toBeInViewport({ ratio: 1 });
+  await expect(last).not.toBeInViewport();
+  await page.mouse.move(width / 2, 260);
+  await page.mouse.wheel(0, 100_000);
+  await expect(last).toBeInViewport({ ratio: 1 });
+  await expect(page.getByRole('button', { name: 'Next projects', exact: true })).toBeInViewport({ ratio: 1 });
+  expect(await reads(page)).toEqual([]);
+  expect(await page.evaluate(() => (window as any).tenetPreview.dashboardReads)).toEqual([]);
+  await main.focus(); await page.keyboard.press('Home');
+  await expect(page.getByRole('heading', { name: 'TENET', exact: true })).toBeInViewport({ ratio: 1 });
+  await first.focus();
+  for (let index = 1; index < 50; index++) await page.keyboard.press('Tab');
+  await expect(last).toBeFocused(); await expect(last).toBeInViewport({ ratio: 0.99 });
+  await page.keyboard.press('Tab'); await page.keyboard.press('Enter');
+  await expect(rows).toHaveCount(1);
+  await expect(first).toBeInViewport({ ratio: 1 });
+  await page.getByRole('button', { name: 'First page / Retry', exact: true }).press('Enter');
+  await expect(rows).toHaveCount(50);
+  await last.press('Enter');
+  await expect(page.getByRole('heading', { name: 'Synthetic remote project', exact: true })).toBeInViewport({ ratio: 1 });
+  expect(await main.evaluate(element => element.scrollTop)).toBe(0);
+  const headingTop = await page.getByRole('heading', { name: 'Synthetic remote project', exact: true }).evaluate(element => element.getBoundingClientRect().top);
+  const mainTop = await main.evaluate(element => element.getBoundingClientRect().top);
+  expect(headingTop - mainTop).toBeLessThan(160);
+  const rules = page.getByRole('table', { name: 'Project rules', exact: true });
+  await main.focus(); await page.keyboard.press('Home');
+  await expect.poll(() => main.evaluate(element => element.scrollTop)).toBe(0);
+  await page.mouse.move(width / 2, 260); await page.mouse.wheel(0, 100_000);
+  await expect(rules.getByRole('button', { name: 'Run offline tests.', exact: true })).toBeInViewport({ ratio: 1 });
+  await rules.getByRole('button', { name: 'Ask before publishing.', exact: true }).press('Enter');
+  await expect(page.getByRole('link', { name: 'Open call' })).toHaveCount(50);
+  await expect(page.getByRole('heading', { name: 'Failures', exact: true })).toBeFocused();
+  await page.mouse.move(width / 2, 260); await page.mouse.wheel(0, 100_000);
+  const next = page.getByRole('button', { name: 'Next failures', exact: true });
+  await expect(next).toBeInViewport({ ratio: 1 });
+  await next.press('Enter');
+  await expect(page.getByText('Showing 51–51 of 51 failures', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Previous failures', exact: true }).press('Enter');
+  await expect(page.getByRole('link', { name: 'Open call' })).toHaveCount(50);
+  await page.getByRole('link', { name: 'Open call' }).first().press('Enter');
+  await expect(page.getByRole('button', { name: 'Back to project rules', exact: true })).toBeVisible();
+  await expect(page.locator('.call-row').first()).toBeAttached();
+  await main.focus(); await page.keyboard.press('Home');
+  await expect(page.getByRole('button', { name: 'Choose project', exact: true })).toBeInViewport({ ratio: 1 });
+  await page.getByRole('button', { name: 'Choose project', exact: true }).press('Enter');
+  await expect(rows).toHaveCount(50);
+  expect(await page.evaluate(() => ({ y: window.scrollY, height: document.documentElement.scrollHeight, width: document.documentElement.scrollWidth }))).toEqual({ y: 0, height: 460, width });
+});
+
+for (const theme of ['light', 'dark']) for (const width of [900, 390]) test(`project cards have honest details and responsive columns at ${width}px in ${theme}`, async ({ page, shellOrigin: origin }) => {
+  await page.setViewportSize({ width, height: 460 });
+  await page.goto(`${origin}main.preview.html?crowded=1&host=constrained&theme=${theme}`);
+  const projects = page.getByRole('region', { name: 'Projects', exact: true });
+  const list = projects.getByRole('list');
+  const cards = list.getByRole('button');
+  await expect(cards).toHaveCount(50);
+  await expect(projects.getByText('Recorded history loads when you open a project. This picker does not scan histories.', { exact: true })).toHaveCount(1);
+  await expect(cards.first()).toHaveAccessibleName('Synthetic local project');
+  await expect(cards.first().locator('time')).toHaveAttribute('datetime', '2025-01-02T00:00:00.000Z');
+  await expect(cards.first()).toContainText('BB project updated Jan 2, 2025');
+  await expect(cards.nth(1)).toContainText('BB project update unavailable');
+  await expect(projects.getByText('View rule history', { exact: true })).toHaveCount(50);
+  await expect(projects.getByText('Recorded rule checks and their results.', { exact: true })).toHaveCount(50);
+  expect(await projects.innerText()).not.toMatch(/\d+%|all.clear|enabled|Tenet activity|assessment time/i);
+  const metrics = await list.evaluate(element => {
+    const bounds = element.getBoundingClientRect();
+    return { columns: getComputedStyle(element).gridTemplateColumns.split(' ').length,
+      cards: Array.from(element.querySelectorAll('button')).map(button => {
+        const rect = button.getBoundingClientRect(), style = getComputedStyle(button);
+        const title = button.querySelector('.tenet-project-title')!;
+        return { tag: button.tagName, width: rect.width, height: rect.height, listWidth: bounds.width,
+          textAlign: style.textAlign, overflow: button.scrollWidth > button.clientWidth, color: style.color,
+          x: rect.x, y: rect.y, titleHeight: title.getBoundingClientRect().height };
+      }) };
+  });
+  expect(metrics.columns).toBe(width === 900 ? 2 : 1);
+  for (const card of metrics.cards) {
+    expect(card.tag).toBe('BUTTON');
+    expect(card.width).toBeCloseTo(width === 900 ? (card.listWidth - 16) / 2 : card.listWidth, 0);
+    expect(card.height).toBeGreaterThanOrEqual(44);
+    expect(card.textAlign).toBe('left'); expect(card.overflow).toBe(false);
+    expect(card.color).toBe(theme === 'dark' ? 'rgb(237, 238, 237)' : 'rgb(23, 25, 24)');
+  }
+  expect(metrics.cards[1]!.titleHeight).toBeGreaterThan(metrics.cards[0]!.titleHeight);
+  if (width === 900) {
+    expect(metrics.cards[0]!.y).toBe(metrics.cards[1]!.y);
+    expect(metrics.cards[1]!.x).toBeGreaterThan(metrics.cards[0]!.x);
+  } else expect(metrics.cards[1]!.y).toBeGreaterThan(metrics.cards[0]!.y);
+  expect(await reads(page)).toEqual([]);
+  expect(await page.evaluate(() => ({ dashboard: (window as any).tenetPreview.dashboardReads, picker: (window as any).tenetPreview.pickerReads }))).toEqual({ dashboard: [], picker: [null] });
+  await cards.first().focus(); await page.keyboard.press('Tab');
+  await expect(cards.nth(1)).toBeFocused();
+  const focus = await cards.nth(1).evaluate(element => { const style = getComputedStyle(element); return { style: style.outlineStyle, width: style.outlineWidth, color: style.outlineColor, foreground: style.color }; });
+  expect(focus.style).toBe('solid'); expect(focus.width).toBe('2px'); expect(focus.color).toBe(focus.foreground);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+  await cards.first().press('Space');
+  await expect(page.getByRole('heading', { name: 'Synthetic local project', exact: true })).toBeInViewport({ ratio: 1 });
+  expect(await page.evaluate(() => (window as any).tenetPreview.dashboardReads)).toEqual(['start', 'advance']);
+  if (theme === 'light') {
+    await page.setViewportSize({ width, height: 820 });
+    await page.goto(`${origin}main.preview.html?cards=1&host=constrained&theme=${theme}`);
+    await expect(page.getByRole('button', { name: 'Field Notes', exact: true })).toBeVisible();
+    await page.screenshot({ path: `/tmp/tenet-cards-work/cards-${width}.png`, fullPage: true });
+  }
+});
 for (const width of [1440, 390]) test(`project rules to flat failures at ${width}px supports keyboard, exact links and Back`, async ({ page, shellOrigin: origin }) => {
   await page.setViewportSize({ width, height: 1000 });
   await page.goto(`${origin}main.preview.html?host-query=keep`);
