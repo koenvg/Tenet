@@ -1,8 +1,8 @@
 ---
 version: 1
 slug: "inspector-src-app-svelte"
-primary_target: "inspector/src/App.svelte"
-related_targets: ["inspector/src/Detail.svelte","inspector/src/RuleDetail.svelte","inspector/src/style.css"]
+primary_target: "inspector/src/App.tsx"
+related_targets: ["inspector/src/Detail.tsx","inspector/src/RuleDetail.tsx","inspector/src/style.css"]
 ---
 
 # Decision debugger
