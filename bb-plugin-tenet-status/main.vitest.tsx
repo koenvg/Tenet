@@ -1,8 +1,8 @@
 import { afterEach, expect, test, vi } from 'vitest';
-import { act, fireEvent, waitFor } from '@testing-library/react';
+import { act, fireEvent, waitFor, render } from '@testing-library/react';
 import { loadPluginApp } from '@get-bb/plugin-sdk/testing/app';
 import { renderSummarySlot as renderSlot, summaryCalls } from './summary-rpc.fixture';
-import { MainPage } from './main-page';
+import { MainPage, MainPageView, type PickerClient } from './main-page';
 import { overviewPath } from './main-route';
 import { syntheticPicker, syntheticThread, mainSyntheticRead, projectA, projectB, stopped, noHistory, nonPi, deleted } from './main.preview-fixture';
 import { syntheticOverview } from './overview.preview-fixture';
@@ -26,8 +26,17 @@ test('registered main root selects a project then automatically shows recorded r
     dashboardContributors: input => source.contributors(dashboardMethods.dashboardContributors.input.parse(input)),
   } });
   try {
+    const card = await slot.findByRole('button', { name: 'Synthetic local project' });
+    expect(card.tagName).toBe('BUTTON');
+    expect(card.textContent).toContain('BB project updated');
+    expect(card.querySelector('time')?.getAttribute('datetime')).toBe('2025-01-02T00:00:00.000Z');
+    expect(card.textContent).toContain('View rule history');
+    expect(card.textContent).toContain('Recorded rule checks and their results.');
+    expect(slot.getByText('Recorded history loads when you open a project. This picker does not scan histories.')).toBeTruthy();
+    expect(summaryCalls(slot)).toEqual([{ method: 'pickerProjects', input: {} }]);
     fireEvent.click(await slot.findByRole('button', { name: 'Next projects' }));
     fireEvent.click(await slot.findByRole('button', { name: 'Synthetic remote project' }));
+    expect(slot.getByRole('button', { name: 'Synthetic remote project' }).textContent).toContain('BB project update unavailable');
     expect(slot.inspection.navigateCalls.at(-1)).toEqual({ method: 'toPluginPanel', path: 'findings', options: { subPath: `project/${projectB}` } });
     expect(summaryCalls(slot).map(c => c.method)).toEqual(['pickerProjects', 'pickerProjects']);
     slot.lifecycle.rerender(<MainPage subPath={`project/${projectB}`} />);
@@ -40,6 +49,35 @@ test('registered main root selects a project then automatically shows recorded r
     ]);
     expect(slot.inspection.sdkCalls.every(call => call.method === 'plugins.callRpc')).toBe(true);
   } finally { slot.lifecycle.unmount(); }
+});
+test('project picker retries unavailable metadata and keeps an empty page explicit', async () => {
+  const projects = vi.fn<PickerClient['projects']>().mockRejectedValueOnce(Error('offline')).mockResolvedValue({ items: [], next: null });
+  const client = { ...syntheticPicker, projects };
+  const slot = render(<MainPageView subPath="" client={client} navigate={vi.fn()} overview={() => null} findings={() => null} />);
+  try {
+    expect((await slot.findByRole('alert')).textContent).toBe('Selection list unavailable. Retry from the first page.');
+    fireEvent.click(slot.getByRole('button', { name: 'First page / Retry' }));
+    await waitFor(() => expect(slot.getByRole('status').textContent).toBe('No projects on this page.'));
+    expect(slot.queryAllByRole('button')).toHaveLength(0);
+    expect(projects.mock.calls.map(([cursor]) => cursor)).toEqual([undefined, undefined]);
+  } finally { slot.unmount(); }
+});
+test('leaving the project picker cancels metadata and ignores a late card page', async () => {
+  let finish!: (page: Awaited<ReturnType<PickerClient['projects']>>) => void;
+  let signal: AbortSignal | undefined;
+  const client: PickerClient = { ...syntheticPicker, projects: (_cursor, pending) => {
+    signal = pending; return new Promise(resolve => { finish = resolve; });
+  } };
+  const view = (subPath: string) => <MainPageView subPath={subPath} client={client} navigate={vi.fn()} overview={() => null} findings={() => null} />;
+  const slot = render(view(''));
+  try {
+    expect(slot.getByRole('status').textContent).toBe('Reading BB metadata…');
+    slot.rerender(view('invalid'));
+    await act(async () => { finish(await syntheticPicker.projects()); });
+    expect(signal?.aborted).toBe(true);
+    expect(slot.getByRole('alert').textContent).toBe('Invalid Tenet selection. Choose a project to start again. No archive requested.');
+    expect(slot.queryByRole('button', { name: 'Synthetic local project' })).toBeNull();
+  } finally { slot.unmount(); }
 });
 test('stopped-thread main view reuses safe summaries; BB route restoration restores call/session/category and old findings', async () => {
   const app = await loadPluginApp(() => import('./app'));

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useBbNavigate, type PluginNavPanelProps } from '@get-bb/plugin-sdk/app';
 import { useSummaryRpc } from './summary-rpc';
 import type { PickerSelection, ProjectPage, ThreadPage } from './picker-contract';
@@ -8,6 +8,7 @@ import { DetailsPage } from './details-page';
 import { liveRead } from './live-read';
 import type { OverviewSelection } from '../src/inspector/bb-summary';
 import { DashboardPanel, type DashboardClient, type DashboardReturn } from './dashboard-view';
+import './main-page.css';
 
 export interface PickerClient {
   projects: (cursor?: string, signal?: AbortSignal) => Promise<ProjectPage>;
@@ -37,11 +38,17 @@ export function MainPageView({ subPath, client, navigate, overview, findings, da
   overview: (props: OverviewProps) => ReactNode; findings: (threadId: string) => ReactNode;
 }) {
   const route = useMemo(() => parseMainRoute(subPath), [subPath]);
+  const root = useRef<HTMLElement>(null);
+  const projectId = 'projectId' in route ? route.projectId : undefined;
+  const threadId = 'threadId' in route ? route.threadId : undefined;
+  useLayoutEffect(() => {
+    if (root.current) root.current.scrollTop = 0;
+  }, [route.kind, projectId, threadId]);
   const retained = useRef<DashboardReturn | null>(null);
   const remember = useCallback((value: DashboardReturn | null) => { retained.current = value; }, []);
   if (!('projectId' in route) || route.projectId !== retained.current?.projectId) retained.current = null;
-  return <section aria-label="TENET main page" className="tenet-main min-w-0 w-full text-foreground" style={{ minWidth: 0, width: '100%' }}>
-    <header className="flex flex-wrap items-center gap-3 p-4" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, padding: 16 }}>
+  return <section ref={root} aria-label="TENET main page" tabIndex={0} className="tenet-main text-foreground">
+    <header className="tenet-main-header">
       <h1 className="text-xl font-semibold">TENET</h1>
       {['overview', 'findings', 'invalid'].includes(route.kind) && <button className={button} onClick={() => navigate('')}>Choose project</button>}
     </header>
@@ -53,6 +60,7 @@ export function MainPageView({ subPath, client, navigate, overview, findings, da
   </section>;
 }
 function Picker({ client, navigate }: { client: PickerClient; navigate: (path: string) => void }) {
+  const labelId = useId();
   const [cursor, setCursor] = useState<string | undefined>();
   const [page, setPage] = useState<ProjectPage | null>(null);
   const [error, setError] = useState('');
@@ -65,19 +73,27 @@ function Picker({ client, navigate }: { client: PickerClient; navigate: (path: s
       .then(value => { if (current) setPage(value); }, () => { controller.abort(); if (current) setError('Selection list unavailable. Retry from the first page.'); });
     return () => { current = false; controller.abort(); };
   }, [client, cursor, retry]);
-  return <section aria-label="Projects" className="space-y-3 p-4" style={{ padding: 16, overflowWrap: 'anywhere' }}>
+  return <section aria-label="Projects" className="tenet-project-picker">
     <h2>Choose a project</h2>
+    <p className="tenet-project-explanation">Recorded history loads when you open a project. This picker does not scan histories.</p>
     {!page && !error && <p role="status">Reading BB metadata…</p>}
     {error && <p role="alert">{error}</p>}
     {page && !page.items.length && <p role="status">No projects on this page.</p>}
-    {page && <ul style={{ listStyle: 'none', padding: 0, display: 'grid', gap: 8 }}>
-      {page.items.map(item => <li key={item.id}><button className={button} style={{ maxWidth: '100%', whiteSpace: 'normal', textAlign: 'left', overflowWrap: 'anywhere' }}
-        onClick={() => navigate(`project/${item.id}`)}>
-        {item.label || item.id}
+    {page && <ul className="tenet-project-list">
+      {page.items.map(item => <li key={item.id}><button className="tenet-project-card"
+        aria-labelledby={`${labelId}-${item.id}`} onClick={() => navigate(`project/${item.id}`)}>
+        <span className="tenet-project-title" id={`${labelId}-${item.id}`}>{item.label || item.id}</span>
+        <span className="tenet-project-detail">{item.updatedAt === null ? 'BB project update unavailable' : <>
+          BB project updated <time dateTime={new Date(item.updatedAt).toISOString()}>{new Intl.DateTimeFormat('en', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }).format(item.updatedAt)}</time>
+        </>}</span>
+        <span className="tenet-project-history">View rule history</span>
+        <span className="tenet-project-detail">Recorded rule checks and their results.</span>
       </button></li>)}
     </ul>}
+    <div className="tenet-project-actions">
     {page?.next && <button className={button} onClick={() => setCursor(page.next!)}>Next projects</button>}
     {(cursor || error) && <button className={button} onClick={() => { setCursor(undefined); setRetry(v => v + 1); }}>First page / Retry</button>}
+    </div>
   </section>;
 }
 function SelectedThread({ route, client, navigate, overview }: {

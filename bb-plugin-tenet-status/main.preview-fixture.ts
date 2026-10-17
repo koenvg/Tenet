@@ -7,7 +7,10 @@ export const projectA = 'proj_synthetic0001', projectB = 'proj_synthetic0002';
 export const stopped = 'thr_stopped0001', remote = 'thr_remote00001', noHistory = 'thr_nohistory01';
 export const nonPi = 'thr_nonpi000001', deleted = 'thr_deleted0001';
 export const fixtureReads: { threadId: string; machine: string; selection: OverviewSelection }[] = [];
-const projects = [{ id: projectA, label: 'Synthetic local project' }, { id: projectB, label: 'Synthetic remote project' }];
+const projects = [
+  { id: projectA, label: 'Synthetic local project', updatedAt: 1_735_776_000_000 },
+  { id: projectB, label: 'Synthetic remote project', updatedAt: null },
+];
 const threads = [
   { id: stopped, label: 'Stopped Pi · retained calls', projectId: projectA, status: 'idle', archived: false },
   { id: noHistory, label: 'Pi · no linked history', projectId: projectA, status: 'idle', archived: false },
@@ -19,9 +22,32 @@ export const syntheticPicker: PickerClient = {
   selection: async (threadId, projectId) => {
     const thread = threads.find(t => t.id === threadId);
     const state = threadId === nonPi ? 'unsupported' : !thread ? 'unavailable' : projectId && projectId !== thread.projectId ? 'scope-changed' : 'ready';
-    return { state, project: state === 'ready' ? projects.find(p => p.id === thread!.projectId)! : null,
+    const project = projects.find(p => p.id === thread?.projectId);
+    return { state, project: state === 'ready' ? { id: project!.id, label: project!.label } : null,
       thread: state === 'ready' ? { id: thread!.id, label: thread!.label, status: thread!.status, archived: thread!.archived } : null };
   },
+};
+export const crowdedProjects = [
+  projects[0]!,
+  { id: 'proj_syntheticlong', updatedAt: null, label: `Synthetic workspace / ${'LongUnbrokenProjectName'.repeat(12)}` },
+  ...Array.from({ length: 47 }, (_, index) => ({ id: `proj_synthetic${String(index + 3).padStart(4, '0')}`, updatedAt: null, label: `Synthetic project ${String(index + 3).padStart(2, '0')}` })),
+  projects[1]!,
+];
+export const crowdedPicker: PickerClient = {
+  ...syntheticPicker,
+  projects: async cursor => ({ items: cursor ? [projects[0]!] : crowdedProjects, next: cursor ? null : 'synthetic-project-page2' }),
+};
+export const cardProjects = [
+  { id: projectA, label: 'Field Notes', updatedAt: 1_735_776_000_000 },
+  { id: projectB, label: 'Atlas API', updatedAt: 1_735_689_600_000 },
+  { id: 'proj_syntheticcards3', label: 'Studio', updatedAt: 1_735_430_400_000 },
+  { id: 'proj_syntheticcards4', label: 'Paper Trail', updatedAt: null },
+  { id: 'proj_syntheticcards5', label: 'Workshop', updatedAt: 1_734_652_800_000 },
+  { id: 'proj_syntheticcards6', label: 'Signal', updatedAt: 1_734_048_000_000 },
+];
+export const cardPicker: PickerClient = {
+  ...syntheticPicker,
+  projects: async () => ({ items: cardProjects, next: null }),
 };
 export const syntheticThread = async (threadId: string) => ({ id: threadId, providerId: threadId === nonPi ? 'codex' : 'pi',
   projectId: threads.find(t => t.id === threadId)?.projectId, deletedAt: threadId === deleted ? 1 : null });

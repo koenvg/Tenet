@@ -8,7 +8,7 @@ import { createLiveFixture, liveProject, liveThread, otherLiveThread } from './l
 const fixture = createLiveFixture();
 const thread = async (id: string) => ({ id, providerId: 'pi', projectId: liveProject, deletedAt: null });
 const picker: PickerClient = {
-  projects: async () => ({ items: [{ id: liveProject, label: 'Authored live project' }], next: null }),
+  projects: async () => ({ items: [{ id: liveProject, label: 'Authored live project', updatedAt: null }], next: null }),
   threads: async () => ({ items: [liveThread, otherLiveThread].map(id => ({ id, label: id, status: 'idle', archived: false })), next: null }),
   selection: async id => ({ state: 'ready', project: { id: liveProject, label: 'Authored live project' }, thread: { id, label: id, status: 'idle', archived: false } }),
 };

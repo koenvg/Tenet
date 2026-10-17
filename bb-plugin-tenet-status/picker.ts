@@ -1,6 +1,6 @@
 import type { BbPluginApi } from '@get-bb/plugin-sdk';
 import { z } from 'zod';
-import { pickerMethods, type PickerSelection } from './picker-contract.js';
+import { pickerMethods, projectUpdatedAt, type PickerSelection } from './picker-contract.js';
 import { supportsTenetProvider } from './supported-provider.js';
 
 const projectCursor = z.object({ kind: z.literal('projects'), after: z.string().max(72) }).strict();
@@ -19,7 +19,8 @@ export function pickerHandlers(sdk: Pick<BbPluginApi['sdk'], 'projects' | 'threa
       const projects = (await sdk.projects.list({ includePersonal: true })).sort((a, b) => a.id.localeCompare(b.id));
       const remaining = projects.filter(project => project.id > after);
       const page = remaining.slice(0, 50);
-      return pickerMethods.pickerProjects.output.parse({ items: page.map(project => ({ id: project.id, label: label(project.name) })),
+      return pickerMethods.pickerProjects.output.parse({ items: page.map(project => ({ id: project.id, label: label(project.name),
+        updatedAt: projectUpdatedAt.safeParse(project.updatedAt).data ?? null })),
         next: remaining.length > 50 ? encode({ kind: 'projects', after: page.at(-1)!.id }) : null });
     },
     async pickerThreads({ projectId, cursor }: { projectId: string; cursor?: string }) {

@@ -5,10 +5,12 @@ const threadId = z.string().regex(/^thr_[a-z0-9]{8,64}$/);
 const cursor = z.string().min(1).max(512);
 const label = z.string().max(256);
 export const pickerProject = z.object({ id: pickerProjectId, label }).strict();
+export const projectUpdatedAt = z.number().int().min(0).max(253_402_300_799_999);
+export const pickerProjectListItem = pickerProject.extend({ updatedAt: projectUpdatedAt.nullable() });
 export const pickerThread = z.object({ id: threadId, label, status: label, archived: z.boolean() }).strict();
 export const pickerMethods = {
   pickerProjects: { input: z.object({ cursor: cursor.optional() }).strict(),
-    output: z.object({ items: z.array(pickerProject).max(50), next: cursor.nullable() }).strict() },
+    output: z.object({ items: z.array(pickerProjectListItem).max(50), next: cursor.nullable() }).strict() },
   pickerThreads: { input: z.object({ projectId: pickerProjectId, cursor: cursor.optional() }).strict(),
     output: z.object({ items: z.array(pickerThread).max(50), next: cursor.nullable() }).strict() },
   pickerSelection: { input: z.object({ threadId, projectId: pickerProjectId.optional() }).strict(),

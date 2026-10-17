@@ -57,6 +57,37 @@ test('public picker RPC pages allowlisted metadata without any environment, sett
     for (const key of Object.keys(pickerMethods)) await assert.rejects(fake.harness.behavior.callRpc(key, { threadId, projectId, raw: 'forbidden' }));
   } finally { await fake.harness.lifecycle.dispose(); }
 });
+test('project cards whitelist one metadata list request and normalize unknown dates without reading histories', async () => {
+  const calls: string[] = [];
+  const dates = [1_735_776_000_000, undefined, '2025-01-02', NaN, Infinity, -1, 253_402_300_800_000, 1.5, null];
+  const fake = createFakePluginHost({ sdk: {
+    projects: { list: async (input: any) => {
+      calls.push('projects.list'); assert.deepEqual(input, { includePersonal: true });
+      return dates.map((updatedAt, index) => ({ id: `proj_fixture${String(index).padStart(4, '0')}`, name: `Project ${index}`,
+        updatedAt, sourcePath: 'RAW-SENTINEL', gitRemote: 'RAW-SENTINEL', raw: 'RAW-SENTINEL' })) as any;
+    }, get: async () => { calls.push('projects.get'); throw Error('Not permitted'); } },
+    threads: { list: async () => { calls.push('threads.list'); throw Error('Not permitted'); } },
+    environments: { get: async () => { calls.push('environments.get'); throw Error('Not permitted'); } },
+    settings: { get: async () => { calls.push('settings.get'); throw Error('Not permitted'); } },
+  } as any, experimental_callHostRpc: async () => { calls.push('host/archive'); throw Error('Not permitted'); } });
+  plugin(fake.bb);
+  try {
+    const page = await fake.harness.behavior.callRpc('pickerProjects', {});
+    assert.deepEqual(page, { items: [
+      { id: 'proj_fixture0000', label: 'Project 0', updatedAt: 1_735_776_000_000 },
+      { id: 'proj_fixture0001', label: 'Project 1', updatedAt: null },
+      { id: 'proj_fixture0002', label: 'Project 2', updatedAt: null },
+      { id: 'proj_fixture0003', label: 'Project 3', updatedAt: null },
+      { id: 'proj_fixture0004', label: 'Project 4', updatedAt: null },
+      { id: 'proj_fixture0005', label: 'Project 5', updatedAt: null },
+      { id: 'proj_fixture0006', label: 'Project 6', updatedAt: null },
+      { id: 'proj_fixture0007', label: 'Project 7', updatedAt: null },
+      { id: 'proj_fixture0008', label: 'Project 8', updatedAt: null },
+    ], next: null });
+    assert.deepEqual(calls, ['projects.list']);
+    assert.equal(JSON.stringify(page).includes('RAW-SENTINEL'), false);
+  } finally { await fake.harness.lifecycle.dispose(); }
+});
 for (const [providerId, accepted] of [['pi', true], ['pi-subagents', true], ['codex', false], ['pi-prefix', false],
   ['pi-subagents-extra', false], ['Pi', false], ['PI-SUBAGENTS', false], [' pi', false], ['pi ', false], ['pi-subagents ', false]] as const)
   test(`picker list and selection enforce exact provider eligibility for ${JSON.stringify(providerId)}`, async () => {
