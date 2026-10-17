@@ -10,10 +10,14 @@ import { projectDashboardInvocation, type RuleObservation } from './bb-dashboard
 
 export type AssociationCompletion = 'pending' | 'complete' | 'partial';
 export type DashboardAcquisition = {
-  finished: boolean; contributions: RuleObservation[]; linkedThreads: string[]; invocations: number;
+  finished: boolean; contributions: RuleObservation[]; linkedThreads: string[]; invocationSizes: number[]; invocations: number;
   association: AssociationCompletion; omittedThreads: string[]; omittedInvocations: number; reasons: string[];
 };
 type Invocation = { thread: string; session: string; tool: string; stages: SessionRuleStage[]; bytes: number; overhead: number; omitted: boolean };
+type InvocationEntry = [id: string, group: Invocation];
+type InvocationFoldCursor = { iterator: MapIterator<InvocationEntry>; deferred?: InvocationEntry };
+const FOLD_OBSERVATIONS = 65;
+const FOLD_WORK = 128;
 const RETAINED_BYTES = 8 * 1024 * 1024;
 const identity = async (path: string) => { await directory(path); const s = await lstat(path); return `${s.dev}:${s.ino}`; };
 
@@ -24,7 +28,7 @@ export class DashboardArchiveReader {
   private rootIdentity?: string;
   private phase: 'scanning' | 'folding' | 'finished' = 'scanning';
   private groups = new Map<string, Invocation>();
-  private folding?: MapIterator<[string, Invocation]>;
+  private folding?: InvocationFoldCursor;
   private writers = new Map<string, { sequence: number; loss: boolean }>();
   private linked = new Set<string>();
   private omitted = new Set<string>();
@@ -84,7 +88,7 @@ export class DashboardArchiveReader {
     if (this.rootIdentity && this.rootIdentity !== current) throw Error('archive-identity-changed');
     this.rootIdentity = current;
     const contributions: RuleObservation[] = [];
-    let invocations = 0;
+    const invocationSizes: number[] = [];
     if (this.phase === 'scanning') {
       this.rootCursor ??= await opendir(this.root);
       if (this.session && await identity(this.session.path) !== this.session.identity) throw Error('session-identity-changed');
@@ -147,25 +151,33 @@ export class DashboardArchiveReader {
         }
       }
       if (this.phase === 'folding') {
-        await this.closeCursors(); this.folding = this.groups.entries();
+        await this.closeCursors(); this.folding = { iterator: this.groups.entries() };
         if ([...this.writers.values()].some(w => w.loss)) this.reasons.add('writer-loss');
         this.writers.clear();
       }
     } else if (this.phase === 'folding') {
-      const next = this.folding!.next();
-      if (next.done) { this.phase = 'finished'; this.groups.clear(); this.folding = undefined; }
-      else {
-        const [id, group] = next.value;
+      const cursor = this.folding!;
+      for (let work = 0; work < FOLD_WORK; work++) {
+        let entry = cursor.deferred;
+        cursor.deferred = undefined;
+        if (!entry) {
+          const next = cursor.iterator.next();
+          if (next.done) { this.phase = 'finished'; this.groups.clear(); this.folding = undefined; break; }
+          entry = next.value;
+        }
+        const [id, group] = entry;
         if (!group.omitted && group.stages.length) {
-          contributions.push(...projectDashboardInvocation(sessionKey(JSON.stringify([this.qualification, id])), group.thread, group.session, id, group.tool, group.stages));
-          invocations = 1;
+          const projected = projectDashboardInvocation(sessionKey(JSON.stringify([this.qualification, id])), group.thread, group.session, id, group.tool, [...group.stages]);
+          if (contributions.length + projected.length > FOLD_OBSERVATIONS) { cursor.deferred = entry; break; }
+          contributions.push(...projected);
+          invocationSizes.push(projected.length);
         }
         this.bytes -= group.bytes + group.overhead; group.stages = [];
       }
     }
     if (await identity(this.root) !== this.rootIdentity) throw Error('archive-identity-changed');
     const omittedInvocations = this.omittedCount - this.reportedOmitted; this.reportedOmitted = this.omittedCount;
-    return { finished: this.phase === 'finished', contributions, invocations, linkedThreads: [...this.linked],
+    return { finished: this.phase === 'finished', contributions, invocationSizes, invocations: invocationSizes.length, linkedThreads: [...this.linked],
       association: this.phase === 'scanning' ? 'pending' : this.complete ? 'complete' : 'partial',
       omittedThreads: [...this.omitted], omittedInvocations, reasons: [...this.reasons].slice(0, 20) };
   }

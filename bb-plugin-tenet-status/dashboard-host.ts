@@ -6,7 +6,7 @@ import { recordingConfig } from '../src/recording/archive.js';
 import type { HostDashboardRequest, HostDashboardChunk, DashboardStopRequest, DashboardStopAck } from './dashboard-contract.js';
 
 const empty = (state: HostDashboardChunk['state'], reason: string): HostDashboardChunk =>
-  ({ state, next: null, contributions: [], linkedThreads: [], invocations: 0, reasons: [reason], association: 'partial', omittedThreads: [], omittedInvocations: 0 });
+  ({ state, next: null, contributions: [], linkedThreads: [], invocations: 0, invocationSizes: [], reasons: [reason], association: 'partial', omittedThreads: [], omittedInvocations: 0 });
 type HostRun = { reader: DashboardArchiveReader; expires: number; next: string; steps: Map<string, HostDashboardChunk>; bytes: number;
   pending: Promise<unknown>; timer?: ReturnType<typeof setTimeout>; acquisition: 'open' | 'closed'; discarded: boolean;
   cleanup?: Promise<void>; readerClosed: boolean };
@@ -74,7 +74,7 @@ export function dashboardHost(now = Date.now) {
             const result = await selected.reader.advance();
             chunk = { state: result.finished ? result.reasons.some(r => /limit|oversized/.test(r)) ? 'limited' : 'finished' : 'reading',
               next: null, contributions: result.contributions, linkedThreads: result.linkedThreads,
-              invocations: result.invocations, reasons: result.reasons, association: result.association,
+              invocations: result.invocations, invocationSizes: result.invocationSizes, reasons: result.reasons, association: result.association,
               omittedThreads: result.omittedThreads, omittedInvocations: result.omittedInvocations };
           }
         } catch { chunk = empty('restart-required', 'host-snapshot-unavailable'); }

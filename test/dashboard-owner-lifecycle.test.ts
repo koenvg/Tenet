@@ -124,17 +124,27 @@ test('concurrent fifth starts wait for the same counted victim before reserving 
   } finally { gate.resolve(); DashboardArchiveReader.prototype.close = close; }
 }));
 
-test('an owner invocation limit remembers and releases the first nonterminal destination token', () => fixture(async f => {
+test('an owner invocation limit remembers and releases the overflowing nonterminal destination token', () => fixture(async f => {
+  let admitted = 0;
   const owner = dashboardHandlers({ projects: { get: async () => ({ id: projectId }) }, threads: {
     list: async ({ archived }: any) => archived ? [] : [{ id: threadId, projectId, providerId: 'pi' }],
     get: async () => ({ id: threadId, projectId, providerId: 'pi', environmentId }),
   }, environments: { get: async () => ({ id: environmentId, hostId }) } } as any, async () => JSON.stringify({ [hostId]: f.root }), {
-    read: async input => ({ ...await f.host.readDashboard(input), invocations: 10001 }),
+    read: async () => {
+      if (admitted < 10000) {
+        const invocations = Math.min(128, 10000 - admitted); admitted += invocations;
+        return { state: 'reading', next: `synthetic-${admitted}`, contributions: [], linkedThreads: [], invocations,
+          invocationSizes: Array(invocations).fill(0), association: 'pending', omittedThreads: [], omittedInvocations: 0, reasons: [] };
+      }
+      return { ...await f.host.readDashboard({ kind: 'start', threads: [threadId], qualification: 'a'.repeat(64), recordingDirectory: f.root }),
+        invocations: 1, invocationSizes: [0] };
+    },
     stop: token => f.host.stopDashboard({ token }),
   });
-  const page = await resolved(owner);
-  const limited = await owner.dashboard({ kind: 'advance', token: page.next! });
+  let limited = await resolved(owner);
+  for (let n = 0; limited.next && n < 80; n++) limited = await owner.dashboard({ kind: 'advance', token: limited.next });
   assert.deepEqual([limited.state, limited.rows, limited.coverage.reasons], ['limited', [], ['invocation-limit']]);
+  assert.equal(limited.coverage.invocations, 10000);
   assert.deepEqual(await owner.dashboardStop({ token: limited.run }), { stopped: true });
   const scans = await Promise.all(Array.from({ length: 4 }, () => f.host.readDashboard({ kind: 'start', threads: [threadId], qualification: 'f'.repeat(64), recordingDirectory: f.root })));
   assert.deepEqual(scans.map(scan => scan.state), ['reading', 'reading', 'reading', 'reading']);
@@ -149,7 +159,7 @@ test('stopped partial owner results retain immutable replay and revision-bound c
     list: async ({ archived }: any) => archived ? [] : [{ id: threadId, projectId, providerId: 'pi' }],
     get: async () => ({ id: threadId, projectId, providerId: 'pi', environmentId }),
   }, environments: { get: async () => ({ id: environmentId, hostId }) } } as any, async () => changed ? JSON.stringify({ [hostId]: '/synthetic/changed' }) : '{}', {
-    read: async () => ({ state: 'reading', next: 'retained-host-token', contributions: [observation], linkedThreads: [threadId], invocations: 1, association: 'pending', omittedThreads: [], omittedInvocations: 0, reasons: [] }),
+    read: async () => ({ state: 'reading', next: 'retained-host-token', contributions: [observation], linkedThreads: [threadId], invocations: 1, invocationSizes: [1], association: 'pending', omittedThreads: [], omittedInvocations: 0, reasons: [] }),
     stop: async (token, host) => { stops.push([token, host]); return { stopped: true }; },
   });
   const resolvedPage = await resolved(owner), token = resolvedPage.next!;
@@ -179,7 +189,7 @@ test('Stop after synchronous folding still completes fresh post-authorization an
   } }, threads: { list: async ({ archived }: any) => archived ? [] : [{ id: threadId, projectId, providerId: 'pi' }],
     get: async () => ({ id: threadId, projectId, providerId: 'pi', environmentId }) },
     environments: { get: async () => ({ id: environmentId, hostId }) } } as any, async () => '{}', {
-    read: async () => { hostReturned = true; return { state: 'reading', next: 'host-token', contributions: [observation], linkedThreads: [threadId], invocations: 1, association: 'pending', omittedThreads: [], omittedInvocations: 0, reasons: [] }; },
+    read: async () => { hostReturned = true; return { state: 'reading', next: 'host-token', contributions: [observation], linkedThreads: [threadId], invocations: 1, invocationSizes: [1], association: 'pending', omittedThreads: [], omittedInvocations: 0, reasons: [] }; },
     stop: async () => ({ stopped: true }),
   });
   const page = await resolved(owner);
