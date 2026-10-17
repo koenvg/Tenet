@@ -76,7 +76,17 @@ export function dashboardHandlers(sdk: BbPluginApi['sdk'], directories: () => Pr
     return pass;
   }
   function cursor(run: DashboardRun, offset: number, rule?: string) {
-    if (run.cursors.size >= 128) run.cursors.delete(run.cursors.keys().next().value!);
+    let oldest: string | undefined;
+    let count = 0;
+    for (const [token, saved] of run.cursors) {
+      if (saved.revision === run.revision && saved.offset === offset && saved.rule === rule) {
+        run.cursors.delete(token); run.cursors.set(token, saved); return token;
+      }
+      if ((saved.rule === undefined) === (rule === undefined)) {
+        oldest ??= token; count++;
+      }
+    }
+    if (count >= 128) run.cursors.delete(oldest!);
     const token = randomUUID(); run.cursors.set(token, { revision: run.revision, offset, rule }); return token;
   }
   function offset(run: DashboardRun, token?: string, rule?: string) {

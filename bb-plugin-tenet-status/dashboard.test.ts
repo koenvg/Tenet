@@ -48,8 +48,14 @@ function coordinator(options: { contributions?: RuleObservation[]; invocations?:
       get: async ({ threadId: id }: any) => ({ id, projectId, providerId, deletedAt, environmentId: placement, title: 'Synthetic thread' }) },
     environments: { get: async ({ environmentId }: any) => ({ id: environmentId, hostId }) },
   };
-  const handlers = dashboardHandlers(sdk, async () => directory, async () => ({ state: options.unavailable ? 'unavailable' : 'finished', next: null,
-    contributions: options.contributions ?? [], linkedThreads: options.unavailable ? [] : [threadId], invocations: options.invocations ?? 1, association: 'complete', omittedThreads: [], omittedInvocations: 0, reasons: [] }), () => time);
+  const handlers = dashboardHandlers(sdk, async () => directory, async input => {
+    const start = input.kind === 'advance' ? Number(input.token) : 0;
+    const contributions = options.contributions ?? [];
+    const more = !options.unavailable && start + 65 < contributions.length;
+    return { state: options.unavailable ? 'unavailable' : more ? 'reading' : 'finished', next: more ? String(start + 65) : null,
+      contributions: contributions.slice(start, start + 65), linkedThreads: options.unavailable ? [] : [threadId],
+      invocations: options.invocations ?? 1, association: 'complete', omittedThreads: [], omittedInvocations: 0, reasons: [] };
+  }, () => time);
   return { handlers, expire: () => { time += 600001; }, change: (cause: string) => {
     if (cause === 'directory') directory = JSON.stringify({ [hostId]: '/synthetic/new-archive' });
     if (cause === 'placement') placement = 'env_fixture0002';
@@ -88,6 +94,62 @@ test('dashboard result and contributor pages are 50-bounded and expire without l
   assert.equal(firstCalls.items.length, 50); assert.ok(firstCalls.next);
   const laterCalls = await callsCoordinator.handlers.dashboardContributors({ token: callsRun.run, expectedRevision: callsRun.revision, rule: contribution(1).key, cursor: firstCalls.next! });
   assert.equal(laterCalls.items.length, 10); assert.equal(laterCalls.next, null);
+});
+test('repeated backward failure reads preserve three pages and the selected nonfirst rules page', async () => {
+  const failures = (key: number, count: number) => Array.from({ length: count }, (_, n) => ({
+    ...contribution(key), callId: n.toString(16).padStart(64, '0'),
+  }));
+  const c = coordinator({ contributions: [...Array.from({ length: 50 }, (_, n) => failures(n, 102)).flat(), ...failures(50, 101)] });
+  const page = await finish(c.handlers);
+  assert.ok(page.rowsNext);
+  const selected = await c.handlers.dashboard({ kind: 'results', token: page.run, cursor: page.rowsNext });
+  assert.deepEqual(selected.rows.map(row => [row.key, row.failed]), [[contribution(50).key, 101]]);
+  const request = { token: page.run, expectedRevision: page.revision, rule: contribution(50).key };
+  const first = await c.handlers.dashboardContributors(request);
+  assert.equal(first.items.length, 50); assert.ok(first.next);
+  const nextTokens = new Set<string>();
+  for (let round = 0; round < 140; round++) {
+    const second = await c.handlers.dashboardContributors({ ...request, cursor: first.next });
+    assert.equal(second.state, 'ready'); assert.ok(second.next);
+    assert.deepEqual(second.items.map(item => item.callId), failures(50, 100).slice(50).map(item => item.callId));
+    nextTokens.add(second.next);
+    const last = await c.handlers.dashboardContributors({ ...request, cursor: second.next });
+    assert.deepEqual(last.items.map(item => item.callId), [(100).toString(16).padStart(64, '0')]);
+    assert.equal(last.next, null);
+  }
+  assert.equal(nextTokens.size, 1);
+  assert.deepEqual(await c.handlers.dashboardContributors(request), first);
+  assert.deepEqual(await c.handlers.dashboard({ kind: 'results', token: page.run, cursor: page.rowsNext }), selected);
+  c.change('directory');
+  assert.deepEqual(await c.handlers.dashboardContributors({ ...request, cursor: first.next }), { state: 'restart-required', items: [], next: null });
+});
+test('128 retained failure cursors do not evict rule results and still enforce a bounded failure history', async () => {
+  const observations = Array.from({ length: 6451 }, (_, n) => ({ ...contribution(0), callId: n.toString(16).padStart(64, '0') }));
+  const c = coordinator({ contributions: [...observations, ...Array.from({ length: 60 }, (_, n) => contribution(n + 1))] });
+  const page = await finish(c.handlers);
+  assert.ok(page.rowsNext);
+  const selected = await c.handlers.dashboard({ kind: 'results', token: page.run, cursor: page.rowsNext });
+  assert.equal(selected.rows.length, 11);
+  const request = { token: page.run, expectedRevision: page.revision, rule: contribution(0).key };
+  const first = await c.handlers.dashboardContributors(request);
+  assert.ok(first.next);
+  let current: ContributorPage = first;
+  for (let index = 1; index < 128; index++) {
+    assert.ok(current.next);
+    current = await c.handlers.dashboardContributors({ ...request, cursor: current.next });
+    assert.equal(current.items.length, 50);
+  }
+  assert.ok(current.next);
+  assert.deepEqual(await c.handlers.dashboard({ kind: 'results', token: page.run, cursor: page.rowsNext }), selected);
+  const second = await c.handlers.dashboardContributors({ ...request, cursor: first.next });
+  assert.deepEqual(second.items.map(item => item.callId), observations.slice(50, 100).map(item => item.callId));
+  const penultimate = await c.handlers.dashboardContributors({ ...request, cursor: current.next });
+  assert.equal(penultimate.items.length, 50); assert.ok(penultimate.next);
+  const last = await c.handlers.dashboardContributors({ ...request, cursor: penultimate.next });
+  assert.deepEqual(last.items.map(item => item.callId), [observations[6450]!.callId]);
+  assert.equal(last.next, null);
+  await assert.rejects(c.handlers.dashboardContributors({ ...request, cursor: first.next }), /stale-dashboard-page/);
+  assert.deepEqual(await c.handlers.dashboard({ kind: 'results', token: page.run, cursor: page.rowsNext }), selected);
 });
 for (const cause of ['directory', 'placement', 'provider', 'deletion']) test(`dashboard invalidates aggregates on ${cause} changes`, async () => {
   const c = coordinator({ contributions: [contribution(1)] }); const page = await finish(c.handlers);
