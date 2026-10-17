@@ -33,6 +33,7 @@ export default experimental_defineHostEntry({
   contract: hostContract,
   handlers: {
     readDashboard: dashboard.readDashboard,
+    stopDashboard: dashboard.stopDashboard,
     async readStatus({ threadId, recordingDirectory }) {
       const index = await refreshedIndex(recordingDirectory);
       return index?.threadStatus(threadId) ?? unavailable();

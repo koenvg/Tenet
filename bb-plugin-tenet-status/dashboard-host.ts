@@ -3,20 +3,43 @@ import { isAbsolute, resolve } from 'node:path';
 import { DashboardArchiveReader } from '../src/inspector/dashboard-reader.js';
 import { directory } from '../src/recording/files.js';
 import { recordingConfig } from '../src/recording/archive.js';
-import type { HostDashboardRequest, HostDashboardChunk } from './dashboard-contract.js';
+import type { HostDashboardRequest, HostDashboardChunk, DashboardStopRequest, DashboardStopAck } from './dashboard-contract.js';
 
 const empty = (state: HostDashboardChunk['state'], reason: string): HostDashboardChunk =>
   ({ state, next: null, contributions: [], linkedThreads: [], invocations: 0, reasons: [reason], association: 'partial', omittedThreads: [], omittedInvocations: 0 });
 type HostRun = { reader: DashboardArchiveReader; expires: number; next: string; steps: Map<string, HostDashboardChunk>; bytes: number;
-  pending: Promise<unknown>; timer?: ReturnType<typeof setTimeout>; closed: boolean };
+  pending: Promise<unknown>; timer?: ReturnType<typeof setTimeout>; acquisition: 'open' | 'closed'; discarded: boolean;
+  cleanup?: Promise<void>; readerClosed: boolean };
 
 export function dashboardHost(now = Date.now) {
   const active = new Set<HostRun>(), terminal = new Set<HostRun>();
   let admitting = 0, disposed = false;
-  const drop = async (run: HostRun) => {
-    run.closed = true; terminal.delete(run); clearTimeout(run.timer);
-    await run.pending; await run.reader.close(); active.delete(run); run.steps.clear();
-  };
+  const acquiring = (run: HostRun) => run.acquisition === 'open';
+  async function retain(run: HostRun) {
+    while (!run.discarded && !disposed && terminal.size >= 4 && !terminal.has(run)) await drop(terminal.values().next().value!);
+    if (!run.discarded && !disposed) { active.delete(run); terminal.add(run); }
+  }
+  async function closeReader(run: HostRun) {
+    if (!run.readerClosed) { await run.reader.close(); run.readerClosed = true; }
+  }
+  function stop(run: HostRun): Promise<void> {
+    run.acquisition = 'closed';
+    if (run.cleanup) return run.cleanup;
+    const attempt = (async () => {
+      await run.pending;
+      await closeReader(run);
+      if (run.discarded || disposed) {
+        active.delete(run); terminal.delete(run); clearTimeout(run.timer);
+      } else await retain(run);
+    })();
+    run.cleanup = attempt;
+    void attempt.catch(() => { if (run.cleanup === attempt) run.cleanup = undefined; });
+    return attempt;
+  }
+  function drop(run: HostRun) {
+    run.discarded = true;
+    return stop(run).then(() => { active.delete(run); terminal.delete(run); clearTimeout(run.timer); run.steps.clear(); });
+  }
   return {
     async readDashboard(request: HostDashboardRequest): Promise<HostDashboardChunk> {
       if (disposed) return empty('restart-required', 'host-disposed');
@@ -31,16 +54,18 @@ export function dashboardHost(now = Date.now) {
           try { await directory(root); } catch { return empty('unavailable', 'archive-unavailable'); }
           if (disposed) return empty('restart-required', 'host-disposed');
           run = { reader: new DashboardArchiveReader(root, new Set(request.threads), request.qualification),
-            expires: now() + 600000, steps: new Map(), bytes: 0, next: randomUUID(), pending: Promise.resolve(), closed: false };
+            expires: now() + 600000, steps: new Map(), bytes: 0, next: randomUUID(), pending: Promise.resolve(),
+            acquisition: 'open', discarded: false, readerClosed: false };
           const retained = run;
-          run.timer = setTimeout(() => { void drop(retained); }, 600000); run.timer.unref(); active.add(run);
+          run.timer = setTimeout(() => { void drop(retained).catch(() => {}); }, 600000); run.timer.unref(); active.add(run);
         } finally { admitting--; }
       } else run = [...active, ...terminal].find(r => r.next === request.token || r.steps.has(request.token));
       if (!run) return empty('restart-required', 'host-run-not-retained');
       const selected = run;
       const operation = selected.pending.then(async () => {
-        if (selected.closed || disposed) return empty('restart-required', 'host-run-not-retained');
+        if (selected.discarded || disposed || now() >= selected.expires) return empty('restart-required', 'host-run-not-retained');
         if (request.kind === 'advance' && selected.steps.has(request.token)) return structuredClone(selected.steps.get(request.token)!);
+        if (selected.acquisition === 'closed') return empty('restart-required', 'host-acquisition-stopped');
         if (request.kind === 'advance' && request.token !== selected.next) return empty('restart-required', 'stale-host-step');
         let chunk: HostDashboardChunk;
         try {
@@ -53,23 +78,28 @@ export function dashboardHost(now = Date.now) {
               omittedThreads: result.omittedThreads, omittedInvocations: result.omittedInvocations };
           }
         } catch { chunk = empty('restart-required', 'host-snapshot-unavailable'); }
-        const step = selected.next; selected.next = randomUUID();
-        if (chunk.state === 'reading') chunk.next = selected.next;
-        else {
-          await selected.reader.close(); clearTimeout(selected.timer); selected.timer = undefined;
-          active.delete(selected);
-          if (!selected.closed && !disposed) {
-            while (terminal.size >= 4) await drop(terminal.values().next().value!);
-            terminal.add(selected);
-          }
+        if (selected.discarded || disposed || !acquiring(selected) || now() >= selected.expires)
+          return empty('restart-required', 'host-run-not-retained');
+        if (chunk.state !== 'reading') {
+          selected.acquisition = 'closed';
+          await closeReader(selected);
+          await retain(selected);
         }
-        if (selected.closed || disposed) return empty('restart-required', 'host-run-not-retained');
+        if (selected.discarded || disposed || now() >= selected.expires) return empty('restart-required', 'host-run-not-retained');
+        const step = selected.next;
+        selected.next = randomUUID();
+        if (chunk.state === 'reading') chunk.next = selected.next;
         selected.bytes += Buffer.byteLength(JSON.stringify(chunk)) + 128;
         selected.steps.set(step, structuredClone(chunk));
         return chunk;
       });
       selected.pending = operation.catch(() => {});
       return operation;
+    },
+    async stopDashboard({ token }: DashboardStopRequest): Promise<DashboardStopAck> {
+      const run = [...active, ...terminal].find(r => r.next === token || r.steps.has(token));
+      if (run) await (now() >= run.expires ? drop(run) : stop(run));
+      return { stopped: true };
     },
     async dispose() { disposed = true; await Promise.all([...active, ...terminal].map(drop)); },
   };
