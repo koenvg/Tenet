@@ -41,10 +41,26 @@ export const dashboardHostMethods = { readDashboard: {
     z.object({ kind: z.literal('advance'), token }).strict(),
   ]),
   output: z.object({ state: z.enum(['reading', 'finished', 'limited', 'restart-required', 'unavailable']), next: token.nullable(),
-    contributions: z.array(dashboardContribution).max(65), linkedThreads: z.array(threadId).max(128), invocations: count,
+    contributions: z.array(dashboardContribution).max(65), linkedThreads: z.array(threadId).max(128), invocations: count.max(128), invocationSizes: z.array(count.max(65)).max(128),
     // Association completion is not a capture guarantee. The omission count covers known retained groups; omittedThreads also covers unretained groups.
     association: z.enum(['pending', 'complete', 'partial']), omittedThreads: z.array(threadId).max(128), omittedInvocations: count,
-    reasons: z.array(z.string().max(128)).max(20) }).strict(),
+    reasons: z.array(z.string().max(128)).max(20) }).strict().superRefine((chunk, ctx) => {
+      if (chunk.invocationSizes.length !== chunk.invocations || chunk.invocationSizes.reduce((sum, size) => sum + size, 0) !== chunk.contributions.length) {
+        ctx.addIssue({ code: 'custom', message: 'Invocation boundaries must match counts and contributions' });
+        return;
+      }
+      let offset = 0;
+      for (const size of chunk.invocationSizes) {
+        const segment = chunk.contributions.slice(offset, offset + size), first = segment[0];
+        for (const contribution of segment) {
+          if (contribution.threadId !== first!.threadId || contribution.sessionId !== first!.sessionId || contribution.callId !== first!.callId) {
+            ctx.addIssue({ code: 'custom', message: 'Invocation segment must have one thread/session/call identity' });
+            return;
+          }
+        }
+        offset += size;
+      }
+    }),
 }, stopDashboard: { input: stopInput, output: stopOutput } };
 export type DashboardScope = z.infer<typeof dashboardScope>;
 export type Coverage = z.infer<typeof coverageSchema>;

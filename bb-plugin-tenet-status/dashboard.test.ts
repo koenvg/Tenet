@@ -15,7 +15,7 @@ test('dashboard public RPC starts for the selected project, discovers archived s
     threads: { list: async (args: any) => { queries.push(args); return args.archived ? [{ id: threadId, projectId, providerId: 'pi-subagents', deletedAt: null }] as any : []; },
       get: async () => ({ id: threadId, projectId, providerId: 'pi-subagents', environmentId: 'env_fixture0001', deletedAt: null }) as any },
     environments: { get: async () => ({ id: 'env_fixture0001', hostId }) as any },
-  }, experimental_callHostRpc: async () => { reads++; return { state: 'finished', next: null, contributions: [], linkedThreads: [threadId], invocations: 1, association: 'complete', omittedThreads: [], omittedInvocations: 0, reasons: [] }; } });
+  }, experimental_callHostRpc: async () => { reads++; return { state: 'finished', next: null, contributions: [], linkedThreads: [threadId], invocations: 1, invocationSizes: [0], association: 'complete', omittedThreads: [], omittedInvocations: 0, reasons: [] }; } });
   plugin(fake.bb);
   try {
     assert.equal(reads, 0);
@@ -40,7 +40,7 @@ test('dashboard public RPC starts for the selected project, discovers archived s
 const contribution = (n: number): RuleObservation => ({ key: n.toString(16).padStart(64, '0'),
   preview: 'Synthetic WARN', builtin: false, state: 'failed',
   threadId, sessionId: 'a'.repeat(64), callId: 'b'.repeat(64), timestamp: 1, toolName: 'edit' });
-function coordinator(options: { contributions?: RuleObservation[]; invocations?: number; unavailable?: boolean; list?: (args: any) => any[] } = {}) {
+function coordinator(options: { groups?: RuleObservation[][]; unavailable?: boolean; list?: (args: any) => any[] } = {}) {
   let time = 100, directory = '{}'; let placement = 'env_fixture0001'; let providerId = 'pi'; let deletedAt: number | null = null;
   const sdk: any = {
     projects: { list: async () => [{ id: projectId }], get: async () => ({ id: projectId }) },
@@ -50,11 +50,15 @@ function coordinator(options: { contributions?: RuleObservation[]; invocations?:
   };
   const handlers = dashboardHandlers(sdk, async () => directory, { stop: async () => ({ stopped: true }), read: async input => {
     const start = input.kind === 'advance' ? Number(input.token) : 0;
-    const contributions = options.contributions ?? [];
-    const more = !options.unavailable && start + 65 < contributions.length;
-    return { state: options.unavailable ? 'unavailable' : more ? 'reading' : 'finished', next: more ? String(start + 65) : null,
-      contributions: contributions.slice(start, start + 65), linkedThreads: options.unavailable ? [] : [threadId],
-      invocations: options.invocations ?? 1, association: 'complete', omittedThreads: [], omittedInvocations: 0, reasons: [] };
+    const groups = options.unavailable ? [] : options.groups ?? [[]];
+    let end = start, size = 0;
+    while (end < groups.length && end - start < 128 && size + groups[end]!.length <= 65) {
+      size += groups[end]!.length; end++;
+    }
+    const batch = groups.slice(start, end), more = end < groups.length;
+    return { state: options.unavailable ? 'unavailable' : more ? 'reading' : 'finished', next: more ? String(end) : null,
+      contributions: batch.flat(), linkedThreads: options.unavailable ? [] : [threadId], invocationSizes: batch.map(group => group.length),
+      invocations: batch.length, association: 'complete', omittedThreads: [], omittedInvocations: 0, reasons: [] };
   } }, () => time);
   return { handlers, expire: () => { time += 600001; }, change: (cause: string) => {
     if (cause === 'directory') directory = JSON.stringify({ [hostId]: '/synthetic/new-archive' });
@@ -75,7 +79,7 @@ async function finish(handlers: ReturnType<typeof dashboardHandlers>) {
 }
 test('dashboard result and contributor pages are 50-bounded and expire without leaking old aggregates', async () => {
   const contributions = Array.from({ length: 60 }, (_, n) => contribution(n));
-  const c = coordinator({ contributions: [...contributions, contributions[0]!] });
+  const c = coordinator({ groups: [[...contributions, contributions[0]!]] });
   const page = await finish(c.handlers);
   assert.equal(page.rows.length, 50); assert.ok(page.rowsNext);
   assert.equal(page.rows.every(r => r.failed === 1), true);
@@ -87,7 +91,7 @@ test('dashboard result and contributor pages are 50-bounded and expire without l
   c.expire();
   assert.equal((await c.handlers.dashboardContributors({ token: page.run, expectedRevision: page.revision, rule: contributions[0]!.key })).state, 'restart-required');
   assert.deepEqual((await c.handlers.dashboard({ kind: 'results', token: page.run })).rows, []);
-  const callsCoordinator = coordinator({ contributions: Array.from({ length: 60 }, (_, n) => ({ ...contribution(1), callId: n.toString(16).padStart(64, '0') })) });
+  const callsCoordinator = coordinator({ groups: Array.from({ length: 60 }, (_, n) => [{ ...contribution(1), callId: n.toString(16).padStart(64, '0') }]) });
   const callsRun = await finish(callsCoordinator.handlers);
   assert.equal(callsRun.rows[0]!.failed, 60); assert.equal(callsRun.rows[0]!.threads, 1);
   const firstCalls = await callsCoordinator.handlers.dashboardContributors({ token: callsRun.run, expectedRevision: callsRun.revision, rule: contribution(1).key });
@@ -99,7 +103,9 @@ test('repeated backward failure reads preserve three pages and the selected nonf
   const failures = (key: number, count: number) => Array.from({ length: count }, (_, n) => ({
     ...contribution(key), callId: n.toString(16).padStart(64, '0'),
   }));
-  const c = coordinator({ contributions: [...Array.from({ length: 50 }, (_, n) => failures(n, 102)).flat(), ...failures(50, 101)] });
+  const c = coordinator({ groups: Array.from({ length: 102 }, (_, call) => Array.from({ length: call === 101 ? 50 : 51 }, (_, rule) => ({
+    ...contribution(rule), callId: call.toString(16).padStart(64, '0'),
+  }))) });
   const page = await finish(c.handlers);
   assert.ok(page.rowsNext);
   const selected = await c.handlers.dashboard({ kind: 'results', token: page.run, cursor: page.rowsNext });
@@ -125,7 +131,7 @@ test('repeated backward failure reads preserve three pages and the selected nonf
 });
 test('128 retained failure cursors do not evict rule results and still enforce a bounded failure history', async () => {
   const observations = Array.from({ length: 6451 }, (_, n) => ({ ...contribution(0), callId: n.toString(16).padStart(64, '0') }));
-  const c = coordinator({ contributions: [...observations, ...Array.from({ length: 60 }, (_, n) => contribution(n + 1))] });
+  const c = coordinator({ groups: [...observations.map(value => [value]), Array.from({ length: 60 }, (_, n) => contribution(n + 1))] });
   const page = await finish(c.handlers);
   assert.ok(page.rowsNext);
   const selected = await c.handlers.dashboard({ kind: 'results', token: page.run, cursor: page.rowsNext });
@@ -152,14 +158,15 @@ test('128 retained failure cursors do not evict rule results and still enforce a
   assert.deepEqual(await c.handlers.dashboard({ kind: 'results', token: page.run, cursor: page.rowsNext }), selected);
 });
 for (const cause of ['directory', 'placement', 'provider', 'deletion']) test(`dashboard invalidates aggregates on ${cause} changes`, async () => {
-  const c = coordinator({ contributions: [contribution(1)] }); const page = await finish(c.handlers);
+  const c = coordinator({ groups: [[contribution(1)]] }); const page = await finish(c.handlers);
   assert.equal(page.rows[0]!.failed, 1); c.change(cause);
   const invalid = await c.handlers.dashboard({ kind: 'results', token: page.run });
   assert.equal(invalid.state, 'restart-required'); assert.deepEqual(invalid.rows, []);
 });
 test('dashboard invocation overflow and unavailable destinations are coverage, not violations', async () => {
-  const overflow = await finish(coordinator({ contributions: [contribution(1)], invocations: 10001 }).handlers);
-  assert.equal(overflow.state, 'limited'); assert.deepEqual(overflow.rows, []); assert.deepEqual(overflow.coverage.reasons, ['invocation-limit']);
+  const overflow = await finish(coordinator({ groups: [...Array.from({ length: 10000 }, () => []), [contribution(1)]] }).handlers);
+  assert.equal(overflow.state, 'limited'); assert.equal(overflow.coverage.invocations, 10000);
+  assert.deepEqual(overflow.rows, []); assert.deepEqual(overflow.coverage.reasons, ['invocation-limit']);
   const unavailable = await finish(coordinator({ unavailable: true }).handlers);
   assert.equal(unavailable.coverage.unavailable, 1); assert.equal(unavailable.coverage.unknown, 0); assert.deepEqual(unavailable.rows, []);
 });
@@ -183,7 +190,7 @@ test('an in-flight host response cannot restore project aggregates after access 
   };
   const handlers = dashboardHandlers(sdk, async () => '{}', { stop: async () => ({ stopped: true }), read: async () => {
     dispatched(); await new Promise<void>(resolve => { release = resolve; });
-    return { state: 'finished', next: null, contributions: [contribution(1)], linkedThreads: [threadId], invocations: 1, association: 'complete', omittedThreads: [], omittedInvocations: 0, reasons: [] };
+    return { state: 'finished', next: null, contributions: [contribution(1)], linkedThreads: [threadId], invocations: 1, invocationSizes: [1], association: 'complete', omittedThreads: [], omittedInvocations: 0, reasons: [] };
   } });
   let page = await handlers.dashboard({ kind: 'start', scope: { kind: 'project', projectId } });
   for (let n = 0; n < 3; n++) page = await handlers.dashboard({ kind: 'advance', token: page.next! });
@@ -206,9 +213,9 @@ for (const initialFailures of [1, 51]) test(`public failure reads bind ${initial
       get: async () => ({ id: threadId, projectId, providerId: 'pi', environmentId: 'env_fixture0001' }) as any },
     environments: { get: async () => ({ id: 'env_fixture0001', hostId }) as any },
   }, experimental_callHostRpc: async () => {
-    if (hostReads++ === 0) return { state: 'reading', next: 'host-continuation', contributions: observations, linkedThreads: [threadId], invocations: initialFailures, association: 'complete', omittedThreads: [], omittedInvocations: 0, reasons: [] };
+    if (hostReads++ === 0) return { state: 'reading', next: 'host-continuation', contributions: observations, linkedThreads: [threadId], invocations: initialFailures, invocationSizes: observations.map(() => 1), association: 'complete', omittedThreads: [], omittedInvocations: 0, reasons: [] };
     dispatched(); await new Promise<void>(resolve => { release = resolve; });
-    return { state: 'finished', next: null, contributions: [{ ...contribution(1), callId: 'f'.repeat(64) }], linkedThreads: [threadId], invocations: 1, association: 'complete', omittedThreads: [], omittedInvocations: 0, reasons: [] };
+    return { state: 'finished', next: null, contributions: [{ ...contribution(1), callId: 'f'.repeat(64) }], linkedThreads: [threadId], invocations: 1, invocationSizes: [1], association: 'complete', omittedThreads: [], omittedInvocations: 0, reasons: [] };
   } });
   plugin(fake.bb);
   const rpc = async (input: unknown) => await fake.harness.behavior.callRpc('dashboardContributors', input) as ContributorPage;
@@ -265,7 +272,7 @@ test('public Stop is token-only and idempotent after revocation, and routes only
     environments: { get: async () => ({ id: 'env_fixture0001', hostId: revoked ? 'host_changed0001' : hostId }) as any },
   }, experimental_callHostRpc: async call => {
     calls.push({ method: call.method, input: call.input, hostId: call.hostId });
-    return call.method === 'stopDashboard' ? { stopped: true } : { state: 'reading', next: 'retained-host-continuation', contributions: [contribution(1)], linkedThreads: [threadId], invocations: 1, association: 'pending', omittedThreads: [], omittedInvocations: 0, reasons: [] };
+    return call.method === 'stopDashboard' ? { stopped: true } : { state: 'reading', next: 'retained-host-continuation', contributions: [contribution(1)], linkedThreads: [threadId], invocations: 1, invocationSizes: [1], association: 'pending', omittedThreads: [], omittedInvocations: 0, reasons: [] };
   } });
   plugin(fake.bb);
   try {

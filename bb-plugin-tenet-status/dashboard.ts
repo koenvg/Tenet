@@ -186,7 +186,7 @@ export function dashboardHandlers(sdk: BbPluginApi['sdk'], directories: () => Pr
       chunk = dashboardHostMethods.readDashboard.output.parse(await hosts.read(destination.next ? { kind: 'advance', token: destination.next }
         : { kind: 'start', threads: destination.targets.map(t => t.threadId), qualification: hash([run.id, selected.hostId, selected.directory ?? null]),
           ...(selected.directory !== undefined ? { recordingDirectory: selected.directory } : {}) }, selected.hostId));
-    } catch { chunk = { state: 'unavailable', next: destination.next ?? null, contributions: [], linkedThreads: [], invocations: 0, association: 'partial', omittedThreads: [], omittedInvocations: 0, reasons: ['destination-unavailable'] }; }
+    } catch { chunk = { state: 'unavailable', next: destination.next ?? null, contributions: [], linkedThreads: [], invocations: 0, invocationSizes: [], association: 'partial', omittedThreads: [], omittedInvocations: 0, reasons: ['destination-unavailable'] }; }
     destination.next = chunk.next ?? undefined;
     if (!canAcquire(run)) {
       if (destination.next) { dashboardHostMethods.stopDashboard.output.parse(await hosts.stop(destination.next, selected.hostId)); destination.next = undefined; }
@@ -198,17 +198,21 @@ export function dashboardHandlers(sdk: BbPluginApi['sdk'], directories: () => Pr
       destination.linked.add(linked); run.coverage.partial++; run.coverage.unprocessed--;
     }
     run.coverage.omittedInvocations += chunk.omittedInvocations;
-    if (run.coverage.invocations + chunk.invocations > 10000) { reason(run, 'invocation-limit'); run.lifecycle = { kind: 'limited' }; return; }
-    run.coverage.invocations += chunk.invocations;
-    for (const contribution of chunk.contributions) {
-      if (!destination.targets.some(t => t.threadId === contribution.threadId)) throw Error('foreign-dashboard-contribution');
-      const previous = run.rows.get(contribution.key);
-      const cost = Buffer.byteLength(JSON.stringify(contribution)) + 256;
-      if (previous?.contributions.some(c => c.threadId === contribution.threadId && c.sessionId === contribution.sessionId && c.callId === contribution.callId)) continue;
-      if ((!previous && run.rows.size >= 4096) || run.bytes + cost > 16 * 1024 * 1024) {
-        reason(run, 'retained-result-limit'); run.lifecycle = { kind: 'limited' }; return;
+    let offset = 0;
+    for (const size of chunk.invocationSizes) {
+      if (run.coverage.invocations >= 10000) { reason(run, 'invocation-limit'); run.lifecycle = { kind: 'limited' }; return; }
+      run.coverage.invocations++;
+      for (const contribution of chunk.contributions.slice(offset, offset + size)) {
+        if (!destination.targets.some(t => t.threadId === contribution.threadId)) throw Error('foreign-dashboard-contribution');
+        const previous = run.rows.get(contribution.key);
+        const cost = Buffer.byteLength(JSON.stringify(contribution)) + 256;
+        if (previous?.contributions.some(c => c.threadId === contribution.threadId && c.sessionId === contribution.sessionId && c.callId === contribution.callId)) continue;
+        if ((!previous && run.rows.size >= 4096) || run.bytes + cost > 16 * 1024 * 1024) {
+          reason(run, 'retained-result-limit'); run.lifecycle = { kind: 'limited' }; return;
+        }
+        run.rows.set(contribution.key, reduceDashboardContribution(previous, contribution)); run.bytes += cost;
       }
-      run.rows.set(contribution.key, reduceDashboardContribution(previous, contribution)); run.bytes += cost;
+      offset += size;
     }
     if (chunk.state !== 'reading') {
       destination.done = true; state.destination++;
