@@ -31,7 +31,8 @@ export default function plugin(bb: BbPluginApi) {
   bb.rpc.register(rpcContract, {
     ...pickerHandlers(bb.sdk),
     ...dashboardHandlers(bb.sdk, async () => (await settings.get()).recordingDirectories,
-      (input, hostId) => host.call('readDashboard', input, { hostId })),
+      { read: (input, hostId) => host.call('readDashboard', input, { hostId }),
+        stop: (token, hostId) => host.call('stopDashboard', { token }, { hostId }) }),
     async status({ threadId }) {
       try {
         const selected = await target(threadId);

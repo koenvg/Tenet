@@ -48,14 +48,14 @@ function coordinator(options: { contributions?: RuleObservation[]; invocations?:
       get: async ({ threadId: id }: any) => ({ id, projectId, providerId, deletedAt, environmentId: placement, title: 'Synthetic thread' }) },
     environments: { get: async ({ environmentId }: any) => ({ id: environmentId, hostId }) },
   };
-  const handlers = dashboardHandlers(sdk, async () => directory, async input => {
+  const handlers = dashboardHandlers(sdk, async () => directory, { stop: async () => ({ stopped: true }), read: async input => {
     const start = input.kind === 'advance' ? Number(input.token) : 0;
     const contributions = options.contributions ?? [];
     const more = !options.unavailable && start + 65 < contributions.length;
     return { state: options.unavailable ? 'unavailable' : more ? 'reading' : 'finished', next: more ? String(start + 65) : null,
       contributions: contributions.slice(start, start + 65), linkedThreads: options.unavailable ? [] : [threadId],
       invocations: options.invocations ?? 1, association: 'complete', omittedThreads: [], omittedInvocations: 0, reasons: [] };
-  }, () => time);
+  } }, () => time);
   return { handlers, expire: () => { time += 600001; }, change: (cause: string) => {
     if (cause === 'directory') directory = JSON.stringify({ [hostId]: '/synthetic/new-archive' });
     if (cause === 'placement') placement = 'env_fixture0002';
@@ -181,10 +181,10 @@ test('an in-flight host response cannot restore project aggregates after access 
       get: async () => ({ id: threadId, projectId, providerId: 'pi', environmentId: 'env_fixture0001' }) },
     environments: { get: async () => ({ id: 'env_fixture0001', hostId }) },
   };
-  const handlers = dashboardHandlers(sdk, async () => '{}', async () => {
+  const handlers = dashboardHandlers(sdk, async () => '{}', { stop: async () => ({ stopped: true }), read: async () => {
     dispatched(); await new Promise<void>(resolve => { release = resolve; });
     return { state: 'finished', next: null, contributions: [contribution(1)], linkedThreads: [threadId], invocations: 1, association: 'complete', omittedThreads: [], omittedInvocations: 0, reasons: [] };
-  });
+  } });
   let page = await handlers.dashboard({ kind: 'start', scope: { kind: 'project', projectId } });
   for (let n = 0; n < 3; n++) page = await handlers.dashboard({ kind: 'advance', token: page.next! });
   const response = handlers.dashboard({ kind: 'advance', token: page.next! });
@@ -253,4 +253,32 @@ test('failure request requires a strict nonnegative integer expected revision', 
     assert.equal(dashboardMethods.dashboardContributors.input.safeParse({ ...input, expectedRevision }).success, false);
   assert.deepEqual(dashboardMethods.dashboardContributors.input.parse({ ...input, expectedRevision: 0 }), { ...input, expectedRevision: 0 });
   assert.equal(dashboardMethods.dashboardContributors.input.safeParse({ ...input, expectedRevision: 0, revision: 0 }).success, false);
+});
+
+test('public Stop is token-only and idempotent after revocation, and routes only to the original retained host', async () => {
+  let revoked = false;
+  const calls: { method: string; input: unknown; hostId: string }[] = [];
+  const fake = createFakePluginHost({ sdk: {
+    projects: { get: async () => { if (revoked) throw Error('revoked'); return { id: projectId } as any; } },
+    threads: { list: async (args: any) => args.archived ? [] : [{ id: threadId, projectId, providerId: 'pi' }] as any,
+      get: async () => ({ id: threadId, projectId, providerId: 'pi', environmentId: 'env_fixture0001' }) as any },
+    environments: { get: async () => ({ id: 'env_fixture0001', hostId: revoked ? 'host_changed0001' : hostId }) as any },
+  }, experimental_callHostRpc: async call => {
+    calls.push({ method: call.method, input: call.input, hostId: call.hostId });
+    return call.method === 'stopDashboard' ? { stopped: true } : { state: 'reading', next: 'retained-host-continuation', contributions: [contribution(1)], linkedThreads: [threadId], invocations: 1, association: 'pending', omittedThreads: [], omittedInvocations: 0, reasons: [] };
+  } });
+  plugin(fake.bb);
+  try {
+    let page = await fake.harness.behavior.callRpc('dashboard', { kind: 'start', scope: { kind: 'project', projectId } }) as DashboardPage;
+    for (let n = 0; n < 4; n++) page = await fake.harness.behavior.callRpc('dashboard', { kind: 'advance', token: page.next! }) as DashboardPage;
+    assert.deepEqual(page.rows.map(row => [row.failed, row.failing]), [[1, 100]]);
+    revoked = true;
+    for (const token of ['unknown', 'retained-host-continuation', page.run, page.run])
+      assert.deepEqual(await fake.harness.behavior.callRpc('dashboardStop', { token }), { stopped: true });
+    assert.deepEqual(calls.filter(call => call.method === 'stopDashboard'), [{ method: 'stopDashboard', input: { token: 'retained-host-continuation' }, hostId }]);
+    const invalid = await fake.harness.behavior.callRpc('dashboard', { kind: 'results', token: page.run }) as DashboardPage;
+    assert.deepEqual([invalid.state, invalid.rows], ['restart-required', []]);
+    for (const input of [{ token: page.run, hostId }, { token: page.run, threads: [threadId] }, { token: page.run, recordingDirectory: '/tmp' }, { token: '' }, {}])
+      await assert.rejects(fake.harness.behavior.callRpc('dashboardStop', input));
+  } finally { await fake.harness.lifecycle.dispose(); }
 });

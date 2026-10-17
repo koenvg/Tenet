@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { BbPluginApi } from '@get-bb/plugin-sdk';
 import { supportsTenetProvider } from './supported-provider.js';
 import { dashboardMethods, dashboardHostMethods, type Coverage, type DashboardPage, type DashboardScope, type DashboardRequest,
-  type ContributorRequest, type HostDashboardRequest, type HostDashboardChunk } from './dashboard-contract.js';
+  type ContributorRequest, type HostDashboardRequest, type HostDashboardChunk, type DashboardStopRequest, type DashboardStopAck } from './dashboard-contract.js';
 import { reduceDashboardContribution, type RetainedRule } from '../src/inspector/bb-dashboard.js';
 
 type Target = { threadId: string; projectId: string; label: string; hostId: string; environmentId: string; directory?: string; fingerprint: string };
@@ -10,11 +10,12 @@ type Destination = { targets: Target[]; next?: string; linked: Set<string>; done
 type Lifecycle = { kind: 'discovering'; archived: boolean; offset: number; windows: number }
   | { kind: 'reading'; resolve: number; destination: number }
   | { kind: 'finished' | 'limited' | 'restart-required' };
-export type DashboardRun = {
+type DashboardRun = {
   id: string; scope: DashboardScope; projectLabel: string; started: number; expires: number; revision: number; lifecycle: Lifecycle;
   threads: Map<string, string>; targets: Map<string, Target>; destinations: Destination[];
   rows: Map<string, RetainedRule>; bytes: number; coverage: Coverage; next: string; steps: Map<string, DashboardPage>; replayBytes: number;
   pending: Promise<unknown>; cursors: Map<string, { revision: number; offset: number; rule?: string }>;
+  acquisition: 'open' | 'closed'; discarded: boolean; cleanup?: Promise<void>;
   timer?: ReturnType<typeof setTimeout>;
 };
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -24,9 +25,35 @@ const invalidPage = (run?: DashboardRun): DashboardPage => ({ run: run?.id ?? 'e
   coverage: { discovered: 0, resolved: 0, processed: 0, unknown: 0, unavailable: 0, unprocessed: 0, partial: 0, omittedInvocations: 0, invocations: 0, capture: 'best-effort', reasons: ['scope-access-or-run-changed'] },
   rows: [], next: null, rowsNext: null });
 
+type DashboardHosts = {
+  read(input: HostDashboardRequest, hostId: string): Promise<HostDashboardChunk>;
+  stop(token: string, hostId: string): Promise<DashboardStopAck>;
+};
 export function dashboardHandlers(sdk: BbPluginApi['sdk'], directories: () => Promise<string>,
-  callHost: (input: HostDashboardRequest, hostId: string) => Promise<HostDashboardChunk>, now = Date.now) {
+  hosts: DashboardHosts, now = Date.now) {
   const runs = new Map<string, DashboardRun>();
+  let admission: Promise<unknown> = Promise.resolve();
+  const retained = (run: DashboardRun) => runs.get(run.id) === run && !run.discarded && run.expires > now();
+  const canAcquire = (run: DashboardRun) => retained(run) && run.acquisition === 'open';
+  function stop(run: DashboardRun): Promise<void> {
+    run.acquisition = 'closed';
+    if (run.cleanup) return run.cleanup;
+    const attempt = (async () => {
+      await run.pending;
+      for (const destination of run.destinations) if (destination.next) {
+        dashboardHostMethods.stopDashboard.output.parse(await hosts.stop(destination.next, destination.targets[0]!.hostId));
+        destination.next = undefined;
+      }
+    })();
+    run.cleanup = attempt;
+    void attempt.catch(() => { if (run.cleanup === attempt) run.cleanup = undefined; });
+    return attempt;
+  }
+  function discard(run: DashboardRun) {
+    run.discarded = true; run.rows.clear(); run.steps.clear(); run.cursors.clear(); run.threads.clear(); run.targets.clear();
+    clearTimeout(run.timer);
+    return stop(run).then(() => { if (runs.get(run.id) === run) runs.delete(run.id); });
+  }
   type AuthorizationPass = {
     project: Promise<Awaited<ReturnType<typeof sdk.projects.get>> | null>; settings: Promise<Record<string, unknown> | null>;
     environments: Map<string, ReturnType<typeof sdk.environments.get>>;
@@ -58,22 +85,22 @@ export function dashboardHandlers(sdk: BbPluginApi['sdk'], directories: () => Pr
     } catch { return null; }
   }
   async function valid(run: DashboardRun) {
-    if (run.expires <= now() || run.lifecycle.kind === 'restart-required') return false;
+    if (!retained(run) || run.lifecycle.kind === 'restart-required') { void discard(run).catch(() => {}); return false; }
     const pass = authorizationPass(run.scope.projectId);
     try {
       const project = await pass.project;
       if (project?.id !== run.scope.projectId) throw Error('project-unavailable');
-    } catch { run.lifecycle = { kind: 'restart-required' }; run.rows.clear(); run.steps.clear(); return false; }
+    } catch { run.lifecycle = { kind: 'restart-required' }; void discard(run).catch(() => {}); return false; }
     // At most 128 retained targets. Aggregates never outlive contributor access.
     const targets = [...run.targets.values()];
     for (let start = 0; start < targets.length; start += 8) {
       const batch = targets.slice(start, start + 8);
       const current = await Promise.all(batch.map(previous => target(previous.threadId, previous.projectId, pass)));
       if (batch.some((previous, index) => !current[index] || current[index]!.fingerprint !== previous.fingerprint)) {
-        run.lifecycle = { kind: 'restart-required' }; run.rows.clear(); run.steps.clear(); return false;
+        run.lifecycle = { kind: 'restart-required' }; void discard(run).catch(() => {}); return false;
       }
     }
-    return pass;
+    return retained(run) ? pass : false;
   }
   function cursor(run: DashboardRun, offset: number, rule?: string) {
     let oldest: string | undefined;
@@ -97,19 +124,22 @@ export function dashboardHandlers(sdk: BbPluginApi['sdk'], directories: () => Pr
   }
   function page(run: DashboardRun, start = 0): DashboardPage {
     const rows = [...run.rows.values()].sort((a, b) => b.failed - a.failed || a.key.localeCompare(b.key));
-    return dashboardMethods.dashboard.output.parse({ run: run.id, scope: run.scope, projectLabel: run.projectLabel, state: run.lifecycle.kind, revision: run.revision,
-      started: run.started, observed: now(), coverage: { ...run.coverage, reasons: [...run.coverage.reasons] },
+    const stopped = run.acquisition === 'closed' && ['discovering', 'reading'].includes(run.lifecycle.kind);
+    return dashboardMethods.dashboard.output.parse({ run: run.id, scope: run.scope, projectLabel: run.projectLabel, state: stopped ? 'limited' : run.lifecycle.kind, revision: run.revision,
+      started: run.started, observed: now(), coverage: { ...run.coverage, reasons: stopped ? [...run.coverage.reasons.slice(0, 19), 'acquisition-stopped'] : [...run.coverage.reasons] },
       rows: rows.slice(start, start + 50).map(({ contributions, ...row }) => row),
-      next: ['discovering', 'reading'].includes(run.lifecycle.kind) ? run.next : null,
+      next: !stopped && ['discovering', 'reading'].includes(run.lifecycle.kind) ? run.next : null,
       rowsNext: start + 50 < rows.length ? cursor(run, start + 50) : null });
   }
   async function advance(run: DashboardRun, pass: AuthorizationPass) {
+    if (!canAcquire(run)) return;
     const state = run.lifecycle;
     if (state.kind === 'discovering') {
       const projectId = run.scope.projectId;
       let finished = false;
       try {
         const rows = await sdk.threads.list({ projectId, includeHidden: true, archived: state.archived, offset: state.offset, limit: 50 });
+        if (!canAcquire(run)) return;
         for (const thread of rows.slice(0, 50)) {
           if (thread.projectId !== projectId || thread.deletedAt || !supportsTenetProvider(thread.providerId) || !/^thr_[a-z0-9]{8,64}$/.test(thread.id)) continue;
           if (run.threads.size >= 128 && !run.threads.has(thread.id)) { reason(run, 'thread-limit'); break; }
@@ -119,7 +149,7 @@ export function dashboardHandlers(sdk: BbPluginApi['sdk'], directories: () => Pr
         if (rows.length >= 50) state.offset += 50;
         else if (!state.archived) { state.archived = true; state.offset = 0; }
         else finished = true;
-      } catch { reason(run, 'project-discovery-unavailable'); finished = true; }
+      } catch { if (!canAcquire(run)) return; reason(run, 'project-discovery-unavailable'); finished = true; }
       run.coverage.discovered = run.threads.size;
       run.coverage.unprocessed = run.threads.size;
       if (state.windows >= 512) reason(run, 'metadata-window-limit');
@@ -132,6 +162,7 @@ export function dashboardHandlers(sdk: BbPluginApi['sdk'], directories: () => Pr
     if (state.resolve < threads.length) {
       for (const [threadId, projectId] of threads.slice(state.resolve, state.resolve + 8)) {
         const selected = await target(threadId, projectId, pass);
+        if (!canAcquire(run)) return;
         if (selected) { run.targets.set(threadId, selected); run.coverage.resolved++; }
         else { run.coverage.unavailable++; run.coverage.unprocessed--; }
       }
@@ -152,10 +183,15 @@ export function dashboardHandlers(sdk: BbPluginApi['sdk'], directories: () => Pr
     const selected = destination.targets[0]!;
     let chunk: HostDashboardChunk;
     try {
-      chunk = dashboardHostMethods.readDashboard.output.parse(await callHost(destination.next ? { kind: 'advance', token: destination.next }
+      chunk = dashboardHostMethods.readDashboard.output.parse(await hosts.read(destination.next ? { kind: 'advance', token: destination.next }
         : { kind: 'start', threads: destination.targets.map(t => t.threadId), qualification: hash([run.id, selected.hostId, selected.directory ?? null]),
           ...(selected.directory !== undefined ? { recordingDirectory: selected.directory } : {}) }, selected.hostId));
-    } catch { chunk = { state: 'unavailable', next: null, contributions: [], linkedThreads: [], invocations: 0, association: 'partial', omittedThreads: [], omittedInvocations: 0, reasons: ['destination-unavailable'] }; }
+    } catch { chunk = { state: 'unavailable', next: destination.next ?? null, contributions: [], linkedThreads: [], invocations: 0, association: 'partial', omittedThreads: [], omittedInvocations: 0, reasons: ['destination-unavailable'] }; }
+    destination.next = chunk.next ?? undefined;
+    if (!canAcquire(run)) {
+      if (destination.next) { dashboardHostMethods.stopDashboard.output.parse(await hosts.stop(destination.next, selected.hostId)); destination.next = undefined; }
+      return;
+    }
     if (chunk.state === 'restart-required') { run.lifecycle = { kind: 'restart-required' }; run.rows.clear(); return; }
     chunk.reasons.filter(r => r !== 'indexing-in-progress').forEach(r => reason(run, r));
     for (const linked of chunk.linkedThreads) if (destination.targets.some(t => t.threadId === linked) && !destination.linked.has(linked)) {
@@ -174,7 +210,6 @@ export function dashboardHandlers(sdk: BbPluginApi['sdk'], directories: () => Pr
       }
       run.rows.set(contribution.key, reduceDashboardContribution(previous, contribution)); run.bytes += cost;
     }
-    destination.next = chunk.next ?? undefined;
     if (chunk.state !== 'reading') {
       destination.done = true; state.destination++;
       for (const target of destination.targets) {
@@ -190,25 +225,38 @@ export function dashboardHandlers(sdk: BbPluginApi['sdk'], directories: () => Pr
   }
   return {
     async dashboard(request: DashboardRequest): Promise<DashboardPage> {
-      for (const [id, run] of runs) if (run.expires <= now()) { clearTimeout(run.timer); runs.delete(id); }
+      for (const run of runs.values()) if (run.expires <= now()) void discard(run).catch(() => {});
       let run: DashboardRun | undefined;
       if (request.kind === 'start') {
-        if (runs.size >= 4) { const oldest = runs.values().next().value!; clearTimeout(oldest.timer); runs.delete(oldest.id); }
-        const started = now();
-        run = { id: randomUUID(), scope: request.scope, projectLabel: '', started, expires: started + 600000, revision: 0,
-          lifecycle: { kind: 'discovering', archived: false, offset: 0, windows: 0 }, threads: new Map(), targets: new Map(), destinations: [], rows: new Map(), bytes: 0,
-          coverage: { discovered: 0, resolved: 0, processed: 0, unknown: 0, unavailable: 0, unprocessed: 0, partial: 0, omittedInvocations: 0, invocations: 0, capture: 'best-effort', reasons: [] },
-          next: randomUUID(), steps: new Map(), replayBytes: 0, pending: Promise.resolve(), cursors: new Map() };
-        runs.set(run.id, run);
-        const retained = run;
-        run.timer = setTimeout(() => { runs.delete(retained.id); }, 600000); run.timer.unref();
-        try {
-          const project = await sdk.projects.get({ projectId: request.scope.projectId });
-          if (project?.id === request.scope.projectId) {
-            run.projectLabel = (project.name ?? project.id).slice(0, 256);
-          } else { reason(run, 'project-unavailable'); run.lifecycle = { kind: 'limited' }; }
-        } catch { reason(run, 'project-discovery-unavailable'); run.lifecycle = { kind: 'limited' }; }
-        return page(run);
+        const reservation = admission.then(async () => {
+          for (const expired of runs.values()) if (expired.expires <= now() || expired.discarded) await discard(expired);
+          if (runs.size >= 4) await discard(runs.values().next().value!);
+          const started = now();
+          const created: DashboardRun = { id: randomUUID(), scope: request.scope, projectLabel: '', started, expires: started + 600000, revision: 0,
+            lifecycle: { kind: 'discovering', archived: false, offset: 0, windows: 0 }, threads: new Map(), targets: new Map(), destinations: [], rows: new Map(), bytes: 0,
+            coverage: { discovered: 0, resolved: 0, processed: 0, unknown: 0, unavailable: 0, unprocessed: 0, partial: 0, omittedInvocations: 0, invocations: 0, capture: 'best-effort', reasons: [] },
+            next: randomUUID(), steps: new Map(), replayBytes: 0, pending: Promise.resolve(), cursors: new Map(), acquisition: 'open', discarded: false };
+          runs.set(created.id, created);
+          created.timer = setTimeout(() => { void discard(created).catch(() => {}); }, 600000); created.timer.unref();
+          return created;
+        });
+        admission = reservation.catch(() => {});
+        run = await reservation;
+        const selected = run;
+        const operation = selected.pending.then(async () => {
+          try {
+            const project = await sdk.projects.get({ projectId: request.scope.projectId });
+            if (!retained(selected)) return invalidPage(selected);
+            if (project?.id === request.scope.projectId) selected.projectLabel = (project.name ?? project.id).slice(0, 256);
+            else { reason(selected, 'project-unavailable'); selected.lifecycle = { kind: 'limited' }; }
+          } catch {
+            if (!retained(selected)) return invalidPage(selected);
+            reason(selected, 'project-discovery-unavailable'); selected.lifecycle = { kind: 'limited' };
+          }
+          return page(selected);
+        });
+        selected.pending = operation.catch(() => {});
+        return operation;
       }
       run = request.kind === 'results' ? runs.get(request.token) : [...runs.values()].find(r => r.next === request.token || r.steps.has(request.token));
       if (!run) return invalidPage();
@@ -220,6 +268,7 @@ export function dashboardHandlers(sdk: BbPluginApi['sdk'], directories: () => Pr
         const replay = selected.steps.get(request.token);
         if (replay) return structuredClone(replay);
         if (request.token !== selected.next) return invalidPage(selected);
+        if (!canAcquire(selected)) return page(selected);
         if (selected.replayBytes + 1024 * 1024 > 32 * 1024 * 1024) {
           reason(selected, 'owner-replay-limit'); selected.lifecycle = { kind: 'limited' };
         } else await advance(selected, pass);
@@ -228,9 +277,15 @@ export function dashboardHandlers(sdk: BbPluginApi['sdk'], directories: () => Pr
         const result = page(selected);
         selected.replayBytes += Buffer.byteLength(JSON.stringify(result)) + 256;
         selected.steps.set(request.token, structuredClone(result));
+        if (!['discovering', 'reading'].includes(selected.lifecycle.kind)) void stop(selected).catch(() => {});
         return result;
       });
       selected.pending = operation.catch(() => {}); return operation;
+    },
+    async dashboardStop({ token }: DashboardStopRequest): Promise<DashboardStopAck> {
+      const run = runs.get(token);
+      if (run) await (run.discarded || run.expires <= now() ? discard(run) : stop(run));
+      return { stopped: true };
     },
     async dashboardContributors({ token, rule, expectedRevision, cursor: after }: ContributorRequest) {
       const run = runs.get(token);

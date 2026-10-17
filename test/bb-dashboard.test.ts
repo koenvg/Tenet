@@ -76,7 +76,7 @@ test('project public summary merges exact wording across policies into literal 9
     environments: { get: async () => ({ id: 'env_fixture0001', hostId }) },
   };
   try {
-    const owner = dashboardHandlers(sdk, async () => JSON.stringify({ [hostId]: root }), request => host.readDashboard(request));
+    const owner = dashboardHandlers(sdk, async () => JSON.stringify({ [hostId]: root }), { read: request => host.readDashboard(request), stop: token => host.stopDashboard({ token }) });
     let page = await owner.dashboard({ kind: 'start', scope: { kind: 'project', projectId } });
     for (let n = 0; page.next && n < 100; n++) page = await owner.dashboard({ kind: 'advance', token: page.next });
     assert.equal(page.state, 'finished');
@@ -235,10 +235,10 @@ for (const loss of ['failed', 'dropped', 'drainTimeouts', 'recovered'] as const)
           get: async () => ({ id: thread, projectId, providerId: 'pi', deletedAt: null, environmentId: 'env_fixture0001' }) },
         environments: { get: async () => ({ id: 'env_fixture0001', hostId }) },
       };
-      const owner = dashboardHandlers(sdk, async () => JSON.stringify({ [hostId]: root }), async request => {
+      const owner = dashboardHandlers(sdk, async () => JSON.stringify({ [hostId]: root }), { stop: token => host.stopDashboard({ token }), read: async request => {
         const chunk = dashboardHostMethods.readDashboard.output.parse(await host.readDashboard(request));
         hostReasons.push(chunk.reasons); return chunk;
-      });
+      } });
       let page = await owner.dashboard({ kind: 'start', scope: { kind: 'project', projectId } });
       for (let n = 0; page.next && n < 100; n++) page = await owner.dashboard({ kind: 'advance', token: page.next });
       assert.equal(page.state, 'finished');
