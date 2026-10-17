@@ -219,7 +219,7 @@ test('exported handlers preserve exact rows and coverage with fewer calls and fr
   try {
     const owner = dashboardHandlers(sdk(calls), async () => { calls.settings++; return JSON.stringify({ [hostId]: root }); }, { stop: token => host.stopDashboard({ token }), read: async (input, selectedHost) => {
       calls.host++; assert.equal(selectedHost, hostId); const chunk = await host.readDashboard(input); chunks.push(chunk); return chunk;
-    } });
+    } }, () => 100);
     const read = async (input: Parameters<typeof owner.dashboard>[0]) => { calls.owner++; return owner.dashboard(input); };
     let page = await read({ kind: 'start', scope: { kind: 'project', projectId } });
     let replay: { token: string; page: typeof page } | undefined;
@@ -232,6 +232,7 @@ test('exported handlers preserve exact rows and coverage with fewer calls and fr
       }
     }
     assert.deepEqual([page.state, page.next, page.rowsNext], ['finished', null, null]);
+    assert.deepEqual([page.started, page.observed], [100, 100]);
     assert.deepEqual(page.rows, [
       { key: policyKey, preview: 'Only synthetic actions.', builtin: false, passed: 90, failed: 10, unscored: 0, passing: 90, failing: 10, threads: 1 },
       { key: integrityKey, preview: 'Protect the recorded policy.', builtin: true, passed: 100, failed: 0, unscored: 0, passing: 100, failing: 0, threads: 1 },
