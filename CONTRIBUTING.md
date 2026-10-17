@@ -8,7 +8,7 @@ Before creating or editing documentation, read and follow [the writing guide](do
 
 ## Set up
 
-Use this developer checkout to change Tenet and run offline checks. Use Bun 1.3.14+ and Node 22.19+ with pinned Pi 1.1.0. SDK-only consumers support Node 22.12+.
+Use this developer checkout to change Tenet and run offline checks. Use Bun 1.3.14+ and Node 22.19+ with pinned Pi 1.3.0. SDK-only consumers support Node 22.12+.
 
 1. From the repository root, install the locked application and BB plugin dependencies:
 

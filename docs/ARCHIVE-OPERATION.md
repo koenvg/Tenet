@@ -54,7 +54,7 @@ Expected active status is `TENET ON OBSERVE`, or `TENET ON ENFORCE` after an exp
 
 A fresh dormant extension has no Tenet footer, notifications or commands. An extension load error means Tenet did not load.
 
-In pinned Pi 1.1.0, a switch from eligible to dormant can leave old command names listed until a full native extension reload. Retained handlers stay silent while dormant or transitioning, and old source, digest, readiness and footer state are cleared. The supported API has no command unregister or hide operation. Listed names do not prove active enforcement. Code or environment changes still need a full process restart.
+In pinned Pi 1.3.0, a switch from eligible to dormant can leave old command names listed until a full native extension reload. Retained handlers stay silent while dormant or transitioning, and old source, digest, readiness and footer state are cleared. The supported API has no command unregister or hide operation. Listed names do not prove active enforcement. Code or environment changes still need a full process restart.
 
 ## Eligibility and owner control
 
@@ -293,7 +293,7 @@ Run doctor outside Pi in the launch environment. It never starts hooks or submit
 | Pending or lost findings | Check status for completed, unavailable, dropped, cancelled and cumulative loss counts. Queue limits and interruptions can lose work. Absence of a report is not `PASS`. |
 | Native findings but no inspector history | Recording opt-out leaves native reporting active. Otherwise check capture location and loss/drain counts. Unsafe directories, full disk or queue loss can prevent capture without changing permission. Stop writers before storage repair. |
 | Partial or missing inspector stages | Check indexing, unsupported-schema and corrupt-file notices; allow later polls. Missing assessment/result is unknown, not execution proof. Recording is not a transactional audit log. |
-| Doctor says ready but coverage is unknown | Pin Pi 1.1.0, fully restart and check native status. Unknown metadata stays unknown. A detected untested version reports unavailable compatibility. Provider validity and hooks remain unverified by doctor. |
+| Doctor says ready but coverage is unknown | Pin Pi 1.3.0, fully restart and check native status. Unknown metadata stays unknown. A detected untested version reports unavailable compatibility. Provider validity and hooks remain unverified by doctor. |
 
 ## Disclosure and limits
 
@@ -325,7 +325,7 @@ Before deleting retained full policy/evidence or owner control, obtain separate 
 
 ### Know the host boundary
 
-Pinned Pi 1.1.0 tests prove native pre-release interception with harmless scripted calls. Pi declares interception, lifecycle invalidation and trusted approval. It does not guarantee exact native result correlation, post-hook argument stability or stock authenticated action resolution.
+Pinned Pi 1.3.0 tests prove native pre-release interception with harmless scripted calls. Pi declares interception, lifecycle invalidation and trusted approval. It does not guarantee exact native result correlation, post-hook argument stability or stock authenticated action resolution.
 
 Keep Tenet after argument-mutating hooks. Later hooks and executors must honor the assessed action. Successful native results cannot certify execution in new SDK-backed records; execution status remains unknown. A failed result does not prove that no remote effect occurred.
 

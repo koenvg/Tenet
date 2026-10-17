@@ -30,7 +30,15 @@ async function cleanupFixture(root: string, evidence: DescendantEvidence, pollMs
         else if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
       }
     }
-    const remaining = () => descendants.filter(server => alive(server.pid, kill) || alive(-server.group, kill));
+    const remaining = () => descendants.filter(server => {
+      try { return alive(server.pid, kill) || alive(-server.group, kill); }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EPERM') throw error;
+        // An exiting group can transiently deny a probe. Keep state until absence is confirmed.
+        killError ??= error;
+        return true;
+      }
+    });
     for (let i = 0; i < 200 && remaining().length; i++) await sleep(pollMs);
     if (remaining().length && killError) throw killError;
     assert.deepEqual(remaining(), [], 'fixture descendants stopped before ancestor cleanup');
@@ -216,6 +224,41 @@ test('parent fixture cleanup confirms absence after a transient group kill EPERM
     await done;
   }
 });
+
+for (const target of ['pid', 'group'] as const) {
+  test(`parent fixture cleanup waits for absence after transient ${target} probe EPERM`, async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-cleanup-test-')));
+    const child = spawn('node', ['-e', 'setInterval(() => {}, 1000)'], { detached: true, stdio: 'ignore' });
+    const done = new Promise<void>((resolve, reject) => { child.once('error', reject); child.once('close', () => resolve()); });
+    const pid = child.pid;
+    assert.ok(pid);
+    const evidence: DescendantEvidence = async () => [{ pid, group: pid }];
+    const kill = process.kill.bind(process), absent = new Set<number>();
+    let permissionFailures = 0;
+    const transientProbe: typeof process.kill = (candidate, signal) => {
+      if (signal === 0 && candidate === (target === 'pid' ? pid : -pid) && permissionFailures < 2) {
+        permissionFailures++;
+        assert.equal(existsSync(join(root, '.tenet-consumer-state')), true, 'uncertain liveness retains state');
+        throw Object.assign(new Error('transient exit-time probe failure'), { code: 'EPERM' });
+      }
+      try { return kill(candidate, signal); }
+      catch (error) {
+        if (signal === 0 && (error as NodeJS.ErrnoException).code === 'ESRCH') absent.add(candidate);
+        throw error;
+      }
+    };
+    try {
+      await writeFile(join(root, '.tenet-consumer-state'), 'owned marker');
+      await cleanupFixture(root, evidence, 5, transientProbe);
+      assert.equal(permissionFailures, 2, 'cleanup retries the uncertain probe instead of removing state');
+      assert.deepEqual([...absent].sort((a, b) => a - b), [-pid, pid], 'both PID and group must confirm absence');
+      assert.equal(existsSync(root), false, 'only confirmed absence permits fixture removal');
+    } finally {
+      if (existsSync(root)) await cleanupFixture(root, evidence);
+      await done;
+    }
+  });
+}
 
 for (const failure of ['kill-error', 'probe-error', 'still-alive'] as const) {
   test(`parent fixture cleanup retains root and marker after ${failure}`, async () => {

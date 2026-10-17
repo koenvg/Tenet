@@ -96,7 +96,7 @@ Do not put credentials in it. Global and project sources share the limits below.
 
 Dormant calls have no veto, approval, recording, active footer or notification. A file that appears later needs a new session or extension reload. `/tenet on` cannot activate a dormant session. Deletion after activation is unavailable, not dormant.
 
-A fresh dormant Pi extension registers no Tenet commands. In pinned Pi 1.1.0, a switch from eligible to dormant can leave previously registered command names listed until a full native extension reload. Their handlers stay silent while the current session is dormant or transitioning. Old source, digest, readiness and footer state are cleared. The supported Pi API has no command unregister or hide operation; listed names do not prove active enforcement.
+A fresh dormant Pi extension registers no Tenet commands. In pinned Pi 1.3.0, a switch from eligible to dormant can leave previously registered command names listed until a full native extension reload. Their handlers stay silent while the current session is dormant or transitioning. Old source, digest, readiness and footer state are cleared. The supported Pi API has no command unregister or hide operation; listed names do not prove active enforcement.
 
 ## Source snapshot contract
 

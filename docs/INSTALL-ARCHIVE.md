@@ -6,7 +6,7 @@ Obtain `tenet.tar.gz` from a passing `main` GitHub Actions build. The private ar
 
 ## Install once in a stable directory
 
-You need Node 22.19+ with npm, Bun 1.3.14+ and a separate Pi installation. The tested host is `@earendil-works/pi-coding-agent` 1.1.0. SDK-only use supports Node 22.12+ or Bun 1.3.14+ without Pi.
+You need Node 22.19+ with npm, Bun 1.3.14+ and a separate Pi installation. The tested host is `@earendil-works/pi-coding-agent` 1.3.0. SDK-only use supports Node 22.12+ or Bun 1.3.14+ without Pi.
 
 Before installation, registration or installed extension replacement, obtain separate authorization. Live-capable Tenet sends full policy, paths and selected evidence to the selected judge. Strings can contain secrets despite redaction.
 
