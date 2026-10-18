@@ -150,6 +150,8 @@ for (const [mode, phase, message] of modes) test(`${target} fixture diagnostics 
     if (target === 'debugger') {
       expect(witness.tracesExist).toBe(false);
       expect(witness.launches).toBe(1);
+      expect(witness.guardRequests).toEqual(['guard', 'late-guard'].includes(mode) ? [{ navigation: true, resourceType: 'document', debuggerPage: false }] : []);
+      expect(witness.errorDocuments).toBe(0);
       if (mode === 'success') {
         expect(witness.seeds).toBe(1);
         expect(witness.servers).toBe(1);

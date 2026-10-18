@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { chromium, type BrowserContext } from 'playwright';
 import { access, mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { startInspector } from '../../../src/inspector/server.js';
@@ -10,8 +10,14 @@ import { bounded } from './report.js';
 const state = {
   mode: process.env.TENET_DIAGNOSTIC_CASE!, directory: '', origin: '', traces: '',
   launches: 0, seeds: 0, servers: 0, contexts: 0, closed: 0, disconnected: false, lateWritten: false,
+  guardRequests: [] as Array<{ navigation: boolean; resourceType: string; debuggerPage: boolean }>, errorDocuments: 0,
   between: [] as Array<{ closed: number; contexts: number; directoryExists: boolean; listening: boolean }>,
 };
+async function probeNetworkGuard(context: BrowserContext) {
+  const probe = await context.newPage();
+  try { await probe.goto('https://fixture.invalid/probe?token=QUERY_SENTINEL').catch(() => {}); }
+  finally { await probe.close(); }
+}
 const exists = (path: string) => path ? access(path).then(() => true, () => false) : Promise.resolve(false);
 const listening = () => state.origin ? fetch(state.origin, { signal: AbortSignal.timeout(500) }).then(response => { void response.body?.cancel(); return true; }, () => false) : Promise.resolve(false);
 const factories: DebuggerFactories = {
@@ -47,11 +53,17 @@ const factories: DebuggerFactories = {
       const context = await newContext(options);
       state.contexts++;
       context.on('close', () => { state.closed++; });
+      context.on('request', request => {
+        if (new URL(request.url()).hostname === 'fixture.invalid') state.guardRequests.push({
+          navigation: request.isNavigationRequest(), resourceType: request.resourceType(),
+          debuggerPage: request.frame().page() === context.pages()[0],
+        });
+      });
       if (['late-pageerror', 'late-guard'].includes(state.mode)) {
         const stop = context.tracing.stop.bind(context.tracing);
         context.tracing.stop = async options => {
           const page = context.pages()[0]!;
-          if (state.mode === 'late-guard') await page.goto('https://fixture.invalid/probe?token=QUERY_SENTINEL').catch(() => {});
+          if (state.mode === 'late-guard') await probeNetworkGuard(context);
           else await Promise.all([
             page.waitForEvent('pageerror'),
             page.evaluate(() => { setTimeout(() => { throw new Error('PAGE_ERROR_SENTINEL'); }, 0); }),
@@ -64,6 +76,9 @@ const factories: DebuggerFactories = {
         context.close = async () => { await close(); throw new Error('CONTEXT_SENTINEL'); };
       }
       context.on('page', page => {
+        page.on('framenavigated', frame => {
+          if (page === context.pages()[0] && frame === page.mainFrame() && frame.url().startsWith('chrome-error:')) state.errorDocuments++;
+        });
         if (state.mode === 'navigation') page.goto = async () => { throw new Error('NAVIGATION_SENTINEL'); };
         if (['callback', 'original', 'timeout', 'guard', 'pageerror'].includes(state.mode)) {
           const route = page.route.bind(page);
@@ -71,7 +86,7 @@ const factories: DebuggerFactories = {
             if (url instanceof RegExp) {
               if (state.mode === 'timeout') await new Promise(() => {});
               if (['callback', 'original', 'timeout'].includes(state.mode)) throw new Error('CALLBACK_SENTINEL');
-              if (state.mode === 'guard') await page.goto('https://fixture.invalid/probe?token=QUERY_SENTINEL').catch(() => {});
+              if (state.mode === 'guard') await probeNetworkGuard(context);
               if (state.mode === 'pageerror') await Promise.all([
                 page.waitForEvent('pageerror'),
                 page.evaluate(() => { setTimeout(() => { throw new Error('PAGE_ERROR_SENTINEL'); }, 0); }),
