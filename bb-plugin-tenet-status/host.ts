@@ -11,6 +11,18 @@ const dashboard = dashboardHost();
 
 // Retain validated metadata for incremental bounded refreshes on this machine.
 const indexes = new Map<string, ArchiveIndex>();
+let pending = Promise.resolve();
+function serialized<T>(operation: () => Promise<T>): Promise<T> {
+  const result = pending.then(operation);
+  pending = result.then(() => {}, () => {});
+  return result;
+}
+async function discardIndex(root: string): Promise<void> {
+  const index = indexes.get(root);
+  if (!index) return;
+  await index.close();
+  indexes.delete(root);
+}
 async function refreshedIndex(recordingDirectory?: string): Promise<ArchiveIndex | null> {
   const root = recordingDirectory ?? recordingConfig({}).directory;
   if (!isAbsolute(root) || resolve(root) !== root) return null;
@@ -20,32 +32,46 @@ async function refreshedIndex(recordingDirectory?: string): Promise<ArchiveIndex
     await directory(root);
     let index = indexes.get(root);
     if (!index) {
-      if (indexes.size >= 8) indexes.delete(indexes.keys().next().value!);
+      if (indexes.size >= 8) await discardIndex(indexes.keys().next().value!);
       index = new ArchiveIndex(root);
       indexes.set(root, index);
     }
     await index.refresh();
     await directory(root);
-    return index.issues().some(issue => issue.reason === 'archive-unavailable') ? null : index;
-  } catch { indexes.delete(root); return null; }
+    if (index.issues().some(issue => issue.reason === 'archive-unavailable')) {
+      await discardIndex(root);
+      return null;
+    }
+    return index;
+  } catch { await discardIndex(root); return null; }
 }
 export default experimental_defineHostEntry({
   contract: hostContract,
   handlers: {
     readDashboard: dashboard.readDashboard,
     stopDashboard: dashboard.stopDashboard,
-    async readStatus({ threadId, recordingDirectory }) {
-      const index = await refreshedIndex(recordingDirectory);
-      return index?.threadStatus(threadId) ?? unavailable();
+    readStatus({ threadId, recordingDirectory }, { lifecycle }) {
+      return serialized(async () => {
+        const index = lifecycle.signal.aborted ? null : await refreshedIndex(recordingDirectory);
+        return index?.threadStatus(threadId) ?? unavailable();
+      });
     },
-    async readFindings({ threadId, cursor, recordingDirectory }) {
-      const index = await refreshedIndex(recordingDirectory);
-      return index ? index.threadFindings(threadId, cursor) : unavailableFindings();
+    readFindings({ threadId, cursor, recordingDirectory }, { lifecycle }) {
+      return serialized(async () => {
+        const index = lifecycle.signal.aborted ? null : await refreshedIndex(recordingDirectory);
+        return index ? index.threadFindings(threadId, cursor) : unavailableFindings();
+      });
     },
-    async readOverview({ threadId, recordingDirectory, ...selection }) {
-      const index = await refreshedIndex(recordingDirectory);
-      return overviewSchema.parse(index ? await index.threadOverview(threadId, selection) : emptyOverview());
+    readOverview({ threadId, recordingDirectory, ...selection }, { lifecycle }) {
+      return serialized(async () => {
+        const index = lifecycle.signal.aborted ? null : await refreshedIndex(recordingDirectory);
+        return overviewSchema.parse(index ? await index.threadOverview(threadId, selection) : emptyOverview());
+      });
     },
   },
-  async dispose() { await dashboard.dispose(); await Promise.all([...indexes.values()].map(index => index.close())); indexes.clear(); },
+  async dispose() {
+    await Promise.all([dashboard.dispose(), serialized(async () => {
+      await Promise.all([...indexes.keys()].map(discardIndex));
+    })]);
+  },
 });
