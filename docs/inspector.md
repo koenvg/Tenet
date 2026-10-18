@@ -1,10 +1,10 @@
 # Inspect findings and recordings
 
-Use this guide to open Tenet's local inspector, select a session and call, and read retained evidence. It covers Pi 1.3.0 and standalone use from a developer checkout or the production archive. The inspector is read-only. It cannot approve, retry or execute tools, edit policy, or ask a provider to reassess a call.
+Use this guide to open Tenet's local inspector, select a session and rule, and read retained evidence. It covers Pi 1.3.0 and standalone use from a developer checkout or the production archive. The inspector is read-only. It cannot approve, retry or execute tools, edit policy, or ask a provider to reassess a call.
 
 - If Pi is running, [open the inspector from Pi](#open-it-from-pi).
 - To read retained files without Pi, [start the standalone inspector](#open-it-without-pi).
-- Once it is open, [select a session and call](#select-a-session-and-call).
+- Once it is open, [select a session, rule and recorded action](#select-a-session-and-call).
 - For missing calls or old reader code, use [the status fixes](#no-calls-or-stale-reader-status-appear).
 
 ## Before you open the inspector
@@ -42,7 +42,7 @@ First complete the [archive installation](INSTALL-ARCHIVE.md) or [development se
 
 2. Check `TENET ON OBSERVE` and run `/tenet status`. If the shared choice is off, `/tenet on` restores this process's configured mode. It does not select enforcement or activate a dormant session.
 3. Enter `/tenet-inspector`. Pi starts the local server, prints a URL selecting the current session, and attempts to open Arc on macOS.
-4. If Arc is unavailable or fails to open, use the printed URL yourself. Pi does not open a different browser. Select another project or session from the picker if needed.
+4. If Arc is unavailable or fails to open, use the printed URL yourself. Pi does not open a different browser. Use **Session** to choose another session. To narrow projects, use **Recording issues and archive controls**.
 
 A session with no recorded calls shows a waiting state. Repeating `/tenet-inspector` reuses the listener. Pi closes it on session exit, switch, fork or reload. Invoke the command again after resuming. A standalone listener remains available after Pi exits.
 
@@ -159,19 +159,21 @@ Use the offline checks below for implementation validation, not proof of active 
 
 ## Shared summaries and standalone evidence
 
-The standalone Inspector and both BB overview entry points use one React workspace layout. The standalone reader adds private call rows and recorded-data disclosures through internal render slots. The BB plugin keeps its safe summary presentation and is built and installed separately; see [the BB overview guide](../bb-plugin-tenet-status/README.md). Its summary input excludes raw arguments, action previews, submitted evidence, exact questions and provider response bodies.
+The standalone Inspector starts with native session and rule navigation. The BB overview entry points use the shared summary workspace and are built and installed separately; see [the BB overview guide](../bb-plugin-tenet-status/README.md). BB's summary input excludes raw arguments, action previews, submitted evidence, exact questions and provider response bodies.
 
-The standalone inspector retains those detail views and its existing links. Sharing presentation neither exposes nor proxies its loopback listener. Rule text renders as inert text, but recorded policy text can still contain secrets. Same-user access limits remain unchanged.
+The standalone inspector retains private recorded-action detail and its existing links. Shared summary code neither exposes nor proxies its loopback listener. Rule text renders as inert text, but recorded policy text can still contain secrets. Same-user access limits remain unchanged.
 
 For checkout-only library builds and a synthetic source preview, use the [shared summary developer reference](../inspector/summary-workspace.md). These commands do not install or reload the BB plugin.
 
 ## Select a session and call
 
-1. Open **Session / archive** to choose a project and session, read the read-only explanation or reader build/schema metadata, or use **Refresh archive**. For the project filter, choose a suggested directory or enter its exact path. New paths are canonical working directories, not Git remote groups. Older records retain their captured paths.
-2. Select a session, then an invocation. The first view names Tenet permission, Tool result and Assessment separately. It also shows the action, recorded mode, applicable findings, recorded approval when available and one brief reason.
-3. Open **Why this assessment** for compact recorded rule text and confidence bars, with findings before passing rules. Each reading names the selected score and recorded threshold; evidence confidence uses SUFFICIENT, separately from a different selected evidence probability.
-4. Open **Recorded data** for submitted action fields, captured policy and exact technical records.
-5. Open **Exact rule records and captured questions** to inspect every retained reader rule record and captured question. Read permission and tool result separately from the assessment.
+1. Open **Session** above **Did this session follow the rules?** Choose a session by its project name and start time. Each option shows its recorded status and unchecked-rule count, or **Rule inventory unknown**.
+2. Under **Rules in this session**, select a rule. The **Rule details** panel shows its full recorded wording, status and **Recorded checks**. Open **Recorded version and origin** for its captured declaration and policy identity.
+3. Read a check's status and reason. Open **Recorded check context** for its profile, question and input versions, outcome, gates and call ID when recorded.
+4. Open **View recorded action** beneath that check. The action detail names Tenet permission, Tool result and Assessment separately. It also shows the submitted action, recorded mode, applicable findings, recorded approval when available and one brief reason.
+5. Open **Why this assessment** for compact recorded rule text and confidence bars, with findings before passing rules. Each reading names the selected score and recorded threshold. Evidence confidence uses SUFFICIENT, separately from a different selected evidence probability.
+6. Open **Recorded data** for submitted action fields, captured policy and exact technical records.
+7. Open **Exact rule records and captured questions** to inspect every retained reader rule record and captured question. Read permission and tool result separately from the assessment.
 
 This one JSON destination retains full rule text, identity, source line, severity, owner/integrity marker, outcome and evidence choices, contribution, complete distributions, recorded thresholds, gates, mappings, question objects and question version. It remains available when the application response is missing, unavailable or truncated.
 
@@ -194,6 +196,10 @@ For APUS, open **Recorded data**, then **Recording and coverage** and **Native s
 Open **Recorded data**, then **Application response and validation** and **Recorded native exchanges** for every bounded snapshot and omission marker, not just the final backend reply. Partial exchanges never establish a complete returned assessment.
 
 Evidence and response text are inert. The inspector never reevaluates policy or invents model reasoning.
+
+**No violations found** covers only recorded checks, not every action in the session. **Violation found** does not establish permission, approval or execution. **Unclear** is neither a violation nor a pass. **Not checked** does not mean followed, violated or not applicable.
+
+Select **Close** or press Escape to return to the rule list. Focus returns to the rule that opened the panel.
 
 ### Read submitted and exact data
 
@@ -245,29 +251,37 @@ A selected FAIL is a suspected violation, not proof that Tenet blocked or that t
 
 ## Browse more calls and share a link
 
-Session summaries show start/update times, call and concern counts, unavailable assessments and best-effort coverage. Lists contain 50 items per page and sort newest-started first. Resuming adds calls to the original session without moving it across an existing page boundary. Forks have separate session IDs.
+Open **Recording issues and archive controls** below the rule list to narrow the session picker. Enter an exact path in **Project directory**, then select **Filter projects**. Select **All projects** to remove that filter.
 
-Call rows show a recorded command or file path when available. The reader checks string arguments in this order: `command`, `path`, `file_path`. It skips empty or non-string values. If none is usable, the row says **Action preview unavailable**. It does not infer an action from the tool name or read current files.
+New paths are canonical working directories, not Git remote groups. Older records retain their captured paths. There is no call-list or finding-category filter in this rule view.
 
-The display copy normalizes whitespace and keeps at most 512 UTF-8 bytes without splitting characters. **Preview shortened** marks a longer value, not capture loss. Select the call and open **Recorded data** to read the full captured argument, with its original whitespace. These are submitted strings, not resolved targets or proof that a tool ran.
+Sessions load 50 at a time and sort newest-started first. Resuming adds calls to the original session without moving it across an existing page boundary. Forks have separate session IDs.
+
+Use the pagination control for the list you are reading:
+
+- **More sessions** in the **Session** picker adds older sessions.
+- **More rules** below **Rules in this session** adds rules.
+- **More recorded checks** inside **Rule details** adds checks without closing the panel.
+
+Copy the address-bar URL to share the selected session, rule or recorded action with another reader of the same private archive. It contains hashed IDs, not evidence. Browser back/forward restores selection.
+
+A direct recorded-action link can open a call beyond the first page without browsing every earlier check. Missing rule inventory remains explicit; the reader does not invent a rule association.
+
+Recorded action detail shows a submitted command or file path when available. It checks string arguments in this order: `command`, `path`, `file_path`, and skips empty or non-string values. It does not infer an action from the tool name or read current files.
+
+If no preview string is usable, the detail says **Command or file path not recorded. See Recorded data for submitted arguments.**
+
+The private archive index keeps whitespace-normalized previews of at most 512 UTF-8 bytes without splitting characters. Shortening a preview is not capture loss. Open **View recorded action**, then **Recorded data**, for the full captured argument with its original whitespace. These are submitted strings, not resolved targets or proof that a tool ran.
 
 Previews can contain secrets. They remain in the private inspector and do not enter links, logs, BB thread status, agent context or evaluator inputs.
 
-Common mode, Not blocked by Tenet and absent-result wording may appear above the list only when every displayed call records that fact. This is context for displayed calls, not a claim about the full session or archive. Filtering, loading more calls and new stages recalculate it. Blocks, failures, mixed or unknown modes, invalid assessments and incomplete or conflicting records keep individual cues.
+On narrow screens, use the same **Session** picker and rule list. Selecting a rule opens a full-width **Rule details** panel. Scroll inside it for more checks and recorded action data.
 
-Use **More sessions** inside **Session / archive** or **More invocations** below the call list to continue. Loading more calls preserves the selected detail. Copy the address-bar URL for a session or invocation link. It contains hashed IDs, not evidence. Browser back/forward restores selection, including calls beyond page one.
-
-Commands and file paths lead each call row. Tool names, times and separate recorded facts follow. The native **Finding category** select is always visible above the loaded call list in Calls.
-
-Use **Finding category** to filter suspected violations, uncertainty, approval conditions, evaluator failures or pending/incomplete observations. There is no filter accordion. The native select keeps its accessible label and keyboard selection. Counts are distinct calls; categories can overlap. BLOCK alone is not a violation. An active category and **Clear filter** stay visible, including when no calls match.
-
-There is no Repeated uncertainty section or replacement group view. The UI does not request groups. Public reader/group APIs and their recorded facts remain unchanged.
-
-On narrow screens, use **Calls** and **Selected call**. Calls retains the complete loaded list, direct filter and pagination. Selecting an individual call opens Selected call; Calls returns to the list. There is no Summary/Patterns switch.
+Select **Close** or press Escape to return to the rule list. There is no separate mobile call-list switch.
 
 ## Check fresh stages and partial coverage
 
-The inspector polls every two seconds. It preserves project filters, loaded pages and selected detail. Use Refresh archive inside Session / archive to check sooner. Resume the same Pi session to see new calls and stages.
+The inspector polls every two seconds. It preserves the project filter, loaded pages and open recorded action data. Use **Refresh archive** inside **Recording issues and archive controls** to check sooner. Resume the same Pi session to see new checks and stages.
 
 The metadata-only index has these per-refresh limits:
 
@@ -291,11 +305,11 @@ Judge fields come only from recorded data. `judge-report-v2` adds canonical orig
 
 Unsupported newer records and corrupt files produce a short Partial archive indicator. Indexing archive means indexing is still in progress. Supported calls remain readable.
 
-One short archive-state line stays visible outside Session / archive and in both mobile views, including empty lists. **Coverage unknown** is not known incompleteness. **Supported records** identifies the reader's supported subset, not a complete audit.
+One short archive-state line stays visible below the rule list, including on narrow screens and when the list is empty. Close an open rule or recorded-action panel to return to it. **Coverage unknown** is not known incompleteness. **Supported records** identifies the reader's supported subset, not a complete audit.
 
-Healthy reader metadata stays in Session / archive, without a recording warning.
+Healthy reader metadata stays in **Recording issues and archive controls**, without a recording warning.
 
-Open **Recording issues** for exact unsupported/newer/corrupt/other counters, indexing state, reader build and supported schemas, individual file issues, and per-writer capture counters. Writer counters are cumulative, not per call, and may cover other sessions. Zero counters do not prove complete capture.
+Open **Recording issues and archive controls** for exact unsupported/newer/corrupt/other counters, indexing state, reader build and supported schemas, individual file issues, and per-writer capture counters. Writer counters are cumulative, not per call, and may cover other sessions. Zero counters do not prove complete capture.
 
 The disclosure scrolls if needed. Paused/reconnecting updates and other live alerts remain separate and visible.
 
