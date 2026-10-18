@@ -112,18 +112,29 @@ test('six real completed refreshes retain literal coverage and Open call return 
       read: input => host.readDashboard(input), stop: token => host.stopDashboard({ token }),
     });
     const pages: DashboardPage[] = [];
-    const client: DashboardClient = { read: async input => { const page = await owner.dashboard(input); pages.push(page); return page; },
+    let completed = deferred<void>();
+    const client: DashboardClient = { read: async input => {
+      const page = await owner.dashboard(input); pages.push(page);
+      if (!page.next) completed.resolve();
+      return page;
+    },
       contributors: input => owner.dashboardContributors(input), stop: token => owner.dashboardStop({ token }) };
     let retained: DashboardReturn | null = null;
     const remember = (value: DashboardReturn | null) => { retained = value; };
     const paths: string[] = [];
     const slot = render(<DashboardPanel projectId={projectId} client={client} navigate={path => paths.push(path)} remember={remember} />);
     for (let n = 0; n < 6; n++) {
-      const rule = await slot.findByRole('button', { name: 'Only synthetic actions. <script>inert()</script>' });
-      await waitFor(() => expect(rule.hasAttribute('disabled')).toBe(false));
+      await act(async () => { await completed.promise; });
+      const rule = slot.getByRole('button', { name: 'Only synthetic actions. <script>inert()</script>' });
+      expect(rule.hasAttribute('disabled')).toBe(false);
+      expect(slot.queryByRole('status')).toBeNull();
+      expect([pages.at(-1)?.state, pages.at(-1)?.next]).toEqual(['finished', null]);
       expect(pages.at(-1)?.coverage).toEqual({ discovered: 1, resolved: 1, processed: 1, unknown: 0, unavailable: 0, unprocessed: 0, partial: 0, omittedInvocations: 0, invocations: 51, capture: 'best-effort', reasons: [] });
       expect(pages.at(-1)?.rows.map(row => [row.builtin, row.passed, row.failed, row.passing, row.failing]).sort()).toEqual([[false, 0, 51, 0, 100], [true, 51, 0, 100, 0]]);
-      if (n < 5) fireEvent.click(slot.getByRole('button', { name: 'Refresh' }));
+      if (n < 5) {
+        completed = deferred<void>();
+        fireEvent.click(slot.getByRole('button', { name: 'Refresh' }));
+      }
     }
     fireEvent.click(slot.getByRole('button', { name: 'Only synthetic actions. <script>inert()</script>' }));
     fireEvent.click(await slot.findByRole('button', { name: 'Next failures' }));
