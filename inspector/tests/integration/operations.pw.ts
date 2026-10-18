@@ -167,35 +167,99 @@ test('Operations trend data exposes every interval, zero, gaps and sample counts
 test('Operations selected summaries, layouts and filters have persistent neutral state markers', async ({ withOperations }) => {
   await withOperations(async ({ page, app }) => {
     await page.route('**/api/operations?*', route => route.fulfill({ json: sample() }));
-    await page.goto(`${app.origin}/?view=operations`);
     const summary = page.getByRole('button', { name: 'Awaiting approval 1', exact: true });
-    await summary.click();
     const overview = page.getByRole('button', { name: 'Overview', exact: true });
     const board = page.getByRole('button', { name: 'Queue board', exact: true });
-    const filter = page.getByRole('group', { name: 'Filter requests by state' }).getByRole('button', { name: 'Awaiting approval', exact: true });
+    const filters = page.getByRole('group', { name: 'Filter requests by state' });
+    const filter = filters.getByRole('button', { name: 'Awaiting approval', exact: true });
+    const all = filters.getByRole('button', { name: 'All', exact: true });
+    const controls = [summary, overview, board, filter, all];
     const marker = (button: typeof summary) => button.evaluate(e => {
       const s = getComputedStyle(e, '::after');
-      return { content: s.content, height: s.height, color: s.backgroundColor };
+      return { content: s.content, width: s.width, height: s.height, color: s.backgroundColor };
     });
-    for (const button of [summary, overview, filter]) {
-      await expect(button).toHaveAttribute('aria-pressed', 'true');
-      expect(await marker(button)).toEqual({ content: '""', height: '2px', color: 'rgb(36, 36, 33)' });
-      const contrast = await button.evaluate(e => {
-        const rgb = (value: string) => value.match(/[\d.]+/g)!.slice(0, 3).map(Number);
-        const luminance = (color: number[]) => color.map(c => c / 255).map(c => c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4).reduce((sum, c, i) => sum + c * [.2126, .7152, .0722][i]!, 0);
-        let surface: Element | null = e;
-        while (surface && getComputedStyle(surface).backgroundColor === 'rgba(0, 0, 0, 0)') surface = surface.parentElement;
-        const a = luminance(rgb(getComputedStyle(e, '::after').backgroundColor));
-        const b = luminance(rgb(getComputedStyle(surface!).backgroundColor));
-        return (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
-      });
-      expect(contrast).toBeGreaterThanOrEqual(3);
+    const selectedMarker = { content: '""', width: '24px', height: '2px', color: 'rgb(36, 36, 33)' };
+    const expectState = async (selected: typeof controls) => {
+      for (const button of controls) {
+        const pressed = selected.includes(button);
+        await expect(button).toHaveAttribute('aria-pressed', String(pressed));
+        if (pressed) expect(await marker(button)).toEqual(selectedMarker);
+        else expect((await marker(button)).content).toBe('none');
+      }
+    };
+    const activate = async (button: typeof summary, key: 'Enter' | 'Space') => {
+      await button.focus();
+      await button.press(key);
+      await expect(button).toBeFocused();
+      expect(await button.evaluate(e => {
+        const s = getComputedStyle(e);
+        return { visible: e.matches(':focus-visible'), style: s.outlineStyle, width: s.outlineWidth, offset: s.outlineOffset, color: s.outlineColor };
+      })).toEqual({ visible: true, style: 'solid', width: '2px', offset: '3px', color: 'rgb(40, 95, 166)' });
+    };
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
+      await page.goto(`${app.origin}/?view=operations`);
+      await expect(summary).toBeVisible();
+      for (const button of controls) expect(await button.evaluate(e => e.tagName)).toBe('BUTTON');
+      await expectState([overview, all]);
+      await activate(summary, 'Enter');
+      await expectState([summary, overview, filter]);
+      await activate(all, 'Space');
+      await expectState([overview, all]);
+      await activate(summary, 'Space');
+      await expectState([summary, overview, filter]);
+      await activate(all, 'Enter');
+      await expectState([overview, all]);
+      await activate(filter, 'Enter');
+      await expectState([summary, overview, filter]);
+      await activate(all, 'Space');
+      await expectState([overview, all]);
+      await activate(filter, 'Space');
+      await expectState([summary, overview, filter]);
+      const contrasts: number[] = [];
+      const expectPersistent = async (selected: typeof controls) => {
+        await page.getByLabel('Project', { exact: true }).focus();
+        await page.mouse.move(0, 0);
+        for (const button of selected) {
+          await button.evaluate(e => e.scrollIntoView({ block: 'center' }));
+          await expect(button).not.toBeFocused();
+          expect(await button.evaluate(e => e.matches(':hover'))).toBe(false);
+          expect(await marker(button)).toEqual(selectedMarker);
+          const adjacent = await button.evaluate(e => {
+            const rgb = (value: string) => value.match(/[\d.]+/g)!.slice(0, 3).map(Number);
+            const luminance = (color: number[]) => color.map(c => c / 255).map(c => c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4).reduce((sum, c, i) => sum + c * [.2126, .7152, .0722][i]!, 0);
+            const s = getComputedStyle(e, '::after'), bounds = e.getBoundingClientRect(), style = getComputedStyle(e);
+            const x = bounds.left + parseFloat(style.borderLeftWidth) + parseFloat(s.left) + parseFloat(s.width) / 2;
+            const top = bounds.top + parseFloat(style.borderTopWidth) + parseFloat(s.top);
+            const a = luminance(rgb(s.backgroundColor));
+            return [top - 1, top + parseFloat(s.height) + 1].map(y => {
+              const surface = document.elementsFromPoint(x, y).map(node => getComputedStyle(node).backgroundColor).find(color => color !== 'rgba(0, 0, 0, 0)')!;
+              const b = luminance(rgb(surface));
+              return { surface, contrast: (Math.max(a, b) + .05) / (Math.min(a, b) + .05) };
+            });
+          });
+          for (const { surface, contrast } of adjacent) {
+            expect(surface).toMatch(/^rgb\(\d+, \d+, \d+\)$/);
+            expect(contrast).toBeGreaterThanOrEqual(3);
+            contrasts.push(contrast);
+          }
+        }
+      };
+      await expectPersistent([summary, overview, filter]);
+      await board.click();
+      await expect(board).toBeFocused();
+      await expectState([summary, board, filter]);
+      await expect(page.locator('.op-board')).toBeVisible();
+      await activate(overview, 'Space');
+      await expectState([summary, overview, filter]);
+      await expect(page.locator('.op-table')).toBeVisible();
+      await activate(board, 'Enter');
+      await expectState([summary, board, filter]);
+      await expect(page.locator('.op-board')).toBeVisible();
+      await expectPersistent([summary, board, filter]);
+      console.log(JSON.stringify({ width, minimumMarkerContrast: Math.min(...contrasts) }));
+      await page.screenshot({ path: `coverage/inspector-artifacts/tenet-159/${width === 1440 ? 'desktop' : 'mobile'}.png`, fullPage: true });
     }
-    expect((await marker(board)).content).toBe('none');
-    await board.click();
-    expect(await marker(board)).toEqual({ content: '""', height: '2px', color: 'rgb(36, 36, 33)' });
-    expect((await marker(overview)).content).toBe('none');
-    await expect(board).toBeFocused();
   });
 });
 
