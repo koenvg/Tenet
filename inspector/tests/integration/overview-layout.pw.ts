@@ -5,6 +5,27 @@ import { resolve } from 'node:path';
 const artifacts = resolve('coverage/inspector-artifacts/tenet176');
 test.beforeAll(async () => { await mkdir(artifacts, { recursive: true }); });
 
+test('panel preview conversation wraps wider heading glyphs at 320px and 200% text', async ({ page, shellOrigin }) => {
+  await page.setViewportSize({ width: 320, height: 1050 });
+  await page.goto(`${shellOrigin}overview.preview.html`);
+  const heading = page.getByRole('heading', { name: 'Pi conversation', exact: true });
+  await expect(heading).toBeVisible();
+  await heading.evaluate(el => {
+    document.documentElement.style.fontSize = '200%';
+    (el as HTMLElement).style.fontFamily = 'monospace';
+    (el as HTMLElement).style.fontSize = '1.5rem';
+  });
+  await expect(heading).toHaveText('Pi conversation');
+  await expect(heading).toBeVisible();
+  const metrics = await heading.evaluate(el => ({
+    heading: { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth },
+    page: { scrollWidth: document.documentElement.scrollWidth, innerWidth },
+  }));
+  console.log(`Preview conversation overflow ${JSON.stringify(metrics)}`);
+  expect(metrics.heading.scrollWidth).toBeLessThanOrEqual(metrics.heading.clientWidth);
+  expect(metrics.page.scrollWidth).toBeLessThanOrEqual(metrics.page.innerWidth);
+});
+
 for (const entry of ['panel', 'main']) {
   test(`${entry} no-history overview has one unknown presentation and one recovery action`, async ({ page, shellOrigin }) => {
     await page.setViewportSize({ width: 390, height: 1000 });
