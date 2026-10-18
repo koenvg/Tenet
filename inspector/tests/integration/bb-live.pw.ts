@@ -25,6 +25,7 @@ async function open(page: Page, origin: string, entry: string, width = 1440) {
     Object.assign(window, { tenetResources: { snapshot: () => ({ intervals: intervals.size, timeouts: timeouts.size, observers: observers.size }) } });
   });
   await page.goto(`${origin}live.preview.html?entry=${entry}`);
+  await page.getByRole('button', { name: 'Browse calls', exact: true }).click();
   await page.locator('.call-row').first().waitFor();
   return page;
 }
@@ -50,6 +51,14 @@ for (const entry of ['panel', 'main']) for (const width of [390, 1440]) test(`${
     expect(before).toEqual({ intervals: 1, timeouts: 0, observers: 0 });
     await page.getByRole('button', { name: 'Append recorded stage', exact: true }).click();
     await page.clock.runFor(10_000);
+    await expect(page.locator('.call-row')).toHaveCount(50);
+    await expect(page.getByText('Recorded rules 1–16 of 19. At most 16 rules per page.', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'More sessions', exact: true }).press('Enter');
+    await page.getByRole('button', { name: 'Calls', exact: true }).press('Enter');
+    await page.getByRole('button', { name: 'More invocations', exact: true }).press('Enter');
+    await page.getByRole('button', { name: 'Summary', exact: true }).press('Enter');
+    await page.getByRole('button', { name: 'More rules', exact: true }).press('Enter');
+    await page.getByRole('button', { name: /Built-in integrity/ }).press('Enter');
     await expect.poll(() => page.locator('.call-row').count()).toBe(71);
     expect(await page.locator('.recording-details dd').first().textContent()).toBe('live-1');
     expect(await page.getByRole('button', { name: /Built-in integrity/ }).getAttribute('aria-pressed')).toBe('true');
@@ -93,6 +102,8 @@ for (const entry of ['panel', 'main']) test(`${entry}: rejected cursor, disconne
   try {
     await page.getByRole('button', { name: 'Summary', exact: true }).press('Enter'); await rulePage(page);
     await page.getByRole('button', { name: 'Reject cursors', exact: true }).click(); await page.clock.runFor(10_000);
+    await page.getByRole('button', { name: 'First rule page', exact: true }).press('Enter');
+    await page.getByRole('button', { name: 'More rules', exact: true }).press('Enter');
     await page.getByRole('alert').waitFor(); expect(await page.locator('.common-summary, .call-row').count()).toBe(0);
     const rejectedCount = (await reads(page)).length; await page.clock.runFor(30_000); expect(await reads(page)).toHaveLength(rejectedCount);
     await page.screenshot({ path: resolve(artifacts, `${entry}-rejected.png`), fullPage: true });
@@ -112,12 +123,12 @@ for (const entry of ['panel', 'main']) test(`${entry}: rejected cursor, disconne
     expect(await page.locator('.common-summary, .call-row').count()).toBe(0);
     expect((await reads(page)).at(-1)?.aborted).toBe(true);
     await page.getByRole('button', { name: 'Make archive readable', exact: true }).click();
-    await page.getByRole('button', { name: 'Refresh archive', exact: true }).press('Enter'); await page.locator('.call-row').first().waitFor({ state: 'attached' });
+    await page.getByRole('button', { name: 'Refresh from page one', exact: true }).press('Enter'); await page.getByRole('button', { name: 'Browse calls', exact: true }).press('Enter'); await page.locator('.call-row').first().waitFor({ state: 'attached' });
     await page.getByRole('button', { name: 'Close workspace', exact: true }).click();
     await expect.poll(() => resources(page)).toEqual({ intervals: 0, timeouts: 0, observers: 0 });
-    await page.getByRole('button', { name: 'Open workspace', exact: true }).click(); await page.locator('.call-row').first().waitFor({ state: 'attached' });
+    await page.getByRole('button', { name: 'Open workspace', exact: true }).click(); if (entry === 'panel') await page.getByRole('button', { name: 'Browse calls', exact: true }).press('Enter'); await page.locator('.call-row').first().waitFor({ state: 'attached' });
     expect(await resources(page)).toEqual({ intervals: 1, timeouts: 0, observers: 0 });
-    await page.reload(); await page.locator('.call-row').first().waitFor({ state: 'attached' });
+    await page.reload(); if (entry === 'panel') await page.getByRole('button', { name: 'Browse calls', exact: true }).press('Enter'); await page.locator('.call-row').first().waitFor({ state: 'attached' });
     expect(await resources(page)).toEqual({ intervals: 1, timeouts: 0, observers: 0 });
   } finally { await page.close(); }
 });

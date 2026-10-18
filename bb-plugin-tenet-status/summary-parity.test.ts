@@ -54,7 +54,7 @@ for (const schema of [3, 4] as const) for (const [n, scenario] of cases.entries(
     const { records } = await index.detail(session.id, call.id, threadId);
     assert.ok(records.length >= 7); assert.ok(records.every(validRecord), 'Parity fixtures must pass the recorded schema contract');
     const standalone = standaloneSummary(invocationView(records));
-    const bb = (await host.experimental_call('readOverview', { threadId, recordingDirectory: root })).selected!;
+    const bb = (await host.experimental_call('readOverview', { threadId, query: { kind: 'calls' }, recordingDirectory: root })).selected!;
     assert.ok(bb);
     for (const field of ['decision', 'reason', 'permission', 'execution', 'approval', 'noRulesClassifiedViolated'] as const) assert.equal(bb[field], standalone[field], field);
     assert.deepEqual(bb.judge, standalone.judge);

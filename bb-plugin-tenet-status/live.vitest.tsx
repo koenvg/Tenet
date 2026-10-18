@@ -25,7 +25,8 @@ for (const entry of ['panel', 'main'] as const) test(`${entry}: live append pres
     : renderSummarySlot(app.navPanels[0]!, { subPath: path }, { rpc, sdk: { threads: { get: async ({ threadId }) => metadata(threadId) as any } } });
   try {
     await settle(); await settle();
-    const archive = () => within(slot.container.querySelector<HTMLElement>('.archive-messages')!);
+    fireEvent.click(slot.getByRole('button', { name: 'Browse calls' })); await settle();
+    const archive = () => within(slot.container.querySelector<HTMLElement>('.archive-messages:has(.archive-toolbar)')!);
     const explorer = () => within(slot.getByRole('complementary', { name: 'Call explorer' }));
     const detail = () => within(slot.getByRole('region', { name: 'Invocation detail' }));
     const rules = () => within(detail().getByRole('navigation', { name: 'Rules' }));
@@ -51,6 +52,12 @@ for (const entry of ['panel', 'main'] as const) test(`${entry}: live append pres
       fireEvent.click(rules().getByRole('button', { name: /Built-in integrity/ })); await settle();
     }
     fixture.append(); await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+    expect(slot.container.querySelectorAll('.call-row')).toHaveLength(50);
+    expect(slot.getByText('Recorded rules 1–16 of 19. At most 16 rules per page.')).toBeTruthy();
+    fireEvent.click(archive().getByRole('button', { name: 'More sessions' })); await settle();
+    fireEvent.click(explorer().getByRole('button', { name: 'More invocations' })); await settle();
+    fireEvent.click(detail().getByRole('button', { name: 'More rules' })); await settle();
+    fireEvent.click(rules().getByRole('button', { name: /Built-in integrity/ })); await settle();
     expect(slot.container.querySelectorAll('.call-row')).toHaveLength(71);
     expect(slot.getByText('live-1')).toBeTruthy();
     expect(slot.getByLabelText('Linked session').querySelectorAll('option')).toHaveLength(55);
@@ -70,11 +77,12 @@ for (const entry of ['panel', 'main'] as const) test(`${entry}: live append pres
 for (const failure of ['disconnect', 'timeout', 'cursor'] as const) test(`adapter clears ${failure}, bounds polling and allows successful manual retry`, async () => {
   vi.useFakeTimers();
   const fixture = createLiveFixture();
-  const adapter = new OverviewAdapter((selection, signal) => fixture.read(liveThread, selection, signal), () => {});
+  const adapter = new OverviewAdapter((selection, signal) => fixture.read(liveThread, selection, signal), () => {}, { query: { kind: 'calls' } });
   try {
     await settle();
     adapter.loadMoreRules(); await settle();
     fixture.fail(failure); await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+    if (failure === 'cursor') { adapter.loadMoreCalls(); await settle(); }
     if (failure === 'timeout') {
       const pending = fixture.reads.at(-1)!.signal!;
       await act(async () => { await vi.advanceTimersByTimeAsync(7_000); });
@@ -94,12 +102,13 @@ for (const failure of ['disconnect', 'timeout', 'cursor'] as const) test(`adapte
 
 test('adapter rejects cross-host merging, including explicit refresh, and manual page-one read accepts the new scope', async () => {
   vi.useFakeTimers(); const fixture = createLiveFixture(); let thread = liveThread;
-  const adapter = new OverviewAdapter((selection, signal) => fixture.read(thread, selection, signal), () => {});
+  const adapter = new OverviewAdapter((selection, signal) => fixture.read(thread, selection, signal), () => {}, { query: { kind: 'calls' } });
   try {
     await settle(); adapter.loadMoreCalls(); await settle(); thread = otherLiveThread;
     adapter.restart(); await settle();
     expect(adapter.state.data.calls).toHaveLength(0); expect(adapter.state.error).toContain('Archive scope changed');
     adapter.restart(); await settle();
+    adapter.browseCalls(); await settle();
     expect(adapter.state.data.readScope).toBe(liveId(901)); expect(adapter.state.data.calls).toHaveLength(50);
   } finally { adapter.dispose(); }
 });
@@ -124,7 +133,7 @@ test('metadata and summary transports receive scope-owned signals; unmount, time
 test('rapid selection changes abort the previous owner read and ignore its late completion', async () => {
   vi.useFakeTimers();
   const pending: { selection: any; signal: AbortSignal; finish: (value: typeof syntheticOverview) => void }[] = [];
-  const adapter = new OverviewAdapter((selection, signal) => new Promise(resolve => pending.push({ selection, signal, finish: resolve })), () => {});
+  const adapter = new OverviewAdapter((selection, signal) => new Promise(resolve => pending.push({ selection, signal, finish: resolve })), () => {}, { query: { kind: 'calls' } });
   adapter.selectSession(liveId(1054));
   expect(pending[0]!.signal.aborted).toBe(true);
   pending[0]!.finish(structuredClone(syntheticOverview)); await settle(); expect(adapter.state.data.calls).toHaveLength(0);
@@ -144,7 +153,7 @@ test('polling updates the selected older timeline row from its separate safe det
       data.selected.categories = ['unavailable'];
     }
     return data;
-  }, () => {});
+  }, () => {}, { query: { kind: 'calls' } });
   try {
     await settle(); adapter.loadMoreCalls(); await settle(); adapter.selectCall(liveId(2001)); await settle();
     changed = true; await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
@@ -156,7 +165,7 @@ test('polling updates the selected older timeline row from its separate safe det
 
 test('session/rule reads preserve an exhausted older call page and ordinary polling keeps the category', async () => {
   vi.useFakeTimers(); const fixture = createLiveFixture();
-  const adapter = new OverviewAdapter((selection, signal) => fixture.read(liveThread, selection, signal), () => {});
+  const adapter = new OverviewAdapter((selection, signal) => fixture.read(liveThread, selection, signal), () => {}, { query: { kind: 'calls' } });
   try {
     await settle(); adapter.loadMoreCalls(); await settle();
     expect(adapter.state.data.nextCall).toBeNull();

@@ -41,7 +41,7 @@ test('current schema-5 archive keeps common recorded facts, policy source identi
     assert.ok(detail.records.length >= 7);
     assert.ok(detail.records.every(record => record.schemaVersion === 5 && validRecord(record)));
     const standalone = standaloneSummary(invocationView(detail.records));
-    const response = overviewSchema.parse(await host.experimental_call('readOverview', { threadId, recordingDirectory: join(root, 'archive') }));
+    const response = overviewSchema.parse(await host.experimental_call('readOverview', { threadId, query: { kind: 'calls' }, recordingDirectory: join(root, 'archive') }));
     assert.equal(response.state, 'available'); assert.ok(response.selected);
     const bb = response.selected;
     for (const field of ['decision', 'reason', 'permission', 'execution', 'approval', 'noRulesClassifiedViolated'] as const) assert.equal(bb[field], standalone[field], field);
@@ -97,7 +97,7 @@ for (const variant of ['v1', 'absent', 'hosted', 'loopback-80', 'apus', 'injecte
       const detail = await index.detail(session.id, call.id, threadId);
       assert.ok(detail.records.every(validRecord));
       const standalone = standaloneSummary(invocationView(detail.records));
-      const response = overviewSchema.parse(await host.experimental_call('readOverview', { threadId, recordingDirectory: join(root, 'archive') }));
+      const response = overviewSchema.parse(await host.experimental_call('readOverview', { threadId, query: { kind: 'calls' }, recordingDirectory: join(root, 'archive') }));
       const bb = response.selected!; assert.ok(bb);
       assert.deepEqual(bb.judge, standalone.judge);
       assert.equal(bb.judge.provider, variant === 'v1' ? 'typesafe' : variant === 'absent' ? null : variant === 'apus' ? 'apus-llamacpp' : variant === 'injected' ? 'injected' : 'system-one');

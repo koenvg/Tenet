@@ -23,6 +23,16 @@ export function parseMainRoute(path: string): MainRoute {
   const threadId = parts.shift();
   if (!threadIdSchema.safeParse(threadId).success) return { kind: 'invalid' };
   const selection: OverviewSelection = {};
+  if (parts[0] === 'rule') {
+    parts.shift(); const ruleId = parts.shift();
+    if (!recordId.safeParse(ruleId).success) return { kind: 'invalid' };
+    if (!parts.length) return { kind: 'overview', projectId, threadId: threadId!, selection: { query: { kind: 'checks', ruleId: ruleId! } } };
+    if (parts.shift() !== 'call') return { kind: 'invalid' };
+    const sessionId = parts.shift(), callId = parts.shift();
+    return !parts.length && recordId.safeParse(sessionId).success && recordId.safeParse(callId).success
+      ? { kind: 'overview', projectId, threadId: threadId!, selection: { query: { kind: 'call', ruleId: ruleId!, sessionId: sessionId!, callId: callId! } } } : { kind: 'invalid' };
+  }
+  if (parts[0] === 'calls') { parts.shift(); selection.query = { kind: 'calls' }; }
   if (parts[0] === 'session') {
     parts.shift(); selection.sessionId = parts.shift();
     if (!recordId.safeParse(selection.sessionId).success) return { kind: 'invalid' };
@@ -40,6 +50,8 @@ export function parseMainRoute(path: string): MainRoute {
 }
 export function overviewPath(threadId: string, selection: OverviewSelection = {}, projectId?: string) {
   return `${projectId ? `project/${projectId}/` : ''}overview/${threadId}`
+    + (selection.query?.kind === 'checks' ? `/rule/${selection.query.ruleId}` : selection.query?.kind === 'call'
+      ? `/rule/${selection.query.ruleId}/call/${selection.query.sessionId}/${selection.query.callId}` : selection.query?.kind === 'calls' || selection.sessionId || selection.callId || selection.category ? '/calls' : '')
     + (selection.sessionId ? `/session/${selection.sessionId}` : '')
     + (selection.callId ? `/call/${selection.callId}` : '')
     + (selection.category ? `/category/${selection.category}` : '');

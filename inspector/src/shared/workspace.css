@@ -2,7 +2,7 @@
 .tenet-summary-workspace.embedded {
   --tenet-ink: var(--foreground, #171918); --tenet-muted: var(--muted-foreground, #5b605e);
   --tenet-chrome: var(--background, #fff); --tenet-soft: var(--muted, #eff0ed);
-  --tenet-line: var(--border, #d4d7d4); --tenet-amber: var(--warning-text, #795617);
+  --tenet-line: var(--border, #d4d7d4); --tenet-amber: var(--warning-text, var(--tenet-ink));
   --tenet-danger: var(--destructive-text, #be3737);
   --tenet-danger-bg: color-mix(in srgb, var(--tenet-danger) 10%, var(--tenet-chrome));
   --tenet-amber-bg: color-mix(in srgb, var(--tenet-amber) 10%, var(--tenet-chrome));
@@ -12,30 +12,54 @@
   --tenet-success-line: color-mix(in srgb, var(--success-text, #17623e) 30%, var(--tenet-chrome));
   --tenet-approval-bg: color-mix(in srgb, var(--approval-text, #62419a) 10%, var(--tenet-chrome));
   --tenet-approval-line: color-mix(in srgb, var(--approval-text, #62419a) 30%, var(--tenet-chrome));
-  container: tenet-summary / inline-size; min-width: 0; width: 100%;
+  container: tenet-summary / inline-size; min-width: 0; width: 100%; font-size: 1rem;
   display: grid; grid-template-columns: clamp(260px, 30%, 300px) minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr); align-content: start; background: var(--tenet-soft);
+  align-content: start; background: var(--tenet-chrome); scrollbar-color: var(--tenet-line) var(--tenet-chrome);
 }
-.tenet-summary-workspace.embedded .mobile-nav { display: none; gap: 8px; }
-.tenet-summary-workspace.embedded :is(.archive-messages, .mobile-nav) { grid-column: 1 / -1; padding: 12px 24px; }
-.tenet-summary-workspace.embedded .archive-messages { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; color: var(--tenet-muted); font-size: 12px; }
-.tenet-summary-workspace.embedded .archive-messages p { flex: 1; min-width: 160px; }
-.tenet-summary-workspace.embedded .archive-messages label { min-width: 0; max-width: 100%; }
-.tenet-summary-workspace.embedded .archive-messages select { width: 100%; min-width: 0; max-width: 100%; }
-.tenet-summary-workspace.embedded .archive-messages .session-counts { flex-basis: 100%; }
-.tenet-summary-workspace.embedded .explorer { display: flex; flex-direction: column; min-width: 0; padding: 12px 0 20px; }
-.tenet-summary-workspace.embedded .call-list { max-height: 600px; }
-.tenet-summary-workspace.embedded .inspection { min-width: 0; overflow-wrap: anywhere; background: var(--tenet-chrome); border-radius: 16px; margin: 0 24px 20px 0; }
+.tenet-summary-workspace.embedded :is(.archive-messages, .mobile-nav, .triage-tools) :is(button, select), .tenet-summary-workspace.embedded .explorer .text-button { min-height: 44px; height: auto; margin: 0; white-space: normal; box-shadow: none; }
+.tenet-summary-workspace.embedded :is(.archive-messages, .mobile-nav) { grid-column: 1 / -1; padding: 8px 12px; }
+.tenet-summary-workspace.embedded .archive-messages { display: flex; flex-wrap: wrap; align-items: start; gap: 0 16px; color: var(--tenet-muted); font-size: .875rem; border-bottom: 1px solid var(--tenet-line); }
+.tenet-summary-workspace.embedded .archive-messages p { font-size: inherit; }
+.tenet-summary-workspace.embedded :is(.archive-toolbar, .session-tools) { display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
+.tenet-summary-workspace.embedded .archive-toolbar p { flex: 1 1 24ch; min-width: 0; max-width: 72ch; }
+.tenet-summary-workspace.embedded .archive-messages button { display: inline-flex; align-items: center; justify-content: center; flex: none; width: auto; font-size: .875rem; color: var(--tenet-ink); padding: 8px 12px; }
+.tenet-summary-workspace.embedded .archive-messages [role='alert'] { flex-basis: 100%; padding: 8px 0; }
+.tenet-summary-workspace.embedded .session-tools { margin-top: 8px; align-items: end; }
+.tenet-summary-workspace.embedded .session-tools label { display: grid; gap: 4px; flex: 0 1 30rem; min-width: 0; max-width: 100%; }
+.tenet-summary-workspace.embedded .session-tools select { display: block; width: 100%; min-width: 0; max-width: 100%; color: var(--tenet-ink); font-size: .875rem; }
+.tenet-summary-workspace.embedded .archive-messages details { min-width: 0; max-width: 100%; margin: 0; overflow-wrap: anywhere; }
+.tenet-summary-workspace.embedded .archive-messages summary { min-height: 44px; padding: 12px 0; line-height: 1.5; }
+.tenet-summary-workspace.embedded .archive-messages details[open] { flex-basis: 100%; padding-bottom: 8px; }
+.tenet-summary-workspace.embedded .archive-messages details p { max-width: 72ch; }
+.tenet-summary-workspace.embedded .archive-messages details p + p { margin-top: 8px; }
+.tenet-summary-workspace.embedded[data-empty='true'] .archive-toolbar { align-items: start; padding: 12px 0; }
+.tenet-summary-workspace.embedded[data-empty='true'] .archive-toolbar p { flex-basis: 32ch; color: var(--tenet-ink); font-size: 1rem; }
+.tenet-summary-workspace.embedded .mobile-nav { display: none; gap: 4px; }
+.tenet-summary-workspace.embedded .explorer { display: flex; flex-direction: column; min-width: 0; padding: 8px 0 12px; }
+.tenet-summary-workspace.embedded .explorer .pane-heading { min-height: 0; padding: 8px 12px; }
+.tenet-summary-workspace.embedded .explorer .pane-heading h2 { font-size: 1rem; font-weight: 600; margin: 0; }
+.tenet-summary-workspace.embedded .triage-tools { padding: 4px 12px 8px; font-size: .875rem; }
+.tenet-summary-workspace.embedded .triage-tools label { display: grid; gap: 4px; min-width: 0; }
+.tenet-summary-workspace.embedded .triage-tools select { font-size: .875rem; }
+.tenet-summary-workspace.embedded .call-list { max-height: 600px; padding: 0 0 0 12px; }
+.tenet-summary-workspace.embedded .call-row { padding: 12px; gap: 12px; }
+.tenet-summary-workspace.embedded .call-row[aria-pressed='true'], .tenet-summary-workspace.embedded .call-row[aria-pressed='true']:hover { background: var(--tenet-soft); }
+.tenet-summary-workspace.embedded .call-list > :is(p, .text-button) { margin: 8px 12px 8px 0; }
+.tenet-summary-workspace.embedded .text-button { align-self: start; width: auto; font-size: .875rem; }
+.tenet-summary-workspace.embedded .explorer-footer { padding: 8px 12px 0; }
+.tenet-summary-workspace.embedded .inspection { min-width: 0; overflow-wrap: anywhere; background: var(--tenet-chrome); margin: 12px 12px 12px 0; }
 .tenet-summary-workspace.embedded .invocation { height: auto; }
+.tenet-summary-workspace.embedded .empty-state { padding: 24px; }
+.tenet-summary-workspace.embedded .empty-state h2 { font-size: 1rem; font-weight: 400; color: var(--tenet-muted); }
 .tenet-summary-workspace.embedded [role='alert'] { color: var(--tenet-danger); }
 @container tenet-summary (max-width: 650px) {
-  .tenet-summary-workspace.embedded .mobile-nav { display: flex; }
-  .tenet-summary-workspace.embedded .mobile-nav button { flex: 1; text-align: center; }
-  .tenet-summary-workspace.embedded .mobile-nav button[aria-pressed='true'] { background: var(--tenet-soft); font-weight: 600; }
+  .tenet-summary-workspace.embedded .mobile-nav { display: flex; flex-wrap: wrap; }
+  .tenet-summary-workspace.embedded .mobile-nav button { display: inline-flex; align-items: center; justify-content: center; flex: none; width: auto; min-width: 72px; padding: 8px 16px; border-color: transparent; background: transparent; font-size: .875rem; }
+  .tenet-summary-workspace.embedded .mobile-nav button[aria-pressed='true'] { background: var(--tenet-chrome); border-color: var(--tenet-line); font-weight: 600; }
   .tenet-summary-workspace.embedded :is(.explorer, .inspection) { grid-column: 1 / -1; }
-  .tenet-summary-workspace.embedded .inspection { margin: 0; border-radius: 0; }
+  .tenet-summary-workspace.embedded .inspection { margin: 0; }
   .tenet-summary-workspace.embedded .call-list { padding: 0 12px; }
-  .tenet-summary-workspace.embedded .call-row { border-radius: 12px; }
+  .tenet-summary-workspace.embedded .call-row { border-radius: 8px; }
   .tenet-summary-workspace.embedded[data-mobile-view='calls'] .inspection { display: none; }
   .tenet-summary-workspace.embedded:not([data-mobile-view='calls']) .explorer { display: none; }
 }

@@ -9,7 +9,7 @@ test('React mounts and updates safe summaries, then disposes under StrictMode wi
   const fetch = vi.fn(() => { throw new Error('No transport belongs in this workspace'); });
   vi.stubGlobal('fetch', fetch);
   const actions = { selectCall: vi.fn(), filterCategory: vi.fn(), refresh: vi.fn() };
-  const input = { model: structuredClone(previewInput.model), actions };
+  const input = { variant: 'calls' as const, model: structuredClone(previewInput.model), actions };
   const screen = render(<StrictMode><SummaryWorkspaceMount {...input} /></StrictMode>);
   fireEvent.click(screen.getByText('Recording details', { exact: true }));
   await waitFor(() => expect(screen.getByRole('region', { name: 'Actual execution' }).textContent).toContain('Ran'));

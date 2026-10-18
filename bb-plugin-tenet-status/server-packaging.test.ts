@@ -48,7 +48,7 @@ test('local-path manifest loads a current plugin-local server without the demons
     let hostReads = 0;
     let fake = createFakePluginHost({ pluginId: 'tenet-status', settings,
       sdk: {
-        threads: { get: async () => ({ providerId: 'pi', environmentId: 'env_fixture' }) as any },
+        threads: { get: async ({ threadId }: any) => ({ id: threadId, providerId: 'pi', environmentId: 'env_fixture' }) as any },
         environments: { get: async () => ({ id: 'env_fixture', hostId }) as any },
       },
       experimental_callHostRpc: async ({ input, hostId: selected }: any) => {

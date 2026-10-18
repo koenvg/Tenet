@@ -53,6 +53,7 @@ for (const view of Object.values(previewSummaries)) {
   view.reportedViolations = reportedViolations(view.rules, view.assessmentStatus !== 'unavailable', view.rules.some(rule => uncertainGates(rule.gateIds)));
 }
 export const previewInput: SummaryWorkspaceInput = {
+  variant: 'calls',
   model: { calls: [
     { id: 'synthetic-pass', callId: 'synthetic-pass', toolName: 'bash', timestamp: 1000, mode: 'observe',
       decision: 'ALLOW', permission: 'released', execution: 'executed', categories: [], missing: [], assessmentStatus: 'validated', failure: null },

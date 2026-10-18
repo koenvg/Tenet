@@ -82,7 +82,7 @@ test('leaving the project picker cancels metadata and ignores a late card page',
 });
 test('stopped-thread main view reuses safe summaries; BB route restoration restores call/session/category and old findings', async () => {
   const app = await loadPluginApp(() => import('./app'));
-  const path = overviewPath(stopped, {}, projectA);
+  const path = overviewPath(stopped, { query: { kind: 'calls' } }, projectA);
   const slot = renderSlot(app.navPanels[0]!, { subPath: path }, { sdk, rpc: { ...rpc, findings: () => ({ coverage: 'unknown', linkedCalls: 0, issues: [], items: [], next: null }) } });
   try {
     expect(await slot.findByText(/2 evaluator failures/)).toBeTruthy();
@@ -114,7 +114,7 @@ test('stopped-thread main view reuses safe summaries; BB route restoration resto
 });
 test('non-Pi, deleted, changed-scope and invalid selections clear old summary without archive reads', async () => {
   const app = await loadPluginApp(() => import('./app'));
-  const slot = renderSlot(app.navPanels[0]!, { subPath: overviewPath(stopped, {}, projectA) }, { sdk, rpc });
+  const slot = renderSlot(app.navPanels[0]!, { subPath: overviewPath(stopped, { query: { kind: 'calls' } }, projectA) }, { sdk, rpc });
   try {
     await slot.findByText(/2 evaluator failures/);
     const initialReads = summaryCalls(slot).filter(c => c.method === 'overview').length;
@@ -157,7 +157,7 @@ test.each([['pi', true], ['pi-subagents', true], ['codex', false], ['pi-prefix',
     const app = await loadPluginApp(() => import('./app'));
     let providerId = 'pi';
     const read = vi.fn(rpc.overview);
-    const slot = renderSlot(app.navPanels[0]!, { subPath: overviewPath(stopped, {}, projectA) }, {
+    const slot = renderSlot(app.navPanels[0]!, { subPath: overviewPath(stopped, { query: { kind: 'calls' } }, projectA) }, {
       rpc: { ...rpc, overview: read }, sdk: { threads: { get: async ({ threadId }: any) => ({
         ...(await syntheticThread(threadId)), providerId,
       }) as any } },

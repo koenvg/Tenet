@@ -1,5 +1,5 @@
 import type { PickerClient } from './main-page';
-import { syntheticOverview, syntheticRead } from './overview.preview-fixture';
+import { syntheticOverview, syntheticRead, projectSyntheticThread, syntheticEmptyOverview } from './overview.preview-fixture';
 import { emptyOverview, type OverviewSelection, type ThreadOverview } from '../src/inspector/bb-summary';
 
 import { reportedViolations } from '../src/inspector/summary-display';
@@ -53,13 +53,14 @@ export const syntheticThread = async (threadId: string) => ({ id: threadId, prov
   projectId: threads.find(t => t.id === threadId)?.projectId, deletedAt: threadId === deleted ? 1 : null });
 export async function mainSyntheticRead(threadId: string, selection: OverviewSelection): Promise<ThreadOverview> {
   fixtureReads.push({ threadId, machine: threadId === remote ? 'synthetic-machine-b' : 'synthetic-machine-a', selection: { ...selection } });
-  if (threadId === noHistory) return { ...emptyOverview(), state: 'available', coverage: 'unknown', issues: [] };
+  if (selection.query?.kind === 'call') selection = { ...selection, sessionId: selection.query.sessionId, callId: selection.query.callId, ruleCursor: selection.query.ruleCursor };
+  if (threadId === noHistory) return syntheticEmptyOverview();
   const session = selection.sessionId ?? syntheticOverview.sessionId!;
   const alternate = ['a'.repeat(64), 'c'.repeat(64)].includes(session);
   const allowedCalls = alternate ? [(session === 'c'.repeat(64) ? 'd' : 'b').repeat(64)] : syntheticOverview.calls.map(call => call.id);
   if (![syntheticOverview.sessionId, 'a'.repeat(64), 'c'.repeat(64)].includes(session) || selection.callId && !allowedCalls.includes(selection.callId))
     throw new Error('Synthetic selection rejected');
-  const data = alternate ? syntheticRead({ callId: syntheticOverview.calls[0]!.id }) : syntheticRead(selection);
+  const data = alternate ? syntheticRead({ callId: syntheticOverview.calls[0]!.id }) : syntheticRead({ ...selection, query: { kind: 'calls' } });
   data.sessions.push({ ...data.sessions[0]!, id: 'a'.repeat(64), calls: 1,
     categoryCounts: { violation: 1, uncertainty: 0, approval: 0, unavailable: 0, pending: 0 } });
   if (session === 'c'.repeat(64)) data.sessions.push({ ...data.sessions.at(-1)!, id: session });
@@ -83,5 +84,5 @@ export async function mainSyntheticRead(threadId: string, selection: OverviewSel
     data.calls = data.calls.map(row => ({ ...row, callId: `remote-${row.callId}` }));
     if (data.selected?.identity) data.selected.identity.callId = `remote-${data.selected.identity.callId}`;
   }
-  return data;
+  return projectSyntheticThread(data, selection);
 }

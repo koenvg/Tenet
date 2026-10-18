@@ -111,7 +111,7 @@ for (const [providerId, accepted] of [['pi', true], ['pi-subagents', true], ['co
     } finally { await fake.harness.lifecycle.dispose(); }
   });
 test('main routes round-trip bounded opaque selection, preserve old findings links, and reject raw/path selectors', () => {
-  const selection = { sessionId: 'a'.repeat(64), callId: 'b'.repeat(64), category: 'unavailable' as const };
+  const selection = { query: { kind: 'calls' as const }, sessionId: 'a'.repeat(64), callId: 'b'.repeat(64), category: 'unavailable' as const };
   assert.deepEqual(parseMainRoute(overviewPath(threadId, selection, projectId)), { kind: 'overview', projectId, threadId, selection });
   assert.deepEqual(parseMainRoute(`overview/${threadId}`), { kind: 'overview', projectId: undefined, threadId, selection: {} });
   assert.deepEqual(parseMainRoute(threadId), { kind: 'findings', threadId });

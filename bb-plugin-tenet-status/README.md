@@ -1,6 +1,6 @@
 # Read Tenet status in BB
 
-Use this experimental BB plugin to choose a project, read its recorded rule rates and inspect failures. You can also browse calls beside a conversation. Existing history needs a readable, exactly linked archive on the thread's machine, not a running Pi process.
+Use this experimental BB plugin to read recorded rules for a thread, inspect flagged checks and compare project rule rates. Existing history needs a readable, exactly linked archive on the thread's machine, not a running Pi process.
 
 New capture needs the installed Tenet Pi extension, an owner policy and recording enabled. The plugin does not activate Tenet, launch Pi, change enforcement, approve actions or supply TypeSafe credentials.
 
@@ -23,7 +23,7 @@ Local recordings can contain secrets despite redaction. This read-only view is n
    To update an existing local-path installation, rebuild from the same checkout, then run `bb plugin reload tenet-status --json`. A zero exit code and no failed-reload status in `bb plugin list --json` confirm activation. Do not remove and reinstall the plugin. Removal deletes its settings. A successful build alone does not prove activation.
 
 3. Start a fresh Pi process with the current extension and recording enabled. Do not set `TENET_RECORDING=off`.
-4. Open its BB Pi thread and select **TENET rules** in the header, or **T** on compact viewports.
+4. Open its BB Pi thread and select **TENET rule status** in the header, or **T** on compact viewports.
 
 Only new Pi records with a valid BB-provided `BB_THREAD_ID` link to the thread. This routing hint changes neither Pi session keys nor policy decisions. Historical unlinked records stay in [the standalone inspector](../docs/inspector.md). The plugin never guesses a thread from cwd, time or native session ID.
 
@@ -76,7 +76,7 @@ Changed access, project membership, provider, environment, machine or archive se
 
 An overview reads only its selected thread's archive. Non-Pi, deleted, unreadable and changed-project selections clear old results without requesting an unsupported archive. The project picker contains at most 50 names per page. The current SDK has no project-page API, so the owner RPC pages its authorized metadata list without requesting included threads.
 
-Live reads preserve the selected session, call, category and valid rule selection. They keep loaded older pages while adding the newest calls. Same-thread Back/Forward changes the selected detail without restarting loaded history.
+Live reads preserve selection and mounted disclosures when the scope and revision are unchanged. A source revision change discards dependent inventory, check and call pages together. Fresh polling starts at page one without replaying continuation cursors.
 
 Use **Refresh archive** to restart session, call and rule pagination. It keeps the selected session, call and category, including a detail outside the newest page. Load older session pages again for their counts.
 
@@ -86,16 +86,19 @@ An environment, machine or owner archive change clears the old scope. Refresh fr
 
 ## Browse calls beside a conversation
 
-After the separate installation steps above:
+After the separate installation steps above, the thread action opens a flush overview tab beside the conversation. Repeating the same open requests focus of that tab. Controls respond to the panel width, even inside a wide window.
 
-1. Open a Pi thread, select **TENET rules**, then **Open thread overview**. BB opens a flush overview tab beside the conversation. Repeating the same open requests focus of the existing tab.
-2. Pick a **Linked session**. Use **More sessions** or **More invocations** for older records. Pages contain at most 50 summaries. **Finding category** filters recorded categories; one call can have several categories.
-3. Select a call. The open summary shows the tool, one recorded command or path and reported violated rule text. A narrow panel offers **Calls** and **Summary**, even inside a wide window. Open **Recording details** for call identity, metadata, assessment, mode, permission, execution and privacy limits.
-4. Keep **Calls**, **Summary**, coverage and **Refresh archive** reachable in a narrow panel. These controls use the panel's width, not the window's width. Use the same [live-read and manual retry controls](#browse-from-the-main-tenet-page) as the main page. Closing, switching scope or reloading disposes its reader and shared mount.
+1. Open a Pi thread and select its **TENET rule status** header action. The overview defaults to **Recorded rules for this thread** in both the sidepanel and the main page.
+2. Read every retained declaration across this exact thread's linked sessions. **Violation found** marks a recorded finding. **No violations found**, **Unclear** and **Not checked** retain their standalone meanings. Unknown inventory and partial coverage are never a pass.
+3. Select a rule to see its **Recorded checks**. Select **View recorded call** for the existing safe call summary. The back controls return to checks and the rule inventory.
+4. Use **More recorded rules** or **More recorded checks** for 50-item pages. The reader retains at most 1,024 aggregated rules and 4,096 checks per rule. Coverage, indexing, missing integrity and omission counts stay explicit. A finished page does not prove complete capture.
+5. Select **Browse calls** for the secondary session and call browser. Its **Linked session**, **Finding category**, **More sessions** and **More invocations** controls retain their existing behavior. A compact call browser offers **Calls** and **Summary**. **Back to recorded rules** restores the default hierarchy.
 
-Evaluator failures use safe reason codes such as `provider-error`. They do not count as selected FAIL or unfinished assessments, even if the tool ran. Archive warnings appear in a separate disclosure and can concern other threads. No record means unknown, not pass.
+The default inventory loads no selected-call detail. Recorded policy identity and declaration ID keep historical versions distinct. Conflicting wording stays uncertain, and absent policy identity keeps invocations separate. This view never reconstructs rules from current policy files.
 
-Recorded rules use 16-rule pages. Open **Why this assessment**, then **Browse all rules**, and use **More rules** to continue. Text over 2,048 characters has an explicit omission marker.
+Evaluator failures use safe reason codes such as `provider-error`. They do not count as selected FAIL or unfinished assessments, even if the tool ran. Select **Browse calls** to open **Archive warnings**, which can concern other threads. No record means unknown, not pass.
+
+Inside a selected call summary, open **Why this assessment**, then **Browse all rules**, and use **More rules** for its 16-rule pages. Text over 2,048 characters has an explicit omission marker.
 
 **View flagged rules** retains the focused findings page. Restored non-Pi panel tabs state unsupported and request no archive.
 
@@ -185,11 +188,13 @@ Dashboard counts use the metadata snapshot and existing recorded-rule fold after
 
 The host caches validated metadata. Each refresh shares a 256-stage/16-MiB parse budget across sessions. The overview performs no full detail read per timeline row. It rereads only the selected call, capped at 64 stages / 16 MiB. The separate focused findings RPC retains its five-candidate page and the same per-candidate detail cap.
 
-The host constructs strict allowlisted summaries before serialization. The per-thread owner request accepts only a thread ID, opaque linked session/call IDs, a category and scoped cursors. It rejects extra fields, client machine IDs, archive paths and native-session selectors.
+The host constructs strict allowlisted summaries before serialization. The per-thread owner request accepts only a thread ID, a tagged inventory, rule-check or selected-call query, or call-browser selectors with scoped cursors. It rejects extra fields, client machine IDs, archive paths and native-session selectors.
 
 The owner response includes an opaque 64-character `readScope` for its resolved thread, environment, machine and archive. It contains no path or machine selector and is not accepted in requests. The adapter never combines different scopes.
 
-Cursors are limited to 512 characters, labels to 256, recorded rule text to 2,048, issue lists to 20 codes, and session/call pages to 50 summaries. Rule pages contain at most 16 rules, including built-in integrity. Summary rules retain recorded thresholds, policy digest and contract versions; they do not read current policy files.
+The thread inventory transports only opaque policy identities and revisions, bounded declaration labels and excerpts, safe status/count/conflict facts and coverage codes. Labels and excerpts are limited to 512 UTF-8 bytes with shortening or unavailable markers. Check pages allow recognized outcome, reason, gate and contract codes, not freeform reasons or unknown gate strings.
+
+In the call browser, cursors are limited to 512 characters, labels to 256, recorded rule text to 2,048, issue lists to 20 codes, and session/call pages to 50 summaries. Rule pages contain at most 16 rules, including built-in integrity. Summary rules retain recorded thresholds, policy digest and contract versions; they do not read current policy files.
 
 The open selected summary lists at most 16 reported violations from the whole call, before rule-page slicing. Only validated selected `FAIL` outcomes qualify. WARN stays advisory, and uncertain FAILs remain labeled.
 
@@ -219,7 +224,7 @@ Raw argument bags, private previews, submitted evidence, exact questions, provid
 
 ## Shared summary build
 
-The checkout includes one React workspace layout for the standalone inspector and both BB entry points. BB uses the compact selected-call summary; the standalone inspector keeps its private detail view and action previews. The synthetic comparison checks the shared summary component, not the private inspector layout.
+The checkout includes one React summary library for both BB entry points. Its rule-first view shares status labels, icons and colours with the standalone inspector, which keeps a separate shell and private recorded-data view. The synthetic comparison checks the common call summary, not the private inspector layout.
 
 Before importing the mount or running its tests, build the ignored `.summary-workspace/` output with `bun run summary:build` from the repository root. `bun run plugin:build` rebuilds that output, then builds the plugin. Building files installs or reloads nothing. A missing or stale shared artifact stops `npm run build` with the required command.
 
@@ -236,9 +241,11 @@ bunx vite bb-plugin-tenet-status --host 127.0.0.1 --port 4174
 
 Open `http://127.0.0.1:4174/overview.preview.html?rules` for the rule-focused preview. The synthetic shell keeps a conversation beside the real shared mount and adapter. Try its 390px panel, keyboard navigation, close/reopen and host-disconnect controls.
 
-Browse the pass, selected FAIL, WARN, integrity, approval, uncertainty and provider-failure calls. Open the rule list, continue past 16 rules, and inspect recorded historical thresholds and text omission notices.
+The default list includes **Violation found**, **No violations found**, **Unclear**, **Not checked** and built-in integrity examples. Select a rule, open a recorded check, then return with the back controls.
 
-This preview reads no archive and makes no evaluator request. It installs or reloads nothing. Without `?rules`, the preview retains the two-call provider-failure scenario.
+Select **Browse calls** to inspect the pass, selected FAIL, WARN, integrity, approval, uncertainty and provider-failure call fixtures. Their selected-call rule browser retains its 16-rule pages and text-omission notices.
+
+This preview reads no archive and makes no evaluator request. It installs or reloads nothing. Without `?rules`, the same default rule-first hierarchy uses the basic call-summary fixtures for drilldown.
 
 If the mount is missing or stale, rebuild the summary library before restarting Vite. The preview does not reproduce native BB tab focus or persistence. SDK tests can verify identical open requests, not installed-host focus. Native tab behavior and deployed remote-host reads need separate authorized checks.
 
@@ -253,10 +260,11 @@ Stop the preview with Ctrl+C. To restart it, run the commands in [Try the panel 
 
 With the same checkout-only Vite process running, open `http://127.0.0.1:4174/live.preview.html?entry=panel` or `http://127.0.0.1:4174/live.preview.html?entry=main`. Both use the real adapter and shared workspace with authored history and rule pages.
 
-1. Load **More sessions** and **More invocations**, then select an older call. Browse past the first 16 rules and select a rule.
-2. Select **Append recorded stage**. Wait for the ten-second poll. The new call appears without losing the loaded history or selection.
-3. Select **Disconnect archive**, **Reject cursors** on a continued rule page, or **Hang archive read**. The next poll clears results after a failure or an eight-second timeout. Select **Make archive readable**, then **Refresh archive** for manual retry.
-4. Try Calls/Summary with a 390px container, Back/Forward on the main page, and close/reopen. **Switch thread scope** aborts the previous view's reads. Preview controls are fixture inputs, not production machine or path selectors.
+1. Inspect the default recorded-rule list. Select **Browse calls** for the larger session and call fixture. Load **More sessions** and **More invocations**, then select an older call and browse past its first 16 rules.
+2. Select **Append recorded stage**. The ten-second poll reads a fresh first page and invalidates older pages when the revision changes. The selected call remains reachable.
+3. Select **Disconnect archive** or **Hang archive read**. A failed read or eight-second timeout clears results. Select **Make archive readable**, then the displayed page-one refresh control for manual retry.
+4. Select **Reject cursors**, then request **More rules** explicitly. Polling never replays a continuation. A rejected page clears results and needs a manual page-one restart.
+5. Try **Calls** and **Summary** in a 390px call browser, browser Back and Forward on the main page, and close and reopen. **Switch thread scope** aborts the previous view's reads. These preview controls select fixtures, not production machines or paths.
 
 Expect one polling owner per workspace and no old result after a failed read. These checks do not prove native BB navigation or remote-host deployment. Stop or restart only this preview as described above.
 

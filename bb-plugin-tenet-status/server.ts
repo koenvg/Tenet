@@ -16,7 +16,7 @@ export default function plugin(bb: BbPluginApi) {
   const host = bb.hosts.experimental_client({ contract: hostContract });
   const target = async (threadId: string) => {
     const thread = await bb.sdk.threads.get({ threadId });
-    if (!thread || !supportsTenetProvider(thread.providerId) || !thread.environmentId) return null;
+    if (!thread || thread.id !== threadId || thread.deletedAt != null || !supportsTenetProvider(thread.providerId) || !thread.environmentId) return null;
     const environment = await bb.sdk.environments.get({ environmentId: thread.environmentId });
     if (!environment || environment.id !== thread.environmentId) return null;
     const hostId = environment.hostId;
@@ -52,8 +52,10 @@ export default function plugin(bb: BbPluginApi) {
         if (thread && !supportsTenetProvider(thread.providerId)) return overviewSchema.parse(emptyOverview('unsupported'));
         const selected = await target(threadId);
         if (!selected) return overviewSchema.parse(emptyOverview());
-        const data = await host.call('readOverview', { threadId, ...selection, ...selected.input }, { hostId: selected.hostId });
-        return overviewSchema.parse({ ...data, readScope: selected.readScope });
+        const data = await host.call('readOverview', { threadId, ...selection, readScope: selected.readScope, ...selected.input }, { hostId: selected.hostId });
+        const current = await target(threadId);
+        if (!current || current.readScope !== selected.readScope || data.state === 'available' && data.readScope !== selected.readScope) return overviewSchema.parse(emptyOverview());
+        return overviewSchema.parse(data);
       } catch { return overviewSchema.parse(emptyOverview()); }
     },
   });

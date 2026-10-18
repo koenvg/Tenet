@@ -32,6 +32,7 @@ export default function CallExplorer({ calls, selectedId, category, loading, una
       </Button>;
     })}
       {loading ? <p role="status">Loading calls…</p> : !calls.length && <p className="empty-inline">{unavailable ? 'Calls unavailable. Missing records are not a pass.' : category ? 'No calls match this finding category.' : 'No recorded invocations in this session.'}</p>}
+      {!loading && !unavailable && !calls.length && category && !more && <Button variant="ghost" className="text-button" onClick={() => filterCategory('')}>Clear filter</Button>}
       {more && loadMore && <Button variant="ghost" className="text-button" disabled={loading} onClick={loadMore}>More invocations</Button>}
     </nav>
     <div className="explorer-footer"><span>Read-only recorded calls</span></div>

@@ -36,11 +36,6 @@ html:has(.rule-panel[open]) { overflow: hidden; }
 .rule-session-option strong { font-size: .8125rem; font-weight: 500; }
 .rule-session-option small { display: block; margin-top: 5px; color: var(--muted); font-size: .75rem; }
 .rule-session-menu .rule-session-note { margin: 5px 0 0; padding: 12px 10px 5px; border-top: 1px solid var(--line); font-size: .75rem; }
-.rule-status { display: flex; gap: 8px; align-items: center; font-size: .8125rem; font-weight: 500; line-height: 1.5; }
-.rule-status[data-state=clear] { color: #3f654b; }
-.rule-status[data-state=violation] { color: #a13b34; }
-.rule-status[data-state=unclear] { color: #80601e; }
-.rule-status[data-state=unchecked] { color: #62665f; }
 .rule-session-menu .rule-status, .rule-session-value .rule-status { font-size: .75rem; }
 .rule-session-menu .rule-status svg, .rule-session-value .rule-status svg { width: 14px; height: 14px; }
 .rule-session-context { margin: 13px 0 0; color: var(--muted); font-size: .9375rem; line-height: 1.6; }

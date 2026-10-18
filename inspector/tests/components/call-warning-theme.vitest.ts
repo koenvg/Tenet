@@ -44,6 +44,7 @@ for (const [theme, colors] of Object.entries(themes)) {
         '--foreground': colors.foreground, '--muted-foreground': colors.foreground,
         background: colors.background,
       } as CSSProperties }, createElement(SummaryWorkspace, {
+        variant: 'calls',
         model: { calls, selected: null, selectedId: 'selected-failure', category: '', coverage, loading: false, error: '' },
         actions: { selectCall() {}, filterCategory() {}, refresh() {} },
       })));

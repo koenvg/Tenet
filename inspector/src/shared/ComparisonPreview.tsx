@@ -75,12 +75,12 @@ export default function ComparisonPreview({ panelWidth, showRaw: initialShowRaw 
     <div className="comparison" ref={comparison}>
       <section aria-label="Standalone adapter"><h2 className="preview-label">Standalone adapter · shared safe fields</h2>
         <div className="preview" id="standalone-preview" ref={left} style={{ width }}>
-          <SummaryWorkspace model={model} actions={actions} mobileView={mobileView} onMobileViewChange={setMobileView} inspection={<><SummaryDetail key={model.selectedId} view={model.selected!} />{showRaw && <section aria-label="Standalone-only inspection"><RecordedData view={view} /></section>}</>} />
+          <SummaryWorkspace variant="calls" model={model} actions={actions} mobileView={mobileView} onMobileViewChange={setMobileView} inspection={<><SummaryDetail key={model.selectedId} view={model.selected!} />{showRaw && <section aria-label="Standalone-only inspection"><RecordedData view={view} /></section>}</>} />
         </div>
       </section>
       <section aria-label="BB adapter"><h2 className="preview-label">BB adapter · shared safe fields</h2>
         <div className="preview" id="embedded-preview" ref={right} style={{ width }}>
-          <SummaryWorkspace model={model} actions={actions} mobileView={mobileView} onMobileViewChange={setMobileView} />
+          <SummaryWorkspace variant="calls" model={model} actions={actions} mobileView={mobileView} onMobileViewChange={setMobileView} />
         </div>
       </section>
     </div>

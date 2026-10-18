@@ -8,6 +8,7 @@ import { recordedInvocation } from './recorded-invocation.js';
 import { summarizeBlockingRules } from './summary-explanation.js';
 import { reportedViolations } from './summary-display.js';
 
+import type { SafeThreadRules, ThreadRuleQuery } from './thread-rules-model.js';
 import { recordedJudge } from '../recording/native.js';
 import { summaryJudge } from './summary-judge.js';
 // Keep the BB reason allowlist complete when the decision contract changes.
@@ -108,6 +109,8 @@ export interface ThreadOverview {
   state: 'available' | 'unavailable' | 'unsupported';
   /** Opaque owner-resolved environment/host/archive identity. Never a client selector. */
   readScope?: string;
+  revision?: string;
+  threadRules?: SafeThreadRules | null;
   coverage: 'unknown' | 'partial' | 'unavailable'; linkedCalls: number; failures: number;
   issues: string[]; sessions: LinkedSessionSummary[]; nextSession: string | null;
   sessionId: string | null; calls: SummaryCall[]; nextCall: string | null;
@@ -117,5 +120,5 @@ export const emptyOverview = (state: 'unavailable' | 'unsupported' = 'unavailabl
   state, coverage: 'unavailable', linkedCalls: 0, failures: 0, issues: state === 'unsupported' ? [] : ['host-or-archive-unavailable'],
   sessions: [], nextSession: null, sessionId: null, calls: [], nextCall: null, selectedId: null, selected: null,
 });
-export interface OverviewSelection { sessionId?: string; callId?: string; category?: import('../decision/finding-triage.js').FindingCategory;
+export interface OverviewSelection { query?: ThreadRuleQuery; sessionId?: string; callId?: string; category?: import('../decision/finding-triage.js').FindingCategory;
   sessionCursor?: string; callCursor?: string; ruleCursor?: string }

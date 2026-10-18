@@ -54,7 +54,7 @@ test('host summaries allowlist all categories, exact mixed-thread links and term
     let reads = 0, lose = false;
     const index = new ArchiveIndex(f.root, async (root, path) => { reads++; const text = await readPrivateFile(root, path); if (lose && JSON.parse(text).callId === 'fail-1') throw new Error(sentinel); return text; });
     await ready(index); reads = 0;
-    const data = await index.threadOverview(threadId);
+    const data = await index.threadOverview(threadId, { query: { kind: 'calls' } });
     overviewSchema.parse(data);
     assert.equal(data.sessions.length, 1); assert.equal(data.linkedCalls, 7); assert.equal(data.failures, 1);
     assert.equal(data.sessions[0]!.categoryCounts.unavailable, 2); assert.equal(data.sessions[0]!.categoryCounts.violation, 1);
@@ -79,7 +79,7 @@ test('host summaries allowlist all categories, exact mixed-thread links and term
     assert.equal(selected.selected?.rules[0]?.thresholds.effectThreshold, .87);
     assert.equal(selected.selected?.metadata?.questionVersion, 'historical-v1');
     assert.equal(selected.selected?.rules[0]?.text, '<script>window.archiveExecuted=true</script>');
-    const foreign = await index.threadOverview(other);
+    const foreign = await index.threadOverview(other, { query: { kind: 'calls' } });
     await assert.rejects(index.threadOverview(threadId, { sessionId: foreign.sessionId! }), /invalid-selection/);
     await assert.rejects(index.threadOverview(threadId, { sessionId: data.sessionId!, callId: foreign.calls[0]!.id }), /invalid-selection/);
     await assert.rejects(index.threadOverview(threadId, { sessionId: 'f'.repeat(64) }), /invalid-selection/);
@@ -102,7 +102,7 @@ test('summary pages and cursors are bounded and scoped; refresh/detail budgets r
     let reads = 0;
     const index = new ArchiveIndex(f.root, async (root, path) => { reads++; return readPrivateFile(root, path); });
     await index.refresh(); assert.ok(reads <= 256); assert.ok(index.indexing); await ready(index);
-    const all = await index.threadOverview(threadId); assert.equal(all.sessions.length, 50); assert.ok(all.nextSession && all.nextSession.length <= 512);
+    const all = await index.threadOverview(threadId, { query: { kind: 'calls' } }); assert.equal(all.sessions.length, 50); assert.ok(all.nextSession && all.nextSession.length <= 512);
     const second = await index.threadOverview(threadId, { sessionCursor: all.nextSession! }); assert.equal(second.sessions.length, 2);
     const native = index.sessions({ limit: 100 }).items.find(s => s.sessionId === 'one-session')!;
     const linkedId = (await import('../src/recording/archive.js')).sessionKey(JSON.stringify([threadId, native.id]));
@@ -130,18 +130,18 @@ for (const providerId of ['pi', 'pi-subagents']) test(`backend resolves only the
       experimental_callHostRpc: async ({ method, input, hostId }: any) => { calls.push({ method, input, hostId }); if (disconnected) throw new Error(sentinel); return (hostId === machineA ? hostA : hostB).experimental_call(method, input); } });
     try {
       plugin(fake.bb);
-      const local: any = await fake.harness.behavior.callRpc('overview', { threadId });
+      const local: any = await fake.harness.behavior.callRpc('overview', { threadId, query: { kind: 'calls' } });
       assert.deepEqual(local.calls.map((c: any) => c.callId), ['machine-a']); assert.equal(calls[0].hostId, machineA);
-      const remote: any = await fake.harness.behavior.callRpc('overview', { threadId: other });
+      const remote: any = await fake.harness.behavior.callRpc('overview', { threadId: other, query: { kind: 'calls' } });
       assert.deepEqual(remote.calls.map((c: any) => c.callId), ['machine-b']); assert.equal(calls[1].hostId, machineB);
       assert.match(local.readScope, /^[a-f0-9]{64}$/); assert.notEqual(local.readScope, remote.readScope);
       assert.ok(!JSON.stringify(local).includes(a.root));
-      const unchanged: any = await fake.harness.behavior.callRpc('overview', { threadId }); assert.equal(unchanged.readScope, local.readScope);
+      const unchanged: any = await fake.harness.behavior.callRpc('overview', { threadId, query: { kind: 'calls' } }); assert.equal(unchanged.readScope, local.readScope);
       currentEnvironment = 'env_machinea_moved';
-      const moved: any = await fake.harness.behavior.callRpc('overview', { threadId }); assert.notEqual(moved.readScope, local.readScope);
+      const moved: any = await fake.harness.behavior.callRpc('overview', { threadId, query: { kind: 'calls' } }); assert.notEqual(moved.readScope, local.readScope);
       currentEnvironment = 'env_machinea';
       await fake.harness.behavior.setSettings({ recordingDirectories: JSON.stringify({ [machineA]: b.root, [machineB]: b.root }) });
-      const changedArchive: any = await fake.harness.behavior.callRpc('overview', { threadId }); assert.notEqual(changedArchive.readScope, local.readScope);
+      const changedArchive: any = await fake.harness.behavior.callRpc('overview', { threadId, query: { kind: 'calls' } }); assert.notEqual(changedArchive.readScope, local.readScope);
       await fake.harness.behavior.setSettings({ recordingDirectories: JSON.stringify({ [machineA]: a.root, [machineB]: b.root }) });
       const before = calls.length;
       const unsupported: any = await fake.harness.behavior.callRpc('overview', { threadId: 'thr_nonpi1234' });
@@ -152,11 +152,11 @@ for (const providerId of ['pi', 'pi-subagents']) test(`backend resolves only the
       const forged: any = await fake.harness.behavior.callRpc('overview', { threadId, sessionId: remote.sessionId });
       assert.equal(forged.state, 'unavailable'); assert.deepEqual(forged.calls, []);
       disconnected = true;
-      const lost: any = await fake.harness.behavior.callRpc('overview', { threadId: other });
+      const lost: any = await fake.harness.behavior.callRpc('overview', { threadId: other, query: { kind: 'calls' } });
       assert.equal(lost.state, 'unavailable'); assert.deepEqual(lost.calls, []); assert.equal(calls.at(-1).hostId, machineB);
       assert.ok(!JSON.stringify(lost).includes(sentinel)); disconnected = false;
       await rm(b.root, { recursive: true, force: true });
-      const missing: any = await fake.harness.behavior.callRpc('overview', { threadId: other }); assert.equal(missing.state, 'unavailable');
+      const missing: any = await fake.harness.behavior.callRpc('overview', { threadId: other, query: { kind: 'calls' } }); assert.equal(missing.state, 'unavailable');
       const relative: any = await hostA.experimental_call('readOverview', { threadId, recordingDirectory: '../archive' }); assert.equal(relative.state, 'unavailable');
     } finally { await fake.harness.lifecycle.dispose(); }
   } finally { await hostA.experimental_dispose(); await hostB.experimental_dispose(); await a.writer.close(); await b.writer.close(); await rm(a.root, { recursive: true, force: true }); await rm(b.root, { recursive: true, force: true }); }
@@ -175,7 +175,7 @@ test('historical contract, label/rule limits and selected-detail cap do not beco
     historical('execution', { outcome: 'executed' });
     await writer.drain(5000);
     const index = new ArchiveIndex(root); await ready(index);
-    const data = await index.threadOverview(threadId); overviewSchema.parse(data);
+    const data = await index.threadOverview(threadId, { query: { kind: 'calls' } }); overviewSchema.parse(data);
     assert.ok(data.calls[0]!.callId.length <= 256); assert.ok(data.calls[0]!.toolName.length <= 256);
     assert.equal(data.selected!.rules.length, 16); assert.equal(data.selected!.omittedRules, 4);
     assert.deepEqual(data.selected!.metadata!.schemas, [3]); assert.equal(data.selected!.metadata!.questionVersion, 'old-contract-v3');
@@ -195,7 +195,7 @@ test('live archive stages update an older selected call without losing bounded c
     const older = f.append('older');
     for (let n = 0; n < 55; n++) { f.append(`newer-${n}`); await f.writer.drain(5000); }
     const index = new ArchiveIndex(f.root); await ready(index);
-    const first = await index.threadOverview(threadId);
+    const first = await index.threadOverview(threadId, { query: { kind: 'calls' } });
     const second = await index.threadOverview(threadId, { sessionId: first.sessionId!, callCursor: first.nextCall! });
     const selectedId = second.calls.find(c => c.callId === 'older')!.id;
     const selection = { sessionId: first.sessionId!, callId: selectedId };
@@ -207,7 +207,8 @@ test('live archive stages update an older selected call without losing bounded c
     assert.equal(live.calls.length, 50); assert.equal(live.linkedCalls, 57);
     assert.equal(live.selected!.evaluatorState!.status, 'unavailable'); assert.equal(live.selectedId, selectedId);
     assert.equal(live.selected!.permission, 'released'); assert.equal(live.selected!.execution, 'executed');
-    const olderPage = await index.threadOverview(threadId, { ...selection, callCursor: first.nextCall! });
+    await assert.rejects(index.threadOverview(threadId, { ...selection, callCursor: first.nextCall! }), /stale-cursor/);
+    const olderPage = await index.threadOverview(threadId, { ...selection, callCursor: live.nextCall! });
     assert.ok(olderPage.calls.some(c => c.id === selectedId)); assert.ok(!JSON.stringify([live, olderPage]).includes(sentinel));
   } finally { await f.writer.close(5000); await rm(f.root, { recursive: true, force: true }); }
 });

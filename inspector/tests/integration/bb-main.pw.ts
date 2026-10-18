@@ -4,7 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { syntheticOverview } from '../../../bb-plugin-tenet-status/overview.preview-fixture.js';
 const stopped = 'thr_stopped0001';
-const stoppedPath = `project/proj_synthetic0001/overview/${stopped}`;
+const stoppedPath = `project/proj_synthetic0001/overview/${stopped}/calls`;
 const noHistoryPath = 'project/proj_synthetic0001/overview/thr_nohistory01';
 const artifacts = resolve('coverage/inspector-artifacts/tenet54');
 test.beforeAll(async ({}, testInfo) => { testInfo.setTimeout(30_000); await mkdir(artifacts, { recursive: true }); });
@@ -163,7 +163,7 @@ for (const width of [1440, 390]) test(`project rules to flat failures at ${width
   if (width === 390) await page.getByRole('button', { name: 'Summary', exact: true }).click();
   await page.locator('.recorded-call').waitFor();
   const callPath = new URL(page.url()).hash;
-  expect(callPath).toMatch(/^#project\/proj_synthetic0001\/overview\/thr_stopped0001\/session\/[a-f0-9]{64}\/call\/[a-f0-9]{64}$/);
+  expect(callPath).toMatch(/^#project\/proj_synthetic0001\/overview\/thr_stopped0001\/calls\/session\/[a-f0-9]{64}\/call\/[a-f0-9]{64}$/);
   expect((await reads(page)).at(-1)?.threadId).toBe(stopped);
   expect(await page.locator('.action-preview, .evidence-dock, .question-json').count()).toBe(0);
   await page.goBack(); await failures.waitFor();
@@ -224,13 +224,15 @@ test('main call history restores scope/call/filter across simulated machines', a
   try {
     await page.goto(`${origin}main.preview.html?host-query=keep#${stoppedPath}`);
     await page.locator('.call-row').first().waitFor();
+    await page.getByText('Session recording details', { exact: true }).press('Enter');
     expect(await page.locator('.session-counts').innerText()).toContain('2 evaluator failures');
+    await page.getByText('Session recording details', { exact: true }).press('Enter');
     await page.getByLabel('Finding category').selectOption('unavailable');
     await expect.poll(() => page.locator('.call-row').count()).toBe(2);
     await page.locator(`[data-call-id="${syntheticOverview.calls[2]!.id}"]`).click();
     await expect.poll(() => page.locator('.recording-details dd').first().textContent()).toContain('synthetic-provider-error-2');
     const selectionPath = new URL(page.url()).hash;
-    await page.evaluate(() => (window as any).tenetPreview.navigate('project/proj_synthetic0002/overview/thr_remote00001'));
+    await page.evaluate(() => (window as any).tenetPreview.navigate('project/proj_synthetic0002/overview/thr_remote00001/calls'));
     await expect.poll(() => page.locator('.recording-details dd').first().textContent()).toContain('remote-synthetic');
     expect((await reads(page)).map(r => r.machine)).toContain('synthetic-machine-b');
     await page.goBack();
@@ -270,7 +272,9 @@ for (const [width, narrow] of [[1440, false], [1440, true], [390, false]] as con
       expect(await page.getByText('Archive warnings', { exact: true }).locator('..').innerText()).toContain('corrupt-record');
       await page.screenshot({ path: `${artifacts}/main-${width}-${narrow ? 'narrow' : 'full'}-failure.png`, fullPage: true });
       await page.getByLabel('Linked session').selectOption('a'.repeat(64));
+      await page.getByText('Session recording details', { exact: true }).press('Enter');
       await expect.poll(() => page.locator('.session-counts').innerText()).toContain('1 selected FAIL');
+      await page.getByText('Session recording details', { exact: true }).press('Enter');
       if (compact) await page.getByRole('button', { name: 'Summary', exact: true }).press('Enter');
       await page.locator('.why-disclosure > summary').press('Enter');
       await page.getByText('Selected check details', { exact: true }).press('Enter');

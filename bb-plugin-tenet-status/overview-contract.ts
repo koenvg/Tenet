@@ -4,6 +4,10 @@ import { evaluatorFailureCodes } from '../src/inspector/finding-view.js';
 import { summaryChoices, summaryGates } from '../src/inspector/bb-summary.js';
 import { recordedActionMaxBytes } from '../src/inspector/summary-display.js';
 
+import { threadRuleQuerySchema, threadRulesSchema } from './thread-rules-contract.js';
+import type { OverviewSelection } from '../src/inspector/bb-summary.js';
+export const validOverviewSelection = (value: OverviewSelection) => !value.query || value.query.kind === 'calls'
+  || ![value.sessionId, value.callId, value.category, value.sessionCursor, value.callCursor, value.ruleCursor].some(field => field !== undefined);
 import { recordedJudgeReport } from '../src/recording/judge.js';
 import { recordedConfiguration } from '../src/recording/configuration.js';
 import type { SummaryJudge } from '../src/inspector/summary-model.js';
@@ -11,9 +15,11 @@ export const recordId = z.string().regex(/^[a-f0-9]{64}$/);
 const label = z.string().max(256), count = z.number().int().nonnegative();
 const cursor = z.string().min(1).max(512);
 export const overviewSelection = {
+  query: threadRuleQuerySchema.optional(),
   sessionId: recordId.optional(), callId: recordId.optional(), category: z.enum(findingCategories).optional(),
   sessionCursor: cursor.optional(), callCursor: cursor.optional(), ruleCursor: cursor.optional(),
 };
+export const overviewSelectionSchema = z.object(overviewSelection).strict().refine(validOverviewSelection, 'conflicting selection');
 const nullableCursor = cursor.nullable();
 const codes = z.array(label).max(20);
 const categories = z.array(z.enum(findingCategories)).max(5);
@@ -75,8 +81,9 @@ const selected = z.object({ ...facts, judge: summaryJudgeSchema, identity: z.obj
   reason: label, approval: label, noRulesClassifiedViolated: z.boolean(), explanation, rules: z.array(rule).max(16), omittedRules: count, missingRuleSnapshots: count.optional(),
   rulePage: z.object({ snapshot: recordId, offset: count, total: count, next: nullableCursor }).strict().optional() }).strict().refine(value => value.evaluatorState.status === 'completed' || value.judge.returnedModel === null, 'returned model without complete assessment');
 export const overviewSchema = z.object({ readScope: recordId.optional(), state: z.enum(['available', 'unsupported', 'unavailable']),
+  revision: recordId.optional(), threadRules: threadRulesSchema.nullable().optional(),
   coverage: z.enum(['unknown', 'partial', 'unavailable']), linkedCalls: count, failures: count, issues: codes,
   sessions: z.array(z.object({ id: recordId, timestamp: z.number(), started: z.number(), calls: count,
     categoryCounts: z.object({ violation: count, uncertainty: count, approval: count, unavailable: count, pending: count }).strict() }).strict()).max(50),
   nextSession: nullableCursor, sessionId: recordId.nullable(), calls: z.array(call).max(50), nextCall: nullableCursor,
-  selectedId: recordId.nullable(), selected: selected.nullable() }).strict();
+  selectedId: recordId.nullable(), selected: selected.nullable() }).strict().refine(value => value.state !== 'available' || !!value.readScope && !!value.revision && !!value.threadRules && value.threadRules.revision === value.revision, 'missing or incoherent thread inventory');

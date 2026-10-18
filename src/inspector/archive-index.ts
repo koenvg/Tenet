@@ -14,6 +14,7 @@ import { recordedAssessment } from './recorded-assessment.js';
 import { recordedRulePreviews, recordedActionPreview, unavailableActionPreview, type TextPreview, type ActionPreview } from './action-preview.js';
 import { sessionRuleStage, foldInvocationRules, foldSessionRules, RULE_CHECK_LIMIT, type SessionRuleStage } from './session-rules.js';
 import type { SessionRuleSummary, SessionRulesPage, RuleChecksPage, SelectedSessionRule, RuleCheck } from './session-rules-model.js';
+import { projectThreadRules } from './thread-rules.js';
 
 export interface PageOptions { limit?: number; cursor?: string; offset?: number }
 export interface InvocationSummary {
@@ -663,13 +664,41 @@ export class ArchiveIndex {
     return { status, candidates };
   }
   threadStatus(bbThreadId: string): ThreadStatus { return this.threadSnapshot(bbThreadId).status; }
+  private async overviewSourcesCurrent(metadata: Metadata[]): Promise<boolean> {
+    try {
+      const root = await lstat(this.root);
+      if (`${root.dev}:${root.ino}` !== this.rootIdentity) return false;
+      const session = recordSessionKey(metadata[0]!), state = this.sessionScans.get(session);
+      const folder = await lstat(join(this.root, session));
+      if (`${folder.dev}:${folder.ino}` !== state?.identity) return false;
+      const events = new Set(metadata.map(record => record.eventId));
+      for (const [path, entry] of state.files) if (entry.metadata && events.has(entry.metadata.eventId)) {
+        if (fileFingerprint(await lstat(path)) !== entry.fingerprint) return false;
+      }
+      return true;
+    } catch { return false; }
+  }
   /** One refreshed metadata snapshot, no per-row detail reads. Exact links precede aggregation. */
-  async threadOverview(threadId: string, selection: OverviewSelection = {}): Promise<ThreadOverview> {
+  async threadOverview(threadId: string, selection: OverviewSelection = {}, ownerScope?: string): Promise<ThreadOverview> {
+    const query = selection.query ?? (Object.keys(selection).length ? { kind: 'calls' as const } : { kind: 'inventory' as const });
+    if (query.kind !== 'calls' && Object.keys(selection).some(key => key !== 'query')) throw new Error('invalid-selection');
+    if (query.kind === 'call') selection = { sessionId: query.sessionId, callId: query.callId, ruleCursor: query.ruleCursor };
     for (const cursor of [selection.sessionCursor, selection.callCursor, selection.ruleCursor]) if (cursor && cursor.length > 512) throw new Error('invalid-page');
     if (selection.ruleCursor && (!selection.sessionId || !selection.callId)) throw new Error('invalid-selection');
     const { groups, writerLoss } = this.linkedGroups(threadId);
+    const failedCalls = new Set([...groups].filter(([, records]) => this.selectedFailure(records)).map(([id]) => id));
+    const readScope = ownerScope ?? sessionKey(JSON.stringify([this.root, this.rootIdentity, threadId]));
+    const sourceRevision = this.ruleRevision();
+    const revision = sessionKey(JSON.stringify([readScope, threadId, sourceRevision, [...groups.keys()].sort(), writerLoss]));
+    const threadRules = projectThreadRules([...groups].map(([id, records]) => ({ id,
+      sessionId: sessionKey(JSON.stringify([threadId, recordSessionKey(records[0]!)])), stages: records.map(record => record.ruleStage), previews: records.flatMap(record => record.rulePreviews ?? []) })),
+      query.kind === 'calls' ? { kind: 'inventory' } : query,
+      { threadId, readScope, revision, indexing: this.indexing, archiveIssues: this.issues().length > 0, writerLoss });
+    if (query.kind === 'inventory' || query.kind === 'checks') return { state: 'available', readScope, revision, threadRules,
+      coverage: groups.size ? 'partial' : 'unknown', linkedCalls: groups.size, failures: failedCalls.size,
+      issues: [...new Set([...this.issues().map(issue => issue.reason), ...(writerLoss ? ['writer-loss'] : [])])].slice(0, 20),
+      sessions: [], nextSession: null, sessionId: null, calls: [], nextCall: null, selectedId: null, selected: null };
     const sessions = new Map<string, { row: LinkedSessionSummary; groups: Map<string, Metadata[]> }>();
-    let failures = 0;
     for (const [id, records] of groups) {
       const native = recordSessionKey(records[0]!);
       const sessionId = sessionKey(JSON.stringify([threadId, native]));
@@ -680,8 +709,7 @@ export class ArchiveIndex {
         sessions.set(sessionId, session);
       }
       const row = this.summarize(id, records);
-      const selectedFail = this.selectedFailure(records);
-      if (selectedFail) failures++;
+      const selectedFail = failedCalls.has(id);
       row.categories = row.categories.filter(c => c !== 'violation' || selectedFail);
       session.row.timestamp = Math.max(session.row.timestamp, row.updated);
       session.row.started = Math.min(session.row.started, row.timestamp);
@@ -689,16 +717,16 @@ export class ArchiveIndex {
       for (const c of row.categories) session.row.categoryCounts[c]++;
       session.groups.set(id, records);
     }
-    const sessionPage = page([...sessions.values()].map(s => s.row), { limit: 50, cursor: selection.sessionCursor }, `bb-sessions:${threadId}`);
+    const sessionPage = page([...sessions.values()].map(s => s.row), { limit: 50, cursor: selection.sessionCursor }, `bb-sessions:${readScope}:${threadId}`, row => row.timestamp, revision);
     const sessionId = selection.sessionId ?? sessionPage.items[0]?.id ?? null;
     const selectedSession = sessionId ? sessions.get(sessionId) : null;
     if ((selection.sessionId && !selectedSession) || (selection.callId && !selectedSession) || (selection.callCursor && !selectedSession)) throw new Error('invalid-selection');
     const rows = [...(selectedSession?.groups ?? [])].map(([id, records]) => {
       const row = this.summarize(id, records);
-      row.categories = row.categories.filter(c => c !== 'violation' || this.selectedFailure(records));
+      row.categories = row.categories.filter(c => c !== 'violation' || failedCalls.has(id));
       return projectSummaryCall(row);
     }).filter(row => !selection.category || row.categories.includes(selection.category));
-    const callPage = page(rows, { limit: 50, cursor: selection.callCursor }, `bb-calls:${threadId}:${sessionId}:${selection.category ?? ''}`);
+    const callPage = page(rows, { limit: 50, cursor: selection.callCursor }, `bb-calls:${readScope}:${threadId}:${sessionId}:${selection.category ?? ''}`, row => row.timestamp, revision);
     const selectedId = selection.callId ?? callPage.items[0]?.id ?? null;
     const metadata = selectedId ? selectedSession?.groups.get(selectedId) : null;
     if (selection.callId && !metadata) throw new Error('invalid-selection');
@@ -710,11 +738,14 @@ export class ArchiveIndex {
       const first = metadata[0]!;
       const detail = await this.detail(recordSessionKey(first), recordInvocationKey(first), threadId);
       const observed = new Set(detail.records.map(r => r.eventId));
-      if (detail.readIssues.length || metadata.some(r => !observed.has(r.eventId)) || detail.records.some(r => r.host !== 'pi' || ![3, 4, 5].includes(r.schemaVersion))) issues.add('detail-unavailable');
+      if (detail.readIssues.length || detail.records.length !== metadata.length || metadata.some(r => !observed.has(r.eventId))
+        || detail.records.some(r => r.host !== 'pi' || ![3, 4, 5].includes(r.schemaVersion)
+          || metadata.find(m => m.eventId === r.eventId)?.ruleStage.digest !== sessionRuleStage(r).digest)
+        || this.ruleRevision() !== sourceRevision || !await this.overviewSourcesCurrent(metadata)) issues.add('detail-unavailable');
       else {
         // Hash the selected recorded snapshot on this host. No source data enters the cursor.
         const snapshot = sessionKey(JSON.stringify(detail.records));
-        const scope = sessionKey(JSON.stringify(['bb-rules', threadId, sessionId, selectedId, snapshot]));
+        const scope = sessionKey(JSON.stringify(['bb-rules', readScope, revision, threadId, query.kind === 'call' ? query.ruleId : null, sessionId, selectedId, snapshot]));
         let offset = 0;
         if (selection.ruleCursor) {
           let key: any;
@@ -731,7 +762,7 @@ export class ArchiveIndex {
           ? Buffer.from(JSON.stringify({ scope, offset: nextOffset })).toString('base64url') : null };
       }
     }
-    return { state: 'available', coverage: groups.size ? 'partial' : 'unknown', linkedCalls: groups.size, failures,
+    return { state: 'available', readScope, revision, threadRules, coverage: groups.size ? 'partial' : 'unknown', linkedCalls: groups.size, failures: failedCalls.size,
       issues: [...issues].slice(0, 20), sessions: sessionPage.items, nextSession: sessionPage.next, sessionId,
       calls: callPage.items, nextCall: callPage.next, selectedId, selected };
   }

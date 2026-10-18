@@ -11,7 +11,7 @@ for (const [viewport, width] of [[390, 390], [1280, 390], [1280, 1000]]) test(`r
   let workspace: ReturnType<typeof mountSummaryWorkspace>;
   function input() {
     const data = rulesSyntheticRead(selection);
-    return { model: { calls: data.calls, selected: data.selected, selectedId: data.selectedId!, category: '' as const, coverage: 'Offline rule fixture.', loading: false, error: '', moreRules: !!data.selected?.rulePage?.next },
+    return { variant: 'calls' as const, model: { calls: data.calls, selected: data.selected, selectedId: data.selectedId!, category: '' as const, coverage: 'Offline rule fixture.', loading: false, error: '', moreRules: !!data.selected?.rulePage?.next },
       actions: { selectCall(id: string) { selection = { callId: id }; workspace.update(input()); }, filterCategory() {}, refresh() {},
         loadMoreRules() { selection = { callId: data.selectedId!, ruleCursor: data.selected!.rulePage!.next! }; workspace.update(input()); },
         restartRules() { delete selection.ruleCursor; workspace.update(input()); } } };

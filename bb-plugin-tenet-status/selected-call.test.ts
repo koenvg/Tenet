@@ -4,10 +4,11 @@ import { overviewSchema } from './overview-contract.js';
 import { emptyOverview, projectSummaryDecision } from '../src/inspector/bb-summary.js';
 import { selectedPassRecords, selectedRecords } from '../test/selected-summary-fixture.js';
 
+import { syntheticEmptyOverview } from './overview.preview-fixture.js';
 const id = 'a'.repeat(64);
 test('strict owner selected RPC permits exactly the bounded recorded field and compact FAIL facts', () => {
   const selected = projectSummaryDecision(selectedRecords(20));
-  const response = { ...emptyOverview(), state: 'available', selectedId: id, selected };
+  const response = { ...syntheticEmptyOverview(), state: 'available', selectedId: id, selected };
   assert.deepEqual(overviewSchema.parse(response).selected?.recordedAction, { field: 'command', text: 'printf "a  b"\n  echo 雪', truncated: false });
   for (const invalid of [
     { ...selected.recordedAction, text: '雪'.repeat(1366) },
@@ -22,7 +23,7 @@ test('strict owner selected RPC permits exactly the bounded recorded field and c
 
 test('selected RPC requires coherent whole-call uncertainty, including unavailable assessments', () => {
   const selected = projectSummaryDecision(selectedRecords());
-  const parse = (reportedViolations: unknown) => overviewSchema.parse({ ...emptyOverview(), state: 'available', selectedId: id, selected: { ...selected, reportedViolations } });
+  const parse = (reportedViolations: unknown) => overviewSchema.parse({ ...syntheticEmptyOverview(), state: 'available', selectedId: id, selected: { ...selected, reportedViolations } });
   assert.equal(parse({ ...selected.reportedViolations, uncertain: false }).selected?.reportedViolations.uncertain, false);
   const { uncertain, ...missing } = selected.reportedViolations as any;
   assert.throws(() => parse(missing));
@@ -35,7 +36,7 @@ for (const gate of ['outcome-confidence-below-threshold', null]) test(`selected 
   const rows = selectedPassRecords(gate);
   for (const offset of [0, 16]) {
     const selected = projectSummaryDecision(rows, offset);
-    const parsed = overviewSchema.parse({ ...emptyOverview(), state: 'available', selectedId: id, selected }).selected!;
+    const parsed = overviewSchema.parse({ ...syntheticEmptyOverview(), state: 'available', selectedId: id, selected }).selected!;
     assert.deepEqual(parsed.reportedViolations, { assessment: 'validated', uncertain: true, items: [], total: 0, missingRuleSnapshots: 0 });
     assert.equal(parsed.noRulesClassifiedViolated, true);
     assert.deepEqual(parsed.categories, []);
