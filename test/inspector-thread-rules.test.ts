@@ -8,6 +8,11 @@ import { ruleRecording, refreshRules } from './session-rules-fixture.js';
 import { ArchiveIndex } from '../src/inspector/archive-index.js';
 import { overviewSchema, overviewSelectionSchema } from '../bb-plugin-tenet-status/overview-contract.js';
 import { recordFixture } from './recording-fixture.js';
+import { projectThreadRules } from '../src/inspector/thread-rules.js';
+import { sessionRuleStage } from '../src/inspector/session-rules.js';
+import { recordedRulePreviews } from '../src/inspector/action-preview.js';
+import { recordInvocationKey, recordSessionKey, sessionKey } from '../src/recording/archive.js';
+import { validRecord } from '../src/recording/contract.js';
 
 const threadId = 'thr_abcdefgh1234', other = 'thr_wxyzabcd1234';
 const sentinel = 'RAW-THREAD-RULE-SENTINEL';
@@ -135,35 +140,60 @@ test('safe overview transport rejects extra private fields, oversized UTF-8 and 
   assert.equal(overviewSelectionSchema.safeParse({ query: { kind: 'inventory', readScope: 'f'.repeat(64) } }).success, false);
 }));
 
-test('retention caps disclose omissions while later folds still flag an old check beyond retained history', () => fixture(async (writer, index) => {
-  for (let n = 0; n < 4101; n++) {
-    record(writer, 'check-history', `check-${n}`, n === 0 ? 'FAIL' : 'PASS'); await writer.settle();
-  }
-  for (let n = 0; n < 520; n++) {
-    record(writer, 'rule-history', `policy-${n}`, 'PASS', threadId, data => { data.begin.policy.digest = `policy-${n}`; }); await writer.settle();
-  }
-  record(writer, 'check-history', 'latest-check', 'PASS'); await writer.settle();
-  await writer.complete(); await refreshRules(index);
-  const data = await index.threadOverview(threadId);
-  assert.equal(data.threadRules!.summary.retainedRules, 1024);
-  assert.equal(data.threadRules!.summary.inventory, 'unknown');
-  assert.ok(data.threadRules!.summary.omittedRules > 0);
-  assert.equal(data.threadRules!.summary.omittedChecks, 12);
-  assert.equal(data.threadRules!.summary.status, 'violation');
-  let page = data.threadRules!;
+test('retention caps disclose omissions while later folds still flag an old check beyond retained history', async () => {
+  type Observation = Parameters<typeof projectThreadRules>[0][number];
+  const observations = new Map<string, Observation>();
+  const writer = new FixtureArchiveWriter({ enabled: true, directory: '/synthetic/in-memory' }, undefined,
+    async (_root, _folder, _name, text) => {
+      const captured: unknown = JSON.parse(text);
+      assert.ok(validRecord(captured), 'valid historical stage');
+      // Sequence-based time keeps the first failure oldest and the repeated declaration newest.
+      const stage = { ...captured, timestamp: captured.sequence };
+      const session = recordSessionKey(stage);
+      const id = sessionKey(JSON.stringify([threadId, session, recordInvocationKey(stage)]));
+      let observation = observations.get(id);
+      if (!observation) {
+        observation = { id, sessionId: sessionKey(JSON.stringify([threadId, session])), stages: [], previews: [] };
+        observations.set(id, observation);
+      }
+      observation.stages.push(sessionRuleStage(stage));
+      observation.previews.push(...recordedRulePreviews(stage.data, stage.stage) ?? []);
+    });
+  try {
+    for (let n = 0; n < 4101; n++) {
+      record(writer, 'check-history', `check-${n}`, n === 0 ? 'FAIL' : 'PASS'); await writer.settle();
+    }
+    for (let n = 0; n < 520; n++) {
+      record(writer, 'rule-history', `policy-${n}`, 'PASS', threadId, data => { data.begin.policy.digest = `policy-${n}`; }); await writer.settle();
+    }
+    record(writer, 'check-history', 'latest-check', 'PASS'); await writer.complete();
+  } finally { await writer.close(); }
+  assert.equal(writer.health().written, 18488);
+  assert.equal(observations.size, 4622);
+  const context = { threadId, readScope: sessionKey('retention-fixture'), revision: sessionKey('retention-revision'),
+    indexing: false, archiveIssues: false, writerLoss: false };
+  const data = projectThreadRules([...observations.values()], { kind: 'inventory' }, context);
+  let page = data;
+  assert.equal(data.kind, 'inventory');
+  assert.equal(data.summary.retainedRules, 1024);
+  assert.equal(data.summary.inventory, 'unknown');
+  assert.ok(data.summary.omittedRules > 0);
+  assert.equal(data.summary.omittedChecks, 12);
+  assert.equal(data.summary.status, 'violation');
+  assert.deepEqual(data.items.filter(row => row.checks === 4102).map(row => row.builtin).sort(), [false, true]);
   let rule;
   while (page.kind === 'inventory') {
     rule = page.items.find(row => !row.builtin && row.checks === 4102);
     if (rule || !page.next) break;
-    page = (await index.threadOverview(threadId, { query: { kind: 'inventory', inventoryCursor: page.next } })).threadRules!;
+    page = projectThreadRules([...observations.values()], { kind: 'inventory', inventoryCursor: page.next }, context);
   }
   assert.ok(rule, 'retained repeated declaration');
   assert.equal(rule.status, 'violation');
-  const checks = (await index.threadOverview(threadId, { query: { kind: 'checks', ruleId: rule.id } })).threadRules!;
+  const checks = projectThreadRules([...observations.values()], { kind: 'checks', ruleId: rule.id }, context);
   assert.equal(checks.kind, 'checks');
   assert.equal(checks.omittedChecks, 6); assert.equal(checks.rule.checks, 4102); assert.equal(checks.rule.status, 'violation');
   assert.equal(checks.items.every(check => check.status === 'clear'), true);
-}));
+});
 
 async function files(root: string) {
   const paths: string[] = [];
