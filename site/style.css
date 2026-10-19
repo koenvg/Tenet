@@ -23,14 +23,17 @@ a { color: inherit; text-decoration: none; }
 a:focus-visible { outline: 2px solid #171717; outline-offset: 5px; }
 ::selection { color: #fff; background: #171717; }
 
-.marketing-page { max-width: 1240px; margin: 0 auto; padding: 0 6.2%; }
-.first-screen { padding: 30px 0 36px; text-align: center; }
-.site-header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; }
+.marketing-page, .marketing-header { max-width: 1240px; margin: 0 auto; padding: 0 6.2%; }
+.first-screen { padding: 0 0 72px; text-align: center; }
+.site-header { display: flex; flex-wrap: wrap; gap: 12px 32px; align-items: center; justify-content: space-between; }
+.marketing-header { padding-top: 24px; }
+.marketing-header nav { display: flex; flex-wrap: wrap; gap: 0 24px; }
 .wordmark { font-size: 15px; font-weight: 500; letter-spacing: .2em; line-height: 1.4; }
-.site-header nav a { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; color: #626262; font-size: 13px; }
+.marketing-header a { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; }
+.site-header nav a { color: #626262; font-size: 14px; }
 
-.hero-copy { margin: 28px 0 0; }
-.hero-eyebrow, .rule-author { margin: 0 0 14px; color: #626262; font: 11px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .1em; text-transform: uppercase; }
+.hero-copy { margin: 48px 0 0; }
+.rule-author { margin: 0 0 14px; color: #626262; font: 11px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .1em; text-transform: uppercase; }
 .hero-copy h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(48px, 5.5vw, 68px); font-weight: 400; line-height: 1.02; letter-spacing: -.045em; }
 .hero-copy h1 span { display: block; }
 .hero-copy h1 em { color: #4d4d4d; font-weight: 400; }
@@ -43,30 +46,44 @@ a:focus-visible { outline: 2px solid #171717; outline-offset: 5px; }
 .key-button:focus-visible { outline: 2px solid #171717; outline-offset: 4px; }
 .key-button:hover [data-key] rect:first-child { fill: #ffffff; }
 .press-announcement { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.keypress-hint { margin: 8px 0 10px; color: #626262; font-size: 13px; line-height: 1.6; }
+.keypress-hint[aria-hidden="true"] { visibility: hidden; }
 .written-rule { margin: 0 auto; max-width: 650px; }
 .written-rule .rule-author { margin: 0 0 11px; font-size: 12px; }
 #example-rule { margin: 0; font-size: clamp(23px, 2.2vw, 29px); line-height: 1.35; letter-spacing: -.025em; }
-.hero-feedback { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0 16px; min-height: 44px; margin: 12px 0 14px; color: #626262; font-size: 12px; }
-.hero-feedback p { margin: 0; font-size: 13px; line-height: 1.6; }
-.hero-feedback strong { color: #171717; font-weight: 600; }
-.motion-control { min-height: 44px; padding: 0; border: 0; color: #4d4d4d; background: none; font: inherit; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
-.motion-control[hidden] { display: none; }
-.motion-control:focus-visible, .coverage summary:focus-visible { outline: 2px solid #171717; outline-offset: 5px; }
+.coverage summary:focus-visible { outline: 2px solid #171717; outline-offset: 5px; }
 .hero-actions { display: flex; justify-content: center; }
 .primary-action { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 48px; padding: 12px 24px; border-radius: 4px; color: #fff; background: #171717; font-size: 14px; font-weight: 500; }
-.hero-limit { margin: 16px auto 0; color: #626262; font-size: 11px; line-height: 1.7; }
 
-.explanation { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 40px; border-top: 1px solid #d8d8d8; padding: 28px 0; scroll-margin-top: 30px; }
-.explanation h2 { margin: 0; font: 400 28px/1.2 Georgia, "Times New Roman", serif; letter-spacing: -.03em; }
-.explanation p { margin: 0; color: #626262; font-size: 14px; line-height: 1.7; }
-.explanation p + p { margin-top: 12px; }
-.explanation code, .coverage code { font-size: .92em; overflow-wrap: anywhere; }
-.coverage { padding-bottom: 24px; color: #626262; font-size: 12px; line-height: 1.8; }
-.coverage summary { width: fit-content; min-height: 44px; display: list-item; align-content: center; cursor: pointer; }
-.coverage p { max-width: 70ch; margin: 12px 0 0; }
-.read-more { display: inline-block; min-height: 44px; padding-top: 10px; text-decoration: underline; text-underline-offset: 4px; }
-.marketing-page .site-footer { align-items: center; margin: 0; padding: 16px 0 25px; color: #626262; font-size: 11px; line-height: 1.7; }
+.marketing-page .marketing-section { padding: 96px 0; scroll-margin-top: 32px; }
+.marketing-page .marketing-section h2 { margin: 0 0 28px; font: 400 clamp(32px, 3.5vw, 44px)/1.12 Georgia, "Times New Roman", serif; letter-spacing: -.03em; text-wrap: balance; }
+.marketing-page .marketing-section p { max-width: 70ch; margin: 0; color: #626262; font-size: 16px; line-height: 1.75; }
+.marketing-page .marketing-section p + p { margin-top: 14px; }
+.marketing-page .marketing-section code { font-size: .9em; overflow-wrap: anywhere; }
+.marketing-page .marketing-section pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.marketing-page .policy-story { border-top: 1px solid #d8d8d8; }
+.marketing-page details { max-width: 78ch; }
+.marketing-page details summary { min-height: 44px; padding: 12px 0; font-size: 16px; line-height: 1.6; cursor: pointer; }
+.marketing-page details p { margin-top: 14px; font-size: 15px; }
+.marketing-page .read-more { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin: 6px 20px 0 0; padding: 8px 0; font-size: 15px; line-height: 1.6; text-decoration: underline; text-underline-offset: 4px; }
+.marketing-page .read-more span { flex-shrink: 0; }
+.marketing-page .faq-story h2 { font: 400 28px/1.2 Georgia, "Times New Roman", serif; }
+.marketing-page .faq-story { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 64px; padding: 40px 0; border-top: 1px solid #d8d8d8; }
+.marketing-page .faq-list { max-width: none; }
+.marketing-page .faq-item { border-top: 1px solid #d8d8d8; }
+.marketing-page .faq-item:last-child { border-bottom: 1px solid #d8d8d8; }
+.marketing-page .faq-item summary { padding: 16px 0; }
+.marketing-page .faq-item p { padding: 0 0 20px; font-size: 14px; }
+.marketing-page .faq-item .read-more { margin-top: -12px; margin-bottom: 16px; }
+.marketing-page summary:focus-visible { outline: 2px solid #171717; outline-offset: 5px; }
+.marketing-page .closing-story { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 64px; align-items: baseline; padding: 96px 0 80px; }
+.marketing-page .closing-story .closing-mark { font-size: clamp(48px, 7vw, 88px); letter-spacing: -.04em; }
+.marketing-page .closing-story h2 { font-size: clamp(36px, 4vw, 48px); }
+.marketing-page .closing-story p { max-width: 50ch; font-size: 15px; }
+.marketing-page .site-footer { align-items: center; margin: 0; padding: 24px 0; color: #626262; font-size: 14px; line-height: 1.7; }
 .marketing-page .site-footer p { margin: 0; }
+.marketing-page .site-footer nav { display: flex; flex-wrap: wrap; gap: 0 24px; }
+.marketing-page .site-footer a { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; }
 .site-footer {
   display: flex;
   flex-wrap: wrap;
@@ -110,20 +127,23 @@ a:focus-visible { outline: 2px solid #171717; outline-offset: 5px; }
 
 
 @media (max-width: 700px) {
-  .marketing-page { padding: 0 7%; }
-  .first-screen { padding: 20px 0 30px; }
+  .marketing-page, .marketing-header { padding-right: 7%; padding-left: 7%; }
+  .first-screen { padding: 0 0 48px; }
+  .marketing-header { padding-top: 16px; gap: 4px; }
+  .marketing-header nav { width: 100%; gap: 0 20px; }
   .wordmark { font-size: 15px; }
-  .site-header nav a { font-size: 12px; }
-  .hero-copy { margin-top: 25px; }
+  .site-header nav a { font-size: 14px; }
+  .hero-copy { margin-top: 32px; }
   .hero-copy h1 { font-size: clamp(40px, 11vw, 49px); }
   .hero-lead { max-width: 290px; font-size: 14px; margin-top: 17px; }
   .keypress-art { height: 230px; }
   #example-rule { font-size: 24px; }
-  .hero-feedback { gap: 0 12px; font-size: 11px; }
-  .hero-limit { max-width: 290px; }
-  .explanation { grid-template-columns: 1fr; gap: 14px; padding: 26px 0; }
-  .explanation h2 { font-size: 26px; }
-  .explanation p { font-size: 13px; }
+  .marketing-page .marketing-section { padding: 56px 0; }
+  .marketing-page .faq-story, .marketing-page .closing-story { grid-template-columns: 1fr; gap: 24px; }
+  .marketing-page .faq-story h2 { margin-bottom: 0; }
+  .marketing-page .faq-story { padding: 32px 0; }
+  .marketing-page .closing-story { padding: 64px 0 48px; gap: 24px; }
+  .marketing-page .closing-story .closing-mark { font-size: 56px; }
   .site-footer { font-size: 14px; }
   .site-header .wordmark, .site-footer a { display: inline-flex; align-items: center; min-height: 44px; }
   .docs-header { padding: 27px 6.2% 0; }

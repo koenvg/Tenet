@@ -3,6 +3,17 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { policyRoutes, policyRule } from '../site/src/policy-routes.ts';
+
+test('the deletion proposals are data only and match the displayed rule', () => {
+  expect(policyRule).toBe('Never delete production data.');
+  expect(policyRoutes.map(({ id, call }) => ({ id, call }))).toEqual([
+    { id: 'pi-write', call: { name: 'write', arguments: { path: 'production/customers.json', content: '[]\n' } } },
+    { id: 'bash-rm', call: { name: 'bash', arguments: { command: 'rm production/customers.json' } } },
+    { id: 'bash-python', call: { name: 'bash', arguments: { command: `python3 -c 'from pathlib import Path; Path("production/customers.json").unlink()'` } } },
+    { id: 'bash-find', call: { name: 'bash', arguments: { command: 'find production -name customers.json -delete' } } },
+  ]);
+});
 const siteRoot = new URL("../site/dist/", import.meta.url);
 const pages = ["index.html", "docs.html"];
 
@@ -123,21 +134,71 @@ test("the keypress hero applies an owner-written rule before deletion", () => {
   const html = page("index.html");
   expect(html).toContain("Some actions");
   expect(html).toContain("never land.");
-  expect(html).toContain("You write the rules. TENET checks the agent's tool calls against them.");
+  expect(html).toContain("You write the rules. TENET checks eligible Pi tool calls against them.");
   expect(html).toContain("Your rule, for example");
   expect(html).toContain("Never delete production data.");
-  expect(html).toContain("<strong>Delete blocked</strong> before execution.");
   expect(html).toContain(">Blocked</text>");
-  expect(html).toContain("Illustrative opt-in enforcement. Observe mode only reports.");
+  expect(html).not.toMatch(/hero-feedback|hero-limit|alpha-note|data-motion-control|data-hero-status/);
   expect(html).toContain("TENET can be wrong. It isn't an OS sandbox.");
   expect(html).toContain("Observe is the default.");
-  expect(html).toContain("If you opt in to enforcement,");
-  expect(html).toContain("Coverage &amp; recording");
-  expect(html).toContain("even when a call passes");
-  expect(html).toContain("code or secrets");
-  expect(html).toContain("TENET_RECORDING=off");
 });
 
+test("the focused homepage retains setup, FAQ and factual safety limits", () => {
+  const html = page("index.html").replace(/<br\s*\/?>/g, " ");
+  for (const id of ["content", "how-it-works", "faq", "get-started"]) expect(html).toContain(`id="${id}"`);
+  for (const id of ["modes", "inspector", "workflows", "privacy"]) {
+    expect(html).not.toContain(`id="${id}"`);
+    expect(html).not.toContain(`href="#${id}"`);
+  }
+  for (const text of [
+    "1. Write your rule in <code>TENET.md</code> in plain text.", "Before you start", "Start with your own rule.",
+    "eligible Pi tool calls",
+    "Observe is the default.", "never blocks a call or asks for approval", "even when assessment is unavailable",
+    "Enforcement requires explicit opt-in and a new Pi process", "does not inspect subprocess internals",
+    "policy, paths, tool evidence and bounded recent observations to TypeSafe", "use quota", "secrets despite redaction",
+    "TENET_RECORDING=off", "before starting Pi", "does not stop provider disclosure or native findings",
+    "does not delete old records", "private passing-main GitHub Actions artifact", "not an npm package or public release",
+  ]) expect(html).toContain(text);
+  expect(html).not.toContain('TENET checks eligible Pi tool calls and reports findings to you, not the agent. The animation uses fictional data and runs no tools or assessments.');
+  expect(html).toMatch(/href="\.\/docs\.html#setup"[^>]*>Read the setup guide/);
+  expect(html.match(/>Read the setup guide/g)).toHaveLength(1);
+  expect(html.match(/<details class="faq-item">/g)).toHaveLength(5);
+  expect(html).toContain('href="#content">Skip to content');
+  expect(html).toContain('href="#faq">FAQ');
+  expect(html).toContain('href="./docs.html#limits">Limits');
+  expect(existsSync(new URL('../site/src/ModeScene.tsx', import.meta.url))).toBe(false);
+  for (const fact of ['Pi 1.3.0', 'alpha SDK without Pi', 'opt-in and unverified', 'one unchanged pending invocation', 'unencrypted', 'owner-restricted', 'not a complete audit log']) expect(page('docs.html')).toContain(fact);
+});
+
+test('the local animation is prerendered without removed sections or inert controls', () => {
+  const html = page('index.html');
+  for (const text of ['fork-demonstration', 'Fictional Pi call', 'Enforce mode', 'opt-in', 'Would block', 'Would empty data']) expect(html).toContain(text);
+  expect(html.match(/class="fork-demonstration"/g)).toHaveLength(1);
+  expect(html.match(/class="fork-rule">Never delete production data\./g)).toHaveLength(1);
+  expect(html).toContain('class="fork-data-without">[]');
+  expect(html).toContain('class="fork-data-with">[\n  { "id": "example" }\n]');
+  expect(html).not.toMatch(/policy-workbench|policy-rig|data-rig-part|class="policy-file"|class="gate-result"/);
+  expect(html).not.toMatch(/policy-caption|policy-transport|policy-qualification|argument-inspector|policy-examples|policy-details|mode-story|inspector-story|workflow-story|privacy-story|evidence-spread/);
+  const policy = html.split('id="how-it-works"')[1].split('</section>')[0];
+  expect(policy.match(/<h2\b/g)).toHaveLength(1);
+  expect(policy).toContain('<h2 id="how-title">1. Write your rule in <code>TENET.md</code> in plain text.</h2>');
+  expect(policy).not.toMatch(/<h3\b|Your policy\.|Same call\.|Different ending\.|section-intro/);
+  expect(policy).not.toMatch(/<figcaption|<details|<div class="policy-navigation"|<div class="policy-play-controls"/);
+  expect(html).not.toMatch(/Verified|reliably understood|all methods/);
+  expect(html).not.toMatch(/<button[^>]*aria-pressed=/);
+  expect(html).not.toMatch(/<input|<textarea|contenteditable/);
+});
+
+test("homepage metadata describes the current Pi alpha without invented deployment facts", () => {
+  const html = page("index.html");
+  expect(html).toContain('<meta property="og:title" content="TENET | Your rules. Their next move."');
+  expect(html).toContain('<meta property="og:type" content="website"');
+  expect(html).toContain('<meta name="twitter:card" content="summary"');
+  for (const attribute of ['name="description"', 'property="og:description"', 'name="twitter:description"']) {
+    expect(html).toContain(`${attribute} content="TENET is an alpha policy guard for Pi. Write plain-text rules, observe findings, and opt into enforcement. Start with the setup guide."`);
+  }
+  expect(html).not.toMatch(/rel="canonical"|og:url|og:image|application\/ld\+json/);
+});
 test("the homepage uses only neutral black, white and grey colors", () => {
   for (const source of [page("index.html"), readFileSync(new URL("../site/style.css", import.meta.url), "utf8")]) {
     const colors = [...source.matchAll(/#([\da-f]{6}|[\da-f]{3})\b/gi)];
