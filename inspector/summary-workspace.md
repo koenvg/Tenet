@@ -12,7 +12,7 @@ Use Bun 1.3.14+, Node 22.19+, the [locked development dependencies](../CONTRIBUT
    bun run plugin:build
    ```
 
-   This rebuilds the React library, scoped CSS and TypeScript declarations in ignored `bb-plugin-tenet-status/.summary-workspace/`. React stays external so the standalone app and BB each use their own existing React runtime. The command then runs `npm run build` in the plugin directory. Nothing is installed or reloaded.
+   This rebuilds the React library, scoped CSS and TypeScript declarations in ignored `bb-plugin-tenet-status/.summary-workspace/`. React stays external so BB uses its existing React runtime. The command then runs `npm run build` in the plugin directory. Nothing is installed or reloaded.
 
 2. Check the library and React adapter:
 
@@ -26,6 +26,16 @@ Use Bun 1.3.14+, Node 22.19+, the [locked development dependencies](../CONTRIBUT
    ```
 
 Success means each command exits zero. A missing or stale library stops the plugin build with `bun run summary:build` as the fix. Run that command from the root before importing the wrapper. The build stamp checks source content, not file modification times. Use the [full offline verification order](../CONTRIBUTING.md#check-a-change) for application and standalone workflow checks.
+
+For presentation changes, select checks by owner:
+
+| Changed area | Focused regression coverage |
+| --- | --- |
+| Standalone session-rule shell and private detail | [session-rule components](tests/components/session-rules.vitest.ts) and [standalone session-rule journeys](tests/integration/session-rules.pw.ts), within all three [Inspector test lanes](tests/README.md). |
+| Shared BB overview and adapter | [thread-rule plugin checks](../bb-plugin-tenet-status/thread-rules.vitest.tsx), [mount checks](../bb-plugin-tenet-status/summary-workspace.vitest.tsx) and [thread-rule journeys](tests/integration/thread-rules.pw.ts) for both panel and main-page entry points. |
+| BB main-page routing and selection | [main-page plugin checks](../bb-plugin-tenet-status/main.vitest.tsx) and [main-page journeys](tests/integration/bb-main.pw.ts). The picker and dashboard are outside the shared overview. |
+
+Run browser checks with synthetic data in the [isolated validation environment](../CONTRIBUTING.md#run-focused-checks-in-a-clean-shell). The component command above does not run journeys. The complete offline lane includes these checks; success does not prove native BB focus, live evaluator connectivity or active host hooks.
 
 ## Preview safe synthetic data
 
@@ -47,7 +57,7 @@ This source-only preview uses authored summaries. It reads no archive, sends no 
 
 The list and summary appear beside each other above a 650px workspace width. The compact navigation uses the workspace container width, not the window width. If port 52351 is occupied, use the URL Vite prints.
 
-Open `http://127.0.0.1:52351/comparison-preview.html` for the common-summary-only comparison. Both adapters receive the same authored fixture, selection and category filter. Summary disclosures and compact navigation stay synchronized when you use either side.
+Open `http://127.0.0.1:52351/comparison-preview.html` for the common-summary-only comparison. Both fixture adapters receive the same authored data, selection and category filter. Summary disclosures and compact navigation stay synchronized when you use either side. This preview preserves the earlier call-summary comparison, not the current standalone rule-first shell or BB's default thread-rule overview.
 
 Add `?container=390` to compare 390px containers inside a wide window. Check that shared fields have the same content, order and positions, not only that they fit. The preview starts without raw extensions, so omitted raw content cannot change the common layout.
 
@@ -112,15 +122,18 @@ The optional `evaluatorState` on calls and selected summaries contains recorded 
 ## Shared layout and separate recorded detail
 
 ```text
-standalone HTTP -> archive-state.ts -> App.tsx -> RulePanel.tsx -> Detail.tsx
-                                     -> shared RuleStatus
-
-BB host RPC -> validated safe summary -> React mount -> SummaryWorkspace
-                                                     -> ThreadRuleWorkspace
-                                                     -> SummaryDetail
+standalone HTTP -> useArchive -> App.tsx / InspectorWorkspace -> RulePanel -> Detail
+BB sidepanel -> OverviewPanel -> OverviewAdapter -> SummaryWorkspaceMount
+BB main page -> OverviewPanel -------------------/          -> SummaryWorkspace
+                                                              -> ThreadRuleWorkspace
+                                                              -> SummaryDetail
 ```
 
-The standalone app uses `useArchive` in [archive-state.ts](src/archive-state.ts) for its loader, polling and history. Its [App.tsx](src/App.tsx) shell and [RulePanel.tsx](src/RulePanel.tsx) keep private recorded data separate from BB. [SummaryWorkspace.tsx](src/shared/SummaryWorkspace.tsx) selects the BB thread-rule or call-oriented layout. Both interfaces share [RuleStatus.tsx](src/shared/RuleStatus.tsx) labels, icons and colours.
+The standalone app uses `useArchive` in [archive-state.ts](src/archive-state.ts) for private HTTP reads, polling and history. [App.tsx](src/App.tsx) renders its local `InspectorWorkspace`, a session-rule list and [RulePanel.tsx](src/RulePanel.tsx), with [standalone.css](src/standalone.css). It does not render `SummaryWorkspace`.
+
+The BB thread sidepanel is registered in [app.tsx](../bb-plugin-tenet-status/app.tsx). The main-page thread overview in [main-page.tsx](../bb-plugin-tenet-status/main-page.tsx) uses the same [OverviewPanel](../bb-plugin-tenet-status/overview-panel.tsx); its project picker and dashboard are separate. [OverviewAdapter](../bb-plugin-tenet-status/overview-adapter.ts) owns safe reads, polling and selection for both overview entry points.
+
+[SummaryWorkspace.tsx](src/shared/SummaryWorkspace.tsx) selects the BB thread-rule or call-oriented layout. [ThreadRuleWorkspace.tsx](src/shared/ThreadRuleWorkspace.tsx) owns the default thread-rule presentation; **Browse calls** opens the call-oriented variant. Both interfaces share [RuleStatus.tsx](src/shared/RuleStatus.tsx) labels, icons and semantic colours, not the standalone shell.
 
 Standalone Detail shows named permission, tool result and assessment facts, followed by two native disclosures. **Why this assessment** contains compact recorded-rule explanations. **Recorded data** contains submitted action, policy, exact evidence/questions, response and recording details. New selections close disclosures; unchanged polls keep them mounted. The standalone UI does not fetch groups.
 

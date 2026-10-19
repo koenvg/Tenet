@@ -1,8 +1,30 @@
 # Inspector design
 
+Use this developer-checkout guide to locate the current standalone Inspector and BB thread overview components. The older call-first design below records prior approvals, not the current default layout.
+
+## Current workspace ownership
+
+| Entry point | Current presentation | Styles and data owner |
+| --- | --- | --- |
+| Standalone Inspector | [App.tsx](inspector/src/App.tsx) renders its local `InspectorWorkspace`, a session-rule list and [RulePanel.tsx](inspector/src/RulePanel.tsx). Recorded actions open [Detail.tsx](inspector/src/Detail.tsx). | [standalone.css](inspector/src/standalone.css) styles the shell. `useArchive` in [archive-state.ts](inspector/src/archive-state.ts) owns private HTTP reads, polling and history. |
+| BB thread sidepanel | [app.tsx](bb-plugin-tenet-status/app.tsx) registers `OverviewPanel` for **TENET overview**. | Both BB entry points use the shared path below. |
+| BB main-page thread overview | [main-page.tsx](bb-plugin-tenet-status/main-page.tsx) renders the same `OverviewPanel` after thread selection. Its project picker and dashboard are separate. | [OverviewAdapter](bb-plugin-tenet-status/overview-adapter.ts) owns safe reads, polling and selection. |
+
+```text
+BB sidepanel --------> OverviewPanel -> SummaryWorkspaceMount -> SummaryWorkspace
+BB main-page thread -/                                          -> ThreadRuleWorkspace
+                                                               -> SummaryDetail
+```
+
+Both BB entry points default to recorded rules aggregated across exactly linked thread sessions. Recorded calls remain available through **Browse calls**. [SummaryWorkspace.tsx](inspector/src/shared/SummaryWorkspace.tsx) selects the thread-rule or call-oriented variant, styled by [workspace.css](inspector/src/shared/workspace.css). BB does not mount the standalone shell or import `standalone.css`.
+
+The standalone Inspector does not render `SummaryWorkspace`. Both interfaces share [RuleStatus.tsx](inspector/src/shared/RuleStatus.tsx) labels, icons and semantic colours, not an entire workspace. Unknown inventory, unchecked and unclear results, capture limits and pagination remain explicit. Neither interface reconstructs missing rules from current policy.
+
+For shared-library builds, synthetic previews and BB input limits, use the [summary workspace reference](inspector/summary-workspace.md#shared-layout-and-separate-recorded-detail). Its comparison preview is a call-summary fixture, not the current standalone application. For standalone changes, run all three [Inspector test lanes](inspector/tests/README.md). For BB overview changes, also run the plugin checks and both-entry-point journeys described in the summary reference. Use the [complete offline validation lane](CONTRIBUTING.md#check-a-change) for full verification. These checks do not establish live connectivity or installed-host coverage.
+
 ## Approved direction
 
-Use this contributor guide to preserve the Inspector layout and recorded-data boundaries in a developer checkout. The selected call uses named permission, tool result and assessment facts.
+This section and the following Layout, Appearance and motion, and Approved acceptance change sections describe the historical call-first Inspector design from TENET-57, TENET-61 and TENET-62. They are not the current workspace ownership map. Selected-call detail still separates permission, tool result and assessment facts.
 
 The selected call is the default workspace. Calls has a directly visible Finding category select, with no repeated-group view. Recorded data replaces the Evidence dock and separate Details entry.
 
@@ -51,7 +73,7 @@ One short archive-state indicator replaces the two long top-level warnings. Reco
 
 ## Data boundaries
 
-The React standalone Inspector uses `useArchive` in `archive-state.ts` and the shared `SummaryWorkspace` layout. Its private call-list slot, `CallSummary.tsx`, `RecordedRule.tsx`, `RecordedConfidence.tsx` and `RecordedData.tsx` read private archive fields without adding them to the shared summary model or BB input. Shared BB summaries retain their own safe presentation and pagination contracts. None of these components evaluates policy.
+The standalone `InspectorWorkspace` uses `useArchive` and `RulePanel` for private recorded data. Its `Detail.tsx`, `CallSummary.tsx`, `RecordedRule.tsx`, `RecordedConfidence.tsx` and `RecordedData.tsx` read private archive fields without adding them to the shared summary model or BB input. BB's `SummaryWorkspace` retains its own safe presentation and pagination contracts. None of these components evaluates policy.
 
 BB's selected summary intentionally includes one retained scalar `command`, `path` or `file_path`, bounded to 4096 UTF-8 bytes without whitespace normalization. Its open content is the tool, recorded value and at most 16 reported selected-FAIL rule texts with whole-call count and omission notices.
 
