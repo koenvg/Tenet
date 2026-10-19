@@ -1,0 +1,55 @@
+.fork-demonstration { margin: 0; }
+.fork-heading { position: relative; padding-right: 64px; }
+.marketing-page .fork-heading h2 { max-width: 780px; min-height: 48px; margin: 0 0 24px; }
+.marketing-page .fork-heading h2 code { white-space: nowrap; font-size: .8em; letter-spacing: -.04em; }
+.fork-control { position: absolute; top: 4px; right: 0; display: grid; place-items: center; width: 44px; height: 44px; padding: 12px; border: 1px solid #d8d8d8; border-radius: 50%; background: #fff; color: #171717; cursor: pointer; }
+.fork-control:hover { border-color: #171717; background: #f4f4f4; }
+.fork-control:focus-visible { outline: 2px solid #171717; outline-offset: 3px; }
+.fork-control svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.fork-source { min-height: 148px; max-width: 680px; margin: 40px auto 0; text-align: center; }
+.fork-source > span { color: #626262; font-size: 13px; line-height: 1.7; }
+.marketing-page .fork-source pre { display: grid; align-items: center; min-height: 64px; padding: 12px 0; }
+.marketing-page .fork-source .fork-preview { font-size: clamp(16px, 2.2vw, 24px); line-height: 1.5; letter-spacing: -.025em; }
+.fork-target { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 8px; }
+.marketing-page .fork-source span code { font-size: 13px; }
+.fork-drawing { position: relative; height: 316px; }
+.fork-circuit { display: block; width: 100%; height: 100%; overflow: visible; }
+.fork-circuit path { fill: none; vector-effect: non-scaling-stroke; }
+.fork-guide { stroke: #dedede; stroke-width: 1; }
+.fork-trace { stroke: #171717; stroke-width: 2; stroke-linecap: round; }
+.fork-trace-without { stroke: #626262; }
+.fork-boundary { stroke: #171717; stroke-width: 3; }
+.fork-tip { stroke: #171717; stroke-width: 8; stroke-linecap: round; }
+.fork-tip-without { stroke: #626262; stroke-width: 6; }
+.fork-impact { stroke: #626262; stroke-width: 1; }
+.fork-branch-headings { position: absolute; inset: 0 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 32px; text-align: center; pointer-events: none; }
+.marketing-page .fork-branch-headings h4 { margin: 0 0 8px; font: 400 clamp(21px, 2.6vw, 30px)/1.15 Georgia, "Times New Roman", serif; letter-spacing: -.025em; }
+.fork-branch-headings span { display: block; color: #626262; font-size: 13px; line-height: 1.5; }
+.fork-branch-headings span span { display: inline; white-space: nowrap; }
+.fork-policy { position: absolute; top: 209px; left: 57.5%; width: 35%; text-align: center; }
+.fork-verdict { display: block; color: #626262; font-size: 13px; line-height: 1.5; }
+.marketing-page .fork-policy .fork-rule { max-width: 270px; margin: 8px auto 0; color: #171717; font: 400 clamp(21px, 2.5vw, 28px)/1.14 Georgia, "Times New Roman", serif; letter-spacing: -.025em; text-wrap: balance; }
+[data-fork-arrival="blocked"] .fork-verdict { color: #171717; font-weight: 600; }
+.fork-outcomes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; }
+.fork-outcome { min-width: 0; padding: 18px 10% 0; }
+.fork-outcome > span { display: block; min-height: 24px; color: #626262; font-size: 13px; line-height: 1.6; text-align: center; }
+.marketing-page .fork-outcome pre { min-height: 132px; margin-top: 18px; padding: 18px 20px; border-top: 1px solid #d8d8d8; background: #fafafa; }
+.marketing-page .fork-outcome pre code { display: block; font-size: 14px; line-height: 1.7; }
+[data-fork-arrival="blocked"] .fork-outcome-with { color: #171717; }
+@media (max-width: 700px) {
+  .fork-source { min-height: 154px; margin-top: 32px; }
+  .marketing-page .fork-source pre { min-height: 74px; }
+  .fork-branch-headings, .fork-outcomes { gap: 20px; }
+  .fork-branch-headings span { margin: 0 auto; }
+  .fork-branch-headings span span { display: block; }
+  .marketing-page .fork-branch-headings h4 { min-height: 51px; font-size: 22px; }
+  .fork-drawing { height: 414px; }
+  .fork-circuit { position: absolute; top: 104px; height: calc(100% - 104px); }
+  .fork-policy { top: 308px; left: 54%; width: 42%; }
+  .marketing-page .fork-policy .fork-rule { font-size: 21px; }
+  .fork-outcome { padding: 18px 0 0; }
+  .fork-outcome > span { min-height: 42px; }
+  .marketing-page .fork-outcome pre { min-height: 155px; margin-top: 10px; padding: 14px 10px; }
+  .marketing-page .fork-outcome pre code { font-size: 13px; }
+  .marketing-page .fork-outcome .fork-data-with { white-space: normal; }
+}

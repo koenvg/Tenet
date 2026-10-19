@@ -56,6 +56,7 @@ export default function DocsPage() {
 
       <section id="limits" aria-labelledby="limits-title">
         <h2 id="limits-title">Records and limits</h2>
+        <p>Recordings are unencrypted and owner-restricted, not isolated from other same-user processes. Capture is best-effort, not a complete audit log.</p>
         <p>The inspector is read-only and unauthenticated on loopback. Do not expose or proxy it to another machine. Use <a href="https://github.com/koenvg/Tenet/blob/main/docs/inspector.md#sensitive-local-storage">storage and deletion instructions</a> and <a href="https://github.com/koenvg/Tenet/blob/main/docs/configuration.md">exact configuration settings</a>.</p>
         <p>Tenet is in alpha, not an OS sandbox. It does not inspect subprocess internals or cover actions outside host hooks. Judgments and reporting can fail; Tenet cannot guarantee complete coverage or safety.</p>
         <p>Stock Pi and Claude have unsupported authenticated action resolution, so ordinary reads and edits do not automatically qualify for applicability exemptions. The <a href="https://github.com/koenvg/Tenet/blob/main/docs/claude-code.md">Claude Code prototype</a> is opt-in and unverified; Pi installation or enforce mode does not establish Claude coverage.</p>

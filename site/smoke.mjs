@@ -30,6 +30,24 @@ try {
     assert(html.includes('/fonts/Geist-latin.woff2'), `${path}: font preload`);
     assert(html.includes(path === '/docs.html' ? 'href="./index.html"' : 'href="./docs.html"'), `${path}: navigation link`);
     assert(html.includes(path === '/docs.html' ? 'Use TENET in Pi.' : 'Never delete production data.'), `${path}: content must exist without JavaScript`);
+    if (path !== '/docs.html') {
+      assert(html.includes('href="./docs.html#setup"'), `${path}: setup target`);
+      assert(html.includes('Read the setup guide'), `${path}: primary setup action`);
+      for (const id of ['content', 'how-it-works', 'faq', 'get-started']) {
+        assert(html.includes(`id="${id}"`), `${path}: prerendered ${id} section`);
+      }
+      for (const id of ['modes', 'inspector', 'workflows', 'privacy']) {
+        assert(!html.includes(`id="${id}"`) && !html.includes(`href="#${id}"`), `${path}: removed ${id} section and navigation`);
+      }
+      for (const text of ['TypeSafe', 'TENET_RECORDING=off', 'Fictional Pi call']) {
+        assert(html.includes(text), `${path}: ${text} content`);
+      }
+      assert(html.includes('property="og:type" content="website"'), `${path}: accurate social metadata`);
+    } else {
+      for (const text of ['Pi 1.3.0', 'alpha SDK without Pi', 'opt-in and unverified', 'one unchanged pending invocation']) {
+        assert(html.includes(text), `${path}: documented ${text}`);
+      }
+    }
     const references = [...html.matchAll(/(?:src|href)="(\/assets\/[\w.-]+\.(?:js|css))"/g)].map(match => match[1]);
     assert(references.some(file => file.endsWith('.css')), `${path}: built stylesheet`);
     assert(references.some(file => file.endsWith('.js')), `${path}: React client entry`);
