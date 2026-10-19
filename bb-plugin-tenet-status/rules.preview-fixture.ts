@@ -1,6 +1,6 @@
 import type { OverviewSelection, ThreadOverview } from '../src/inspector/bb-summary.js';
 import type { SummaryDecision, SummaryRule } from '../src/inspector/summary-model.js';
-import { syntheticOverview } from './overview.preview-fixture.js';
+import { syntheticOverview, projectSyntheticThread } from './overview.preview-fixture.js';
 import { summarizeBlockingRules } from '../src/inspector/summary-explanation.js';
 import { reportedViolations, uncertainGates } from '../src/inspector/summary-display.js';
 const id = (n: number) => n.toString(16).padStart(64, '0');
@@ -15,6 +15,7 @@ const rule = (n: number, choice = 'PASS', enforcement = 'BLOCK'): SummaryRule =>
 const cases = ['pass', 'FAIL', 'WARN', 'integrity', 'approval', 'uncertainty', 'provider failure'];
 export function rulesSyntheticRead(selection: OverviewSelection): ThreadOverview {
   const data = structuredClone(syntheticOverview);
+  if (selection.query?.kind === 'call') selection = { ...selection, callId: selection.query.callId, ruleCursor: selection.query.ruleCursor };
   data.linkedCalls = cases.length; data.failures = 3;
   data.calls = cases.map((name, n) => ({ ...data.calls[0]!, id: id(n + 20), callId: `synthetic-${name}`, timestamp: 7000 - n * 1000,
     categories: n === 1 || n === 2 || n === 3 ? ['violation'] : n === 4 ? ['approval'] : n === 5 ? ['uncertainty'] : n === 6 ? ['unavailable'] : [],
@@ -42,5 +43,5 @@ export function rulesSyntheticRead(selection: OverviewSelection): ThreadOverview
   data.selected = selected; data.selectedId = chosen.id;
   data.sessions[0]!.calls = cases.length; data.sessions[0]!.categoryCounts = { violation: 3, approval: 1, uncertainty: 1, unavailable: 1, pending: 0 };
   data.calls = data.calls.filter(c => !selection.category || c.categories.includes(selection.category));
-  return data;
+  return projectSyntheticThread(data, selection);
 }

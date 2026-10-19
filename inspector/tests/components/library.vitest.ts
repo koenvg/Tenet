@@ -19,14 +19,14 @@ test('mount update and disposal leave shell styles and resources alone', async (
   document.body.append(target);
   const interval = vi.spyOn(window, 'setInterval');
   const fetch = vi.spyOn(window, 'fetch');
-  const workspace = mountSummaryWorkspace(target, { model: structuredClone(previewInput.model), actions: { selectCall() {}, filterCategory() {}, refresh() {} } });
+  const workspace = mountSummaryWorkspace(target, { variant: 'calls', model: structuredClone(previewInput.model), actions: { selectCall() {}, filterCategory() {}, refresh() {} } });
   try {
-    workspace.update({ model: previewInput.model, actions: { selectCall() {}, filterCategory() {}, refresh() {} } });
+    workspace.update({ variant: 'calls', model: previewInput.model, actions: { selectCall() {}, filterCategory() {}, refresh() {} } });
     await tick();
     expect(target.querySelector('.primary-status')?.textContent).toContain('Ran');
-    expect(getComputedStyle(target.querySelector('.tenet-summary-workspace')!).backgroundColor).toBe('rgb(40, 45, 50)');
+    expect(getComputedStyle(target.querySelector('.tenet-summary-workspace')!).backgroundColor).toBe('rgb(20, 25, 30)');
     expect(getComputedStyle(target.querySelector('.tenet-summary-workspace')!).color).toBe('rgb(210, 220, 230)');
-    workspace.update({ model: { ...previewInput.model, selected: null, calls: [], error: 'Synthetic scope unavailable' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } });
+    workspace.update({ variant: 'calls', model: { ...previewInput.model, selected: null, calls: [], error: 'Synthetic scope unavailable' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } });
     await tick();
     expect(target.querySelector('.primary-status')).toBeNull();
     expect(target.querySelector('[role="alert"]')?.textContent).toBe('Synthetic scope unavailable');
@@ -46,7 +46,7 @@ test('summary updates retain open checks and rule selection only within the same
   const target = document.createElement('div'); document.body.append(target);
   const model = { ...previewInput.model, selectedId: 'first', selected: standaloneSummary(makeView()) };
   const actions = { selectCall() {}, filterCategory() {}, refresh() {}, loadMoreRules: vi.fn() };
-  const workspace = mountSummaryWorkspace(target, { model: { ...model, moreRules: true }, actions });
+  const workspace = mountSummaryWorkspace(target, { variant: 'calls', model: { ...model, moreRules: true }, actions });
   try {
     await tick();
     await page.getByText('Why this assessment', { exact: true }).click();
@@ -55,12 +55,12 @@ test('summary updates retain open checks and rule selection only within the same
     await page.getByRole('button', { name: 'More rules', exact: true }).click();
     expect(actions.loadMoreRules).toHaveBeenCalledOnce();
     await expect.element(page.getByRole('heading', { name: 'Rule at line 9' })).toBeVisible();
-    workspace.update({ model: { ...model, selected: standaloneSummary(makeView({ execution: 'executed' })) }, actions });
+    workspace.update({ variant: 'calls', model: { ...model, selected: standaloneSummary(makeView({ execution: 'executed' })) }, actions });
     await tick();
     await expect.element(page.getByRole('heading', { name: 'Rule at line 9' })).toBeVisible();
     await page.getByText('Recording details', { exact: true }).click();
     await expect.element(page.getByRole('region', { name: 'Actual execution' }).getByText('Ran', { exact: true })).toBeVisible();
-    workspace.update({ model: { ...model, selectedId: 'second', selected: standaloneSummary(makeView({ callId: 'second' })) }, actions });
+    workspace.update({ variant: 'calls', model: { ...model, selectedId: 'second', selected: standaloneSummary(makeView({ callId: 'second' })) }, actions });
     await tick();
     expect([...target.querySelectorAll('details')].some(detail => detail.open)).toBe(false);
   } finally { await workspace.destroy(); target.remove(); }

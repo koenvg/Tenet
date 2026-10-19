@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { OverviewAdapter } from './overview-adapter';
 import { SummaryWorkspaceMount } from './summary-workspace';
-import { syntheticRead as basicSyntheticRead } from './overview.preview-fixture';
+import { syntheticRead as basicSyntheticRead, syntheticEmptyOverview } from './overview.preview-fixture';
 import { rulesSyntheticRead } from './rules.preview-fixture';
-const syntheticRead = new URLSearchParams(window.location.search).has('rules') ? rulesSyntheticRead : basicSyntheticRead;
 import { emptyOverview } from '../src/inspector/bb-summary';
+const query = new URLSearchParams(window.location.search);
+const syntheticRead = query.has('empty') ? syntheticEmptyOverview
+  : query.has('rules') ? rulesSyntheticRead : basicSyntheticRead;
 
 function Preview() {
   const [open, setOpen] = useState(true), [narrow, setNarrow] = useState(true), [failure, setFailure] = useState(false);

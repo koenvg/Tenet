@@ -44,7 +44,7 @@ test('restored non-Pi panel reads no archive; forged params read no summaries', 
     ['pi-subagents', { recordingDirectory: '/escape' }, 'Panel selection rejected. Close this tab and open the overview again.'],
   ] as const) {
     const slot = renderSlot(app.threadPanelActions[0]!, { threadId, params }, {
-      sdk: { threads: { get: async () => ({ providerId }) as any } }, rpc: { overview: () => { throw new Error('must not read'); } },
+      sdk: { threads: { get: async () => ({ id: threadId, providerId }) as any } }, rpc: { overview: () => { throw new Error('must not read'); } },
     });
     try { expect(await slot.findByText(message)).toBeTruthy(); expect(summaryCalls(slot)).toHaveLength(0); }
     finally { slot.lifecycle.unmount(); }
@@ -55,7 +55,7 @@ test.each(['pi', 'pi-subagents'])('real panel mounts shared safe summary, displa
   const app = await loadPluginApp(() => import('./app'));
   let disconnected = false;
   const slot = renderSlot(app.threadPanelActions[0]!, { threadId, params: null }, {
-    sdk: { threads: { get: async () => ({ providerId }) as any } },
+    sdk: { threads: { get: async () => ({ id: threadId, providerId }) as any } },
     rpc: { overview: (selection: any) => {
       if (disconnected) return emptyOverview();
       const data = syntheticRead(selection);
@@ -71,6 +71,7 @@ test.each(['pi', 'pi-subagents'])('real panel mounts shared safe summary, displa
     } },
   });
   try {
+    fireEvent.click(await slot.findByRole('button', { name: 'Browse calls' }));
     expect(await slot.findByText(/2 evaluator failures/)).toBeTruthy();
     fireEvent.click(slot.getByRole('button', { name: 'Summary', hidden: true }));
     expect(await slot.findByText('Recorded assessment: unavailable · provider-error.')).toBeTruthy();
@@ -82,7 +83,9 @@ test.each(['pi', 'pi-subagents'])('real panel mounts shared safe summary, displa
     disconnected = true;
     fireEvent.click(slot.getByRole('button', { name: 'Refresh archive' }));
     expect(await slot.findByText('Host or archive unavailable. No current result.')).toBeTruthy();
-    expect(slot.getByText('Calls unavailable. Missing records are not a pass.')).toBeTruthy();
+    expect(slot.getAllByRole('status')).toHaveLength(1);
+    expect(slot.queryByText('Calls unavailable. Missing records are not a pass.')).toBeNull();
+    expect(slot.container.querySelector('.explorer, .inspection, .mobile-nav')).toBeNull();
     expect(slot.queryByText('synthetic-provider-error-1')).toBeNull();
   } finally { slot.lifecycle.unmount(); }
 });
@@ -109,7 +112,7 @@ test('panel unmount stops its single ten-second reader and disposes the shared w
   vi.useFakeTimers();
   const app = await loadPluginApp(() => import('./app'));
   const read = vi.fn(() => structuredClone(syntheticOverview));
-  const slot = renderSlot(app.threadPanelActions[0]!, { threadId, params: null }, { sdk: { threads: { get: async () => ({ providerId: 'pi' }) as any } }, rpc: { overview: read } });
+  const slot = renderSlot(app.threadPanelActions[0]!, { threadId, params: null }, { sdk: { threads: { get: async () => ({ id: threadId, providerId: 'pi' }) as any } }, rpc: { overview: read } });
   await vi.advanceTimersByTimeAsync(0);
   expect(read).toHaveBeenCalledOnce();
   await vi.advanceTimersByTimeAsync(10_000); expect(read).toHaveBeenCalledTimes(2);
@@ -122,9 +125,10 @@ test('panel adapter reads scoped rule pages through overview only and resets pag
   const app = await loadPluginApp(() => import('./app'));
   const read = vi.fn((selection: any) => rulesSyntheticRead(selection));
   const slot = renderSlot(app.threadPanelActions[0]!, { threadId, params: null }, {
-    sdk: { threads: { get: async () => ({ providerId: 'pi' }) as any } }, rpc: { overview: read },
+    sdk: { threads: { get: async () => ({ id: threadId, providerId: 'pi' }) as any } }, rpc: { overview: read },
   });
   try {
+    fireEvent.click(await slot.findByRole('button', { name: 'Browse calls' }));
     await slot.findByText('synthetic-pass');
     fireEvent.click(slot.getByRole('button', { name: 'Summary', hidden: true }));
     fireEvent.click(slot.getByText('Why this assessment')); fireEvent.click(slot.getByText(/^Browse all rules/));

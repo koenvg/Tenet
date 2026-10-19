@@ -14,7 +14,7 @@ test('offline adapter rule paging and call resets in a 390px panel inside a 1440
     unexpected.push(url.pathname); return route.abort();
   });
   try {
-    await page.goto(`${origin}overview.preview.html?rules`); await page.locator('.call-row').first().waitFor();
+    await page.goto(`${origin}overview.preview.html?rules`); await page.getByRole('button', { name: 'Browse calls', exact: true }).click(); await page.locator('.call-row').first().waitFor();
     await page.getByRole('button', { name: 'Summary', exact: true }).focus(); await page.keyboard.press('Enter');
     await page.getByText('Recording details', { exact: true }).press('Enter');
     await expect(page.getByRole('group', { name: 'Recording details' }).getByText('3', { exact: true })).toBeVisible();

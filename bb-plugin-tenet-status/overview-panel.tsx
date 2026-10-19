@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSdk } from '@get-bb/plugin-sdk/app';
 import { z } from 'zod';
 import { useSummaryRpc } from './summary-rpc';
-import { overviewSelection } from './overview-contract';
+import { overviewSelectionSchema } from './overview-contract';
 import { OverviewAdapter } from './overview-adapter';
 import { SummaryWorkspaceMount } from './summary-workspace';
 import { liveRead } from './live-read';
@@ -35,19 +35,15 @@ export function OverviewView({ threadId, params, projectId, onSelection, readThr
     liveRead(readThread(threadId, controller.signal), controller.signal).then(thread => {
       if (!current) return;
       if (!thread || !supportsTenetProvider(thread.providerId)) { setMessage('This overview supports Pi threads only. No archive requested.'); return; }
-      if (thread.deletedAt || projectId && (thread.id !== threadId || thread.projectId !== projectId)) {
+      if (thread.id !== threadId || thread.deletedAt != null || projectId && thread.projectId !== projectId) {
         setMessage('Thread scope changed or was deleted. No archive requested.'); return;
       }
-      const initial = z.object(overviewSelection).strict().safeParse(params ?? {});
+      const initial = overviewSelectionSchema.safeParse(params ?? {});
       if (!initial.success) { setMessage('Panel selection rejected. Close this tab and open the overview again.'); return; }
       owner = new OverviewAdapter(async (selection, signal) => {
-        // Main routes keep their selected project scope. A moved/deleted/non-Pi
-        // thread cannot trigger another archive read during the next refresh.
-        if (projectId) {
-          const latest = await readThread(threadId, signal);
-          if (!supportsTenetProvider(latest.providerId)) return emptyOverview('unsupported');
-          if (latest.id !== threadId || latest.deletedAt || latest.projectId !== projectId) return emptyOverview();
-        }
+        const latest = await readThread(threadId, signal);
+        if (!latest || !supportsTenetProvider(latest.providerId)) return emptyOverview('unsupported');
+        if (latest.id !== threadId || latest.deletedAt != null || projectId && latest.projectId !== projectId) return emptyOverview();
         if (!current || signal.aborted) return emptyOverview();
         return readOverview(threadId, selection, signal);
       }, () => { if (current) update(v => v + 1); }, initial.data, onSelection);
@@ -57,7 +53,7 @@ export function OverviewView({ threadId, params, projectId, onSelection, readThr
   }, [readThread, readOverview, threadId, projectId, onSelection, retry]);
   useEffect(() => {
     if (!adapter) return;
-    const selection = z.object(overviewSelection).strict().safeParse(params ?? {});
+    const selection = overviewSelectionSchema.safeParse(params ?? {});
     if (!selection.success) {
       adapter.dispose(); setAdapter(null);
       setMessage('Panel selection rejected. Close this tab and open the overview again.');

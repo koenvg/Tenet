@@ -1,6 +1,6 @@
 # Build and use the shared summary workspace
 
-Use this developer-checkout reference to build the shared React summary library. The standalone inspector and both BB overview entry points use this workspace. See [the BB overview guide](../bb-plugin-tenet-status/README.md) for main-page selection, the thread panel and safe host reads.
+Use this developer-checkout reference to build the shared React summary library for both BB overview entry points and common-summary previews. The standalone inspector has a separate rule-first shell. Both interfaces share recorded-rule status presentation. See [the BB overview guide](../bb-plugin-tenet-status/README.md) for main-page selection, the thread panel and safe host reads.
 
 ## Build the library and plugin
 
@@ -57,10 +57,21 @@ Select **Show standalone-only inspection**, or add `?raw=1`, to show Recorded da
 
 The source contract is [shared/model.ts](src/shared/model.ts). It is a presentation contract, not the authenticated BB transport schema. BB host adapters construct an allowlisted, validated summary before serialization. TypeScript types alone do not enforce a privacy boundary.
 
-`SummaryWorkspaceInput` has two fields:
+`SummaryWorkspaceInput` is a tagged presentation input with `variant`, `model` and `actions`.
 
-- `model` holds the loaded call page, selected summary, selected opaque ID, category, coverage, loading/error state and optional continuation flags.
-- `actions` holds selection, category, refresh and optional call/rule continuation callbacks. The adapter owns session selection, pages, transport, polling, cancellation and routing.
+- `variant: 'thread-rules'` renders the BB thread inventory, selected-rule checks or selected-call summary. The model includes the safe recorded-rule page.
+- `variant: 'calls'` retains the call-oriented workspace for common-summary consumers and explicit **Browse calls** navigation.
+- `actions` supplies navigation, refresh and page callbacks. The adapter owns transport, ten-second polling, cancellation, timeout and route restoration.
+
+The BB default is **Recorded rules for this thread**, not an automatically selected call. Rule selection opens recorded checks. Each check selects its opaque linked session and call together, then opens `SummaryDetail`.
+
+Thread inventory and check pages contain at most 50 items. Inventory aggregation retains at most 1,024 rules, and each selected rule retains at most 4,096 checks. Omission counts, missing inventory, indexing and capture limitations remain visible.
+
+Findings use the standalone labels **No violations found**, **Violation found**, **Unclear** and **Not checked**. None establishes complete capture, permission or execution.
+
+Thread-rule DTOs contain opaque identities and revisions, declaration labels, excerpts bounded to 512 UTF-8 bytes, statuses, counts, conflicts and safe codes. They exclude source paths, raw policy identity, freeform reasons, unknown gate strings and private stage objects. Unknown gates remain explicitly unresolved.
+
+The owner-derived read scope and source revision bind every continuation. A changed scope or rejected page clears stale results and offers a page-one restart.
 
 `SummaryCall` has an opaque ID, call/tool labels, timestamp, mode, recorded decision, permission, execution, categories, missing-stage codes, assessment status and safe failure code.
 
@@ -101,14 +112,15 @@ The optional `evaluatorState` on calls and selected summaries contains recorded 
 ## Shared layout and separate recorded detail
 
 ```text
-standalone HTTP -> archive-state.ts -> shared workspace layout
-                                     -> private call rows and Detail.tsx
+standalone HTTP -> archive-state.ts -> App.tsx -> RulePanel.tsx -> Detail.tsx
+                                     -> shared RuleStatus
 
-BB host RPC -> validated safe summary -> React mount -> shared workspace
-                                                     -> SummaryDetail.tsx
+BB host RPC -> validated safe summary -> React mount -> SummaryWorkspace
+                                                     -> ThreadRuleWorkspace
+                                                     -> SummaryDetail
 ```
 
-The standalone app uses `useArchive` in [archive-state.ts](src/archive-state.ts) for its loader, polling and history. [SummaryWorkspace.tsx](src/shared/SummaryWorkspace.tsx) owns the shared pane layout and resizer. Internal render slots keep private command/file rows and [Detail.tsx](src/Detail.tsx) out of the public summary input.
+The standalone app uses `useArchive` in [archive-state.ts](src/archive-state.ts) for its loader, polling and history. Its [App.tsx](src/App.tsx) shell and [RulePanel.tsx](src/RulePanel.tsx) keep private recorded data separate from BB. [SummaryWorkspace.tsx](src/shared/SummaryWorkspace.tsx) selects the BB thread-rule or call-oriented layout. Both interfaces share [RuleStatus.tsx](src/shared/RuleStatus.tsx) labels, icons and colours.
 
 Standalone Detail shows named permission, tool result and assessment facts, followed by two native disclosures. **Why this assessment** contains compact recorded-rule explanations. **Recorded data** contains submitted action, policy, exact evidence/questions, response and recording details. New selections close disclosures; unchanged polls keep them mounted. The standalone UI does not fetch groups.
 
@@ -120,6 +132,8 @@ The library entry is [library.tsx](src/shared/library.tsx). `mountSummaryWorkspa
 
 [SummaryWorkspaceMount](../bb-plugin-tenet-status/summary-workspace.tsx) renders the shared React component directly. There is no second UI runtime or polling owner. Key the view by adapter scope when switching threads or sessions. The adapter must cancel old reads, ignore late completions and clear stale results after an unavailable read.
 
-Embedded styles stay under `.tenet-presentation` and `.tenet-summary-workspace.embedded`. They inherit BB theme tokens and do not import standalone document styles. Shared status chips also support the private `.standalone-inspector` scope. The library opens no iframe, proxy or inspector listener. Standalone loopback, Host, Origin and frame restrictions remain unchanged.
+Embedded styles stay under `.tenet-presentation` and `.tenet-summary-workspace.embedded`. The rule-first variant shares the standalone light palette and uses BB tokens in dark mode. The call-oriented variant inherits BB theme tokens. Shared rule-status labels are scoped to `.rule-app` and `.tenet-thread-rules`.
+
+Neither variant imports standalone document styles or opens an iframe, proxy or inspector listener. Standalone loopback, Host, Origin and frame restrictions remain unchanged.
 
 Raw evidence remains accessible only through the [standalone inspector](../docs/inspector.md). Safe summaries still include recorded rule text. They do not guarantee confidentiality against same-user code, complete capture, live evaluator connectivity, permission or execution.

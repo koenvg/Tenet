@@ -15,6 +15,7 @@ for (const width of [1440, 390]) test(`synthetic BB panel is compact at 390px in
   });
   try {
     await page.goto(`${origin}overview.preview.html`);
+    await page.getByRole('button', { name: 'Browse calls', exact: true }).click();
     await page.locator('.call-row').first().waitFor();
     expect(await page.locator('.conversation').isVisible()).toBe(true);
     expect(await page.getByRole('button', { name: 'Calls', exact: true }).isVisible()).toBe(true);
@@ -26,7 +27,9 @@ for (const width of [1440, 390]) test(`synthetic BB panel is compact at 390px in
     await page.getByText('Recording details', { exact: true }).press('Enter');
     expect(await page.locator('.assessment-state').first().innerText()).toBe('Recorded assessment: unavailable · provider-error.');
     expect(await page.locator('.primary-status').innerText()).toContain('Ran');
+    await page.getByText('Session recording details', { exact: true }).press('Enter');
     expect(await page.locator('.session-counts').innerText()).toContain('0 selected FAIL · 2 evaluator failures');
+    await page.getByText('Session recording details', { exact: true }).press('Enter');
     await page.getByText('Recording details', { exact: true }).press('Enter');
     await page.locator('.why-disclosure > summary').press('Enter');
     expect(await page.locator('.decision-map').isVisible()).toBe(true);
@@ -39,13 +42,14 @@ for (const width of [1440, 390]) test(`synthetic BB panel is compact at 390px in
     await page.getByRole('button', { name: 'Open or focus overview' }).click();
     expect(await page.locator('.panel').count()).toBe(1); // Synthetic shell only, not native tab focus.
     await page.getByRole('button', { name: 'Toggle host disconnect' }).click();
-    await expect.poll(() => page.locator('.archive-messages').innerText()).toContain('Host or archive unavailable. No current result.');
+    await expect.poll(() => page.getByRole('status').innerText()).toContain('Host or archive unavailable. No current result.');
     expect(await page.locator('.call-row').count()).toBe(0); expect(await page.locator('.common-summary').count()).toBe(0);
     await page.screenshot({ path: `${artifacts}/panel-${width}-disconnected.png`, fullPage: true });
     await page.getByRole('button', { name: 'Close overview' }).click();
     expect(await page.locator('.tenet-summary-workspace').count()).toBe(0);
     await page.getByRole('button', { name: 'Toggle host disconnect' }).click();
     await page.getByRole('button', { name: 'Open or focus overview' }).click();
+    await page.getByRole('button', { name: 'Browse calls', exact: true }).click();
     await page.locator('.call-row').first().waitFor();
     await page.locator('.panel').evaluate(el => (el as HTMLElement).style.setProperty('--foreground', '#eeeeee'));
     await page.locator('.panel').evaluate(el => (el as HTMLElement).style.setProperty('--background', '#161918'));
@@ -57,7 +61,7 @@ for (const width of [1440, 390]) test(`synthetic BB panel is compact at 390px in
 test('desktop BB shared composition has the same common fields and no raw extensions', async ({ page, shellOrigin: origin }) => {
   await page.setViewportSize({ width: 1600, height: 1050 });
   try {
-    await page.goto(`${origin}overview.preview.html`); await page.locator('.call-row').first().waitFor();
+    await page.goto(`${origin}overview.preview.html`); await page.getByRole('button', { name: 'Browse calls', exact: true }).click(); await page.locator('.call-row').first().waitFor();
     await page.getByRole('button', { name: 'Toggle 390px panel' }).click();
     expect(await page.getByRole('button', { name: 'Calls', exact: true }).isVisible()).toBe(false);
     expect(await page.locator('.inspection').isVisible()).toBe(true); expect(await page.locator('.explorer').isVisible()).toBe(true);

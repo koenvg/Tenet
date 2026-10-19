@@ -1,6 +1,6 @@
 import { emptyOverview, type OverviewSelection, type ThreadOverview } from '../src/inspector/bb-summary.js';
 import { rulesSyntheticRead } from './rules.preview-fixture.js';
-import { syntheticOverview } from './overview.preview-fixture.js';
+import { syntheticOverview, projectSyntheticThread } from './overview.preview-fixture.js';
 
 export const liveThread = 'thr_livefixture01', otherLiveThread = 'thr_livefixture02', liveProject = 'proj_livefixture1';
 export const liveId = (n: number) => n.toString(16).padStart(64, '0');
@@ -18,7 +18,7 @@ export function createLiveFixture() {
       timestamp: 55 - n, started: 55 - n, calls: 70 + revision, categoryCounts: { violation: 0, uncertainty: 0, approval: 0, unavailable: 0, pending: 0 } }));
     const sessionId = selection.sessionId ?? sessions[0]!.id;
     if (!sessions.some(session => session.id === sessionId)) throw new Error('Rejected session');
-    const source = rulesSyntheticRead(selection.ruleCursor ? { ruleCursor: `synthetic:${liveId(20)}:16` } : {});
+    const source = rulesSyntheticRead(selection.ruleCursor ? { query: { kind: 'calls' }, ruleCursor: `synthetic:${liveId(20)}:16` } : { query: { kind: 'calls' } });
     const rows = Array.from({ length: 70 + revision }, (_, n) => ({ ...source.calls[0]!, id: liveId(2000 + 70 + revision - n),
       timestamp: 70 + revision - n, callId: `live-${70 + revision - n}`, categories: [] }));
     const selectedId = selection.callId ?? rows[0]!.id;
@@ -35,11 +35,15 @@ export function createLiveFixture() {
     selected.identity!.callId = row.callId;
     selected.rulePage!.next = selection.ruleCursor ? null : ruleCursor;
     const sessionOffset = offset(selection.sessionCursor, 'sessions'), callOffset = offset(selection.callCursor, 'calls');
-    return { ...source, readScope: liveId(scope), linkedCalls: rows.length * sessions.length, failures: 0, issues: [],
+    const data: ThreadOverview = { ...source, readScope: liveId(scope), linkedCalls: rows.length * sessions.length, failures: 0, issues: [],
       sessions: sessions.slice(sessionOffset, sessionOffset + 50), sessionId,
       nextSession: sessionOffset ? null : `sessions:${scope}:${sessionId}:50`,
       calls: rows.slice(callOffset, callOffset + 50), selectedId, selected,
       nextCall: callOffset ? null : `calls:${scope}:${sessionId}:50` };
+    projectSyntheticThread(data, selection);
+    data.readScope = liveId(scope); data.revision = liveId(10000 + revision);
+    data.threadRules!.revision = data.revision;
+    return data;
   };
   return { read, reads, append: () => { revision++; }, fail: (value: typeof failure) => { failure = value; } };
 }

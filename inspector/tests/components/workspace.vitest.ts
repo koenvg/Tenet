@@ -23,7 +23,7 @@ test('safe summary shows recorded facts and inert rule text without standalone p
   for (const raw of ['Recorded instructions', 'window.hostile', 'first_outcome', 'payload', 'questions', 'response', 'mapping', 'provider-response-sentinel', 'submitted-evidence-sentinel', 'raw-path-sentinel', 'raw-policy-sentinel', 'exact-question-sentinel', 'raw-mapping-sentinel', 'raw-result-sentinel']) {
     expect(serialized).not.toContain(raw);
   }
-  const screen = await render(createElement(SummaryWorkspace, { model: { calls: [], selected: model, coverage: 'Best-effort synthetic capture.', loading: false, error: '', category: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } }));
+  const screen = await render(createElement(SummaryWorkspace, { variant: 'calls', model: { calls: [], selected: model, coverage: 'Best-effort synthetic capture.', loading: false, error: '', category: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } }));
   expect(model.recordedAction).toEqual({ field: 'command', text: 'git status --short', truncated: false });
   await expect.element(screen.getByRole('region', { name: 'Recorded call' }).getByText('git status --short')).toBeVisible();
   await screen.getByText('Recording details', { exact: true }).click();
@@ -41,7 +41,7 @@ for (const [viewport, container] of [[390, 390], [1280, 390], [1280, 1000]]) {
   test(`workspace navigation follows ${container}px container in ${viewport}px window`, async () => {
     await page.viewport(viewport!, 844);
     const view = makeView({ execution: 'executed' });
-    const screen = await render(createElement(SummaryWorkspace, { model: { calls: [], selected: standaloneSummary(view), category: '', coverage: 'Synthetic coverage stays visible.', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } }));
+    const screen = await render(createElement(SummaryWorkspace, { variant: 'calls', model: { calls: [], selected: standaloneSummary(view), category: '', coverage: 'Synthetic coverage stays visible.', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } }));
     screen.container.style.width = `${container}px`;
     screen.container.style.maxWidth = '100%';
     if (container! < 650) {
@@ -70,7 +70,7 @@ for (const [viewport, container] of [[390, 390], [1280, 390], [1280, 1000]]) {
 }
 test('shared workspace keeps the standalone summary hierarchy and check disclosures', async () => {
   await page.viewport(1280, 900);
-  const screen = await render(createElement(SummaryWorkspace, { model: { calls: [], selected: standaloneSummary(makeView()), category: '', coverage: 'Synthetic', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } }));
+  const screen = await render(createElement(SummaryWorkspace, { variant: 'calls', model: { calls: [], selected: standaloneSummary(makeView()), category: '', coverage: 'Synthetic', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } }));
   await expect.element(screen.getByRole('region', { name: 'Decision summary' })).toBeVisible();
   expect(screen.container.querySelector('[aria-label="Decision map"]')?.checkVisibility()).toBe(false);
   await screen.getByText('Why this assessment', { exact: true }).click();
@@ -95,7 +95,7 @@ for (const [name, options, text] of [
 ] as const) test(`shared summary preserves ${name} meaning`, async () => {
   await page.viewport(1280, 900);
   const summary = standaloneSummary(makeView(options));
-  const screen = await render(createElement(SummaryWorkspace, { model: { calls: [], selected: summary, category: '', coverage: 'Synthetic', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } }));
+  const screen = await render(createElement(SummaryWorkspace, { variant: 'calls', model: { calls: [], selected: summary, category: '', coverage: 'Synthetic', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } }));
   await screen.getByText('Recording details', { exact: true }).click();
   await expect.element(screen.getByText(text)).toBeVisible();
   if (name === 'provider failure') await expect.element(screen.getByText('Recorded assessment: unavailable · provider-error.')).toBeVisible();
@@ -106,7 +106,7 @@ test('historical thresholds and built-in identity are recorded inputs, not curre
   const view = makeView();
   view.rules[0]!.thresholds.evidenceThreshold = .91;
   view.rules[0]!.builtin = true;
-  const screen = await render(createElement(SummaryWorkspace, { model: { calls: [], selected: standaloneSummary(view), category: '', coverage: 'Synthetic', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } }));
+  const screen = await render(createElement(SummaryWorkspace, { variant: 'calls', model: { calls: [], selected: standaloneSummary(view), category: '', coverage: 'Synthetic', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } }));
   await screen.getByText('Why this assessment', { exact: true }).click();
   await screen.getByText('Selected check details', { exact: true }).click();
   await expect.element(screen.getByText('Built-in integrity').first()).toBeVisible();
@@ -117,7 +117,7 @@ test('supplied recorded evaluator failure stays distinct from execution and a le
   await page.viewport(1280, 900);
   const summary = standaloneSummary({ ...makeView({ execution: 'executed', decision: 'ALLOW', gate: null }),
     evaluatorState: { status: 'unavailable', reason: 'provider-error' } });
-  const screen = await render(createElement(SummaryWorkspace, { model: { calls: [], selected: summary, category: '', coverage: 'Synthetic', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } }));
+  const screen = await render(createElement(SummaryWorkspace, { variant: 'calls', model: { calls: [], selected: summary, category: '', coverage: 'Synthetic', loading: false, error: '' }, actions: { selectCall() {}, filterCategory() {}, refresh() {} } }));
   await screen.getByText('Recording details', { exact: true }).click();
   await expect.element(screen.getByText('Recorded assessment: unavailable · provider-error.')).toBeVisible();
   await expect.element(screen.getByText('Assessment unavailable. No completed assessment is available.')).toBeVisible();
@@ -134,7 +134,7 @@ test('same-minute shell calls have distinct readable names and preserve opaque s
     calls: callIds.map((callId, index) => ({ id: ids[index]!, callId, toolName: 'bash', timestamp, mode: 'observe', decision: '', permission: 'released', execution: 'executed', categories: ['unavailable'], missing: [], assessmentStatus: 'unavailable', failure: 'provider-error' })),
     selected: null, selectedId: ids[0], category: '', coverage: 'Synthetic', loading: false, error: '',
   };
-  const screen = await render(createElement(SummaryWorkspace, { model, actions: { selectCall, filterCategory() {}, refresh() {} } }));
+  const screen = await render(createElement(SummaryWorkspace, { variant: 'calls', model, actions: { selectCall, filterCategory() {}, refresh() {} } }));
   const calls = screen.getByRole('navigation', { name: 'Invocations' });
   const first = calls.getByRole('button', { name: /Shell command.*Call 1\b/ });
   const second = calls.getByRole('button', { name: /Shell command.*Call 2\b/ });
@@ -176,7 +176,7 @@ for (const width of [1000, 390]) {
       sessionId, sessions: [{ id: sessionId, started, calls: 4, categoryCounts: { violation: 0, unavailable: 0, uncertainty: 0, approval: 0, pending: 4 } }],
     };
     const selectCall = vi.fn(), selectSession = vi.fn();
-    const screen = await render(createElement(SummaryWorkspace, { model, actions: { selectCall, selectSession, filterCategory() {}, refresh() {} } }));
+    const screen = await render(createElement(SummaryWorkspace, { variant: 'calls', model, actions: { selectCall, selectSession, filterCategory() {}, refresh() {} } }));
     screen.container.style.width = `${width}px`;
     screen.container.style.maxWidth = '100%';
     const workspace = screen.container.querySelector<HTMLElement>('.tenet-summary-workspace')!;
@@ -244,7 +244,7 @@ test('readable recording details keep older session selection and paging keys', 
   await page.viewport(1280, 900);
   const olderId = 'a'.repeat(64), listedId = 'b'.repeat(64);
   const selectSession = vi.fn(), loadMoreSessions = vi.fn();
-  const screen = await render(createElement(SummaryWorkspace, {
+  const screen = await render(createElement(SummaryWorkspace, { variant: 'calls',
     model: { calls: [], selected: null, category: '', coverage: 'Synthetic', loading: false, error: '', sessionId: olderId, moreSessions: true,
       sessions: [{ id: listedId, started: 1742308320000, calls: 2, categoryCounts: { violation: 0, unavailable: 0, uncertainty: 0, approval: 0, pending: 2 } }] },
     actions: { selectCall() {}, filterCategory() {}, refresh() {}, selectSession, loadMoreSessions: () => loadMoreSessions() },

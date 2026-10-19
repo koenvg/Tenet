@@ -1,7 +1,7 @@
 import { defineRpcContract } from '@get-bb/plugin-sdk';
 import { z } from 'zod';
 import { evaluatorFailureCodes } from '../src/inspector/finding-view.js';
-import { overviewSchema, overviewSelection } from './overview-contract.js';
+import { overviewSchema, overviewSelection, validOverviewSelection } from './overview-contract.js';
 import { dashboardMethods, dashboardHostMethods } from './dashboard-contract.js';
 
 import { pickerMethods } from './picker-contract.js';
@@ -35,7 +35,7 @@ const findingsRequest = z.object({ ...request.shape, cursor: z.string().min(1).m
 export const hostContract = defineRpcContract({ ...dashboardHostMethods, readStatus: { input: z.object({ ...request.shape,
   recordingDirectory: z.string().max(4096).optional() }).strict(), output: statusSchema },
   readFindings: { input: z.object({ ...findingsRequest.shape, recordingDirectory: z.string().max(4096).optional() }).strict(), output: findingsSchema },
-  readOverview: { input: z.object({ ...request.shape, ...overviewSelection, recordingDirectory: z.string().max(4096).optional() }).strict(), output: overviewSchema } });
+  readOverview: { input: z.object({ ...request.shape, ...overviewSelection, readScope: z.string().regex(/^[a-f0-9]{64}$/).optional(), recordingDirectory: z.string().max(4096).optional() }).strict().refine(validOverviewSelection, 'conflicting selection'), output: overviewSchema } });
 export const rpcContract = defineRpcContract({ ...pickerMethods, ...dashboardMethods, status: { input: request, output: statusSchema },
   findings: { input: findingsRequest, output: findingsSchema },
-  overview: { input: z.object({ ...request.shape, ...overviewSelection }).strict(), output: overviewSchema } });
+  overview: { input: z.object({ ...request.shape, ...overviewSelection }).strict().refine(validOverviewSelection, 'conflicting selection'), output: overviewSchema } });

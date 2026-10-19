@@ -14,7 +14,7 @@ for (const schema of [3, 4, 5] as const) test(`schema-${schema} owner RPC exclud
   const root = await realpath(await mkdtemp('/tmp/tenet77-rpc-'));
   const hostId = 'host_assessment77', host = experimental_createHostEntryHarness(hostEntry);
   const fake = createFakePluginHost({ pluginId: 'tenet-status', settings: { recordingDirectories: JSON.stringify({ [hostId]: root }) },
-    sdk: { threads: { get: async () => ({ providerId: 'pi', environmentId: 'env_fixture77' }) as any },
+    sdk: { threads: { get: async ({ threadId }: any) => ({ id: threadId, providerId: 'pi', environmentId: 'env_fixture77' }) as any },
       environments: { get: async () => ({ id: 'env_fixture77', hostId }) as any } },
     experimental_callHostRpc: async ({ method, input, hostId: selected }: any) => {
       assert.equal(selected, hostId);
@@ -36,7 +36,7 @@ for (const schema of [3, 4, 5] as const) test(`schema-${schema} owner RPC exclud
     const failureFindings = await fake.harness.behavior.callRpc('findings', { threadId: recordedFailureThread }) as Findings;
     assert.deepEqual(failureFindings.items, []);
     assert.ok(!failureFindings.issues.includes('assessment-inconsistent'));
-    const failureOverview = await fake.harness.behavior.callRpc('overview', { threadId: recordedFailureThread }) as ThreadOverview;
+    const failureOverview = await fake.harness.behavior.callRpc('overview', { threadId: recordedFailureThread, query: { kind: 'calls' } }) as ThreadOverview;
     assert.ok(!failureOverview.issues.includes('assessment-inconsistent'));
     for (const call of failureOverview.calls) {
       const detail = await fake.harness.behavior.callRpc('overview', { threadId: recordedFailureThread, sessionId: failureOverview.sessionId!, callId: call.id }) as ThreadOverview;
@@ -48,7 +48,7 @@ for (const schema of [3, 4, 5] as const) test(`schema-${schema} owner RPC exclud
     assert.deepEqual(findings.items.map(item => item.callId), ['valid-fail']);
     assert.deepEqual(findings.assessments, status.assessments);
     assert.equal(findings.next, null);
-    const overview = await fake.harness.behavior.callRpc('overview', { threadId }) as ThreadOverview;
+    const overview = await fake.harness.behavior.callRpc('overview', { threadId, query: { kind: 'calls' } }) as ThreadOverview;
     assert.equal(overview.failures, 1);
     for (const callId of ['fail-pass', 'pass-fail']) {
       const call = overview.calls.find(call => call.callId === callId)!;

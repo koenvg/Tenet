@@ -139,7 +139,13 @@ test('selected owner summaries allow only the recorded path; status and findings
       assert.ok(!json.includes('actionPreview'));
       assert.ok(!json.includes('arguments'));
     }
-    const overview = await index.threadOverview(identity.bbThreadId);
+    const inventory = await index.threadOverview(identity.bbThreadId);
+    assert.equal(inventory.selected, null);
+    const inventoryJson = JSON.stringify(inventory);
+    for (const privateField of ['PRIVATE-PREVIEW-ONLY', 'FULL-EVIDENCE-ONLY', 'arguments', 'PRIVATE-QUESTION-ONLY']) {
+      assert.ok(!inventoryJson.includes(privateField), `${privateField} must not enter the default rule inventory`);
+    }
+    const overview = await index.threadOverview(identity.bbThreadId, { query: { kind: 'calls' } });
     const selected = await index.threadOverview(identity.bbThreadId, { sessionId: overview.sessionId!, callId: overview.selectedId! });
     for (const value of [overview, selected]) {
       assert.deepEqual(value.selected?.recordedAction, { field: 'path', text: 'PRIVATE-PREVIEW-ONLY.txt', truncated: false });

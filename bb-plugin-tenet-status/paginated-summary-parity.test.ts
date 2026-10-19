@@ -68,7 +68,7 @@ for (const schema of [3, 4, 5] as const) for (const scenario of ['integrity', 'u
       assert.equal(decisionReason(standalone), expected);
       assert.equal(standalone.noRulesClassifiedViolated, !violation);
       if (scenario === 'multiple blockers') assert.ok(explainDecision(standalone).includes('2 rules contribute blocking gates.'));
-      const first = overviewSchema.parse(await host.experimental_call('readOverview', { threadId, recordingDirectory: join(root, 'archive') }));
+      const first = overviewSchema.parse(await host.experimental_call('readOverview', { threadId, query: { kind: 'calls' }, recordingDirectory: join(root, 'archive') }));
       assert.equal(first.selected!.rules.length, 16); assert.ok(!first.selected!.rules.some(rule => rule.builtin));
       const selection = { threadId, recordingDirectory: join(root, 'archive'), sessionId: first.sessionId!, callId: first.selectedId! };
       const second = overviewSchema.parse(await host.experimental_call('readOverview', { ...selection, ruleCursor: first.selected!.rulePage!.next! }));

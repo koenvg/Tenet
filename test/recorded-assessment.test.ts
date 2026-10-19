@@ -41,8 +41,9 @@ for (const schema of [3, 4, 5] as const) test(`schema-${schema} public archive r
     const failureFindings = await index.threadFindings(recordedFailureThread);
     assert.deepEqual(failureFindings.items, []);
     assert.ok(!failureFindings.issues.includes('assessment-inconsistent'));
-    const failureOverview = await index.threadOverview(recordedFailureThread);
+    const failureOverview = await index.threadOverview(recordedFailureThread, { query: { kind: 'calls' } });
     assert.ok(!failureOverview.issues.includes('assessment-inconsistent'));
+    assert.equal(failureOverview.calls.length, 2);
     for (const call of failureOverview.calls) {
       const detail = await index.threadOverview(recordedFailureThread, { sessionId: failureOverview.sessionId!, callId: call.id });
       assert.deepEqual(call.evaluatorState, { status: 'unavailable', reason: 'provider-error' });
@@ -52,8 +53,13 @@ for (const schema of [3, 4, 5] as const) test(`schema-${schema} public archive r
     const findings = await index.threadFindings(thread);
     assert.deepEqual(findings.items.map(item => item.callId), ['valid-fail']);
     assert.deepEqual(findings.assessments, status.assessments);
-    const overview = await index.threadOverview(thread);
+    const inventory = await index.threadOverview(thread);
+    assert.equal(inventory.failures, 1);
+    assert.equal(inventory.selected, null);
+    assert.deepEqual(inventory.calls, []);
+    const overview = await index.threadOverview(thread, { query: { kind: 'calls' } });
     assert.equal(overview.failures, 1);
+    assert.equal(overview.calls.length, inconsistentAssessmentCalls.length + 2);
     for (const call of overview.calls) {
       const detail = await index.threadOverview(thread, { sessionId: overview.sessionId!, callId: call.id });
       const selected = detail.selected!;
@@ -78,7 +84,7 @@ for (const schema of [3, 4, 5] as const) test(`schema-${schema} public archive r
     assert.ok(fresh.issues.includes('detail-unavailable'));
     const valid = overview.calls.find(call => call.callId === 'valid-fail')!;
     const damaged = await index.threadOverview(thread, { sessionId: overview.sessionId!, callId: valid.id });
-    assert.equal(damaged.selected?.evaluatorState?.status, 'incomplete');
-    assert.ok(damaged.selected?.rules.every(rule => rule.result === null));
+    assert.equal(damaged.selected, null, 'changed detail must not publish a current-looking summary');
+    assert.ok(damaged.issues.includes('detail-unavailable'));
   } finally { await rm(root, { recursive: true, force: true }); }
 });

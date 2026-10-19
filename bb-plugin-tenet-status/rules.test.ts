@@ -51,7 +51,7 @@ for (const schema of [3, 4] as const) test(`schema-${schema} rule pages preserve
     let reads = 0;
     const index = new ArchiveIndex(f.root, async (root, path) => { reads++; return readPrivateFile(root, path); });
     await ready(index);
-    const all = await index.threadOverview(threadId);
+    const all = await index.threadOverview(threadId, { query: { kind: 'calls' } });
     const firstId = all.calls.find(c => c.callId === 'first')!.id, secondId = all.calls.find(c => c.callId === 'second')!.id;
     const selection = { sessionId: all.sessionId!, callId: firstId };
     reads = 0;
@@ -94,11 +94,11 @@ for (const schema of [3, 4] as const) test(`schema-${schema} rule pages preserve
 test('owner and host strict RPCs carry only selected-host rule pages and reject forged selections', async () => {
   const f = await fixture(4), host = experimental_createHostEntryHarness(hostEntry);
   const fake = createFakePluginHost({ pluginId: 'tenet-rules', settings: { recordingDirectories: JSON.stringify({ [hostId]: f.root }) },
-    sdk: { threads: { get: async () => ({ providerId: 'pi', environmentId: 'env_rules' }) as any }, environments: { get: async () => ({ id: 'env_rules', hostId }) as any } },
+    sdk: { threads: { get: async ({ threadId }: any) => ({ id: threadId, providerId: 'pi', environmentId: 'env_rules' }) as any }, environments: { get: async () => ({ id: 'env_rules', hostId }) as any } },
     experimental_callHostRpc: async ({ method, input, hostId: selected }: any) => { assert.equal(selected, hostId); return host.experimental_call(method, input); } });
   try {
     plugin(fake.bb);
-    const first: any = await fake.harness.behavior.callRpc('overview', { threadId });
+    const first: any = await fake.harness.behavior.callRpc('overview', { threadId, query: { kind: 'calls' } });
     const selection = { threadId, sessionId: first.sessionId, callId: first.selectedId, ruleCursor: first.selected.rulePage.next };
     const next: any = await fake.harness.behavior.callRpc('overview', selection);
     assert.equal(next.selected.rules.length, 4); assert.ok(!JSON.stringify([first, next]).includes(sentinel));

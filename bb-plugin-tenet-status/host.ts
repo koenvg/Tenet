@@ -62,10 +62,10 @@ export default experimental_defineHostEntry({
         return index ? index.threadFindings(threadId, cursor) : unavailableFindings();
       });
     },
-    readOverview({ threadId, recordingDirectory, ...selection }, { lifecycle }) {
+    readOverview({ threadId, recordingDirectory, readScope, ...selection }, { lifecycle }) {
       return serialized(async () => {
         const index = lifecycle.signal.aborted ? null : await refreshedIndex(recordingDirectory);
-        return overviewSchema.parse(index ? await index.threadOverview(threadId, selection) : emptyOverview());
+        return overviewSchema.parse(index ? await index.threadOverview(threadId, selection, readScope) : emptyOverview());
       });
     },
   },
