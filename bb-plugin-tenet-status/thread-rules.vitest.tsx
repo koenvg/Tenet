@@ -21,8 +21,11 @@ test.each(['panel', 'main'])('default %s lists every recorded status before rule
     expect(slot.queryByText('Archive warnings')).toBeNull();
     expect(slot.queryByText(/^No violations found does not prove complete capture/)).toBeNull();
     expect(read.mock.calls[0]![0].callId).toBeUndefined();
+    expect(slot.getByRole('button', { name: 'Ask before publishing changes. Violation found' })).toBeTruthy();
+    expect(slot.getByRole('button', { name: 'Protect the recorded policy. No violations found' })).toBeTruthy();
     fireEvent.click(slot.getByRole('button', { name: /Ask before publishing changes/ }));
     expect(await slot.findByRole('heading', { name: 'Recorded checks' })).toBeTruthy();
+    expect(slot.container.querySelector('.thread-selected-rule .thread-rule-wording')?.textContent).toBe('Ask before publishing changes.');
     fireEvent.click(slot.getByRole('button', { name: 'View recorded call' }));
     expect(await slot.findByText('Why this assessment')).toBeTruthy();
     fireEvent.click(slot.getByRole('button', { name: 'Back to recorded checks' }));

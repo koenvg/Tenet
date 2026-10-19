@@ -6,9 +6,7 @@ import SummaryDetail from './SummaryDetail.js';
 import './thread-rules.css';
 
 function RuleWording({ rule }: { rule: SafeThreadRule }) {
-  return <span className="thread-rule-wording"><strong>{rule.excerpt ?? (rule.conflict ? 'Conflicting recorded wording' : 'Recorded wording unavailable')}</strong>
-    <small>{rule.builtin ? 'Built-in integrity' : rule.role === 'global' ? 'Global rule' : rule.role === 'project' ? 'Project rule' : 'Recorded rule'} · {rule.label}{rule.labelShortened ? ' [label shortened]' : ''}
-      {rule.excerptState === 'excerpt' ? ' · Recorded excerpt' : rule.excerptState === 'shortened' ? ' · Shortened recorded excerpt' : ''}</small></span>;
+  return <span className="thread-rule-wording"><strong>{rule.excerpt ?? (rule.conflict ? 'Conflicting recorded wording' : 'Recorded wording unavailable')}</strong></span>;
 }
 export default function ThreadRuleWorkspace({ model, actions }: ThreadRuleWorkspaceInput) {
   const rules = model.rules, kind = rules?.kind ?? 'inventory';
