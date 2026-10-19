@@ -21,7 +21,6 @@
 .tenet-thread-rules .thread-rule-list button { display: grid; grid-template-columns: minmax(0, 1fr) minmax(9.5rem, auto) 18px; align-items: center; gap: 16px; width: 100%; padding: 22px 8px; border: 0; border-radius: 0; }
 .tenet-thread-rules .thread-rule-wording { display: block; min-width: 0; }
 .tenet-thread-rules .thread-rule-wording strong { display: block; font-size: 1rem; font-weight: 500; }
-.tenet-thread-rules .thread-rule-wording small { display: block; margin-top: 8px; color: var(--tenet-muted); font-size: .75rem; }
 .tenet-thread-rules .thread-rule-list button > svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; }
 .tenet-thread-rules .thread-breadcrumb { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 28px; font-size: .875rem; }
 .tenet-thread-rules .thread-selected-rule { margin: 24px 0; }
