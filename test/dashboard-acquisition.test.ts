@@ -173,7 +173,8 @@ for (const unsafe of ['symlink', 'hardlink', 'public']) test(`unsafe ${unsafe} r
   } finally { await host.dispose(); }
 }));
 test('per-step stage and input-byte budgets resume without dropping selected facts', () => fixture(async root => {
-  for (let n = 0; n < 270; n++) await persist(root, record(n, false, { padding: 'x'.repeat(n < 8 ? 3 * 1024 * 1024 : 0) }));
+  // 33 MiB requires at least three 16 MiB scanning steps regardless of directory order.
+  for (let n = 0; n < 270; n++) await persist(root, record(n, false, { padding: 'x'.repeat(n < 11 ? 3 * 1024 * 1024 : 0) }));
   let reads = 0, bytes = 0;
   const reader = new DashboardArchiveReader(root, new Set([threadId]), 'a'.repeat(64), async (...args) => {
     const text = await readPrivateFile(...args); reads++; bytes += Buffer.byteLength(text); return text;
