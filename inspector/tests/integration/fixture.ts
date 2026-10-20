@@ -74,7 +74,7 @@ export async function withInspector(
   factories: InspectorFactories,
   testName: string,
   run: (fixture: InspectorTest) => Promise<void>,
-  options: ArchiveOptions & { path?: string } = {},
+  options: ArchiveOptions & { path?: string; callbackTimeoutMs?: number } = {},
 ) {
   const diagnostics = new FixtureDiagnostics(testName, lifecycle.signal, browser);
   lifecycle.onFinish(error => diagnostics.finish(error));
@@ -117,7 +117,12 @@ export async function withInspector(
     };
     await navigate(page, options.path ?? '/');
     diagnostics.enter('test');
-    await prepare(run({ directory, app, page, externalRequests, pageErrors, recorded, open }));
+    const callbackTimeout = options.callbackTimeoutMs === undefined ? undefined : setTimeout(() => {
+      diagnostics.cancellation.abort(new Error(`Test timeout of ${options.callbackTimeoutMs}ms exceeded during inspector callback.`));
+    }, options.callbackTimeoutMs);
+    try {
+      await prepare(run({ directory, app, page, externalRequests, pageErrors, recorded, open }));
+    } finally { clearTimeout(callbackTimeout); }
     if (externalRequests.length || pageErrors.length) throw new Error(`Unexpected browser requests/errors: ${JSON.stringify({ externalRequests, pageErrors })}`);
   } catch (error) {
     await diagnostics.finish(error);

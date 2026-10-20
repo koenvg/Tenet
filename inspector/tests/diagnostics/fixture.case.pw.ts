@@ -35,6 +35,13 @@ const factories: InspectorFactories = {
           await new Promise(resolve => setTimeout(resolve, 1800));
         };
       }
+      if (state.mode === 'late-callback') context.on('page', page => {
+        const goto = page.goto.bind(page);
+        page.goto = async (...args) => {
+          await new Promise(resolve => setTimeout(resolve, 550));
+          return goto(...args);
+        };
+      });
       if (state.mode === 'navigation') context.on('page', page => {
         page.goto = async () => { throw new Error('NAVIGATION_SENTINEL'); };
       });
@@ -59,7 +66,7 @@ const test = createInspectorTest(factories, state.mode !== 'missing', async () =
 });
 
 test(process.env.TENET_DIAGNOSTIC_NAME!, async ({ withInspector }) => {
-  if (['late-server', 'late-context', 'late-seed', 'late-callback'].includes(state.mode)) test.setTimeout(500);
+  if (['late-server', 'late-context', 'late-seed'].includes(state.mode)) test.setTimeout(500);
   if (state.mode === 'reuse') await withInspector(`${process.env.TENET_DIAGNOSTIC_NAME!}-first`, async ({ page }) => {
     expect(await page.title()).toBe('TENET decision inspector');
   }, { base: false });
@@ -86,7 +93,7 @@ test(process.env.TENET_DIAGNOSTIC_NAME!, async ({ withInspector }) => {
     }
     if (['callback', 'original', 'bounds', 'reuse', 'events', 'late-trace'].includes(state.mode)) throw new Error('CALLBACK_SENTINEL');
     expect(await page.title()).toBe('TENET decision inspector');
-  }, { base: false, seed: async directory => {
+  }, { base: false, callbackTimeoutMs: state.mode === 'late-callback' ? 500 : undefined, seed: async directory => {
     state.directory = directory;
     if (state.mode === 'late-seed') {
       await new Promise(resolve => setTimeout(resolve, 900));
