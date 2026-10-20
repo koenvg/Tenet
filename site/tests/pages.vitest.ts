@@ -67,11 +67,13 @@ for(const width of [1280,390]) test(`hydrated pages preserve layout, keyboard fe
     await page.evaluate(()=>document.fonts.ready);const hint=page.getByText('Try pressing Delete',{exact:true});expect(await hint.isVisible()).toBe(false);
     expect(await page.getByRole('button',{name:'Try pressing delete'}).count()).toBe(0);
     const staticCaption=(await page.locator('#example-rule').boundingBox())!,docs=page.getByRole('link',{name:'Read the setup guide'}),staticArt=(await page.locator('.keypress-art').boundingBox())!;
+    const staticDocs=(await docs.boundingBox())!;
     const staticGap=staticCaption.y-staticArt.y-staticArt.height;hydrate();
     const key=page.getByRole('button',{name:'Try pressing delete'});await key.waitFor();expect(await hint.isVisible()).toBe(true);
     expect(await page.getByText('You write the rules. TENET checks eligible Pi tool calls against them.',{exact:true}).isVisible()).toBe(true);
     const lead=(await page.locator('.hero-lead').boundingBox())!;expect(lead.y+lead.height).toBeLessThan((await docs.boundingBox())!.y);
     expect((await page.locator('#example-rule').boundingBox())!.y).toBeCloseTo(staticCaption.y,1);
+    expect((await docs.boundingBox())!.y).toBeCloseTo(staticDocs.y,1);
     await key.focus();await page.keyboard.press('Enter');await expect.poll(()=>page.locator('[data-press-announcement]').textContent()).toContain('Attempt 1 blocked');
     await page.keyboard.press('Space');await expect.poll(()=>page.locator('[data-press-announcement]').textContent()).toContain('Attempt 2 blocked');
     expect(await page.locator('[data-key]').getAttribute('transform')).toBe('translate(0 42.00)');
