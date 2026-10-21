@@ -3,9 +3,9 @@ name: Website
 on:
   push:
     branches: [main]
-    paths: ['site/**', 'web/**', 'third-party/web/**', 'package.json', 'bun.lock', '.github/workflows/site.yml']
+    paths: ['site/**', 'test/marketing-site.test.mjs', 'web/**', 'third-party/web/**', 'package.json', 'bun.lock', '.github/workflows/site.yml']
   pull_request:
-    paths: ['site/**', 'web/**', 'third-party/web/**', 'package.json', 'bun.lock', '.github/workflows/site.yml']
+    paths: ['site/**', 'test/marketing-site.test.mjs', 'web/**', 'third-party/web/**', 'package.json', 'bun.lock', '.github/workflows/site.yml']
   workflow_dispatch:
 
 permissions:
