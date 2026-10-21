@@ -2,6 +2,8 @@
 
 Use this developer-checkout guide to test the local inspector UI without evaluator calls or a signed-in browser. The two browser lanes use disposable headless Chromium. Neither connects to Arc, needs a CDP endpoint, uses a signed-in profile, or calls the evaluator.
 
+Use only synthetic archives and fixture actions. Never read or copy personal recordings or policy into fixtures, and keep `TYPESAFE_API_KEY` out of the validation environment. Screenshots and trace snapshots can expose exact displayed recording text.
+
 ## Set up and run all three lanes
 
 Use Node 22.19+ for the Pi-backed fixtures and Bun 1.3.14+. SDK-only consumers have a lower Node 22.12+ minimum; that is not the full inspector-test requirement. CI uses Node 22 and Bun 1.4.3.
@@ -43,16 +45,16 @@ CI=1 bun run inspector:test:components
 
 Vitest Browser Mode mounts React components in headless Chromium without a production build. Browser-safe view fixtures and mocked same-origin API responses cover:
 
-- Decisions, inert recorded Markdown, question formatting, and evidence navigation.
-- Resizing, initial selection, deep links, and loading/error/recovery states.
-- Shared summary hierarchy, check-selection focus, inert rule text and narrow Calls/Summary navigation at a 390px viewport and a 390px container inside a wide window.
-- Summary projection and rendered output exclude sentinel action arguments, submitted evidence, exact questions, provider bodies, raw policy and recording paths. The library mount updates and disposes without transport or shell-style changes.
+- Native session selection, server-derived rule statuses, lazy action reads, deep links, and loading, error, and recovery states.
+- Recorded action details, inert recorded Markdown, exact questions, and evidence navigation.
+- Shared summary hierarchy, check-selection focus, inert rule text, and narrow Calls/Summary navigation at a 390px viewport and a 390px container inside a wide window. These are library and BB summary controls, not the standalone Inspector navigation.
+- Shared summary projection and rendered output exclude sentinel action arguments, submitted evidence, exact questions, provider bodies, raw policy, and recording paths. The library mount updates and disposes without transport or shell-style changes. Standalone action disclosures separately expose exact recorded data.
 
 The API mock rejects unexpected or non-local requests. This suite does not check archive security.
 
 ## Shared rule coverage
 
-The shared summary tests divide coverage by boundary:
+These tests cover the shared summary library and synthetic BB adapter. They do not exercise the standalone Session picker or Rule details dialog:
 
 - `components/rules.vitest.ts` owns public-mount rendering across viewport and container widths. It covers 16-row and 3-row bounds, truncated and missing text, integrity selection and technical thresholds, and WARN call selection and rule detail. It also covers keyboard paging, inert text, overflow, and destruction.
 - `integration/bb-rules.pw.ts` uses the real preview and adapter with the generated summary in one 390px panel inside a 1440px window. It owns rule paging and page-one reset after each call switch. It also covers provider failure, summary privacy, host isolation, keyboard navigation between Calls and Summary, close, and unmount.
@@ -105,11 +107,11 @@ The discovery guard uses runner collection commands. It requires positive, disjo
 
 `bb-plugin-tenet-status/paginated-summary-parity.test.ts` writes valid schema-3/4 historical archives and current schema-5 production records with 16 user rules plus integrity. Public HOST reads and React-rendered summaries keep integrity violations, uncertainty and multiple-blocker explanations unchanged from first page to second page and back. Inspection still returns at most 16 rules per page; strict explanation schemas reject extra fields and raw sentinels.
 
-Component tests check the named Tenet permission, Tool result and Assessment fields. The list shares ordinary context only for displayed calls that establish it. `components/context.vitest.ts` changes filters, loads another page and adds a late result without replacing selected detail. Independent violation, uncertainty and approval findings stay visible. Lifecycle status is not repeated as summary badges.
+Recorded-action component tests check the named Tenet permission, Tool result, and Assessment fields. `components/context.vitest.ts` mounts `PrivateCallExplorer` directly to check displayed-call context, category filters, pagination, and a late result without replacing selected detail. It does not exercise the standalone app navigation. Independent violation, uncertainty, and approval findings stay visible. Lifecycle status is not repeated as summary badges.
 
 `integration/status.pw.ts` retains desktop and 390px checks, historical schemas 1 through 4, exact evidence, scores, thresholds, questions, actual observe-mode blocks and permission/result contradictions. Delayed assessment and result stages preserve the invocation link, mounted exact-data regions, Recorded data disclosures, evidence DOM node and scroll position.
 
-`integration/call-facts.pw.ts` serves an authored fictional archive through the built app. It checks pending, dropped, cancelled, incomplete, unavailable and invalid assessments, successful and failed results, observe ASK, separate approval and all overlapping findings. `integration/summary-preview.pw.ts` captures the minimal desktop/mobile first view. Existing archive checks retain direct filters, the public group API, deep links and partial-coverage indicators and issue disclosures.
+`integration/call-facts.pw.ts` serves an authored fictional archive through the built app. It checks pending, dropped, cancelled, incomplete, unavailable and invalid assessments, successful and failed results, observe ASK, separate approval and all overlapping findings. `integration/summary-preview.pw.ts` captures the minimal desktop/mobile first view. Archive journeys check category filtering and groups through direct API reads, alongside deep links, partial-coverage indicators, and issue disclosures. These API checks do not imply standalone filter or group controls.
 
 These are recorded-data presentation tests, not live accuracy measurements. Fixture actions never execute. No result is inferred from released permission or approval. A failed result does not prove there were no external effects.
 
@@ -117,35 +119,40 @@ Verification rewrites no archive or policy and restarts no active service. Owner
 
 Rollback needs a separately preserved, verified previous installation and its build. Do not reset a shared working tree. Preserve recordings and unrelated local changes; see [archive rollback prerequisites](../../docs/INSTALL-ARCHIVE.md#removal-and-rollback).
 
-## Call workspace and direct category filtering
+## Native session and rule navigation
 
-The selected call replaces the desktop Summary/group switch. On narrow screens, Calls and Selected call remain.
+The standalone Inspector opens on **Session** and **Rules in this session**, with no automatically selected action. Session opens a native popover with radio choices and More sessions. A rule row opens the native **Rule details** dialog, which shows full recorded wording, status, origin, and recorded checks. More rules and More recorded checks page their respective lists.
 
-The native Finding category select is directly visible in Calls, without an accordion, and retains its label, keyboard access, counts, overlap guidance, active category and Clear filter. There is no Repeated uncertainty UI, replacement group view or group fetching by the UI.
+Each check has a **View recorded action** disclosure. Exact action data loads only when requested. Direct invocation links can instead open a **Recorded action** dialog without a rule association. On narrow screens, the rule dialog fills the width. There are no standalone Calls/Selected call tabs, Finding category select, call-list resizer, or More invocations control.
 
-Session / archive holds project/session selection, More sessions, manual refresh, read-only explanation and healthy reader metadata. More invocations stays below all loaded calls.
+**Recording issues and archive controls** holds reader compatibility, file issues, writer-wide capture health, project filtering, and Refresh archive. More sessions belongs to the Session picker, not this disclosure. Capture counters are not per-call assessment facts, and zero counters do not prove complete capture.
 
-`components/navigation.vitest.ts` checks command/path-first rows, the direct select, active filters, both pagination controls and empty selection. It checks healthy, unknown, indexing and capture-only archive states, plus mobile access to exact reader/file/writer details and restart guidance.
+Choose the tests by the behavior you need to verify:
 
-`integration/navigation.pw.ts` checks desktop, 1380px/460px sidebar and mobile states, native controls, genuine zero-match reset, individual hashed call links, history and no UI group requests. Unchanged polls retain selected detail and Recording issues disclosures, focus, scroll and private URLs. Existing archive/history, resizing, status and delayed-stage cases remain.
+- `components/app.vitest.ts` checks the server-derived No violations found, Violation found, Unclear, and Not checked statuses. It also checks unknown inventory, unavailable exact wording, unchecked declarations, fresh visits without action reads, and exact rule/action deep-link associations.
+- `components/session-rules.vitest.ts` checks opening a rule from its row SVG, inert full wording, lazy exact-action reads, and close/focus restoration.
+- `components/navigation.vitest.ts` checks native session radios, picker closure and trigger focus, full-width panels at 390px and 320px, partial-archive diagnostics, restart guidance, and loading/error/empty-state recovery. It checks that the old call-list controls are absent.
+- `integration/session-rules.pw.ts` checks all four session statuses through the real local server, pointer and keyboard selection, Escape, light dismissal, and focus restoration. Panel journeys run at 1280px, 390px, and 320px. They check 50-to-55 check pagination, lazy action disclosures, exact question data, independent panel scroll, and deep links. Polls retain focus and mounted data; close and Back/Forward restore panel state.
+- `integration/navigation.pw.ts` checks rule-first navigation at 1380px, 1103px, and 390px. It checks exact mounted-data retention, focus, scroll, disclosures, hashed invocation links, history, manual refresh, and no UI group requests. Zero-match category filtering and group counts use direct API reads, not UI controls.
+- `integration/complete-flow.pw.ts` checks the assembled 390px recorded-action route with native keyboard input. It reaches the last compact rule, scrolls exact records to the end, and retains focus and scroll across a real poll. A later partial archive checks the absence of category/call rows and keyboard scrolling of Recording issues. These are separate fictional states, not a category-filter journey.
 
-`integration/complete-flow.pw.ts` checks the assembled 390px route with native keyboard input. It reaches the last compact rule, scrolls exact records to the end, retains focus/scroll across a real poll, selects a true zero-match category by type-ahead, resets the filter and scrolls Recording issues. A complete fictional call and a later partial archive are separate states.
+The `integration/session-rules.pw.ts` visual-capture case writes synthetic screenshots only when `TENET_UI_CAPTURE_DIR` is set. The ordinary run does not verify those captures.
 
 Direct API and Bun regressions preserve group identities, counters, references, bounds and overflow without a group view.
 
 `test/inspector-group-display.test.ts` checks the 512 UTF-8 byte excerpts, supported 16-rule bound, separate identities, unavailable previews, cache invalidation, unchanged-evidence reads, accurate group/reference overflow and private API projections. `test/inspector-preview.test.ts` retains non-empty BB projection sentinels. Existing BB policy-text fields are unchanged; private display metadata is not added to them.
 
-## Simplified first view
+## Recorded action details
 
-The first view shows the action, recorded mode, named permission/result/assessment, applicable findings and one brief recorded-data reason. Released permission displays as **Not blocked by Tenet**, with the raw archived `released` value unchanged. The sidebar keeps per-call exceptions and one concern cue; it compacts only proved displayed context.
+After you open a recorded action, its first view shows the action, recorded mode, named permission/result/assessment, applicable findings, and one brief recorded-data reason. Released permission displays as **Not blocked by Tenet**, with the raw archived `released` value unchanged.
 
-A `+N` cue counts additional finding categories, not additional violated rules. All categories remain in the selected call and category filters are unchanged.
+`components/presentation.vitest.ts` also checks the private call-list concern cue. A `+N` cue counts additional finding categories, not additional violated rules. This does not describe a standalone sidebar.
 
 **Recorded data** replaces Evidence and Details with submitted action fields, captured policy, exact shared evidence, one **Exact rule records and captured questions** destination, SDK response/validation and recording/coverage. **Why this assessment** keeps compact recorded-rule text and confidence bars. Question shortcuts/readable questions, repeated PASS notes, separate outcome rows and technical rule panels are absent. Complete exact records stay in Recorded data.
 
 `components/compact-rules.vitest.ts`, `detail.vitest.ts` and `presentation.vitest.ts` keep finding-first historical FAIL/approval priority, outcome, severity, integrity, gate, approval, WARN and missing/non-applicable cases. Compact readings show each precise score and threshold once, distinguish selected evidence from SUFFICIENT and flag only recorded confidence gates. Full exact records remain independent of raw response and retain all fields. Tests check removed controls stay absent, text stays inert, and rule/data/evidence nodes, focus, disclosures and scroll survive updates.
 
-The common-only comparison checks identical safe DOM content/order and element positions at wide and 390px container widths. Selection, filters, check details and disclosures stay synchronized across adapters. A raw-extension toggle must not move or change common summary rows; provider failure and coverage facts remain visible.
+`components/comparison.vitest.ts` mounts the shared summary adapters in a comparison preview, not the standalone app. It checks identical safe DOM content/order and element positions at wide and 390px container widths. Selection, filters, check details and disclosures stay synchronized across adapters. A raw-extension toggle must not move or change common summary rows; provider failure and coverage facts remain visible.
 
 Browser Back tests check selected-call association, action preview, submitted evidence and exact question access after standalone extension placement changes. These use synthetic archive HTTP and public controls at desktop and 390px viewport sizes.
 
