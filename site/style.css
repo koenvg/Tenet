@@ -24,24 +24,24 @@ a:focus-visible { outline: 2px solid #171717; outline-offset: 5px; }
 ::selection { color: #fff; background: #171717; }
 
 .marketing-page, .marketing-header { max-width: 1240px; margin: 0 auto; padding: 0 6.2%; }
-.first-screen { padding: 0 0 72px; text-align: center; }
+.first-screen { display: flex; flex-direction: column; justify-content: center; min-height: calc(100svh - 68px); padding: 48px 0; text-align: center; }
 .site-header { display: flex; flex-wrap: wrap; gap: 12px 32px; align-items: center; justify-content: space-between; }
 .marketing-header { padding-top: 24px; }
 .marketing-header nav { display: flex; flex-wrap: wrap; gap: 0 24px; }
-.wordmark { font-size: 15px; font-weight: 500; letter-spacing: .2em; line-height: 1.4; }
+.wordmark { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
+.brand-mark { display: block; flex-shrink: 0; width: 28px; height: 28px; }
 .marketing-header a { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; }
 .site-header nav a { color: #626262; font-size: 14px; }
 
-.hero-copy { margin: 48px 0 0; }
+.hero-copy { margin: 0; }
 .rule-author { margin: 0 0 14px; color: #626262; font: 11px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .1em; text-transform: uppercase; }
-.hero-copy h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(48px, 5.5vw, 68px); font-weight: 400; line-height: 1.02; letter-spacing: -.045em; }
+.hero-copy h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(48px, min(7.25vw, 9svh), 96px); font-weight: 400; line-height: 1.02; letter-spacing: -.045em; }
 .hero-copy h1 span { display: block; }
 .hero-copy h1 em { color: #4d4d4d; font-weight: 400; }
-.hero-lead { max-width: 350px; margin: 18px auto 0; color: #626262; font-size: 15px; line-height: 1.6; }
 
-.keypress { margin: 0 auto; max-width: 810px; }
-.keypress-art { display: block; width: 100%; height: 260px; overflow: visible; }
-.key-button { display: block; width: 100%; max-width: 370px; margin: 0 auto; padding: 0; border: 0; border-radius: 18px; background: none; appearance: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.keypress { --hero-key-height: clamp(260px, 35svh, 440px); width: 100%; margin: 0 auto; max-width: 810px; }
+.keypress-art { display: block; width: 100%; height: var(--hero-key-height); overflow: visible; }
+.key-button { display: block; width: 100%; max-width: calc(var(--hero-key-height) * 61 / 43); margin: 0 auto; padding: 0; border: 0; border-radius: 18px; background: none; appearance: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .key-button { height: auto; white-space: normal; }
 .key-button:focus-visible { outline: 2px solid #171717; outline-offset: 4px; }
 .key-button:hover [data-key] rect:first-child { fill: #ffffff; }
@@ -50,10 +50,10 @@ a:focus-visible { outline: 2px solid #171717; outline-offset: 5px; }
 .keypress-hint[aria-hidden="true"] { visibility: hidden; }
 .written-rule { margin: 0 auto; max-width: 650px; }
 .written-rule .rule-author { margin: 0 0 11px; font-size: 12px; }
-#example-rule { margin: 0; font-size: clamp(23px, 2.2vw, 29px); line-height: 1.35; letter-spacing: -.025em; }
+#example-rule { margin: 0; font-size: clamp(23px, min(2.6vw, 3.5svh), 34px); line-height: 1.35; letter-spacing: -.025em; }
 .coverage summary:focus-visible { outline: 2px solid #171717; outline-offset: 5px; }
-.hero-actions { display: flex; justify-content: center; }
-.primary-action { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 48px; padding: 12px 24px; border-radius: 4px; color: #fff; background: #171717; font-size: 14px; font-weight: 500; }
+.hero-actions { display: flex; justify-content: center; margin-top: 20px; }
+.primary-action { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 52px; padding: 14px 28px; border-radius: 4px; color: #fff; background: #171717; font-size: 16px; font-weight: 500; }
 
 .marketing-page .marketing-section { padding: 96px 0; scroll-margin-top: 32px; }
 .marketing-page .marketing-section h2 { margin: 0 0 28px; font: 400 clamp(32px, 3.5vw, 44px)/1.12 Georgia, "Times New Roman", serif; letter-spacing: -.03em; text-wrap: balance; }
@@ -128,15 +128,12 @@ a:focus-visible { outline: 2px solid #171717; outline-offset: 5px; }
 
 @media (max-width: 700px) {
   .marketing-page, .marketing-header { padding-right: 7%; padding-left: 7%; }
-  .first-screen { padding: 0 0 48px; }
+  .first-screen { min-height: calc(100svh - 108px); padding: 32px 0; }
   .marketing-header { padding-top: 16px; gap: 4px; }
   .marketing-header nav { width: 100%; gap: 0 20px; }
-  .wordmark { font-size: 15px; }
   .site-header nav a { font-size: 14px; }
-  .hero-copy { margin-top: 32px; }
   .hero-copy h1 { font-size: clamp(40px, 11vw, 49px); }
-  .hero-lead { max-width: 290px; font-size: 14px; margin-top: 17px; }
-  .keypress-art { height: 230px; }
+  .keypress { --hero-key-height: 230px; }
   #example-rule { font-size: 24px; }
   .marketing-page .marketing-section { padding: 56px 0; }
   .marketing-page .faq-story, .marketing-page .closing-story { grid-template-columns: 1fr; gap: 24px; }
@@ -145,11 +142,10 @@ a:focus-visible { outline: 2px solid #171717; outline-offset: 5px; }
   .marketing-page .closing-story { padding: 64px 0 48px; gap: 24px; }
   .marketing-page .closing-story .closing-mark { font-size: 56px; }
   .site-footer { font-size: 14px; }
-  .site-header .wordmark, .site-footer a { display: inline-flex; align-items: center; min-height: 44px; }
+  .site-footer a { display: inline-flex; align-items: center; min-height: 44px; }
   .docs-header { padding: 27px 6.2% 0; }
   .docs-header nav { gap: 19px; }
-  .docs-header nav a, .docs-header .wordmark { display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; }
-  .docs-header .wordmark { font-size: 18px; }
+  .docs-header nav a { display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; }
   .docs-page { margin: 105px auto 90px; }
   .docs-page h1 { font-size: 44px; }
   .docs-lead { margin-top: 22px; font-size: 19px; }

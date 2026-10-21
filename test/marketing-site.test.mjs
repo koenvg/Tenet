@@ -134,7 +134,8 @@ test("the keypress hero applies an owner-written rule before deletion", () => {
   const html = page("index.html");
   expect(html).toContain("Some actions");
   expect(html).toContain("never land.");
-  expect(html).toContain("You write the rules. TENET checks eligible Pi tool calls against them.");
+  expect(html).not.toContain("You write the rules. TENET checks eligible Pi tool calls against them.");
+  expect(html).not.toContain('class="hero-lead"');
   expect(html).toContain("Your rule, for example");
   expect(html).toContain("Never delete production data.");
   expect(html).toContain(">Blocked</text>");
@@ -152,11 +153,11 @@ test("the focused homepage retains setup, FAQ and factual safety limits", () => 
   }
   for (const text of [
     "1. Write your rule in <code>TENET.md</code> in plain text.", "Before you start", "Start with your own rule.",
-    "eligible Pi tool calls",
+    "TENET checks eligible calls through host hooks",
     "Observe is the default.", "never blocks a call or asks for approval", "even when assessment is unavailable",
-    "Enforcement requires explicit opt-in and a new Pi process", "does not inspect subprocess internals",
+    "Enforcement requires explicit opt-in and a process restart", "does not inspect subprocess internals",
     "policy, paths, tool evidence and bounded recent observations to TypeSafe", "use quota", "secrets despite redaction",
-    "TENET_RECORDING=off", "before starting Pi", "does not stop provider disclosure or native findings",
+    "TENET_RECORDING=off", "before starting the integration", "does not stop provider disclosure or native findings",
     "does not delete old records", "private passing-main GitHub Actions artifact", "not an npm package or public release",
   ]) expect(html).toContain(text);
   expect(html).not.toContain('TENET checks eligible Pi tool calls and reports findings to you, not the agent. The animation uses fictional data and runs no tools or assessments.');
@@ -172,7 +173,7 @@ test("the focused homepage retains setup, FAQ and factual safety limits", () => 
 
 test('the local animation is prerendered without removed sections or inert controls', () => {
   const html = page('index.html');
-  for (const text of ['fork-demonstration', 'Fictional Pi call', 'Enforce mode', 'opt-in', 'Would block', 'Would empty data']) expect(html).toContain(text);
+  for (const text of ['fork-demonstration', 'Fictional tool call', 'Enforce mode', 'opt-in', 'Would block', 'Would empty data']) expect(html).toContain(text);
   expect(html.match(/class="fork-demonstration"/g)).toHaveLength(1);
   expect(html.match(/class="fork-rule">Never delete production data\./g)).toHaveLength(1);
   expect(html).toContain('class="fork-data-without">[]');
@@ -189,13 +190,13 @@ test('the local animation is prerendered without removed sections or inert contr
   expect(html).not.toMatch(/<input|<textarea|contenteditable/);
 });
 
-test("homepage metadata describes the current Pi alpha without invented deployment facts", () => {
+test("homepage metadata describes the current alpha without invented deployment facts", () => {
   const html = page("index.html");
   expect(html).toContain('<meta property="og:title" content="TENET | Your rules. Their next move."');
   expect(html).toContain('<meta property="og:type" content="website"');
   expect(html).toContain('<meta name="twitter:card" content="summary"');
   for (const attribute of ['name="description"', 'property="og:description"', 'name="twitter:description"']) {
-    expect(html).toContain(`${attribute} content="TENET is an alpha policy guard for Pi. Write plain-text rules, observe findings, and opt into enforcement. Start with the setup guide."`);
+    expect(html).toContain(`${attribute} content="TENET is an alpha policy guard for coding agents. Write plain-text rules, observe findings, and opt into enforcement. Start with the setup guide."`);
   }
   expect(html).not.toMatch(/rel="canonical"|og:url|og:image|application\/ld\+json/);
 });

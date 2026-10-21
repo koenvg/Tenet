@@ -3,7 +3,7 @@ import { Button } from '../../web/components/ui/button.js';
 export default function DocsPage() {
   return <><a className="skip-link" href="#content">Skip to content</a>
     <header className="docs-header">
-      <a className="wordmark" href="./index.html" aria-label="TENET home">TENET</a>
+      <a className="wordmark" href="./index.html" aria-label="TENET home"><img className="brand-mark" src="/tenet-gate.svg" width="28" height="28" alt="" aria-hidden="true" /></a>
       <nav aria-label="Main navigation">
         <a href="./index.html">Home</a>
         <a href="./index.html#how-it-works">How it works</a>
