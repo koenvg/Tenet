@@ -22,7 +22,7 @@ Preconditions:
 - These checks must not use your actual `~/.tenet/control.json`.
 
 - **Drive both entries.** Run `python3 -I .pi/skills/verify-tenet/scripts/run.py control --browser-cache "$CACHE" --evidence "$PROOF"`. It runs `test/global-control.test.ts` and `test/owner-cli.test.ts`.
-- **Check native effects.** Require assertions for OFF/ON footer state, owner-only status, zero new judge requests and recordings while off. The selected tests do not independently prove retention of a pre-existing recording.
+- **Check native effects.** Require assertions for OFF/ON footer state, owner-only status, zero new judge requests and recordings while off. Require the enabled call's archived identities and data to remain unchanged after off and on, with new capture after on.
 - **Check shell effects.** Require real CLI stdout, failures, and persisted `{ version: 1, activation: 'on' }` assertions. Status reports corrupt content as unavailable. An explicit on/off write can repair safe corrupt content. Unsafe files must not produce a success claim.
 - **Retain proof.** Require exit zero, the command transcript, and scratch-removal confirmation.
 
