@@ -126,12 +126,33 @@ test('off never binds an archive or feeds trajectory and preserves prior recordi
     assert.equal(await h.call('enabled-after-restart'), undefined);
     await h.assessed('enabled-after-restart');
     assert.ok(!JSON.stringify(requests.at(-1).trajectory).includes('off-transcript-secret'), 'startup cannot replay off transcript');
+    await h.captured();
+    const beforeOff = await readArchive(archivePath);
+    assert.deepEqual(beforeOff.issues, []);
+    const priorRecords = beforeOff.records.filter(r => r.callId === 'enabled');
+    assert.equal(priorRecords.filter(r => r.stage === 'permission').length, 1);
+    assert.equal(requests.length, 2);
     await h.commands.get('tenet').handler('off', h.ctx);
     const count = h.records.length;
     assert.equal(await h.call('disabled-again'), undefined);
     await h.emit('tool_result', { toolCallId: 'enabled', toolName: 'edit', content: [{ text: 'never-record-this' }] });
     assert.equal(h.records.length, count);
     assert.equal((await readArchive(archivePath)).records.some(r => r.callId === 'disabled-again'), false);
+    assert.equal(requests.length, 2, 'off suppresses new provider requests');
+    const whileOff = await readArchive(archivePath);
+    assert.deepEqual(whileOff.issues, []);
+    assert.deepEqual(whileOff.records.filter(r => r.callId === 'enabled'), priorRecords, 'off retains prior recording identities and data');
+    assert.deepEqual(whileOff.records.filter(r => ['disabled', 'disabled-late', 'disabled-again'].includes(r.callId ?? '')), []);
+    await h.commands.get('tenet').handler('on', h.ctx);
+    assert.equal(await h.call('enabled-again'), undefined);
+    await h.assessed('enabled-again');
+    await h.captured();
+    assert.equal(requests.length, 3);
+    const afterOn = await readArchive(archivePath);
+    assert.deepEqual(afterOn.issues, []);
+    assert.deepEqual(afterOn.records.filter(r => r.callId === 'enabled'), priorRecords, 'on retains prior recording identities and data');
+    assert.equal(afterOn.records.filter(r => r.callId === 'enabled-again' && r.stage === 'permission').length, 1);
+    assert.deepEqual(afterOn.records.filter(r => ['disabled', 'disabled-late', 'disabled-again'].includes(r.callId ?? '')), []);
   } finally { await h.close(); await rm(root, { recursive: true, force: true }); }
 });
 
