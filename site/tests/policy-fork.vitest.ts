@@ -37,7 +37,7 @@ for (const width of [320, 390, 999, 1705]) for (const mode of ['normal', 'reduce
     })).toBe(true);
     expect(await header.locator('p').count()).toBe(0);
     expect(await page.getByText('TENET checks eligible Pi tool calls and reports findings to you, not the agent. The animation uses fictional data and runs no tools or assessments.', { exact: true }).count()).toBe(0);
-    expect(await scene.locator('.fork-source > span').first().textContent()).toBe('Fictional Pi call · write');
+    expect(await scene.locator('.fork-source > span').first().textContent()).toBe('Fictional tool call · write');
     expect(await scene.locator('.fork-source > span').first().isVisible()).toBe(true);
     const link = header.getByRole('link', { name: 'Write your first rule' });
     expect(await link.getAttribute('href')).toBe('https://github.com/koenvg/Tenet/blob/main/docs/policy.md#write-a-first-rule');

@@ -7,6 +7,7 @@ const assets = new Map([
   ['/fonts/Geist-latin.woff2', 'font/woff2'],
   ['/fonts/OFL-Geist.txt', 'text/plain'],
   ['/THIRD_PARTY_NOTICES.txt', 'text/plain'],
+  ['/tenet-gate.svg', 'image/svg+xml'],
 ]);
 let checks = 0;
 
@@ -28,6 +29,7 @@ try {
     const html = await (await request(path, 200, 'text/html')).text();
     assert(html.includes(`<title>${title}</title>`), `${path}: expected page title`);
     assert(html.includes('/fonts/Geist-latin.woff2'), `${path}: font preload`);
+    assert(html.includes('src="/tenet-gate.svg"'), `${path}: shared Gate logo`);
     assert(html.includes(path === '/docs.html' ? 'href="./index.html"' : 'href="./docs.html"'), `${path}: navigation link`);
     assert(html.includes(path === '/docs.html' ? 'Use TENET in Pi.' : 'Never delete production data.'), `${path}: content must exist without JavaScript`);
     if (path !== '/docs.html') {
@@ -39,7 +41,7 @@ try {
       for (const id of ['modes', 'inspector', 'workflows', 'privacy']) {
         assert(!html.includes(`id="${id}"`) && !html.includes(`href="#${id}"`), `${path}: removed ${id} section and navigation`);
       }
-      for (const text of ['TypeSafe', 'TENET_RECORDING=off', 'Fictional Pi call']) {
+      for (const text of ['TypeSafe', 'TENET_RECORDING=off', 'Fictional tool call']) {
         assert(html.includes(text), `${path}: ${text} content`);
       }
       assert(html.includes('property="og:type" content="website"'), `${path}: accurate social metadata`);

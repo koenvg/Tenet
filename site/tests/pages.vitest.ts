@@ -31,6 +31,24 @@ async function expectForkStop(page:Page) {
   expect(end).toEqual({x:750,y:186});
   expect(await page.locator('[data-fork-stop]').getAttribute('visibility')).toBe('visible');
 }
+for(const width of [320,1280]) for(const javaScriptEnabled of [false,true]) test(`gate logo brands both page headers at ${width}px with JavaScript ${javaScriptEnabled}`,async()=> {
+  await withPage(width,javaScriptEnabled,async(page,errors)=> {
+    for(const route of ['/','/docs.html']) {
+      await page.goto(new URL(route,origin).href);
+      const home=page.getByRole('link',{name:'TENET home',exact:true}),logo=home.locator('img');
+      expect(await logo.count()).toBe(1);
+      expect(await home.textContent()).toBe('');
+      expect(await logo.getAttribute('alt')).toBe('');expect(await logo.getAttribute('aria-hidden')).toBe('true');
+      await expect.poll(()=>logo.evaluate(element=>({complete:(element as HTMLImageElement).complete,width:(element as HTMLImageElement).naturalWidth,height:(element as HTMLImageElement).naturalHeight}))).toEqual({complete:true,width:128,height:128});
+      const mark=(await logo.boundingBox())!,target=(await home.boundingBox())!;
+      expect(mark.width).toBe(28);expect(mark.height).toBe(28);expect(target.height).toBeGreaterThanOrEqual(44);
+      expect(target.width).toBeGreaterThanOrEqual(44);
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+      if(route==='/docs.html') {await home.click();expect(await page.getByRole('heading',{name:'Some actions never land.'}).isVisible()).toBe(true);}
+    }
+    expect(errors).toEqual([]);
+  });
+});
 for(const width of [320,390,640,900,1280]) test(`static React pages work without JavaScript at ${width}px`,async()=> {
   await withPage(width,false,async(page,errors)=> {
     await page.goto(origin);
@@ -40,7 +58,7 @@ for(const width of [320,390,640,900,1280]) test(`static React pages work without
     expect(await page.locator('.fork-control').count()).toBe(0);await expectFocusedHomepage(page);
     expect(await page.locator('#how-it-works figure').count()).toBe(1);
     expect(await page.locator('.fork-rule').textContent()).toBe('Never delete production data.');
-    expect(await page.locator('.fork-source > span').first().textContent()).toBe('Fictional Pi call · write');
+    expect(await page.locator('.fork-source > span').first().textContent()).toBe('Fictional tool call · write');
     expect(await page.locator('.fork-preview').textContent()).toBe('write({ content: "[]" })');
     expect(await page.locator('.fork-verdict').textContent()).toBe('Would block');
     expect(await page.locator('.fork-data-without').textContent()).toBe('[]');
@@ -48,7 +66,8 @@ for(const width of [320,390,640,900,1280]) test(`static React pages work without
     expect(await page.locator('#how-it-works').innerText()).not.toContain('fictional data');
     await expectForkStop(page);
     expect(await page.locator('#how-it-works figcaption, #how-it-works details, .policy-transport, .policy-file, .policy-rig').count()).toBe(0);
-    expect(await page.getByText('You write the rules. TENET checks eligible Pi tool calls against them.',{exact:true}).isVisible()).toBe(true);
+    expect(await page.locator('.hero-lead').count()).toBe(0);
+    expect(await page.locator('body').textContent()).not.toMatch(/\bPi\b/);
     expect(await page.getByText('Try pressing Delete',{exact:true}).isVisible()).toBe(false);
     await page.locator('.faq-item summary').filter({hasText:'Does evidence stay on my machine?'}).click();
     expect(await page.getByText(/Real assessments send policy, paths, tool evidence/).isVisible()).toBe(true);expect(await page.getByText(/Local recording is on by default/).isVisible()).toBe(true);
@@ -63,15 +82,16 @@ for(const width of [1280,390]) test(`hydrated pages preserve layout, keyboard fe
     let hydrate!:()=>void;const hydration=new Promise<void>(resolve=>{hydrate=resolve;});
     await page.route('**/*.js',async route=>{await hydration;await route.continue();});await page.goto(origin,{waitUntil:'commit'});
     await page.getByRole('heading',{name:'Some actions never land.'}).waitFor();
-    await expect.poll(()=>page.locator('.keypress-art').evaluate(e=>getComputedStyle(e).height)).toBe(width===1280?'260px':'230px');
+    await expect.poll(()=>page.locator('.keypress-art').evaluate(e=>getComputedStyle(e).height)).toBe(width===1280?'315px':'230px');
     await page.evaluate(()=>document.fonts.ready);const hint=page.getByText('Try pressing Delete',{exact:true});expect(await hint.isVisible()).toBe(false);
     expect(await page.getByRole('button',{name:'Try pressing delete'}).count()).toBe(0);
     const staticCaption=(await page.locator('#example-rule').boundingBox())!,docs=page.getByRole('link',{name:'Read the setup guide'}),staticArt=(await page.locator('.keypress-art').boundingBox())!;
     const staticDocs=(await docs.boundingBox())!;
     const staticGap=staticCaption.y-staticArt.y-staticArt.height;hydrate();
     const key=page.getByRole('button',{name:'Try pressing delete'});await key.waitFor();expect(await hint.isVisible()).toBe(true);
-    expect(await page.getByText('You write the rules. TENET checks eligible Pi tool calls against them.',{exact:true}).isVisible()).toBe(true);
-    const lead=(await page.locator('.hero-lead').boundingBox())!;expect(lead.y+lead.height).toBeLessThan((await docs.boundingBox())!.y);
+    expect(await page.locator('.hero-lead').count()).toBe(0);
+    expect(await page.locator('body').textContent()).not.toMatch(/\bPi\b/);
+    expect((await page.locator('#headline').boundingBox())!.y).toBeLessThan((await docs.boundingBox())!.y);
     expect((await page.locator('#example-rule').boundingBox())!.y).toBeCloseTo(staticCaption.y,1);
     expect((await docs.boundingBox())!.y).toBeCloseTo(staticDocs.y,1);
     await key.focus();await page.keyboard.press('Enter');await expect.poll(()=>page.locator('[data-press-announcement]').textContent()).toContain('Attempt 1 blocked');
@@ -84,6 +104,22 @@ for(const width of [1280,390]) test(`hydrated pages preserve layout, keyboard fe
     for(let i=0;i<8;i++) await page.locator('.fork-control').click();await page.locator('.faq-item summary').first().click();
     await docs.click();expect(await page.getByRole('heading',{name:'Use TENET in Pi.'}).isVisible()).toBe(true);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);expect(errors).toEqual([]);
   });
+});
+for(const javaScriptEnabled of [false,true]) test(`hero composition fills tall screens at a larger scale with JavaScript ${javaScriptEnabled}`,async()=> {
+  const context=await browser.newContext({viewport:{width:1326,height:1268},javaScriptEnabled,reducedMotion:'reduce'});
+  try {
+    const page=await context.newPage();await page.goto(origin);await page.evaluate(()=>document.fonts.ready);
+    const heading=page.getByRole('heading',{name:'Some actions never land.'}),art=page.locator('.keypress-art'),action=page.getByRole('link',{name:'Read the setup guide'});
+    expect(await heading.evaluate(element=>getComputedStyle(element).fontSize)).toBe('96px');
+    expect((await art.boundingBox())!.height).toBe(440);
+    const rule=(await page.locator('#example-rule').boundingBox())!,button=(await action.boundingBox())!;
+    expect(button.y-rule.y-rule.height).toBeGreaterThanOrEqual(20);
+    expect(button.height).toBeGreaterThanOrEqual(52);
+    expect(button.y+button.height).toBeLessThan(1268);
+    const hero=(await page.locator('.first-screen').boundingBox())!;
+    expect(hero.y+hero.height).toBeCloseTo(1268,1);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(1326);
+  } finally {await context.close();}
 });
 for(const width of [320,390,640,900,1280]) test(`marketing story and native navigation reflow at ${width}px`,async()=> {
   await withPage(width,false,async(page,errors)=> {

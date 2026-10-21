@@ -22,7 +22,7 @@ export default function PolicyFork({ ready }: { ready: boolean }) {
       </button>}
     </div>
     <div className="fork-source">
-      <span>Fictional Pi call <span aria-hidden="true">·</span> <code>{example.call.name}</code></span>
+      <span>Fictional tool call <span aria-hidden="true">·</span> <code>{example.call.name}</code></span>
       <pre><code className="fork-preview">{example.preview}</code></pre>
       <span className="fork-target">Target <code>production/<wbr />customers.json</code></span>
     </div>

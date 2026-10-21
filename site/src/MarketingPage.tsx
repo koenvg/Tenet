@@ -10,7 +10,7 @@ export default function MarketingPage() {
   return <>
     <a className="skip-link" href="#content">Skip to content</a>
     <header className="site-header marketing-header" id="top">
-      <a className="wordmark" href="#top" aria-label="TENET home">TENET</a>
+      <a className="wordmark" href="#top" aria-label="TENET home"><img className="brand-mark" src="/tenet-gate.svg" width="28" height="28" alt="" aria-hidden="true" /></a>
       <nav aria-label="Main navigation">
         <a href="#how-it-works">How it works</a>
         <a href="#faq">FAQ</a>
@@ -21,7 +21,6 @@ export default function MarketingPage() {
       <section className="first-screen" aria-labelledby="headline" data-keypress data-motion={motion.motion} ref={hero}>
         <div className="hero-copy">
           <h1 id="headline"><span>Some actions</span><span><em>never land.</em></span></h1>
-          <p className="hero-lead">You write the rules. TENET checks eligible Pi tool calls against them.</p>
         </div>
 
         <figure className="keypress" aria-labelledby="example-rule">
@@ -46,7 +45,7 @@ export default function MarketingPage() {
         <div className="faq-list">
           <details className="faq-item">
             <summary>Does TENET block calls by default?</summary>
-            <p>No. Observe is the default. It never blocks a call or asks for approval, even when assessment is unavailable. Enforcement requires explicit opt-in and a new Pi process.</p>
+            <p>No. Observe is the default. It never blocks a call or asks for approval, even when assessment is unavailable. Enforcement requires explicit opt-in and a process restart.</p>
           </details>
           <details className="faq-item">
             <summary>Does it cover everything an agent does?</summary>
@@ -58,11 +57,11 @@ export default function MarketingPage() {
           </details>
           <details className="faq-item">
             <summary>What does turning recording off change?</summary>
-            <p>Set <code>TENET_RECORDING=off</code> before starting Pi to stop new local capture. It does not stop provider disclosure or native findings, and it does not delete old records.</p>
+            <p>Set <code>TENET_RECORDING=off</code> before starting the integration to stop new local capture. It does not stop provider disclosure or native findings, and it does not delete old records.</p>
           </details>
           <details className="faq-item">
             <summary>How do I install the alpha?</summary>
-            <p>Start with the setup guide. The recommended Pi path uses a private passing-main GitHub Actions artifact, not an npm package or public release. You need access to that private artifact. The guide lists prerequisites and an offline setup check.</p>
+            <p>Start with the setup guide. The archive installation uses a private passing-main GitHub Actions artifact, not an npm package or public release. You need access to that private artifact. The guide lists prerequisites and an offline setup check.</p>
             <a className="read-more" href="./docs.html#setup">Check installation and access <span aria-hidden="true">→</span></a>
           </details>
         </div>
