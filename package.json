@@ -43,7 +43,7 @@
     "inspector:test:discovery": "node scripts/check-inspector-discovery.mjs",
     "site:build": "bun site/build.ts",
     "site:check": "tsc -p site/tsconfig.json",
-    "site:test": "bun run site:build && vitest run --config site/vitest.config.ts",
+    "site:test": "bun run site:build && bun run test ./test/marketing-site.test.mjs && vitest run --config site/vitest.config.ts",
     "pi": "bun run sdk:build && bun ./node_modules/@earendil-works/pi-coding-agent/dist/cli.js -e ./src/pi/extension.ts"
   },
   "pi": {
