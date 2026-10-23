@@ -1,0 +1,14 @@
+{
+  "contract": "tenet-monitoring-events-v1",
+  "scope": { "taskId": "TENET-188", "runId": "synthetic-run", "nativeSessionId": "native-1" },
+  "events": [
+    { "id": "fixture-source:1", "seq": 1, "segment": 1, "source": "fixture-source", "origin": { "kind": "collector" }, "authentication": "unavailable", "body": { "kind": "segment.opened", "nativeSessionId": "native-1", "reporter": "offline-driver", "previousBundle": null } },
+    { "id": "fixture-source:2", "seq": 2, "segment": 1, "source": "fixture-source", "origin": { "kind": "pi-sdk", "hostVersion": "1.3.0", "notification": 1 }, "authentication": "unavailable", "body": { "kind": "agent.started" } },
+    { "id": "fixture-source:3", "seq": 3, "segment": 1, "source": "fixture-source", "origin": { "kind": "caller-report", "reporter": "offline-driver" }, "authentication": "unavailable", "body": { "kind": "revision.reported", "label": "revision-A", "files": [{ "path": "src/example.ts", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }] } },
+    { "id": "fixture-source:4", "seq": 4, "segment": 1, "source": "fixture-source", "origin": { "kind": "pi-sdk", "hostVersion": "1.3.0", "notification": 2 }, "authentication": "unavailable", "body": { "kind": "tool.dispatched", "nativeCallId": "check-a", "toolName": "bash", "parentNativeCallId": null, "declaredInput": { "kind": "retained", "value": { "command": "synthetic-check" } }, "revision": "fixture-source:3" } },
+    { "id": "fixture-source:5", "seq": 5, "segment": 1, "source": "fixture-source", "origin": { "kind": "pi-sdk", "hostVersion": "1.3.0", "notification": 3 }, "authentication": "unavailable", "body": { "kind": "tool.finished", "nativeCallId": "check-a", "toolName": "bash", "parentNativeCallId": null, "result": { "kind": "retained", "value": "Synthetic check passed" }, "isError": false, "durationMs": 7 } },
+    { "id": "fixture-source:6", "seq": 6, "segment": 1, "source": "fixture-source", "origin": { "kind": "pi-sdk", "hostVersion": "1.3.0", "notification": 4 }, "authentication": "unavailable", "body": { "kind": "assistant.completed", "text": { "kind": "retained", "value": "Checked revision A" }, "stopReason": "stop", "declaredCalls": [] } },
+    { "id": "fixture-source:7", "seq": 7, "segment": 1, "source": "fixture-source", "origin": { "kind": "pi-sdk", "hostVersion": "1.3.0", "notification": 5 }, "authentication": "unavailable", "body": { "kind": "run.settled", "aborted": false } },
+    { "id": "fixture-source:8", "seq": 8, "segment": 1, "source": "fixture-source", "origin": { "kind": "collector" }, "authentication": "unavailable", "body": { "kind": "segment.closed", "reason": "settled" } }
+  ]
+}
