@@ -160,9 +160,11 @@ export function dashboardHandlers(sdk: BbPluginApi['sdk'], directories: () => Pr
     if (state.kind !== 'reading') return;
     const threads = [...run.threads];
     if (state.resolve < threads.length) {
-      for (const [threadId, projectId] of threads.slice(state.resolve, state.resolve + 8)) {
-        const selected = await target(threadId, projectId, pass);
-        if (!canAcquire(run)) return;
+      const batch = threads.slice(state.resolve, state.resolve + 8);
+      const targets = await Promise.all(batch.map(([threadId, projectId]) => target(threadId, projectId, pass)));
+      if (!canAcquire(run)) return;
+      for (const [index, [threadId]] of batch.entries()) {
+        const selected = targets[index];
         if (selected) { run.targets.set(threadId, selected); run.coverage.resolved++; }
         else { run.coverage.unavailable++; run.coverage.unprocessed--; }
       }
