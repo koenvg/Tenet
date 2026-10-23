@@ -4,8 +4,8 @@ import { delimiter, dirname, join } from 'node:path';
 
 export const TESTED_PI_VERSION = '1.3.0';
 const PI_PACKAGE = '@earendil-works/pi-coding-agent';
-// Common compiled readiness entries. The manifest selects the development or production host layout.
 export const DELIVERY_FILES = Object.freeze([
+  'bun.lock', 'src/pi/extension.ts', 'src/inspector/serve-cli.ts',
   'package.json', 'LICENSE', 'dist/cli/index.js', 'dist/doctor/doctor.js', 'dist/doctor/installation.js',
   'dist/sdk/index.js', 'dist/sdk/index.d.ts', 'dist/runtime/guard.js',
   'dist/runtime/config.js', 'dist/runtime/policy-selection.js', 'dist/runtime/activation.js', 'dist/runtime/resources.js',
@@ -42,11 +42,8 @@ export async function inspectDelivery(root: string) {
   const pi = pkg?.pi as { extensions?: unknown } | undefined;
   const entries = pi?.extensions;
   const checkout = Array.isArray(entries) && entries.length === 1 && entries[0] === './src/pi/extension.ts';
-  const archive = Array.isArray(entries) && entries.length === 1 && entries[0] === './dist/pi/extension.js';
-  const layout = checkout ? ['bun.lock', 'src/pi/extension.ts', 'src/inspector/serve-cli.ts']
-    : archive ? ['package-lock.json', 'dist/pi/extension.js', 'dist/inspector/serve-cli.js'] : [];
-  if (!checkout && !archive) missing.push('pi-entry-metadata');
-  for (const file of [...DELIVERY_FILES, ...layout]) if (!await isFile(join(root, file))) missing.push(file);
+  if (!checkout) missing.push('pi-entry-metadata');
+  for (const file of DELIVERY_FILES) if (!await isFile(join(root, file))) missing.push(file);
   const dependency = await metadata(join(root, 'node_modules/@typesafe-ai/sdk/package.json'));
   const dependencies = pkg?.dependencies as Record<string, unknown> | undefined;
   if (pkg?.name !== 'tenet' || !dependencies || typeof dependencies['@typesafe-ai/sdk'] !== 'string') missing.push('runtime-dependency-metadata');

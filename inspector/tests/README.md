@@ -117,7 +117,7 @@ These are recorded-data presentation tests, not live accuracy measurements. Fixt
 
 Verification rewrites no archive or policy and restarts no active service. Owners must rebuild and restart the inspector to load changed assets; rebuilding alone leaves a running reader unchanged.
 
-Rollback needs a separately preserved, verified previous installation and its build. Do not reset a shared working tree. Preserve recordings and unrelated local changes; see [archive rollback prerequisites](../../docs/INSTALL-ARCHIVE.md#removal-and-rollback).
+Rollback needs a separately preserved, verified previous installation and its build. Do not reset a shared working tree. Preserve recordings and unrelated local changes; see [checkout rollback prerequisites](../../docs/INSTALL.md#removal-and-rollback).
 
 ## Native session and rule navigation
 

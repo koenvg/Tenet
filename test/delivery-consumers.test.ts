@@ -56,7 +56,7 @@ async function checkout(check: (root: string, checkout: string) => Promise<void>
     await mkdir(copy);
     for (const path of ['scripts', 'src', 'web', 'inspector/src', 'inspector/index.html', 'inspector/vite.config.ts',
       'docs/judge.md', 'docs/doctor.md', 'third-party/apus', 'LICENSE', 'package.json', 'bun.lock',
-      'tsconfig.json', 'tsconfig.sdk.json', 'tsconfig.delivery.json']) {
+      'tsconfig.json', 'tsconfig.sdk.json', 'tsconfig.consumer-checks.json']) {
       await mkdir(dirname(join(copy, path)), { recursive: true });
       await cp(join(repository, path), join(copy, path), { recursive: true });
     }
@@ -594,16 +594,16 @@ try {
   });
 }
 
-test('ordinary checks invoke the offline lane and retain the separate archive and metadata gates', async () => {
+test('ordinary checks cover checkout installation without archive publication', async () => {
   const ci = await readFile(join(repository, '.github/workflows/ci.yml'), 'utf8');
   const contributing = await readFile(join(repository, 'CONTRIBUTING.md'), 'utf8');
-  const offline = ci.slice(ci.indexOf('  offline:'), ci.indexOf('  delivery:'));
-  assert.match(offline, /scripts\/validate-offline\.sh --browser-cache/);
+  const manifest = JSON.parse(await readFile(join(repository, 'package.json'), 'utf8'));
+  assert.match(ci, /scripts\/validate-offline\.sh --browser-cache/);
   const runner = await readFile(join(repository, 'scripts/validate-offline.sh'), 'utf8');
   assert.match(runner, /bun run delivery:check/);
-  assert.ok(contributing.indexOf('bun run delivery:check') < contributing.indexOf('## Verify the delivery archive'));
-  const delivery = ci.slice(ci.indexOf('  delivery:'));
-  assert.match(delivery, /needs: \[offline\]/);
-  assert.match(delivery, /- run: bun run package:archive/);
-  assert.match(delivery, /- run: python3 -B scripts\/check-archive-metadata.py delivery\/tenet.tar.gz/);
+  assert.ok(contributing.includes('bun run delivery:check'));
+  assert.equal(manifest.scripts['package:archive'], undefined);
+  assert.equal(manifest.scripts['package:verify'], undefined);
+  assert.ok(!ci.includes('  delivery:'));
+  assert.ok(!ci.includes('tenet.tar.gz'));
 });

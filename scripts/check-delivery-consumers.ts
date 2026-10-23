@@ -5,6 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ConsumerInterrupted, ConsumerShutdownError, verifyRuntimeConsumers, verifyDeclarationConsumer } from './delivery-consumers.js';
 import { isolatedEnvironment, isolatedArgs } from './isolated-environment.js';
+import { verifyOwnerInstallation } from './check-owner-installation.js';
 
 const repository = fileURLToPath(new URL('..', import.meta.url));
 
@@ -19,16 +20,16 @@ export async function checkDeliveryConsumers(): Promise<void> {
     });
     const installation = join(root, 'tenet'); await mkdir(installation);
     const compiler = join(repository, 'node_modules/typescript/bin/tsc');
-    run('node', [compiler, '-p', 'tsconfig.delivery.json', '--outDir', join(installation, 'dist')]);
+    run('node', [compiler, '-p', 'tsconfig.consumer-checks.json', '--outDir', join(installation, 'dist')]);
     // Bun's no-env-file flag does not disable Vite's separate dotenv loader.
     run('node', ['--input-type=module', '-e', `import { build } from 'vite'; await build({
       root: ${JSON.stringify(join(repository, 'inspector'))}, envDir: false,
       build: { outDir: ${JSON.stringify(join(installation, 'inspector/dist'))} }
     });`]);
     for (const path of ['package.json', 'bun.lock', 'LICENSE', 'docs/judge.md', 'docs/doctor.md',
-      'third-party/apus/LICENSE', 'third-party/apus/NOTICE', 'src/pi/extension.ts', 'src/inspector/serve-cli.ts']) {
+      'third-party/apus/LICENSE', 'third-party/apus/NOTICE', 'src']) {
       await mkdir(dirname(join(installation, path)), { recursive: true });
-      await cp(join(repository, path), join(installation, path));
+      await cp(join(repository, path), join(installation, path), { recursive: true });
     }
     await symlink(join(repository, 'node_modules'), join(installation, 'node_modules'), 'dir');
     const consumer = join(root, 'consumer'); await mkdir(join(consumer, 'node_modules'), { recursive: true });
@@ -37,7 +38,8 @@ export async function checkDeliveryConsumers(): Promise<void> {
     const context = { root, installation, consumer };
     await verifyRuntimeConsumers(context);
     await verifyDeclarationConsumer(context, { compiler, typeRoots: join(repository, 'node_modules/@types') });
-    console.log('Offline delivery consumers passed with checkout dependencies. Production archive verification remains required.');
+    await verifyOwnerInstallation(context);
+    console.log('Offline checkout consumers and owner installation passed with existing dependencies.');
   } catch (error) {
     retained = error instanceof ConsumerShutdownError;
     throw error;

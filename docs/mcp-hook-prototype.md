@@ -1,6 +1,6 @@
 # Check MCP tool hooks offline
 
-Use this experimental developer-checkout prototype to test Tenet's MCP hook exchange with a local fixture host or an explicitly selected native Pi test. It does not connect to OpenAI dots or verify enterprise hook coverage. It is not included in the production archive.
+Use this experimental developer-checkout prototype to test Tenet's MCP hook exchange with a local fixture host or an explicitly selected native Pi test. It does not connect to OpenAI dots or verify enterprise hook coverage. It is not part of the supported Pi installation path.
 
 ## Run the local check
 

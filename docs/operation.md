@@ -1,6 +1,6 @@
-# Operate the archive installation
+# Operate a Tenet checkout installation
 
-Use this guide to check status, manage policy and settings, and fix an installed production archive. Follow the [root installation guide](../README.md) first. In a checkout, the archive recipe is [available in the repository](https://github.com/koenvg/Tenet/blob/main/docs/INSTALL-ARCHIVE.md).
+Use this guide to check status, manage policy and settings, and fix Tenet installed from a stable checkout. Complete the [installation guide](INSTALL.md) first.
 
 Start with [status](#check-status-before-a-live-action). Then choose the branch you need:
 
@@ -10,7 +10,7 @@ Start with [status](#check-status-before-a-live-action). Then choose the branch 
 - [Look up settings](#settings-before-launch) or [fix a failure](#troubleshooting).
 - [Inspect or delete retained evidence](#disclosure-and-limits).
 
-Pi loads `dist/pi/extension.js`, which registers the native guard and inspector command. The guard uses the same compiled SDK as standalone consumers. No global `tenet` command is installed.
+Pi loads `src/pi/extension.ts`, which registers the native guard and inspector command. The guard uses the same compiled SDK as standalone consumers. No global `tenet` command is installed.
 
 ## Check status before a live action
 
@@ -60,7 +60,7 @@ In pinned Pi 1.3.0, a switch from eligible to dormant can leave old command name
 
 ### Select a policy
 
-Tenet selects optional `~/.tenet/TENET.md` from the process owner's home alongside `TENET.md` in the session working directory. `TENET_POLICY` replaces only the project candidate with an absolute or session-relative file. There is no global-path override, per-project opt-out, parent search or installation-directory fallback. No owner policy ships in the archive. A prompt attachment does not activate the guard.
+Tenet selects optional `~/.tenet/TENET.md` from the process owner's home alongside `TENET.md` in the session working directory. `TENET_POLICY` replaces only the project candidate with an absolute or session-relative file. There is no global-path override, per-project opt-out, parent search or installation-directory fallback. A prompt attachment does not activate the guard.
 
 ```text
 Owner home global + session project -> validate complete set
@@ -240,7 +240,7 @@ Approval waits are serialized and the timeout includes queue time. A late answer
 
 ## Settings before launch
 
-Private protocol selection and JSON deadline and queue limits are in the shipped [judge settings guide](judge.md). Owner `~/.tenet/config.json` supplies the base selection. The canonical project's private `.tenet/config.json` can replace the complete judge or override supplied limits.
+Private protocol selection and JSON deadline and queue limits are in the [judge settings guide](judge.md). Owner `~/.tenet/config.json` supplies the base selection. The canonical project's private `.tenet/config.json` can replace the complete judge or override supplied limits.
 
 Both sources are separate from activation. Confirmed absence retains official System One at `https://api.typesafe.ai` with `jev-latest`; invalid sources never fall back. Anonymous System One and APUS need no bearer credential. Doctor checks local readiness only.
 
@@ -315,7 +315,7 @@ UI shows loss/pending counters and drain timeouts. A crash, full disk or exhaust
 
 Before starting an inspector service, obtain separate authorization to expose retained full policy and selected evidence to same-user loopback readers. Strings can retain secrets despite redaction. This sends no new judge request, but capture-off does not erase old records/backend logs or stop future provider disclosure. Keep access private.
 
-For retained evidence, run `/tenet-inspector`, or from the stable installation use `npm run inspector:serve`. No Pi or TypeSafe credential is needed for the standalone reader. Use the same `TENET_RECORDING_DIR` as the writer.
+For retained evidence, run `/tenet-inspector`, or from the stable installation use `bun run inspector:serve`. No Pi or TypeSafe credential is needed for the standalone reader. Use the same `TENET_RECORDING_DIR` as the writer.
 
 The server is read-only, loopback-only and unauthenticated. Do not expose or proxy secret-bearing evidence to another machine.
 
@@ -333,4 +333,4 @@ Tenet does not inspect subprocess internals, user-entered `!` commands, extensio
 
 Tenet is not filesystem isolation or an OS sandbox. Hidden aliases may remain unknown, and same-user processes can change control or access evidence. Unknown host versions are not verified enforcement. Claude Code is an unverified prototype outside this delivery setup path.
 
-The [SDK guide](sdk.md) describes host obligations and recorded contract versions. Optional [repository documentation](https://github.com/koenvg/Tenet#readme) has wider references and historical evaluation limits. This archive's offline checks do not measure live evaluator accuracy.
+The [SDK guide](sdk.md) describes host obligations and recorded contract versions. Optional [repository documentation](https://github.com/koenvg/Tenet#readme) has wider references and historical evaluation limits. The offline checkout checks do not measure live evaluator accuracy.

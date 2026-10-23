@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { createGuard } from 'tenet';
 
 const [installation, project, scenario, expectedHome] = process.argv.slice(2);
-assert.ok(isAbsolute(expectedHome) && expectedHome.includes('tenet-relocated-'));
+assert.ok(isAbsolute(expectedHome) && expectedHome.includes('tenet-consumers-'));
 assert.equal(await realpath(expectedHome), expectedHome);
 assert.equal(homedir(), expectedHome);
 assert.equal(process.cwd(), project);

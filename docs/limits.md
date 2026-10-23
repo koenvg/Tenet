@@ -2,7 +2,7 @@
 
 Use this reference to check what Tenet can report, release and record before you authorize an action. It covers the current Pi integration, alpha SDK and opt-in Claude Code prototype. Tenet is not an OS sandbox. A confident but mistaken judge can allow a prohibited action, and activity outside host hooks is not covered.
 
-For launch and recording tasks, use [the inspector guide](inspector.md). For exact settings, use [configuration](configuration.md). These are developer-checkout references; required archive steps and warnings remain in the shipped [installation](INSTALL-ARCHIVE.md) and [operation](ARCHIVE-OPERATION.md) guides.
+For launch and recording tasks, use [the inspector guide](inspector.md). For exact settings, use [configuration](configuration.md). Follow the [installation](INSTALL.md) and [operation](operation.md) guides for the stable-checkout owner path.
 
 Look up the limit that affects your action:
 
@@ -17,7 +17,7 @@ Look up the limit that affects your action:
 
 Mode is fixed for the process. To change it, close Pi and start a new process. This is a live-capable launch, not an offline test. Assessed actions send data to the selected judge. TypeSafe uses quota; APUS uses the owner-operated backend. Read [disclosure](#data-disclosure-and-audit) before authorizing any real action.
 
-From an installed archive's project directory:
+From a project using the installed stable checkout:
 
 ```sh
 TENET_MODE=enforce pi
@@ -224,7 +224,7 @@ The issuing process cancels pending assessments before reporting off. Other Pi p
 
 A corrupt/unreadable control file shows `TENET CONTROL UNAVAILABLE` only in eligible sessions. Enforce blocks; observe permits without assessment or capture. Repair a safe malformed file with `/tenet on` or `/tenet off`; fix unsafe permissions or symlinks outside Pi.
 
-Pending writes can finish after off. Old evidence remains until separately deleted. Uninstalling the package does not erase the control file or archive. Older extensions can ignore the control file and restore missing-policy unavailability. See [archive removal and rollback](INSTALL-ARCHIVE.md#removal-and-rollback).
+Pending writes can finish after off. Old evidence remains until separately deleted. Uninstalling the package does not erase the control file or archive. Older extensions can ignore the control file and restore missing-policy unavailability. See [checkout removal and rollback](INSTALL.md#removal-and-rollback).
 
 The switch also applies to an explicitly installed local Claude bridge/hooks. Pi loading alone neither installs nor verifies them. Shared-file propagation and pinned policy/no-policy Pi tests are offline; they do not establish live multi-process behavior with TypeSafe credentials.
 

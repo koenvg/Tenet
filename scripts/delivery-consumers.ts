@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { isolatedEnvironment, isolatedArgs } from './isolated-environment.js';
 
-type ConsumerContext = Readonly<{ root: string; installation: string; consumer: string }>;
+export type ConsumerContext = Readonly<{ root: string; installation: string; consumer: string }>;
 type ConsumerCompiler = Readonly<{ compiler: string; typeRoots: string }>;
 
 type CompilerFailure = { status?: number | null; stdout?: string; stderr?: string };

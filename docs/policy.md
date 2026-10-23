@@ -2,11 +2,11 @@
 
 Use this guide to write rules for a Pi project. Start with one rule, check it offline, then inspect findings in observe mode. The later sections give the exact grammar and owner controls.
 
-This is a checkout reference. Production archive owners can use the self-contained [archive operation guide](ARCHIVE-OPERATION.md#eligibility-and-owner-control).
+Use this policy reference after installation. For status, activation and troubleshooting, follow the [owner operation guide](operation.md#eligibility-and-owner-control).
 
 ## Write a first rule
 
-You need an installed Tenet extension and a project directory you control. For archive installation, follow [Install the archive](INSTALL-ARCHIVE.md). No owner policy ships in the archive.
+You need an installed Tenet extension and a project directory you control. Follow [Install from a stable checkout](INSTALL.md). The checkout's `TENET.md` is test data, not an owner policy template.
 
 Edit the active policy yourself in an editor or owner shell, outside the guarded agent's intercepted path. Tenet's built-in integrity constraint protects it, but Tenet is not a filesystem sandbox. Keep policy creation, migration and weakening outside that agent path.
 
@@ -49,7 +49,7 @@ Observe reports what enforcement would do but never vetoes or opens approval, in
    TENET_MODE=observe pi
    ```
 
-3. Check `TENET ON OBSERVE` and `/tenet status`. Use `/tenet` to inspect owner findings. For installation or status failures, follow [archive troubleshooting](ARCHIVE-OPERATION.md#troubleshooting).
+3. Check `TENET ON OBSERVE` and `/tenet status`. Use `/tenet` to inspect owner findings. For installation or status failures, follow [owner troubleshooting](operation.md#troubleshooting).
 
 ## Choose your next policy task
 
@@ -261,7 +261,7 @@ Review the target version before replacing Tenet. Restore the previous extension
 
 Older versions ignore `TENET_MODE`, do not understand `WARN`/`BLOCK` metadata and block by default. Rollback does not preserve observation mode.
 
-Before rolling back per-rule threshold support, remove threshold metadata from deployed policies. Older versions treat that segment as prose, not configuration. After removal, all rules use the global evidence threshold. See [archive removal and rollback](INSTALL-ARCHIVE.md#removal-and-rollback).
+Before rolling back per-rule threshold support, remove threshold metadata from deployed policies. Older versions treat that segment as prose, not configuration. After removal, all rules use the global evidence threshold. See [checkout removal and rollback](INSTALL.md#removal-and-rollback).
 
 ## Fix a rejected or unavailable policy
 

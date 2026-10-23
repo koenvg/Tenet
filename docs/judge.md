@@ -1,6 +1,6 @@
 # Configure the judge
 
-Use this guide to select an owner-wide judge, check private version 2 settings offline, and plan owner-operated Pika setup. It applies to a production archive or a built developer checkout. Start with no settings file if official TypeSafe defaults meet your needs.
+Use this guide to select an owner-wide judge, check private version 2 settings offline, and plan owner-operated Pika setup. It applies to a built stable checkout. Start with no settings file if official TypeSafe defaults meet your needs.
 
 System One selects an explicit HTTPS or literal loopback destination. APUS OpenJev v1 through llama.cpp remains experimental and needs no TypeSafe key. Local readiness does not verify connectivity. Neither implementation falls back to another judge.
 
@@ -10,7 +10,7 @@ Historical details use recorded `judge-report-v1` or `judge-report-v2` facts, ne
 
 ## Check settings offline
 
-For an archive, first install its locked production dependencies as described in its root `README.md`. For a checkout, build the SDK and inspector using the optional [repository development setup](https://github.com/koenvg/Tenet/blob/main/CONTRIBUTING.md#set-up). Doctor reads local setup only. It makes no provider request, starts no model or tunnel, writes no settings and creates no recordings.
+First complete the [stable-checkout installation](INSTALL.md), including locked dependencies and the SDK and inspector builds. Doctor reads local setup only. It makes no provider request, starts no model or tunnel, writes no settings and creates no recordings.
 
 1. From the installation root, run the compiled doctor. Replace `/absolute/path/to/project` with your project directory:
 
@@ -298,7 +298,7 @@ Before live-capable restart, obtain separate authorization for the installed ext
 
 Capture-off stops neither disclosure nor all logs. Installation/replacement and actual evidence submission each need their own approval; a restart approval does not grant them.
 
-1. Complete archive installation only if separately authorized, using its root `README.md`. From your externally reviewed project directory, start a new process:
+1. Complete [stable-checkout installation](INSTALL.md) only if separately authorized. From your externally reviewed project directory, start a new process:
 
    ```sh
    cd /absolute/path/to/project
@@ -354,11 +354,11 @@ Omitted-field, unavailable and truncated markers remain. These are not exact unr
 
 Sole-`NONE` provenance records no inference, `modelConfidence: false` and `authenticatedCoverage: false`. Its probability of one is not confidence. Additive `judge-report-v2` in owner report version 4 keeps requested provider/model and reports `returnedModel` only for a complete validated assessment.
 
-Readers reject unknown native versions. They do not infer absent fields in old records, rewrite historical identities or apply current question versions to old captures. Historical `apus-recording-v1` shared-state captures retain their recorded meaning. Capture-off without an external sink stores no native request/response archive. The optional [repository-only native recording contract](https://github.com/koenvg/Tenet/blob/main/docs/assessment-contract.md#native-recording-contract) has development details and is not shipped or required for owner setup.
+Readers reject unknown native versions. They do not infer absent fields in old records, rewrite historical identities or apply current question versions to old captures. Historical `apus-recording-v1` shared-state captures retain their recorded meaning. Capture-off without an external sink stores no native request/response archive. The optional [repository-only native recording contract](https://github.com/koenvg/Tenet/blob/main/docs/assessment-contract.md#native-recording-contract) has development details and is not required for owner setup.
 
-Native errors do not enter owner findings or agent history. The production archive includes this guide, the native adapter, settings modules and attribution, but no model, Python oracle or development fixtures.
+Native errors do not enter owner findings or agent history. Model and inference-service setup remain separate from Tenet installation.
 
-The port retains [APUS attribution](../third-party/apus/NOTICE) and the [Apache-2.0 license](../third-party/apus/LICENSE). The optional [repository-only renderer fixture reference](https://github.com/koenvg/Tenet/blob/main/test/fixtures/apus/PROVENANCE.md) describes independent development checks. It is not an archive prerequisite.
+The port retains [APUS attribution](../third-party/apus/NOTICE) and the [Apache-2.0 license](../third-party/apus/LICENSE). The optional [repository-only renderer fixture reference](https://github.com/koenvg/Tenet/blob/main/test/fixtures/apus/PROVENANCE.md) describes independent development checks. It is not an owner setup prerequisite.
 
 Full-payload latency, calibration, broader accuracy, physical model provenance, deployment and enforcement safety remain unverified. The two-minute example budget does not prove that a complete assessment fits. Observe does not block execution, and neither configuration nor a successful assessment supplies host coverage or sandboxing.
 
@@ -368,7 +368,7 @@ This is a proposed evaluation, not a trial result. Obtain separate authorization
 
 `TENET_RECORDING=off` does not stop disclosure or all logs. Service, tunnel, owner-file, installation and activation changes remain separately authorized; evaluation approval grants none of them.
 
-1. Keep a fresh guard in observe mode and use an inert host that captures actions as data without executing them. Do not run fixture commands, create commits, upload code, fetch opaque scripts or change policy through the guarded path. Capture every prepared scope, actual submission and current question using the maintained SDK contract, not the trial's shortened question. The optional [repository SDK guide](https://github.com/koenvg/Tenet/blob/main/docs/sdk.md) has developer integration details; archive owners have the sibling [SDK guide](sdk.md). A host integration is needed to assemble inert payloads; no live evaluation runner ships in the archive.
+1. Keep a fresh guard in observe mode and use an inert host that captures actions as data without executing them. Do not run fixture commands, create commits, upload code, fetch opaque scripts or change policy through the guarded path. Capture every prepared scope, actual submission and current question using the maintained SDK contract, not the trial's shortened question. See the [SDK guide](sdk.md) for integration details. A host integration is needed to assemble inert payloads. Installing the checkout does not authorize live evaluation scripts.
 2. Before sending data, freeze case IDs, policy bytes/digest, selected evidence and complete expected labels. Use one user rule plus independent integrity per row below. For each repeated measurement, record a new invocation ID and cold/warm server state. Preserve metadata and tokenizer checks, all outcome/evidence/facts questions and the final identity check. Do not replace complete assessment with one action label.
 3. After separately authorized submission, compare all required answers, including any protected confirmation, and shared validation/score gates, not only the first outcome. Facts may use a deterministic `NONE` only when it is the sole allowed candidate. Probabilities remain uncalibrated; high scores cannot authenticate facts. Keep owner findings, native prompts, raw responses and errors out of agent history/tool results and public artifacts.
 

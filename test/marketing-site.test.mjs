@@ -23,7 +23,7 @@ function page(name) {
 
 const repositoryRoot = new URL("../", import.meta.url);
 const repositoryDocuments = new Set([
-  "README.md", "CONTRIBUTING.md", "docs/INSTALL-ARCHIVE.md", "docs/doctor.md",
+  "README.md", "CONTRIBUTING.md", "docs/INSTALL.md", "docs/doctor.md",
   "docs/policy.md", "docs/inspector.md", "docs/configuration.md", "docs/limits.md",
   "docs/sdk.md", "docs/shared-runtime.md", "docs/claude-code.md",
 ]);
@@ -158,7 +158,7 @@ test("the focused homepage retains setup, FAQ and factual safety limits", () => 
     "Enforcement requires explicit opt-in and a process restart", "does not inspect subprocess internals",
     "policy, paths, tool evidence and bounded recent observations to TypeSafe", "use quota", "secrets despite redaction",
     "TENET_RECORDING=off", "before starting the integration", "does not stop provider disclosure or native findings",
-    "does not delete old records", "private passing-main GitHub Actions artifact", "not an npm package or public release",
+    "does not delete old records", "Install locked dependencies with Bun", "stable checkout at a verified commit",
   ]) expect(html).toContain(text);
   expect(html).not.toContain('TENET checks eligible Pi tool calls and reports findings to you, not the agent. The animation uses fictional data and runs no tools or assessments.');
   expect(html).toMatch(/href="\.\/docs\.html#setup"[^>]*>Read the setup guide/);
@@ -225,12 +225,12 @@ test("docs link every reader journey and retain policy, privacy, mode and covera
   const prefix = "https://github.com/koenvg/Tenet/blob/main/";
   const links = [...html.matchAll(/<a\b[^>]*\bhref\s*=\s*(["'])(.*?)\1/gi)].map(match => match[2]);
   for (const destination of [
-    "docs/INSTALL-ARCHIVE.md", "docs/policy.md#write-a-first-rule", "docs/policy.md#rule-grammar-and-limits", "docs/policy.md#choose-the-policy-file",
+    "docs/INSTALL.md", "docs/policy.md#write-a-first-rule", "docs/policy.md#rule-grammar-and-limits", "docs/policy.md#choose-the-policy-file",
     "docs/inspector.md", "docs/inspector.md#sensitive-local-storage",
     "docs/doctor.md#fix-invalid-or-unavailable-setup", "docs/sdk.md", "docs/shared-runtime.md",
     "docs/configuration.md", "docs/limits.md", "docs/claude-code.md", "CONTRIBUTING.md",
-    "docs/INSTALL-ARCHIVE.md#restart-observe-and-inspect-findings",
-    "docs/INSTALL-ARCHIVE.md#opt-into-enforcement-later",
+    "docs/INSTALL.md#restart-observe-and-inspect-findings",
+    "docs/INSTALL.md#opt-into-enforcement-later",
   ]) expect(links).toContain(prefix + destination);
   for (const text of [
     "Rule; Ask before overwriting owner-demo.txt.", "supported short form", "defaults to <code>BLOCK</code>",
@@ -239,7 +239,7 @@ test("docs link every reader journey and retain policy, privacy, mode and covera
     "both implicit candidates", "no global-path override or opt-out", "Missing explicit files, empty overrides",
     "unusable sources make the whole set unavailable", "16 declarations", "64 KiB", "4096",
     "activate projects without local rules", "invalid global file", "TypeSafe and recordings",
-    "outside the guarded agent's intercepted path", "No policy ships in the archive",
+    "outside the guarded agent's intercepted path", "TENET.md is test data, not your owner policy",
     "TypeSafe", "policy, paths, tool evidence and bounded recent observations", "use quota",
     "TYPESAFE_API_KEY", "through your secret manager", "secrets despite redaction",
     "Local capture is on by default", "~/.tenet/recordings", "TENET_RECORDING=off",
@@ -261,13 +261,14 @@ test("docs link every reader journey and retain policy, privacy, mode and covera
   expect(existsSync(fileURLToPath(new URL("fonts/Geist-latin.woff2", siteRoot)))).toBe(true);
 });
 
-test("owner setup uses the archive's offline compiled doctor and separates developer checkout setup", () => {
+test("owner setup uses the stable checkout and its offline compiled doctor", () => {
   const html = page("docs.html");
   const setup = html.match(/<section\b[^>]*\bid="setup"[^>]*>([\s\S]*?)<\/section>/)?.[1];
   expect(setup).toBeDefined();
   for (const text of [
-    "recommended Pi owner path", "docs/INSTALL-ARCHIVE.md", "Node 22.19+ with npm",
-    "Bun 1.3.14+", "separate Pi 1.3.0 installation", "No compiler or frontend build is needed",
+    "supported Pi owner path", "docs/INSTALL.md", "Node 22.19+",
+    "Bun 1.3.14+", "separate Pi 1.3.0 installation", "install locked dependencies with Bun",
+    "build the SDK and inspector", "persistent checkout",
     "supported offline check", "Replace both paths", "No global <code>tenet</code> command is installed",
     "local prerequisites are valid, not verified hooks or provider connectivity",
     "Off and dormant are bypass states, not passing assessments",
@@ -276,10 +277,10 @@ test("owner setup uses the archive's offline compiled doctor and separates devel
   expect(commands).toBe(`TENET_DIR=/absolute/path/to/tenet
 cd /absolute/path/to/project
 node "$TENET_DIR/dist/cli/index.js" doctor --project "$PWD"`);
-  const developer = setup.match(/<p><a href="https:\/\/github.com\/koenvg\/Tenet\/blob\/main\/CONTRIBUTING\.md">([\s\S]*?)<\/p>/)?.[1];
-  expect(developer).toContain("Checkout setup and offline checks");
-  expect(developer).toContain("developer-only, not the owner installation path");
-  expect(html).not.toContain("git clone");
+  expect(setup).toContain('https://github.com/koenvg/Tenet/blob/main/CONTRIBUTING.md');
+  expect(setup).toContain("developer setup and offline checks");
+  expect(setup).toContain("when changing Tenet or validating a checkout");
+  expect(setup).not.toContain("archive");
   expect(html).not.toContain("src/cli/index.ts");
 });
 

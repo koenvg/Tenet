@@ -1,6 +1,6 @@
 # Alpha embedding SDK
 
-Use `createGuard` from `tenet` to check tool calls in your application. This guide covers the supported compiled SDK in a developer checkout or production archive. It starts with an offline check, then gives the API and host contracts.
+Use `createGuard` from `tenet` to check tool calls in your application. This guide covers the supported compiled SDK in a built checkout. It starts with an offline check, then gives the API and host contracts.
 
 Use Node 22.12+ or Bun 1.3.14+. `SDK_VERSION` is `alpha-1`. Breaking API changes are allowed during alpha.
 
@@ -10,7 +10,7 @@ Import only `tenet`, not `src/`, runtime classes, queues or recording readers. C
 
 This supported SDK example checks session setup and permission handling. It uses a disposable process home and project without either policy, so the session is dormant. It makes no TypeSafe requests and does not test policy assessment or host hooks.
 
-1. Install the production archive and its dependencies, or build a developer checkout as described below. Keep the complete `dist/` tree and package manifest together.
+1. Install locked dependencies with Bun and build the SDK from a stable checkout as described below. Keep the complete `dist/` tree, package manifest and runtime dependencies together.
 2. In the Tenet package root, save this as `sdk-start.mjs`. In your own application, install the built Tenet directory as a dependency and save it in that application's root instead.
 
    ```js
@@ -86,7 +86,6 @@ The script builds the SDK and example, then runs the example under Node. Success
 SDK example passed: ready, dormant, uninitialized, unavailable, pending, counterfactual, execution, approval and off.
 ```
 
-The archive does not ship `examples/`, source or development scripts. Do not run `sdk:example` there. Use the starting example above with its compiled SDK.
 
 For checkout builds and focused checks, run these from the repository root after development setup:
 
@@ -102,7 +101,7 @@ Both import checks print `alpha-1`. The build produces ESM and declarations in `
 
 A local-package consumer needs no Pi, Svelte, inspector assets or source transpilation. The `@typesafe-ai/sdk` production dependency supplies question definitions. The live System One transport uses `fetch`.
 
-The production archive includes ESM, declarations and a production dependency lock. It does not publish a package or change owner installations. Archive installation is documented in the repository-only [archive installation guide](https://github.com/koenvg/Tenet/blob/main/docs/INSTALL-ARCHIVE.md); the delivered archive has that guide as its root `README.md`.
+Tenet is not a published npm package. Use the built local checkout as the dependency. Pi owners should follow the [stable-checkout installation guide](INSTALL.md), which also builds the inspector and registers the source extension.
 
 ## Choose an integration detail
 

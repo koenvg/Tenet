@@ -55,9 +55,11 @@ The complete Bun suite uses `--isolate --max-concurrency=1 --timeout=30000`. Its
 
 Application types, delivery consumers, inspector types and all three Inspector lanes (Node infrastructure, mounted UI and browser journeys) follow. Plugin TypeScript and configured Vitest checks run last. Nested SDK and inspector rebuilds remain part of their existing commands.
 
-The lane runs `bun run delivery:check` to compile fresh delivery APIs and inspector assets in a disposable installation. It runs the maintained SDK, doctor, configuration and report consumers under Node and Bun, then checks `scripts/fixtures/archive-types.ts` against fresh declarations.
+The lane runs `bun run delivery:check` to compile fresh APIs and inspector assets in a disposable checkout-shaped installation. It checks SDK, doctor, configuration and report consumers under Node and Bun, then checks `scripts/fixtures/archive-types.ts` against fresh declarations.
 
-This check uses locked checkout dependencies without registry installs or live judges. If a fixture fails, review the contract instead of generating expectations. It does not replace the separate required production-only archive lane below.
+The same step tests pinned Pi discovery, dispatch, registration and removal, policy selection and owner commands with temporary homes. It retains the enforcement, capture opt-out and historical-evidence checks.
+
+It uses locked checkout dependencies without registry installs or live judges. If a fixture fails, review the contract instead of generating expectations.
 
 Success means exit zero. The runner stops at the first failure and preserves its exit code through log replay and cleanup.
 
@@ -140,37 +142,10 @@ These regressions cover metadata tiers, exact UTF-8 boundaries including omissio
 
 Then run the complete offline sequence above and `bun run sdk:example`. Restored historical campaign tests must execute, not be skipped for question drift. See [the offline comparison guide](eval/applicability-README.md) for report-only replay and readable output. Live provider calls, packaging and active-service restarts are separate from this verification.
 
-## Verify the delivery archive
-
-Run this separate delivery lane after the checks above. It is not part of the ordinary offline suite. You need npm for the production lock and isolated installs, which can access package registries. You also need Python 3 for the metadata check, tested with Python 3.11.
-
-1. From the repository root, build and verify the archive with the same command as CI:
-
-   ```sh
-   bun run package:archive
-   ```
-
-   The result is `delivery/tenet.tar.gz`. Verification checks Node/Bun consumers, TypeScript declarations, built inspector HTTP, pinned Pi discovery/dispatch, and temporary registration/removal. Global-only, combined and project-override fixtures use validated temporary process homes and session directories, not the installation. It makes no provider calls and does not change the owner's installation.
-
-2. Check raw archive metadata as the delivery CI lane does:
-
-   ```sh
-   python3 -B scripts/check-archive-metadata.py delivery/tenet.tar.gz
-   ```
-
-   This standard-library check inspects raw entries and PAX headers without extraction or execution. It rejects AppleDouble files, host filesystem/xattr metadata, unsafe paths, and unsafe links. It allows standard tar format fields. Archive creation suppresses host xattrs and macOS AppleDouble metadata.
-
-3. To repeat only the relocated checks for an existing archive, run:
-
-   ```sh
-   bun run package:verify delivery/tenet.tar.gz
-   ```
-
-Each check must exit zero. Python is not shipped and is not required by `package:archive`, `package:verify`, or installed Tenet. See [archive installation and verification](docs/INSTALL-ARCHIVE.md).
 
 ## Run the source extension for development
 
-This checkout-only path is for contributors, not archive owners. Complete [Set up](#set-up) and build the SDK before loading source. `bun run pi` and `bun run smoke` build it automatically.
+Use this explicit source-loading path for contributor checks before registration. Owners should use the [stable-checkout installation guide](docs/INSTALL.md). Complete [Set up](#set-up) and build the SDK before loading source. `bun run pi` and `bun run smoke` build it automatically.
 
 Real assessed tool actions send policy, paths and evidence to TypeSafe and use quota. Strings can contain secrets despite field redaction. Capture is on by default and saves submitted strings locally. Any live check needs separate authorization; use `bun run smoke` for an offline dispatch check instead of a real upload.
 
@@ -191,31 +166,19 @@ Empty overrides, missing explicit files and unusable sources invalidate the whol
 
 An extension load error means Tenet did not load.
 
-For source loading across projects, use a stable checkout, not a disposable worktree. Replace the path, then run:
-
-```sh
-TENET_DIR=/absolute/path/to/stable/Tenet
-cd "$TENET_DIR"
-bun install --frozen-lockfile
-bun run sdk:build
-pi install "$TENET_DIR"
-pi list
-```
-
-This is user-level registration; do not add `-l`. Pi loads `src/pi/extension.ts` through `package.json` in place. Keep the checkout and dependencies.
+For loading across projects, follow the [stable-checkout installation steps](docs/INSTALL.md#install-once-in-a-stable-directory). They build both the SDK and inspector before user-level Pi registration. Keep the checkout, dependencies and build output at the registered path.
 
 Launch plain `pi`, not a second `-e` copy or `bun run pi`. Each eligible session uses the reviewed optional global policy alongside any local or explicitly selected project policy. See [project policy selection](docs/policy.md#choose-the-policy-file) before restarting.
 
 Code and environment changes need a full Pi process restart. Do not use `/reload` or `/new` to apply code or environment changes. Policy-only changes can use session-start reload; check the new digest and count.
 
-Unloading removes observation and enforcement. There is no live-mode mock fallback. See [owner controls, removal and rollback](docs/INSTALL-ARCHIVE.md#removal-and-rollback).
+Unloading removes observation and enforcement. There is no live-mode mock fallback. See [owner controls, removal and rollback](docs/INSTALL.md#removal-and-rollback).
 
 ## A check fails
 
 - Missing SDK output, inspector assets or website pages: run the complete offline lane so prerequisite builds finish before tests.
 - Chromium cannot start: install Chromium and, on Linux, its system libraries. Pass the existing absolute executable-cache directory to the runner.
 - Startup tests time out with plain `bun test`: use `bun run test` inside the clean shell for the required isolation, serial execution and timeout flags. On Bun 1.3.14, the all-file default can register `node:test` files inside another running test.
-- Archive metadata fails: inspect the named entry and rebuild without host metadata. Do not skip the separate metadata gate.
 
 ## Keep secrets and live work separate
 
