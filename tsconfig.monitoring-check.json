@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true },
+  "include": ["src/monitoring/**/*.ts", "test/monitoring-adapter.test.ts", "test/fixtures/monitoring/public-consumer.ts"]
+}
