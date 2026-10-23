@@ -38,7 +38,7 @@ Use familiar words and active voice. Explain a necessary technical term on first
 
 Keep one idea per paragraph, usually in one to three sentences. Split a dense sentence rather than making the reader read it twice. Remove filler and repeated explanations.
 
-Use sentence-case task headings, such as "Install the archive" or "Check a finding". For troubleshooting, use the symptom, such as "No Tenet status appears". References can use descriptive headings for the settings or contracts they explain.
+Use sentence-case task headings, such as "Install Tenet" or "Check a finding". For troubleshooting, use the symptom, such as "No Tenet status appears". References can use descriptive headings for the settings or contracts they explain.
 
 Use numbered lists when order matters. Use bullets for choices or facts. Make each step an action the reader can complete. Put the command, warning, and result beside the step they explain.
 
@@ -70,7 +70,7 @@ Preserve exact commands, paths, API names, environment variables, policy grammar
 
 When moving text, account for every material fact and warning in its new location. Keep important heading anchors where practical and check current inbound links when an anchor changes. Leave historical records unchanged.
 
-Check links in the context where readers use the page. A checkout-only file is not an available archive reference. Keep shipped guides self-contained for required steps and warnings, and label repository-only development links. See the [archive installation guide](INSTALL-ARCHIVE.md) and [archive operation guide](ARCHIVE-OPERATION.md) for the delivered reader path.
+Check links in the context where readers use the page. Required steps and warnings must be available from the stable checkout or website where the link appears. See the [installation guide](INSTALL.md) and [owner operation guide](operation.md) for the owner path.
 
 ## Keep completion evidence with the task
 
@@ -123,5 +123,5 @@ This is a manual review, not automatic enforcement or a readability score. Befor
 - [ ] Exact syntax, numeric limits, defaults, contract versions, validation gates, and historical claims retain their meaning.
 - [ ] Every moved material fact and warning has a destination. Historical records and excluded files remain unchanged.
 - [ ] Definitions, rules and caveats are together. Branch-only details have descriptive links to one authoritative reference. Agent pointers state their trigger. Local files, heading anchors, and affected inbound links resolve.
-- [ ] Links and required instructions work in the stated checkout, website, or shipped archive context. Repository-only links are labelled, and archive warnings remain self-contained.
+- [ ] Links and required instructions work in the stated checkout or website context. Repository links are labelled, and owner warnings remain available beside the relevant steps.
 - [ ] Completion notes and validation results go in the task or final reply. Any new repository handoff file has an explicit user request or approved requirement.

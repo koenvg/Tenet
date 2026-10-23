@@ -1,6 +1,6 @@
 # Configure Tenet for a Pi process
 
-Use this guide to configure a built developer checkout. Archive owners should use the shipped [operation guide](ARCHIVE-OPERATION.md). Set process options in the launch shell and review owner and project judge selection through [private settings](judge.md#source-and-private-file-requirements).
+Use this guide to configure Tenet installed from a built stable checkout. Set process options in the launch shell and review owner and project judge selection through [private settings](judge.md#source-and-private-file-requirements). For status and activation, use the [operation guide](operation.md).
 
 ## Apply and check a setting
 
@@ -86,7 +86,7 @@ Doctor reads owner and canonical project settings and process environment, not d
 
 Unset values use defaults. Empty/whitespace numeric values are invalid; other numeric strings use JavaScript `Number` before range validation. Invalid environment or file values fail rather than falling back.
 
-Probabilities are experimental, not calibrated guarantees. Lower thresholds do not bypass selected `FAIL`, `UNKNOWN`, `INSUFFICIENT`, approval or authenticated-fact requirements. For score boundaries and outcome gates, read [observation and enforcement](ARCHIVE-OPERATION.md#observation-and-enforcement); for rule-specific settings, read [per-rule thresholds](policy.md#set-a-per-rule-evidence-threshold).
+Probabilities are experimental, not calibrated guarantees. Lower thresholds do not bypass selected `FAIL`, `UNKNOWN`, `INSUFFICIENT`, approval or authenticated-fact requirements. For score boundaries and outcome gates, read [observation and enforcement](operation.md#observation-and-enforcement); for rule-specific settings, read [per-rule thresholds](policy.md#set-a-per-rule-evidence-threshold).
 
 ### Bound recent evidence
 
@@ -107,7 +107,7 @@ Matching ignores case, hyphens, underscores and whitespace. Redaction changes co
 
 Default `~` means the owner's home; explicit environment paths must be actual absolute paths. Capture paths must have no symlink components and use private directories/files, normally `0700`/`0600`. Unsafe paths disable writes, not enforcement.
 
-Recordings are unencrypted, best-effort diagnostics with no automatic expiry. Off and uninstall do not erase them. Stop writers and the inspector before deletion; read [storage and disclosure limits](ARCHIVE-OPERATION.md#disclosure-and-limits).
+Recordings are unencrypted, best-effort diagnostics with no automatic expiry. Off and uninstall do not erase them. Stop writers and the inspector before deletion; read [storage and disclosure limits](operation.md#disclosure-and-limits).
 
 ### Use on/off without changing mode
 
@@ -115,7 +115,7 @@ In an eligible Pi session, `/tenet off` skips new assessments, approvals, trajec
 
 A fresh missing control defaults to on. Unsafe or unreadable control prevents assessment and recording. Other processes notice through notifications and a 250 ms refresh loop; already released actions cannot be recalled and pending archive writes can finish after off.
 
-For private-file requirements, cancellation races and repair, read [the cooperative switch](ARCHIVE-OPERATION.md#use-the-cooperative-onoff-switch). For installed Claude bridge limits, read [the host boundary](ARCHIVE-OPERATION.md#know-the-host-boundary).
+For private-file requirements, cancellation races and repair, read [the cooperative switch](operation.md#use-the-cooperative-onoff-switch). For installed Claude bridge limits, read [the host boundary](operation.md#know-the-host-boundary).
 
 ## Invalid-setting behavior
 

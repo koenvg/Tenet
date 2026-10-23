@@ -1,6 +1,6 @@
 # Inspect findings and recordings
 
-Use this guide to open Tenet's local inspector, select a session and rule, and read retained evidence. It covers Pi 1.3.0 and standalone use from a developer checkout or the production archive. The inspector is read-only. It cannot approve, retry or execute tools, edit policy, or ask a provider to reassess a call.
+Use this guide to open Tenet's local inspector, select a session and rule, and read retained evidence. It covers Pi 1.3.0 and standalone use from a stable checkout. The inspector is read-only. It cannot approve, retry or execute tools, edit policy, or ask a provider to reassess a call.
 
 - If Pi is running, [open the inspector from Pi](#open-it-from-pi).
 - To read retained files without Pi, [start the standalone inspector](#open-it-without-pi).
@@ -23,9 +23,9 @@ Before a live-capable Pi launch or activation, obtain separate authorization for
 
 ## Open it from Pi
 
-First complete the [archive installation](INSTALL-ARCHIVE.md) or [development setup](../CONTRIBUTING.md#set-up). Do not load a registered Tenet package a second time with `-e`.
+First complete the [stable-checkout installation](INSTALL.md), including both builds. Do not load a registered Tenet package a second time with `-e`.
 
-1. Start a fresh Pi process in an eligible project with an owner-authored policy. For an installed archive, run from that project:
+1. Start a fresh Pi process in an eligible project with an owner-authored policy. For a registered checkout, run from that project:
 
    ```sh
    TENET_MODE=observe pi
@@ -50,26 +50,17 @@ Observation never vetoes a call or opens approval, even when a finding says it w
 
 ## Open it without Pi
 
-These supported standalone paths read retained files offline. They need neither Pi nor `TYPESAFE_API_KEY`.
+This supported standalone path reads retained files offline. It needs neither Pi nor `TYPESAFE_API_KEY`. Complete the checkout's locked dependency install and inspector build first.
 
-1. For an installed production archive, set `TENET_DIR` to its stable directory and run:
+1. Set `TENET_DIR` to your stable checkout and run:
 
    ```sh
    TENET_DIR=/absolute/path/to/tenet
    cd "$TENET_DIR"
-   npm run inspector:serve
-   ```
-
-   Replace the path with your installation. Its production dependencies must already be installed. No compiler or frontend build is needed.
-
-   For a developer checkout with frozen dependencies installed, run from the repository root with Bun 1.3.14+:
-
-   ```sh
-   bun run inspector:build
    bun run inspector:serve
    ```
 
-   Keep `inspector/dist` beside `src`. This serves built assets, not Vite.
+   Replace the path with your installation. Keep `inspector/dist` beside `src`. This serves built assets, not Vite. If assets are missing, follow the [installation build steps](INSTALL.md#install-once-in-a-stable-directory).
 
 2. Open the printed loopback URL in Arc. The production server chooses an available port.
 3. Stop the server with Ctrl+C when finished.
@@ -80,7 +71,7 @@ For a custom archive, use the same absolute private path as the writer. From a c
 TENET_RECORDING_DIR=/absolute/private/archive bun run inspector:serve
 ```
 
-For an installed archive, use `npm run inspector:serve` with the same variable. Paths must have no symlink components. Existing archive directories must be owner-only. Unsafe paths disable writes rather than being silently repaired.
+Paths must have no symlink components. Existing archive directories must be owner-only. Unsafe paths disable writes rather than being silently repaired.
 
 For local frontend development only, `bun inspector` starts Vite with live reloading from the repository root. Vite development and preview try `http://127.0.0.1:52320/`, then successive ports if occupied. Both development and production retain loopback binding, Host/Origin checks and read-only routing. Plain URLs and reloads work without a token.
 
@@ -349,7 +340,7 @@ Set `TENET_RECORDING=off` before launching Pi. For a checkout, from the reposito
 TENET_RECORDING=off bun run pi --no-extensions
 ```
 
-For an installed archive, set the same variable before `pi`. This does not change mode, prevent provider disclosure or delete old files. `/tenet off` is different: it cooperatively skips new assessment, approvals, trajectory capture and recording. Pending writes can finish after off. See [owner control limits](limits.md#owner-control-is-not-isolation).
+For a registered checkout, set the same variable before `pi`. This does not change mode, prevent provider disclosure or delete old files. `/tenet off` is different: it cooperatively skips new assessment, approvals, trajectory capture and recording. Pending writes can finish after off. See [owner control limits](limits.md#owner-control-is-not-isolation).
 
 ### Delete retained evidence
 

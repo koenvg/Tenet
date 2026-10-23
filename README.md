@@ -16,12 +16,12 @@ The inspector is read-only and unauthenticated on loopback. Do not expose or pro
 
 <a id="quickstart-for-pi-owners"></a>
 
-## Start with the archive
+## Start with a stable checkout
 
-This is the recommended path for Pi owners. You need Node 22.19+ with npm, Bun 1.3.14+ and a separate Pi 1.3.0 installation.
+This is the supported path for Pi owners. You need Git, repository access, Node 22.19+, Bun 1.3.14+ and a separate Pi 1.3.0 installation.
 
-1. [Install the production archive](docs/INSTALL-ARCHIVE.md) in a stable directory. It is a private, passing-`main` GitHub Actions artifact with 14-day retention, not an npm package or public release. No build is needed.
-2. [Write your first policy](docs/policy.md#write-a-first-rule) yourself, outside the guarded agent's intercepted path. The archive ships no policy; the project defaults to session `TENET.md`. `TENET_POLICY` can select another project file.
+1. [Install from a stable checkout](docs/INSTALL.md). Select a verified commit, install locked dependencies with Bun, and build the SDK and inspector before registering the path with Pi.
+2. [Write your first policy](docs/policy.md#write-a-first-rule) yourself, outside the guarded agent's intercepted path. The checkout's `TENET.md` is test data. Your project defaults to its own session `TENET.md`. `TENET_POLICY` can select another project file.
 
    Optional `~/.tenet/TENET.md` activates projects without local rules and applies alongside the selected project file. Review it before authoring it outside the intercepted path. Its rules can reach TypeSafe and local recordings; an invalid global file makes the whole set unavailable. Tenet never creates it automatically. See [global and project selection](docs/policy.md#choose-the-policy-file).
 3. [Run doctor offline](docs/doctor.md#direct-invocation) in the environment the next Pi process will inherit. Replace both paths:
@@ -33,13 +33,13 @@ This is the recommended path for Pi owners. You need Node 22.19+ with npm, Bun 1
    ```
 
    No global `tenet` command is installed. `ready` means local prerequisites are valid, not verified hooks or provider connectivity. For invalid or unavailable setup, follow [doctor's fixes](docs/doctor.md#fix-invalid-or-unavailable-setup). `off` and `dormant` are bypass states, not passing assessments.
-4. Follow [restart and observation steps](docs/INSTALL-ARCHIVE.md#restart-observe-and-inspect-findings). Check `TENET ON OBSERVE` and `/tenet status`. Any real assessed action contacts TypeSafe; a live check needs separate authorization.
+4. Follow [restart and observation steps](docs/INSTALL.md#restart-observe-and-inspect-findings). Check `TENET ON OBSERVE` and `/tenet status`. Any real assessed action contacts TypeSafe; a live check needs separate authorization.
 
 ## Choose your next task
 
 - [Read findings and open the inspector](docs/inspector.md). Findings, permission and observed execution are different facts. Missing evidence is not a pass.
 - [Write rules and manage policy](docs/policy.md), including exact grammar, thresholds and owner-only migration.
-- [Fix archive operation](docs/ARCHIVE-OPERATION.md#troubleshooting), manage on/off, opt into enforcement, update or remove Tenet.
+- [Fix owner operation](docs/operation.md#troubleshooting), manage on/off, opt into enforcement, update or remove Tenet.
 - [Configure settings](docs/configuration.md) and check defaults, ranges and restart requirements.
 - [Build with the alpha SDK](docs/sdk.md) without Pi, or inspect [host integration duties](docs/shared-runtime.md).
 - [Check disclosure, approval and coverage limits](docs/limits.md). Approval covers one unchanged pending call. Stock Pi and Claude action resolution is unsupported; authenticated facts are required for applicability exemptions. The [Claude Code prototype](docs/claude-code.md) is opt-in and unverified. Pi installation or enforce mode does not establish Claude coverage.
@@ -48,7 +48,7 @@ Ordinary evidence can support `PASS` without authenticated action resolution. Th
 
 ## Work on Tenet
 
-[Checkout setup and offline checks](CONTRIBUTING.md) are developer-only. They are not the owner installation path. See the [writing guide](docs/writing-guide.md) before changing documentation.
+Use [developer setup and offline checks](CONTRIBUTING.md) to change Tenet and validate a checkout. See the [writing guide](docs/writing-guide.md) before changing documentation.
 
 The [Inspector test guide](inspector/tests/README.md) separates mounted UI behavior in Vitest Browser Mode, browser journeys in Playwright Test and Node infrastructure checks. The canonical offline command runs all three with synthetic data and no live evaluator calls.
 

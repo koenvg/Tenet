@@ -9,7 +9,6 @@ import { isolatedEnvironment, isolatedArgs } from '../scripts/isolated-environme
 
 const compiler = fileURLToPath(new URL('../node_modules/typescript/bin/tsc', import.meta.url));
 const typeRoots = fileURLToPath(new URL('../node_modules/@types', import.meta.url));
-const verifier = new URL('../scripts/verify-delivery.ts', import.meta.url).href;
 
 type CompilerResult = { trace?: string; status?: number; stdout?: string; stderr?: string; stack?: string };
 
@@ -115,7 +114,7 @@ test('consumer compiler captures but never forwards unrelated stdout and stderr 
 test('uncaught compiler failure stays bounded without raw traces or unrelated bodies', async () => {
   const properties = Array.from({ length: 200 }, (_, i) => `missing${i}_${'x'.repeat(100)}`);
   await compile(properties.map(property => `value.${property};`).join('\n'), (result, stderr) => {
-    assert.equal(result.status, 1, 'uncaught failure must still fail the archive process');
+    assert.equal(result.status, 1, 'uncaught failure must still fail the verification process');
     assert.ok(stderr.includes(`Property '${properties[0]}'`));
     assert.ok(stderr.includes('[TypeScript diagnostics truncated]'));
     assert.ok(stderr.length < 12_000, `entire CLI stderr must stay bounded, got ${stderr.length}`);
@@ -123,26 +122,4 @@ test('uncaught compiler failure stays bounded without raw traces or unrelated bo
       'unrelated-provider-body-canary', 'private-settings-body-canary', 'dotenv-credential-canary'])
       assert.ok(!stderr.includes(omitted), `uncaught output must omit ${omitted}`);
   }, true, true);
-});
-
-test('noncompiler archive failure does not gain compiler or general captured-output logging', async () => {
-  const root = await realpath(await mkdtemp(join(tmpdir(), 'tenet-noncompiler-')));
-  try {
-    const env = { ...await isolatedEnvironment(root, join(root, 'home')), TMPDIR: '/tmp' };
-    await writeFile(join(root, 'invalid.tar.gz'), 'unrelated-provider-body-canary');
-    await writeFile(join(root, 'driver.ts'), `
-      import { verifyArchive } from ${JSON.stringify(verifier)};
-      try { await verifyArchive('invalid.tar.gz'); }
-      catch (error) { console.log(JSON.stringify({ status: error.status })); }
-    `);
-    const child = spawnSync('bun', isolatedArgs('bun', ['driver.ts']), {
-      cwd: root, env, encoding: 'utf8', stdio: 'pipe', timeout: 30_000,
-    });
-    assert.equal(child.error, undefined);
-    assert.equal(child.status, 0);
-    assert.ok(JSON.parse(child.stdout).status > 0, 'tar must reject the invalid archive');
-    assert.ok(!child.stderr.includes('Isolated TypeScript'));
-    assert.ok(!child.stderr.includes('unrelated-provider-body-canary'));
-    assert.ok(!child.stderr.includes('No TypeScript diagnostics'));
-  } finally { await rm(root, { recursive: true, force: true }); }
 });

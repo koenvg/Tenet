@@ -60,7 +60,7 @@ try {
   assert.equal(executed, 3, 'only PASS and approved ASK dispatch in enforce mode');
   assert.equal(await observe.close(), true); assert.equal(await enforce.close(), true);
 
-  inspector = spawn('node', ['dist/inspector/serve-cli.js'], { cwd: installation,
+  inspector = spawn('bun', ['--no-env-file', 'src/inspector/serve-cli.ts'], { cwd: installation,
     env: { ...process.env, TENET_RECORDING_DIR: archive }, stdio: ['ignore', 'pipe', 'pipe'] });
   const url = await new Promise((resolve, reject) => {
     let output = '', errors = '';

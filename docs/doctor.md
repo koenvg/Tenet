@@ -6,9 +6,9 @@ Doctor does not start Pi or a guard session, execute tools, open approval, watch
 
 ## Direct invocation
 
-### Run the delivered archive CLI
+### Run the compiled CLI
 
-First install the archive's locked production dependencies. No checkout build or global `tenet` command is needed. Use Node 22.19+ for the tested Pi archive path, or Bun 1.3.14+.
+First complete the [stable-checkout installation](INSTALL.md), including the SDK and inspector builds. No global `tenet` command is installed. Use Node 22.19+ for the tested Pi path, or Bun 1.3.14+.
 
 1. Set `TENET_DIR` to your stable installation, then go to your project. Replace both absolute-path placeholders:
 
@@ -30,19 +30,7 @@ First install the archive's locked production dependencies. No checkout build or
    bun "$TENET_DIR/dist/cli/index.js" doctor --project "$PWD" --json
    ```
 
-If you omit `--project`, doctor uses the current directory. The installation checked is the one containing this CLI, not the project. See the archive's [root installation guide](../README.md), or the [repository archive guide](https://github.com/koenvg/Tenet/blob/main/docs/INSTALL-ARCHIVE.md) when reading from a checkout.
-
-### Prepare a development checkout
-
-This is the checkout-only path. From the repository root, with Bun 1.3.14+ and Node 22.19+ for pinned Pi development/archive checks:
-
-```sh
-bun install --frozen-lockfile
-bun run sdk:build
-bun run inspector:build
-```
-
-Then run the compiled `dist/cli/index.js` through the direct commands above. Do not substitute `src/cli/index.ts` for the delivered command. SDK-only consumers support Node 22.12+, but that does not lower the tested Pi/archive requirement.
+If you omit `--project`, doctor uses the current directory. The installation checked is the one containing this CLI, not the project. If compiled files are missing, follow the [installation build steps](INSTALL.md#install-once-in-a-stable-directory). SDK-only consumers support Node 22.12+, but that does not lower the tested Pi requirement.
 
 Doctor reads process environment, private owner `~/.tenet/config.json` and the canonical project's `.tenet/config.json`. It does not read dotenv files, a secret manager or Pi settings. Only the final selected bearer source determines credential presence. Supply secrets through your existing secret manager, never policy, settings JSON or command-line arguments.
 
@@ -101,13 +89,13 @@ If a model or origin cannot remain a valid descriptor after this protection, its
 | `configuration` | Check private owner and project settings and their bounded category, nonblank `TENET_POLICY`, exact mode values, threshold/limit ranges, approval timeout and the JSON sensitive-field array. Restart fully after correction. |
 | `control-unavailable` | Check the absolute control path and private same-user file/directory. Fix unsafe links or permissions outside Pi. Doctor does not repair control. |
 | `invalid-recording-setting` or `invalid-recording-directory` | Use exact `on`/`off` and an absolute recording directory, even when capture is off. |
-| `delivery-incomplete` | For a checkout, build SDK/CLI and inspector and install locked dependencies. For an archive, replace the incomplete installation and install its locked production dependencies. |
+| `delivery-incomplete` | Install the checkout's locked dependencies with Bun, then build the SDK/CLI and inspector. Use the stable-checkout installation guide before changing an installed version. |
 | `untested-pi-version` | Use tested Pi 1.3.0 or a Tenet release tested with your host. Unknown metadata is a limitation, not a tested result. |
 | `missing-credentials` | Configure the key securely before active launch. Doctor does not test validity or connectivity. |
 | APUS ready but assessments unavailable | Check the owner-operated loopback backend and matching alias outside Pi. Doctor does not test connectivity, context capacity or native responses. Do not add a TypeSafe key as a fix. |
 | Ready but no footer or `/tenet` command | Check the actual launch directory, policy selection, `pi list` and extension load errors. Fully restart Pi. Doctor cannot check registration or hook activation. |
 
-For exact policy and setting details, see the [repository archive operation guide](https://github.com/koenvg/Tenet/blob/main/docs/ARCHIVE-OPERATION.md). In the archive, the [root installation guide](../README.md) links to the shipped operation reference.
+For exact policy and setting details, see the [owner operation guide](operation.md).
 
 ## Policy, mode and control
 
@@ -143,11 +131,11 @@ Valid prerelease and build metadata are recognized, but only the exact tested pi
 
 An unidentified launcher, missing metadata or malformed version stays unknown. A detected version outside the tested pin makes compatibility unavailable. Discovery is not proof of which host you will launch; unknown compatibility must not become a fabricated tested result.
 
-### Delivery checks are not archive verification
+### Delivery checks are not execution proof
 
-Doctor checks compiled SDK/CLI/runtime entries, the Pi resource and inspector entry for the manifest's checkout or production layout, documentation, license, the corresponding lockfile and the matching installed TypeSafe runtime entry.
+Doctor checks compiled SDK/CLI/runtime entries, the source Pi and inspector entries, documentation, license, `bun.lock` and the matching installed TypeSafe runtime entry. Compiled-archive Pi metadata is not a supported installation layout.
 
-It does not execute imports, validate every transitive package or certify archive integrity. The packaging verifier separately checks the closed production delivery contract. Build an incomplete checkout, or replace an incomplete archive and install its locked dependencies.
+It does not execute imports, validate every transitive package or prove build freshness. Rebuild an incomplete checkout using its locked dependencies. The offline checkout validation separately exercises imports, registration and dispatch.
 
 ### Capture health and coverage remain limited
 

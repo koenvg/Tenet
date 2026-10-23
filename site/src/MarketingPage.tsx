@@ -61,7 +61,7 @@ export default function MarketingPage() {
           </details>
           <details className="faq-item">
             <summary>How do I install the alpha?</summary>
-            <p>Start with the setup guide. The archive installation uses a private passing-main GitHub Actions artifact, not an npm package or public release. You need access to that private artifact. The guide lists prerequisites and an offline setup check.</p>
+            <p>Start with the setup guide. Install locked dependencies with Bun and build Tenet from a stable checkout at a verified commit. You need repository access. The guide lists prerequisites and an offline setup check.</p>
             <a className="read-more" href="./docs.html#setup">Check installation and access <span aria-hidden="true">→</span></a>
           </details>
         </div>

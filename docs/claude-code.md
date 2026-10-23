@@ -1,6 +1,6 @@
 # Claude Code hook prototype
 
-Use this guide to try the opt-in local CLI hook and Unix socket bridge in an isolated developer checkout on macOS/Linux. This is not a verified enforcement integration. The production archive does not ship this Claude prototype.
+Use this guide to try the opt-in local CLI hook and Unix socket bridge in an isolated developer checkout on macOS/Linux. This is not a verified enforcement integration. This prototype is not part of the supported Pi installation path.
 
 No Claude Code binary was available during implementation, so no host version is pinned as tested. Offline fixtures cover the protocol and scripted decisions, not hook activation, denial preservation or result correlation.
 

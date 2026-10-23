@@ -74,9 +74,9 @@ try {
   const { readOwnerSettings, readProjectSettings } = await import(new URL('../runtime/settings.js', import.meta.resolve('tenet')));
   for (const value of examples) {
     await fsp.writeFile(file, JSON.stringify(value), { mode: 0o600 });
-    assert.equal(readProjectSettings(home).state, 'valid', 'ACTUAL archive project reader must accept every shipped example');
+    assert.equal(readProjectSettings(home).state, 'valid', 'Installed checkout project reader must accept every shipped example');
     assert.equal(readOwnerSettings().state, value.judge ? 'valid' : 'invalid',
-      'ACTUAL archive owner reader must require a complete judge, rejecting partial project examples');
+      'Installed checkout owner reader must require a complete judge, rejecting partial project examples');
   }
   await fsp.writeFile(file, JSON.stringify(settings), { mode: 0o600 });
   let failing = false;
