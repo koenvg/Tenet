@@ -39,6 +39,7 @@ export const dashboardHostMethods = { readDashboard: {
     z.object({ kind: z.literal('start'), threads: z.array(threadId).min(1).max(128), qualification: key,
       recordingDirectory: z.string().max(4096).optional() }).strict(),
     z.object({ kind: z.literal('advance'), token }).strict(),
+    z.object({ kind: z.literal('check'), qualification: key }).strict(),
   ]),
   output: z.object({ state: z.enum(['reading', 'finished', 'limited', 'restart-required', 'unavailable']), next: token.nullable(),
     contributions: z.array(dashboardContribution).max(65), linkedThreads: z.array(threadId).max(128), invocations: count.max(128), invocationSizes: z.array(count.max(65)).max(128),

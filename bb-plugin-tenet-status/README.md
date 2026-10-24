@@ -166,7 +166,7 @@ The owner retains at most four runs, with 16 MiB of contribution data and 32 MiB
 
 A host admits at most four active ten-minute runs. Completed runs release admission slots and enter a separate four-run FIFO retry cache. Evicted or expired tokens require a fresh run.
 
-Each run retains at most 16 MiB of retry replies, with a 1 MiB reserve before another chunk. Completion, expiry and disposal close traversal cursors; completion clears the active timer.
+Each run retains at most 16 MiB of retry replies, with a 1 MiB reserve before another chunk. Completion, expiry and disposal close traversal cursors. The original ten-minute deadline still expires retained replies after completion.
 
 Dashboard acquisition makes at most 128 scanning advances. Each advance allows 128 root-entry reads, 512 filesystem-entry work slots, 256 stage reads and 16 MiB of input bytes. Traversal resumes at its cursor rather than requiring a complete retained global archive.
 
@@ -174,17 +174,31 @@ Unrelated records are compacted after exact schema, host and thread filtering. A
 
 Selected facts have an 8 MiB charged serialized-retention budget and at most 10,000 invocation groups. Each invocation permits 256 stages and 256 KiB of charged facts. Overflow omits the entire invocation rather than scoring truncated history.
 
-Folding processes at most one invocation and 65 observations per advance. These byte limits account for retained serialized facts, not measured JavaScript heap.
+Folding processes at most 128 whole invocations and 65 observations per advance. These byte limits account for retained serialized facts, not measured JavaScript heap.
 
 The same traversal retains only the latest sequence and loss flag per writer, capped at 16,384 writers. Latest recorded failures, dropped records or drain timeouts add an archive-wide `writer-loss` warning, including when the health record belongs to another thread. These health facts do not change rule observations or rates.
 
-Limits, archive issues and capture loss are coverage reasons, not rule outcomes. Writer-health overflow reports limited coverage. Known omitted invocation counts are lower bounds; omitted-thread facts and reasons also matter when the numeric count is zero. No persistent index or database is created.
+Limits, archive issues and capture loss are coverage reasons, not rule outcomes. Writer-health overflow reports limited coverage. Known omitted invocation counts are lower bounds; omitted-thread facts and reasons also matter when the numeric count is zero. No index or database is persisted.
 
 The browser keeps one return selection in its main-page parent, never in persistent storage. It contains one bounded rule row, run/revision, one rule-page cursor, at most 128 failure-page cursors and one originating call path. It retains no failure pages.
 
 Changing project, leaving project scope, refreshing, invalidating or unmounting the parent discards it. Each return rereads authorized owner results and the revision-bound failure page before restoring call focus. Direct links work without retained state; reloading the page starts fresh.
 
-Dashboard counts use the metadata snapshot and existing recorded-rule fold after exact schema-3/4/5, `host === 'pi'` and BB-thread filtering. They never request selected-call detail or reread evidence. Refreshes do not share a persistent reverse index. Cancelling or unmounting stops browser continuation; already dispatched host work can settle and retained host state expires within ten minutes.
+Dashboard refreshes share a host-local in-memory SQLite index of compact recorded stage facts. It retains at most four archive roots, 8 MiB of charged facts and 8,192 source rows per root. SQLite pages are capped at 16 MiB per root.
+
+Eviction and storage failures cause private-file rereads, not evidence omission. Successfully loaded facts still contribute if a SQLite write fails.
+
+No database, journal or checkpoint is written to disk. Restarting the host rebuilds the index from recordings.
+
+Every acquisition still traverses bounded source metadata and checks private-file identity, ownership, permissions and changes before reusing indexed facts. Changed, removed or unsafe sources cannot supply their old facts. Rejected source entries remain in the freshness manifest, so repairs also invalidate old results.
+
+Retained result pages, contributors and replay also check their source snapshot and fresh authorization; a mismatch requires a restart. These checks observe mutable files, not an atomic filesystem snapshot.
+
+Each retained source manifest is capped at 16 MiB of charged metadata and 65,536 file/directory entries. These are serialized-accounting limits, not measured process-heap limits.
+
+Counts use the existing recorded-rule fold after exact schema-3/4/5, `host === 'pi'` and BB-thread filtering. Dashboard acquisition never requests selected-call detail.
+
+Cold loads still read recordings; warm loads can reuse their compact facts without reading payloads again. Cancelling or unmounting stops browser continuation; already dispatched host work can settle and retained host state expires within ten minutes.
 
 The host caches validated metadata. Each refresh shares a 256-stage/16-MiB parse budget across sessions. The overview performs no full detail read per timeline row. It rereads only the selected call, capped at 64 stages / 16 MiB. The separate focused findings RPC retains its five-candidate page and the same per-candidate detail cap.
 

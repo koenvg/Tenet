@@ -1,3 +1,4 @@
+import { currentDashboardEvidence } from '../test/dashboard-host-fixture.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { setImmediate } from 'node:timers/promises';
@@ -44,6 +45,7 @@ function fixture(count = 9, environmentCount = 1, gatedIds = ids.slice(0, 8), ga
   } as any, async () => { calls.settings++; return '{}'; }, {
     stop: async () => ({ stopped: true }),
     read: async (input, host) => {
+      if (input.kind === 'check') return currentDashboardEvidence();
       assert.equal(host, hostId); assert.equal(input.kind, 'start'); calls.hosts.push(input);
       if (input.kind !== 'start') throw Error('unexpected-host-continuation');
       return { state: 'finished', next: null, contributions: input.threads.map(threadId => ({
@@ -120,8 +122,8 @@ for (const environmentCount of [1, 9]) test(`resolution admits eight, commits re
         { threadId: ids[8], projectId, label: 'Synthetic 8', sessionId, callId: '0'.repeat(63) + '8', timestamp: 1, toolName: 'edit' },
       ] });
       else assert.deepEqual([result.state, result.rows, result.coverage], ['finished', expectedRows, finished]);
-      assert.deepEqual(f.snapshot(), { project: before.project + 1, settings: before.settings + 1,
-        threads: before.threads + 9, environments: before.environments + environmentCount });
+      assert.deepEqual(f.snapshot(), { project: before.project + 2, settings: before.settings + 2,
+        threads: before.threads + 18, environments: before.environments + 2 * environmentCount });
     }
   } finally { f.release(); await pending; await f.owner.dashboardStop({ token: initial.run }); }
 });

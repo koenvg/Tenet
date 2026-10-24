@@ -1,3 +1,4 @@
+import { currentDashboardEvidence } from './dashboard-host-fixture.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dashboardHandlers } from '../bb-plugin-tenet-status/dashboard.js';
@@ -42,6 +43,7 @@ async function published(streams: HostDashboardChunk[][]) {
     environments: { get: async ({ environmentId }: any) => ({ id: environmentId, hostId: hosts[environments.indexOf(environmentId)] }) },
   };
   const owner = dashboardHandlers(sdk, async () => '{}', { stop: async () => ({ stopped: true }), read: async (input, hostId) => {
+      if (input.kind === 'check') return currentDashboardEvidence();
     const stream = streams[hosts.indexOf(hostId)]!;
     const index = input.kind === 'advance' ? Number(input.token) : 0;
     const chunk = structuredClone(stream[index]!);

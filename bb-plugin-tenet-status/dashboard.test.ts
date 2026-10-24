@@ -1,3 +1,4 @@
+import { currentDashboardEvidence } from '../test/dashboard-host-fixture.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createFakePluginHost } from '@get-bb/plugin-sdk/testing';
@@ -15,7 +16,7 @@ test('dashboard public RPC starts for the selected project, discovers archived s
     threads: { list: async (args: any) => { queries.push(args); return args.archived ? [{ id: threadId, projectId, providerId: 'pi-subagents', deletedAt: null }] as any : []; },
       get: async () => ({ id: threadId, projectId, providerId: 'pi-subagents', environmentId: 'env_fixture0001', deletedAt: null }) as any },
     environments: { get: async () => ({ id: 'env_fixture0001', hostId }) as any },
-  }, experimental_callHostRpc: async () => { reads++; return { state: 'finished', next: null, contributions: [], linkedThreads: [threadId], invocations: 1, invocationSizes: [0], association: 'complete', omittedThreads: [], omittedInvocations: 0, reasons: [] }; } });
+  }, experimental_callHostRpc: async call => { if ((call.input as any).kind === 'check') return currentDashboardEvidence(); reads++; return { state: 'finished', next: null, contributions: [], linkedThreads: [threadId], invocations: 1, invocationSizes: [0], association: 'complete', omittedThreads: [], omittedInvocations: 0, reasons: [] }; } });
   plugin(fake.bb);
   try {
     assert.equal(reads, 0);
@@ -49,6 +50,7 @@ function coordinator(options: { groups?: RuleObservation[][]; unavailable?: bool
     environments: { get: async ({ environmentId }: any) => ({ id: environmentId, hostId }) },
   };
   const handlers = dashboardHandlers(sdk, async () => directory, { stop: async () => ({ stopped: true }), read: async input => {
+      if (input.kind === 'check') return currentDashboardEvidence();
     const start = input.kind === 'advance' ? Number(input.token) : 0;
     const groups = options.unavailable ? [] : options.groups ?? [[]];
     let end = start, size = 0;
@@ -188,7 +190,8 @@ test('an in-flight host response cannot restore project aggregates after access 
       get: async () => ({ id: threadId, projectId, providerId: 'pi', environmentId: 'env_fixture0001' }) },
     environments: { get: async () => ({ id: 'env_fixture0001', hostId }) },
   };
-  const handlers = dashboardHandlers(sdk, async () => '{}', { stop: async () => ({ stopped: true }), read: async () => {
+  const handlers = dashboardHandlers(sdk, async () => '{}', { stop: async () => ({ stopped: true }), read: async input => {
+    if (input.kind === 'check') return currentDashboardEvidence();
     dispatched(); await new Promise<void>(resolve => { release = resolve; });
     return { state: 'finished', next: null, contributions: [contribution(1)], linkedThreads: [threadId], invocations: 1, invocationSizes: [1], association: 'complete', omittedThreads: [], omittedInvocations: 0, reasons: [] };
   } });
@@ -212,7 +215,8 @@ for (const initialFailures of [1, 51]) test(`public failure reads bind ${initial
     threads: { list: async (args: any) => args.archived ? [] : [{ id: threadId, projectId, providerId: 'pi' }] as any,
       get: async () => ({ id: threadId, projectId, providerId: 'pi', environmentId: 'env_fixture0001' }) as any },
     environments: { get: async () => ({ id: 'env_fixture0001', hostId }) as any },
-  }, experimental_callHostRpc: async () => {
+  }, experimental_callHostRpc: async call => {
+    if ((call.input as any).kind === 'check') return currentDashboardEvidence();
     if (hostReads++ === 0) return { state: 'reading', next: 'host-continuation', contributions: observations, linkedThreads: [threadId], invocations: initialFailures, invocationSizes: observations.map(() => 1), association: 'complete', omittedThreads: [], omittedInvocations: 0, reasons: [] };
     dispatched(); await new Promise<void>(resolve => { release = resolve; });
     return { state: 'finished', next: null, contributions: [{ ...contribution(1), callId: 'f'.repeat(64) }], linkedThreads: [threadId], invocations: 1, invocationSizes: [1], association: 'complete', omittedThreads: [], omittedInvocations: 0, reasons: [] };
@@ -271,6 +275,7 @@ test('public Stop is token-only and idempotent after revocation, and routes only
       get: async () => ({ id: threadId, projectId, providerId: 'pi', environmentId: 'env_fixture0001' }) as any },
     environments: { get: async () => ({ id: 'env_fixture0001', hostId: revoked ? 'host_changed0001' : hostId }) as any },
   }, experimental_callHostRpc: async call => {
+    if ((call.input as any).kind === 'check') return currentDashboardEvidence();
     calls.push({ method: call.method, input: call.input, hostId: call.hostId });
     return call.method === 'stopDashboard' ? { stopped: true } : { state: 'reading', next: 'retained-host-continuation', contributions: [contribution(1)], linkedThreads: [threadId], invocations: 1, invocationSizes: [1], association: 'pending', omittedThreads: [], omittedInvocations: 0, reasons: [] };
   } });
