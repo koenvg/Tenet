@@ -129,6 +129,8 @@ Each check has a **View recorded action** disclosure. Exact action data loads on
 
 Choose the tests by the behavior you need to verify:
 
+- `components/fixed-rule-navigation.vitest.ts` checks explicit session selection, exact recorded identity across pages, duplicate and incomplete declarations, revision changes, cancellation and same-revision recovery after transient errors. `components/fixed-rule.vitest.ts` checks the separate minimal view, recorded wording, all four findings without success ticks, lazy tool fields and existing Inspector destinations.
+- `integration/fixed-rule.pw.ts` checks the fixed view through production assets and synthetic archive HTTP at 1280px, 390px and 320px. It covers session history, insufficient-evidence FAIL remaining Unclear, 50-to-55 check pagination, keyboard disclosures, reduced motion, unchanged-poll focus and access to Inspector and Operations.
 - `components/app.vitest.ts` checks the server-derived No violations found, Violation found, Unclear, and Not checked statuses. It also checks unknown inventory, unavailable exact wording, unchecked declarations, fresh visits without action reads, and exact rule/action deep-link associations.
 - `components/session-rules.vitest.ts` checks opening a rule from its row SVG, inert full wording, lazy exact-action reads, and close/focus restoration.
 - `components/navigation.vitest.ts` checks native session radios, picker closure and trigger focus, full-width panels at 390px and 320px, partial-archive diagnostics, restart guidance, and loading/error/empty-state recovery. It checks that the old call-list controls are absent.
