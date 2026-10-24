@@ -192,6 +192,18 @@ Evidence and response text are inert. The inspector never reevaluates policy or 
 
 Select **Close** or press Escape to return to the rule list. Focus returns to the rule that opened the panel.
 
+### Review the fixed delegation rule
+
+Use this read-only view for the recorded rule `Do not directly use write/edit tools. Delegate those actions.` in one Pi session. It does not create or edit a policy.
+
+1. Select **Review this session's delegation rule** to use the current session. A direct `?view=fixed-rule` link waits for you to choose a session instead of selecting the newest one.
+2. Open **Evidence** on the rule row. Each check shows its recorded finding, reason and context. Open **Recorded tool fields** to load its tool name, session, call ID, mode, permission and execution fields.
+3. Use **Open full rule details** for the existing Inspector panel, or **Back to all rules** to leave this view. Operations remains available.
+
+The row appears only when the reader can establish one exact recorded declaration. Missing wording, conflicting declarations and incomplete sources show an unavailable reason. Use the full Inspector to inspect those records. **Not loaded** means tool fields have not arrived; **Not recorded** means the loaded record lacks that field.
+
+Findings cover recorded checks of this declaration, not a tool-filtered total. Named `write` and `edit` attempts are in scope. Shell effects, actual execution and child completion are not established by this view.
+
 ### Read submitted and exact data
 
 Recorded data starts with the submitted action and captured policy. Submitted path, command and before/after edit text keep their original strings. They describe a submitted proposal, not an executed filesystem change. Arbitrary fields stay inert. Missing or malformed arguments have an unavailable readable view and retain the captured action JSON.
