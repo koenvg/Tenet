@@ -3,6 +3,11 @@ import type { CaptureHealth, InvocationView } from '../../src/inspector/view.js'
 import type { ArchiveIssue } from '../../src/recording/archive.js';
 import type { SessionRulesPage, SelectedSessionRule, RuleChecksPage } from '../../src/inspector/session-rules-model.js';
 
+export const FIXED_RULE_WORDING = 'Do not directly use write/edit tools. Delegate those actions.';
+export type FixedRuleAvailability =
+  | { kind: 'inactive' } | { kind: 'choose-session' } | { kind: 'reading' }
+  | { kind: 'unavailable'; revision: string | null; reason: string }
+  | { kind: 'ready'; revision: string; rule: string };
 export type PanelSelection = { kind: 'closed' } | { kind: 'rule'; rule: string } | { kind: 'action'; rule: string | null; invocation: string };
 export type OpenRecord =
   | { state: 'loading'; sourceRevision: string | null }
@@ -13,6 +18,7 @@ const RECORD_LIMIT_REASON = 'Visible record limit reached (8 records / 32 MiB). 
 type Reader = { build: string; supportedSchemas: number[]; unsupported: number; newerUnsupported: number; corrupt: number; indexing: boolean; otherIssues: number };
 type ArchiveState = {
   sessions: SessionSummary[]; session: string; panel: PanelSelection; project: string;
+  fixedRule: FixedRuleAvailability;
   rules: SessionRulesPage | null; selected: SelectedSessionRule | null; checks: RuleChecksPage | null;
   openRecords: Record<string, OpenRecord>; panelError: string;
   error: string; busy: boolean; rulesBusy: boolean; panelBusy: boolean; manualRefreshing: boolean;
@@ -24,7 +30,7 @@ const message = (e: unknown) => e instanceof Error ? e.message : 'Archive unavai
 const merge = <T extends { id: string }>(a: T[], b: T[]) => [...a, ...b.filter(item => !a.some(old => old.id === item.id))];
 
 export function createArchiveNavigation() {
-  let state: ArchiveState = { sessions: [], session: '', panel: { kind: 'closed' }, project: '', rules: null, selected: null, checks: null,
+  let state: ArchiveState = { fixedRule: { kind: 'inactive' }, sessions: [], session: '', panel: { kind: 'closed' }, project: '', rules: null, selected: null, checks: null,
     openRecords: {}, panelError: '', error: '', busy: false, rulesBusy: false, panelBusy: false, manualRefreshing: false,
     issues: [], health: [], nextSession: null, reader: null };
   const listeners = new Set<() => void>(), requests = new Map<string, AbortController>();
@@ -47,8 +53,9 @@ export function createArchiveNavigation() {
   function link(replace = false) {
     const url = new URL(window.location.href); url.search = ''; url.hash = '';
     if (state.session) url.searchParams.set('session', state.session);
-    if (state.panel.kind !== 'closed' && state.panel.rule) url.searchParams.set('rule', state.panel.rule);
-    if (state.panel.kind === 'action') url.searchParams.set('invocation', state.panel.invocation);
+    if (state.fixedRule.kind !== 'inactive') url.searchParams.set('view', 'fixed-rule');
+    if (state.fixedRule.kind === 'inactive' && state.panel.kind !== 'closed' && state.panel.rule) url.searchParams.set('rule', state.panel.rule);
+    if (state.fixedRule.kind === 'inactive' && state.panel.kind === 'action') url.searchParams.set('invocation', state.panel.invocation);
     if (url.href !== location.href) history[replace ? 'replaceState' : 'pushState'](null, '', url);
   }
   async function api(path: string, request: Request) {
@@ -77,13 +84,50 @@ export function createArchiveNavigation() {
     const previous = records[id];
     return { state: 'available', sourceRevision, bytes, view: previous?.state === 'available' && JSON.stringify(previous.view) === text ? previous.view : view };
   }
+  async function resolveFixedRule(rules: SessionRulesPage, request: Request): Promise<{ availability: FixedRuleAvailability; selected: SelectedSessionRule | null } | null> {
+    const unavailable = (reason: string, revision: string | null = rules.revision) => ({ availability: { kind: 'unavailable' as const, revision, reason }, selected: null });
+    const current = state.fixedRule;
+    if ((current.kind === 'ready' || current.kind === 'unavailable') && current.revision === rules.revision)
+      return { availability: current, selected: current.kind === 'ready' ? state.selected : null };
+    let all = rules;
+    if (rules.next) {
+      const rest = await page(`${rulePath()}?revision=${rules.revision}`, 'items', request, Infinity, rules.next);
+      if (!rest) return null;
+      if (rest.revision !== rules.revision) throw new ArchiveError(409);
+      all = { ...rest, items: merge(rules.items, rest.items) };
+    }
+    if (all.inventory.state !== 'known' || all.ruleCoverage.incomplete || all.ruleCoverage.indexing || all.ruleCoverage.omittedRules)
+      return unavailable('Recorded rule sources are incomplete. Exact rule identity cannot be established.');
+    if (all.items.some(item => item.wordingConflict || item.preview === null))
+      return unavailable('Recorded wording is missing or conflicting. Exact rule identity cannot be established.');
+    let selected: SelectedSessionRule | null = null;
+    for (const candidate of all.items.filter(item => item.preview === FIXED_RULE_WORDING)) {
+      const detail: SelectedSessionRule = await api(`${rulePath()}/${candidate.id}?revision=${rules.revision}`, request);
+      if (!request.current()) return null;
+      if (detail.revision !== rules.revision) throw new ArchiveError(409);
+      if (detail.wording.state !== 'available' || detail.rule.wordingConflict) {
+        const retryable = detail.wording.state === 'unavailable' && detail.wording.reason === 'source-unavailable-or-changed' && !detail.rule.wordingConflict;
+        return unavailable('Exact recorded wording is unavailable or conflicting.', retryable ? null : rules.revision);
+      }
+      if (detail.wording.text !== FIXED_RULE_WORDING) continue;
+      if (selected) return unavailable('More than one recorded declaration has this exact wording. Choose the full Inspector to inspect them.');
+      selected = detail;
+    }
+    return selected ? { availability: { kind: 'ready', revision: rules.revision, rule: selected.rule.id }, selected }
+      : unavailable('No declaration with this exact wording was found in the available recorded rules.');
+  }
   async function snapshot(request: Request, sessionsCount = state.sessions.length, ruleCount = state.rules?.items.length ?? 50, checkCount = state.checks?.items.length ?? 50, retryRecords = false): Promise<Partial<ArchiveState> | null> {
-    const session = state.session, panel = state.panel, project = state.project;
+    const session = state.session, panel = state.panel, project = state.project, fixed = state.fixedRule.kind !== 'inactive';
     const path = rulePath(session);
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const data = await page(`/api/sessions?${new URLSearchParams(project ? { project } : {})}`, 'sessions', request, Math.max(50, sessionsCount));
         if (!data) return null;
+        if (fixed && session && !data.sessions.some((row: SessionSummary) => row.id === session) && data.next) {
+          const rest = await page(`/api/sessions?${new URLSearchParams(project ? { project } : {})}`, 'sessions', request, Infinity, data.next);
+          if (!rest) return null;
+          data.sessions = merge(data.sessions, rest.sessions); data.next = rest.next;
+        }
         const patch: Partial<ArchiveState> = { sessions: data.sessions, nextSession: data.next, ...metadata(data) };
         if (!session) return patch;
         const rules = await page(path, 'items', request, ruleCount);
@@ -91,22 +135,33 @@ export function createArchiveNavigation() {
         const row = data.sessions.find((s: SessionSummary) => s.id === session);
         if (row && row.revision !== rules.revision) throw new ArchiveError(409);
         Object.assign(patch, { rules, ...metadata(rules), panelError: '' });
-        const rule = panel.kind === 'closed' ? null : panel.rule;
+        let rule = panel.kind === 'closed' ? null : panel.rule;
+        let fixedSelected: SelectedSessionRule | null = null;
+        if (fixed) {
+          const resolved = row?.host === 'pi' ? await resolveFixedRule(rules, request)
+            : { availability: { kind: 'unavailable' as const, revision: rules.revision, reason: 'Recorded Pi session metadata is unavailable. Choose a recorded Pi session.' }, selected: null };
+          if (!resolved) return null;
+          Object.assign(patch, { fixedRule: resolved.availability, selected: resolved.selected, checks: null });
+          fixedSelected = resolved.selected;
+          rule = resolved.availability.kind === 'ready' ? resolved.availability.rule : null;
+          Object.assign(patch, { panel: rule ? panel.kind === 'action' && panel.rule === rule ? panel : { kind: 'rule', rule } : { kind: 'closed' } });
+        }
         if (rule) {
           try {
-            const selected = await api(`${path}/${rule}?revision=${rules.revision}`, request);
+            const selected = fixedSelected ?? await api(`${path}/${rule}?revision=${rules.revision}`, request);
             const checks = await page(`${path}/${rule}/checks?revision=${rules.revision}`, 'items', request, checkCount);
             if (!request.current() || !checks) return null;
             Object.assign(patch, { selected, checks });
           } catch (e) {
             if (e instanceof ArchiveError && e.status === 409) throw e;
             if (!request.current()) return null;
-            Object.assign(patch, { selected: null, checks: null, panelError: `Recorded rule unavailable. ${message(e)}` });
+            Object.assign(patch, { selected: null, checks: null, panelError: `Recorded rule unavailable. ${message(e)}`, ...(fixed ? { panel: { kind: 'closed' }, fixedRule: { kind: 'unavailable', revision: null, reason: `Recorded rule unavailable. ${message(e)}` } } : {}) });
           }
         }
         const openRecords = { ...state.openRecords }; let read = false;
         const visible = new Set((patch.checks?.items ?? []).map(check => check.invocation));
-        if (panel.kind === 'action') visible.add(panel.invocation);
+        const visiblePanel = patch.panel ?? panel;
+        if (visiblePanel.kind === 'action') visible.add(visiblePanel.invocation);
         for (const id of Object.keys(openRecords)) if (!visible.has(id)) delete openRecords[id];
         for (const [id, previous] of Object.entries(openRecords)) {
           if (previous.state === 'unavailable' && previous.cause === 'limit' && !retryRecords) continue;
@@ -159,16 +214,23 @@ export function createArchiveNavigation() {
       } else { const patch = await snapshot(request); if (patch) update({ ...patch, error: '' }); }
     } catch (e) {
       if (request.current() && retry && e instanceof ArchiveError && e.status === 409) { request.finish(); return loadRules(undefined, false); }
-      if (request.current()) update({ error: message(e) });
+      if (request.current()) update({ error: message(e), ...(state.fixedRule.kind !== 'inactive' ? { fixedRule: { kind: 'unavailable', revision: null, reason: message(e) } as FixedRuleAvailability } : {}) });
     } finally { if (request.current()) update({ rulesBusy: false }); request.finish(); }
   }
   async function selectSession(id: string, updateLink = true) {
     if (!lifetime) return false;
     const token = navigation = {}; for (const key of [...requests.keys()]) cancel(key);
-    update({ session: id, panel: { kind: 'closed' }, rules: null, selected: null, checks: null, openRecords: {}, panelError: '', error: '', rulesBusy: false, panelBusy: false, busy: false, manualRefreshing: false });
+    update({ session: id, fixedRule: state.fixedRule.kind === 'inactive' ? { kind: 'inactive' } : id ? { kind: 'reading' } : { kind: 'choose-session' }, panel: { kind: 'closed' }, rules: null, selected: null, checks: null, openRecords: {}, panelError: '', error: '', rulesBusy: false, panelBusy: false, busy: false, manualRefreshing: false });
     if (updateLink) link();
     if (id) await loadRules();
     return !!lifetime && token === navigation;
+  }
+  async function openFixedRule() {
+    update({ fixedRule: state.session ? { kind: 'reading' } : { kind: 'choose-session' } });
+    await selectSession(state.session);
+  }
+  function closeFixedRule() {
+    update({ fixedRule: { kind: 'inactive' } }); closePanel();
   }
   async function selectRule(rule: string, updateLink = true) {
     if (!lifetime || !state.session) return;
@@ -233,13 +295,15 @@ export function createArchiveNavigation() {
   async function restoreLink(initial = false) {
     const params = new URLSearchParams(location.search), session = params.get('session') ?? '', rule = params.get('rule') ?? '', invocation = params.get('invocation') ?? '';
     if ([session, rule, invocation].some(id => id && !/^[a-f0-9]{64}$/.test(id)) || ((rule || invocation) && !session)) { update({ error: 'Invalid session, rule or invocation link. Choose a recorded session.' }); return; }
+    const fixed = params.get('view') === 'fixed-rule';
+    update({ fixedRule: fixed ? session ? { kind: 'reading' } : { kind: 'choose-session' } : { kind: 'inactive' } });
     const selected = navigation = {};
     if (session) {
       const loading = selectSession(session, false), token = navigation;
       if (!await loading || !lifetime || token !== navigation) return;
-      if (rule) { const loadingRule = selectRule(rule, false), ruleToken = navigation; await loadingRule; if (!lifetime || ruleToken !== navigation) return; }
-      if (invocation) await selectInvocation(invocation, false, rule || null);
-    } else if (initial && state.sessions.length) {
+      if (!fixed && rule) { const loadingRule = selectRule(rule, false), ruleToken = navigation; await loadingRule; if (!lifetime || ruleToken !== navigation) return; }
+      if (!fixed && invocation) await selectInvocation(invocation, false, rule || null);
+    } else if (!fixed && initial && state.sessions.length) {
       const latest = state.sessions.reduce((a, b) => b.timestamp > a.timestamp ? b : a);
       await selectSession(latest.id, false); if (lifetime) link(true);
     } else if (selected === navigation) await selectSession('', false);
@@ -258,12 +322,15 @@ export function createArchiveNavigation() {
     start() {
       if (lifetime) throw new Error('Archive navigation is already started.');
       const mount = lifetime = {}, token = navigation = {};
-      void loadSessions().then(loaded => { if (loaded && lifetime === mount && token === navigation) return restoreLink(true); });
+      if (new URLSearchParams(location.search).get('view') === 'fixed-rule') {
+        void restoreLink(true);
+        if (!state.session) void loadSessions();
+      } else void loadSessions().then(loaded => { if (loaded && lifetime === mount && token === navigation) return restoreLink(true); });
       const restore = () => { void restoreLink(); }; window.addEventListener('popstate', restore);
       const timer = setInterval(() => refreshLive(), 2000);
       return () => { if (lifetime !== mount) return; lifetime = null; navigation = {}; for (const key of [...requests.keys()]) cancel(key); clearInterval(timer); window.removeEventListener('popstate', restore); };
     },
-    loadSessions, loadRules, loadChecks, selectSession, selectRule, selectInvocation, closeInvocation, closePanel,
+    openFixedRule, closeFixedRule, loadSessions, loadRules, loadChecks, selectSession, selectRule, selectInvocation, closeInvocation, closePanel,
     filterProjects(project: string) { update({ project }); void selectSession(''); void loadSessions(); },
     refreshArchive: () => refreshLive(true),
   };
