@@ -4,6 +4,7 @@ import type { ArchiveAddress } from '../../src/runtime/operations.js';
 import { useArchive } from './archive-state.js';
 import SessionPicker from './SessionPicker.js';
 import RulePanel from './RulePanel.js';
+import FixedRule from './FixedRule.js';
 import { inventoryNote, RuleIcon, RuleStatusLabel } from './SessionRules.js';
 import './standalone.css';
 
@@ -15,11 +16,17 @@ function InspectorWorkspace({ active }: { active: boolean }) {
   const archiveState = !reader ? archive.busy ? 'Reading archive…' : 'Coverage unknown'
     : reader.unsupported || reader.corrupt || reader.otherIssues ? 'Partial archive'
     : reader.indexing ? 'Indexing archive' : captureIssues ? 'Capture issues' : 'Supported records';
-  const openAction = (id: string, element: HTMLElement) => { initiator.current = element; void archive.selectInvocation(id); };
+  const openAction = (id: string, element: HTMLElement) => {
+    initiator.current = element;
+    if (archive.fixedRule.kind !== 'inactive') archive.closeFixedRule();
+    void archive.selectInvocation(id, true, null);
+  };
   return <div className="rule-app">
     <header className="rule-app-header"><div className="rule-brand"><RuleIcon kind="brand" />TENET</div><span>Read-only</span></header>
     <main className="rule-main">
-      <SessionPicker archive={archive} />
+      <div className="fixed-navigation">{archive.fixedRule.kind === 'inactive' ? <button onClick={() => archive.openFixedRule()}>{archive.session ? "Review this session's delegation rule" : 'Review delegation rule'}</button> : <button onClick={archive.closeFixedRule}>Back to all rules</button>}</div>
+      <SessionPicker archive={archive} minimal={archive.fixedRule.kind !== 'inactive'} />
+      {archive.fixedRule.kind !== 'inactive' ? <FixedRule archive={archive} /> : <>
       <h1>Did this session follow the rules?</h1>
       <p className="rule-session-context">{rules?.inventory.state === 'known' ? `${rules.inventory.rules} rules. ` : ''}Based on this session's recorded checks.</p>
       {rules && <div className="rule-session-outcome" role="status"><RuleStatusLabel status={rules.status} /><span>{inventoryNote(rules.inventory)}.</span></div>}
@@ -33,6 +40,8 @@ function InspectorWorkspace({ active }: { active: boolean }) {
         {!archive.rulesBusy && !rules?.items.length && <p className="rule-empty">{archive.session ? 'Waiting for recorded rules in this session.' : archive.busy ? 'Reading archive…' : 'Choose a recorded session to inspect its rules.'}</p>}
         {rules?.next && <button disabled={archive.rulesBusy} onClick={() => archive.loadRules(rules.next!)}>More rules</button>}
       </section>
+      </>}
+      {archive.error && archive.fixedRule.kind !== 'inactive' && <p className="rule-alert" role="alert">{archive.error}</p>}
       {rules && <>
         {!!rules.ruleCoverage.reasons.length && <p className="rule-coverage">Recorded coverage limitations: {rules.ruleCoverage.reasons.join(', ')}.</p>}
         {!!rules.ruleCoverage.omittedRules && <p>{rules.ruleCoverage.omittedRules} rules omitted by reader limits.</p>}
@@ -57,7 +66,7 @@ function InspectorWorkspace({ active }: { active: boolean }) {
         <p>No settings or rules can be changed here.</p>
       </footer>
     </main>
-    <RulePanel archive={archive} initiator={initiator} active={active} />
+    {archive.fixedRule.kind === 'inactive' && <RulePanel archive={archive} initiator={initiator} active={active} />}
   </div>;
 }
 
