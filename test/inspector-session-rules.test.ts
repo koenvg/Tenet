@@ -139,7 +139,7 @@ for (const outcome of ['PASS', 'FAIL', 'APPROVAL_REQUIRED', 'UNKNOWN']) {
       const rule = page.items.find(row => row.declarationId === 'r')!;
       const check = index.ruleChecks(page.session, rule.id).items[0]!;
       assert.deepEqual({ status: check.status, outcome: check.outcome, gates: check.gates, trusted: check.trusted },
-        { status: outcome === 'FAIL' ? 'violation' : 'unclear', outcome, gates: null, trusted: true });
+        { status: 'unclear', outcome, gates: null, trusted: true });
     } finally { await index.close(); }
   }));
 }

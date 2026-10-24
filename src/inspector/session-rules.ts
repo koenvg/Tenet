@@ -12,11 +12,13 @@ const FACT_LIMIT = 64;
 export const SESSION_RULE_LIMIT = 1024;
 export const RULE_CHECK_LIMIT = 4096;
 type Declaration = { revision: string; wordingDigest: string | null; id: string; builtin: boolean; preview: string | null; origin: SessionRule['origin'] };
+type AssessmentRuleFacts = { id: string; outcome: string; evidence: string | null; applicabilitySupported: boolean | null };
 type AssessmentFacts = {
   digest: string; membership: string; legacy: boolean; applicability: boolean; integrityCandidate: string | null;
-  forbiddenIntegrity: string[]; forbiddenOverflow: boolean; hasFail: boolean;
-  rules: { id: string; outcome: string; evidence: string | null; applicabilitySupported: boolean | null }[];
+  forbiddenIntegrity: string[]; forbiddenOverflow: boolean;
+  rules: AssessmentRuleFacts[]; failures: AssessmentRuleFacts[];
 };
+type GateFacts = { membership: string; entries: { id: string; gates: string[] | null }[]; nonemptyOverflow: boolean };
 export interface SessionRuleStage {
   stage: string; timestamp: number; sequence: number; writerId: string; eventId: string; digest: string;
   snapshot?: { identity: string | null; declarations: Declaration[]; membership: string; valid: boolean;
@@ -24,7 +26,7 @@ export interface SessionRuleStage {
   assessment?: AssessmentFacts;
   invalid: boolean; valid: boolean; attempted: boolean; reason: string | null;
   lifecycle: string | null; profile: string | null; questionVersion: string | null; inputVersion: string | null;
-  gates?: { id: string; gates: string[] | null }[];
+  gates?: GateFacts;
 }
 export interface InvocationRuleFacts {
   invocation: string; revision: string; status: RuleStatus; inventoryReasons: string[]; omitted: number;
@@ -49,14 +51,47 @@ function assessmentFacts(value: unknown): AssessmentFacts {
   const validate = (profile: string, candidate: any) => safeIds && candidate !== undefined
     && assessmentShapeIssue(value, ids.filter(id => id !== candidate.ruleId), candidate.ruleId, profile) === undefined;
   const forbidden = rules.filter(rule => !['PASS', 'FAIL', 'UNKNOWN'].includes(object(object(rule).outcome).choice)).map(rule => object(rule).ruleId);
+  const facts: AssessmentRuleFacts[] = rules.map(rule => ({ id: bounded(object(rule).ruleId) ?? '',
+    outcome: bounded(object(object(rule).outcome).choice) ?? '',
+    evidence: bounded(object(object(rule).evidence).choice),
+    applicabilitySupported: typeof object(rule).applicabilitySupported === 'boolean' ? rule.applicabilitySupported : null }));
   return { digest: sessionKey(JSON.stringify(value)), membership: safeIds ? membership(ids) : '', legacy: validate('legacy', legacyCandidate),
     applicability: validate('applicability-v1', applicabilityCandidate), integrityCandidate: bounded(applicabilityCandidate?.ruleId),
     forbiddenIntegrity: forbidden.filter(id => typeof id === 'string').slice(0, FACT_LIMIT), forbiddenOverflow: forbidden.length > FACT_LIMIT,
-    hasFail: rules.some(rule => object(object(rule).outcome).choice === 'FAIL'),
-    rules: rules.slice(0, FACT_LIMIT).map(rule => ({ id: bounded(object(rule).ruleId) ?? '',
-      outcome: bounded(object(object(rule).outcome).choice) ?? '',
-      evidence: bounded(object(object(rule).evidence).choice),
-      applicabilitySupported: typeof object(rule).applicabilitySupported === 'boolean' ? rule.applicabilitySupported : null })) };
+    rules: facts.slice(0, FACT_LIMIT), failures: facts.filter(rule => rule.outcome === 'FAIL').slice(0, FACT_LIMIT) };
+}
+
+function recordedGateFacts(contributions: unknown, diagnostics: unknown): GateFacts | undefined {
+  const lists = [contributions, diagnostics].filter(value => value !== undefined);
+  if (!Array.isArray(lists[0])) return undefined;
+  const maps = lists.map(list => {
+    const map = new Map<string, any[]>();
+    for (const item of Array.isArray(list) ? list : []) {
+      const id = bounded(object(item).ruleId) ?? '';
+      const matches = map.get(id) ?? []; matches.push(item); map.set(id, matches);
+    }
+    return map;
+  });
+  const ids = [...new Set(maps.flatMap(map => [...map.keys()]))];
+  const validLists = lists.every(Array.isArray);
+  const entries = ids.map(id => {
+    const matches = maps.map(map => map.get(id) ?? []);
+    const valid = validLists && id !== '' && matches.every((items, index) => (index === 0 ? items.length === 1 : items.length <= 1)
+      && items.every(item => Array.isArray(object(item).gates) && object(item).gates.length <= 16
+        && object(item).gates.every((gate: unknown) => bounded(gate, 128) !== null)));
+    const gates = valid ? [...new Set<string>(matches.flatMap(items => items.flatMap(item => object(item).gates)))] : null;
+    return { id, gates: gates !== null && gates.length <= 16 ? gates : null };
+  });
+  const nonempty = entries.filter(entry => entry.gates === null || entry.gates.length > 0);
+  return { membership: entries.every(entry => entry.gates !== null) ? membership(ids) : '',
+    entries: [...nonempty, ...entries.filter(entry => entry.gates?.length === 0)].slice(0, FACT_LIMIT + 1),
+    nonemptyOverflow: nonempty.length > FACT_LIMIT + 1 };
+}
+
+function recordedRuleStatus(rule: AssessmentRuleFacts, gates: string[] | null): RuleStatus {
+  if (rule.outcome === 'UNKNOWN' || gates === null || gates.some(gate => gate !== 'rule-fail' || rule.outcome !== 'FAIL')
+    || rule.evidence === 'INSUFFICIENT' || rule.applicabilitySupported === false) return 'unclear';
+  return rule.outcome === 'FAIL' ? rule.evidence === 'SUFFICIENT' ? 'violation' : 'unclear' : 'clear';
 }
 
 export function sessionRuleStage(record: ArchiveRecord): SessionRuleStage {
@@ -92,18 +127,7 @@ export function sessionRuleStage(record: ArchiveRecord): SessionRuleStage {
       integrity: integrityId, omitted: Math.max(0, rules.length - FACT_LIMIT) };
   }
   if ((stage === 'assessment' || stage === 'validation') && data.assessment != null) fact.assessment = assessmentFacts(data.assessment);
-  if (stage === 'decision') {
-    const lists = [data.contributions, data.diagnostics].filter(value => value !== undefined);
-    const values = lists[0];
-    if (Array.isArray(values)) fact.gates = values.slice(0, FACT_LIMIT + 1).map(value => {
-      const id = bounded(object(value).ruleId) ?? '';
-      const matches = lists.map(list => Array.isArray(list) ? list.filter(item => object(item).ruleId === id) : []);
-      const valid = matches.every(items => items.length === 1 && Array.isArray(object(items[0]).gates)
-        && object(items[0]).gates.length <= 16 && object(items[0]).gates.every((gate: unknown) => bounded(gate, 128) !== null));
-      const gates: string[] | null = valid ? [...new Set<string>(matches.flatMap(items => object(items[0]).gates))] : null;
-      return { id, gates: gates !== null && gates.length <= 16 ? gates : null };
-    });
-  }
+  if (stage === 'decision') fact.gates = recordedGateFacts(data.contributions, data.diagnostics);
   return fact;
 }
 
@@ -151,14 +175,17 @@ export function foldInvocationRules(invocation: string, callId: string, stages: 
       ?? (lifecycle?.lifecycle && lifecycle.lifecycle !== 'completed' ? `Recorded assessment ${lifecycle.lifecycle}.`
         : 'Recorded assessment unavailable or invalid.');
   const gates = last('decision')?.gates;
+  const gatesFor = (id: string): string[] | null => {
+    const entry = gates?.entries.find(rule => rule.id === id);
+    if (entry) return entry.gates;
+    return gates && gates.membership !== '' && gates.membership === assessment?.membership && !gates.nonemptyOverflow ? [] : null;
+  };
   const rules = (snapshot?.declarations ?? []).map(declaration => {
     const id = sessionKey(JSON.stringify([snapshot?.identity ?? `invocation:${invocation}`, declaration.id]));
-    const selected = assessment?.rules.find(rule => rule.id === declaration.id);
-    const matches = gates?.filter(rule => rule.id === declaration.id);
-    const gateIds = matches?.length === 1 ? matches[0]!.gates : null;
-    const status: RuleStatus = !attempted ? 'unchecked' : !trusted || !selected ? 'unclear'
-      : selected.outcome === 'FAIL' ? 'violation' : selected.outcome === 'UNKNOWN' || gateIds === null || gateIds.length > 0
-        || selected.evidence === 'INSUFFICIENT' || selected.applicabilitySupported === false ? 'unclear' : 'clear';
+    const selected = assessment?.rules.find(rule => rule.id === declaration.id)
+      ?? assessment?.failures.find(rule => rule.id === declaration.id);
+    const gateIds = gatesFor(declaration.id);
+    const status: RuleStatus = !attempted ? 'unchecked' : !trusted || !selected ? 'unclear' : recordedRuleStatus(selected, gateIds);
     const row: SessionRule = { id, declarationId: declaration.id, policyIdentity: snapshot?.identity ?? null,
       builtin: declaration.builtin, origin: declaration.origin, preview: declaration.preview, status, checks: attempted ? 1 : 0,
       declarationRevision: declaration.revision, wordingConflict: snapshotConflict,
@@ -176,7 +203,7 @@ export function foldInvocationRules(invocation: string, callId: string, stages: 
   });
   let status: RuleStatus = attempted ? trusted ? 'unchecked' : 'unclear' : 'unchecked';
   for (const rule of rules) status = combineRuleStatus(status, rule.row.status);
-  if (trusted && assessment?.hasFail) status = 'violation';
+  if (trusted) for (const failure of assessment?.failures ?? []) status = combineRuleStatus(status, recordedRuleStatus(failure, gatesFor(failure.id)));
   if (attempted && reasons.length && status !== 'violation') status = 'unclear';
   return { invocation, revision, status, inventoryReasons: reasons, omitted: snapshot?.omitted ?? 0, rules };
 }
