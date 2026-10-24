@@ -1,8 +1,8 @@
 # Deploy the public website
 
-Use this guide to check the public website from a developer checkout, then configure a dedicated Railway service. The React website uses the shared shadcn/ui component source in `web/`. Its public server stays separate from the Bun application and local decision inspector.
+Use this guide from a developer checkout to verify Tenet's existing Railway website service. Start with [the service settings](#configure-railway) and [launch record](#launch-record). Do not provision another service. The React website uses the shared shadcn/ui component source in `web/`. Its public server stays separate from the Bun application and local decision inspector.
 
-Local checks need Docker, curl, and Node 22+. The container builds React assets with Bun and locked dependencies. Host checks need no API keys, database, or persistent volume. The local procedure is CI-tested. Remote deployment remains pending, as recorded in [the launch record](#launch-record).
+Local checks need Docker, curl, and Node 22+. The container builds React assets with Bun and locked dependencies. Host checks need no evaluator API keys, database, or persistent volume. The local procedure is CI-tested. Production inspection needs access to the existing Railway project.
 
 ## Build and verify locally
 
@@ -53,46 +53,64 @@ Deployment configuration, design notes, test scripts, application source, and as
 
 ## Configure Railway
 
-Obtain separate operator authorization before creating or changing a Railway service, connecting GitHub, enabling autodeploy, generating a domain, or deploying. These actions send source and service settings to Railway and can incur hosting costs. Documentation approval does not authorize deployment or a running service restart.
+Inspect the existing service before making changes. The steps below read Railway service metadata and GitHub check results. These authenticated requests disclose project and revision identifiers to those services, not policy or assessment data. Public-site checks need the separate authorization described under [Verify production](#verify-production).
 
-1. Confirm the intended workspace and billing plan. Use a dedicated website service, not an existing application service.
-2. Wait until the reviewed deployment files are on `main`. Then connect the approved service with these settings:
+Obtain separate operator authorization before changing service settings, connecting GitHub, enabling autodeploy, generating a domain, or deploying. These actions send source and service settings to Railway and can incur hosting costs. Documentation approval does not authorize deployment or a running service restart. Do not create a replacement service or change billing during inspection.
+
+1. Open the [Tenet Railway project](https://railway.com/project/d574d512-5f50-4a34-9cb7-ec0b8b2f3257) in `koenvg's Projects`. Select `production`, then `website`. Confirm the service ID against the launch record.
+2. In Deployments, open the active successful deployment. Record its deployment ID and full Git revision. Do not substitute the latest GitHub commit or a skipped deployment. Compare its configuration snapshot with Settings and this baseline:
 
    | Setting | Value |
    | --- | --- |
    | Repository | `koenvg/Tenet` |
    | Branch | `main` |
-   | Root directory | `/`, the repository root |
-   | Railway config file | `/site/railway.toml` |
+   | Root directory | `/`, the repository root, not `/site` |
+   | Railway config file | No selected path. Settings are saved directly in Railway. |
    | Builder | Dockerfile |
    | Dockerfile path | `site/Dockerfile` |
    | Watch paths | `/site/**`, `/web/**`, `/third-party/web/**`, `/package.json`, `/bun.lock` |
    | Health check | `/`, 30-second deployment timeout |
    | Restart policy | On failure, at most 3 retries |
-   | Replicas | 1 |
-   | Domain | Railway-generated domain |
+   | Replicas | 1 in US East, Virginia |
+   | Start command | No override. Use the container default. |
+   | Autodeploy | Enabled for `main` |
+   | Wait for CI | Enabled |
+   | Domain | `website-production-b64d.up.railway.app` |
+   | Domain target port | No explicit override at the recorded inspection. Check routing against the injected `PORT`. |
 
-   The config-file path stays repository-relative with the service at the repository root. Railway control-plane setup must select the root, GitHub source, branch, domain, and CI-wait setting. `railway.toml` does not create or connect a service.
+   A deployment snapshot records the settings used for that deployment. Dashboard settings can describe a later change. If they differ, record both and obtain authorization before correcting them. Do not infer effective settings from `site/railway.toml`.
 
-3. Enable autodeploy and Wait for CI in the service settings. Railway may need updated GitHub installation permissions to read check results. Workflows run on pushes to `main`. Check the actual CI-wait setting and build logs before claiming CI gates deployment.
-4. Generate a public domain under Railway networking. Match its target port to the injected service `PORT`. Do not enable TLS inside Caddy. Its catch-all host accepts the `healthcheck.railway.app` probe.
+3. Confirm that Wait for CI is enabled in Settings. Check GitHub results for the deployed revision and Railway's deployment history or logs. Railway may need updated GitHub installation permissions to read check results. Keep this gate enabled. A successful build alone does not prove that CI gated deployment.
+4. Confirm the existing domain under Networking. Do not generate another domain. A healthy container can still be unreachable if routing uses the wrong port. Caddy listens on the injected `PORT`, default 8080. Railway terminates TLS, and Caddy accepts the `healthcheck.railway.app` probe.
 
-The expected result is a dedicated service with the recorded settings and a reachable domain. A healthy container can still be unreachable if its domain target port is wrong. Verify the public site next.
+The expected result is an identified active revision, matching effective settings, and an existing domain. Record differences without changing the service. Use [Verify production](#verify-production) for separately authorized public HTTP and browser checks.
+
+### Maintain settings after config-as-code retirement
+
+Railway's settings UI and [Infrastructure as Code documentation](https://docs.railway.com/infrastructure-as-code) state that legacy config files stop being read on **2026-12-01**. Services that never used Config as Code cannot opt in from **2026-08-28**. Legacy config values override dashboard values while a file is active.
+
+This service already uses direct Railway settings with no selected config-file path. Keep that supported dashboard-managed setup. The repository's `site/railway.toml` is a legacy reference, not the active configuration or a provisioning mechanism. Do not reselect it as a recovery step.
+
+For the maintainer responsible for the next settings change or deployment:
+
+1. Before 2026-12-01, repeat the settings comparison above. Confirm that no legacy file is selected and that the deployment snapshot contains the expected build, watch, health, and restart settings.
+2. At the first authorized deployment after the cutoff, compare the new snapshot again. With separate live-check authorization, verify the same public domain. Save the revision, settings, and results with that maintenance task.
+3. If repository-managed infrastructure is needed later, propose a separate, operator-approved Railway Infrastructure as Code change. It replaces legacy Config as Code and cannot manage the same service alongside it. Review the plan for the existing project before any apply. Preserve the domain, CI gate, public-file allowlist, and service isolation. This guide does not authorize migration or config-file removal.
 
 ## Verify production
 
 Obtain separate authorization before live verification. The smoke check and browser send read requests to the public Railway service, including requests for paths that must return 404. Hosting usage can apply. These reads do not authorize deployment or configuration changes.
 
-1. From the repository root, replace `YOUR-SERVICE.up.railway.app` with the allocated domain:
+1. From the repository root, run the supported smoke check against the existing domain:
 
    ```sh
-   node site/smoke.mjs https://YOUR-SERVICE.up.railway.app
+   node site/smoke.mjs https://website-production-b64d.up.railway.app
    ```
 
    Expect `PASS:`. The check covers homepage and docs content, navigation, CSS and font responses, MIME types, font signature, and 404 responses for non-public paths.
 
 2. In a browser, open the homepage, follow Docs and Home, and check that CSS and fonts load without network errors. The `/` readiness probe does not replace this check. Railway's deployment health check is not continuous uptime monitoring.
-3. Record the URL, Railway project/service, deployed Git revision, source/root/config/watch settings, CI-wait setting, and results on TENET-12. Application-only source changes under `src/` do not match the watch paths. Shared UI or dependency changes do trigger a website build.
+3. Record the URL, Railway project/service, deployment ID, deployed Git revision, source/root/config/watch settings, CI-wait setting, and results with the current maintenance task. Update the launch record when the verified state changes. Application-only source changes under `src/` do not match the watch paths. Shared UI or dependency changes do trigger a website build.
 
 ## A website check fails
 
@@ -113,15 +131,34 @@ A failed initial launch has no previous working deployment. Fix it before claimi
 
 ## Launch record
 
-Created the dedicated [Tenet Railway project](https://railway.com/project/d574d512-5f50-4a34-9cb7-ec0b8b2f3257) in `koenvg's Projects` with owner approval. No plan upgrade was requested or performed.
+The dedicated [Tenet Railway project](https://railway.com/project/d574d512-5f50-4a34-9cb7-ec0b8b2f3257) was created in `koenvg's Projects` with owner approval. The original launch did not request or perform a plan upgrade.
 
-The site is not deployed yet. Service creation, GitHub connection, generated domain, and live verification remain pending. The reviewed repository files must reach `main` before production autodeploy is enabled. Local container checks do not establish production readiness.
+### Current recorded state
+
+Verified on **2026-10-24** from Railway service status, deployment metadata, Settings, and GitHub check results:
+
+- Environment `production`, ID `e60873f8-21bc-419f-9aff-3d90251fca9d`.
+- Service `website`, ID `e4d603dd-6809-4813-9d26-133f7e7aa288`.
+- Public URL `https://website-production-b64d.up.railway.app`.
+- Active deployment `69f51b56-cad7-4f13-97fe-19fe1a9737e5`, status `SUCCESS`, created `2026-10-23T10:25:26.490Z`.
+- Deployed `main` revision [`4579b3fcc3ca646e596ab3627bf5cc49b41dc09b`](https://github.com/koenvg/Tenet/commit/4579b3fcc3ca646e596ab3627bf5cc49b41dc09b). The newer `b2ec5a980452804548ff41d4d7b1246730939b4a` deployment was `SKIPPED` because no watched files changed.
+- Effective build, watch, health, restart, replica, and start-command settings match [the baseline above](#configure-railway). The deployment has an empty file-service manifest, and Settings has no config-file path. Configuration is saved directly in Railway.
+- Autodeploy and Wait for CI are enabled. GitHub reports successful [Website container](https://github.com/koenvg/Tenet/actions/runs/39938995586/job/120365491120) and [Offline validation](https://github.com/koenvg/Tenet/actions/runs/39938995612/job/120365491089) checks for the deployed revision. These results and the enabled setting do not alone prove the historical order of CI and deployment.
+
+This inspection did not deploy, change infrastructure, or rerun public HTTP or browser checks. Railway's `SUCCESS` status is not a fresh public-site smoke result. Keep the historical public check below separate from the current deployment state.
+
+### Recovery history
+
+On **2026-10-16**, the authorized recovery corrected the build root from `/site` to `/` and expanded the watch paths to the baseline above. Deployment `1f91f601-1746-4909-93dc-144a6ad41b22` ran revision `3cc151273c63cc5a88e97ce02d365a83d792c314`. The retained command output records `PASS: 26 website HTTP checks` against the same domain. The legacy config-file path did not persist, so the recovery saved settings directly. No source, domain, or billing changes were reported.
+
+The [internal recovery thread](bbthread://thr_mtg9r6ii75) retains the authorization and command evidence. Railway history now marks that recovered deployment `REMOVED`; do not assume its image is available for rollback. The earlier failed deployment `1d9a0553-d8a8-4744-8a09-8c17118c8c4e`, created 2026-10-15, records root `/site`. Preserve this distinction between a failed attempt, a verified recovery, and the currently active deployment.
 
 ## Reference documentation
 
-Checked during implementation:
+Checked on 2026-10-24:
 
 - [Isolated monorepos, root directory, config path, and watch paths](https://docs.railway.com/guides/monorepo)
-- [Config-as-code settings](https://docs.railway.com/reference/config-as-code)
+- [Legacy Config as Code and configuration sources](https://docs.railway.com/guides/config-as-code)
+- [Infrastructure as Code and the legacy retirement deadline](https://docs.railway.com/infrastructure-as-code)
 - [Health check port and hostname](https://docs.railway.com/guides/healthchecks)
 - [GitHub autodeploy and Wait for CI](https://docs.railway.com/guides/github-autodeploys)
