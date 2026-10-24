@@ -1,3 +1,4 @@
+import { currentDashboardEvidence } from './dashboard-host-fixture.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
@@ -25,7 +26,7 @@ async function setup() {
     get: async () => ({ id: threadId, projectId, providerId: 'pi', environmentId }),
   }, environments: { get: async () => ({ id: environmentId, hostId }) } };
   const owner = dashboardHandlers(sdk, async () => JSON.stringify({ [hostId]: state.directory }), {
-    read: async input => { const chunk = await host.readDashboard(input); if (state.gate) { entered.resolve(chunk); await release.promise; } return chunk; },
+    read: async input => { if (input.kind === 'check') return host.readDashboard(input); const chunk = await host.readDashboard(input); if (state.gate) { entered.resolve(chunk); await release.promise; } return chunk; },
     stop: async (token, destination) => { stops.push([token, destination]); if (state.failStop) throw Error('cleanup-failed'); return host.stopDashboard({ token }); },
   }, () => state.time);
   return { root, host, owner, state, stops, release, entered };
@@ -130,7 +131,8 @@ test('an owner invocation limit remembers and releases the overflowing nontermin
     list: async ({ archived }: any) => archived ? [] : [{ id: threadId, projectId, providerId: 'pi' }],
     get: async () => ({ id: threadId, projectId, providerId: 'pi', environmentId }),
   }, environments: { get: async () => ({ id: environmentId, hostId }) } } as any, async () => JSON.stringify({ [hostId]: f.root }), {
-    read: async () => {
+    read: async input => {
+      if (input.kind === 'check') return currentDashboardEvidence();
       if (admitted < 10000) {
         const invocations = Math.min(128, 10000 - admitted); admitted += invocations;
         return { state: 'reading', next: `synthetic-${admitted}`, contributions: [], linkedThreads: [], invocations,
@@ -159,7 +161,7 @@ test('stopped partial owner results retain immutable replay and revision-bound c
     list: async ({ archived }: any) => archived ? [] : [{ id: threadId, projectId, providerId: 'pi' }],
     get: async () => ({ id: threadId, projectId, providerId: 'pi', environmentId }),
   }, environments: { get: async () => ({ id: environmentId, hostId }) } } as any, async () => changed ? JSON.stringify({ [hostId]: '/synthetic/changed' }) : '{}', {
-    read: async () => ({ state: 'reading', next: 'retained-host-token', contributions: [observation], linkedThreads: [threadId], invocations: 1, invocationSizes: [1], association: 'pending', omittedThreads: [], omittedInvocations: 0, reasons: [] }),
+    read: async input => input.kind === 'check' ? currentDashboardEvidence() : ({ state: 'reading', next: 'retained-host-token', contributions: [observation], linkedThreads: [threadId], invocations: 1, invocationSizes: [1], association: 'pending', omittedThreads: [], omittedInvocations: 0, reasons: [] }),
     stop: async (token, host) => { stops.push([token, host]); return { stopped: true }; },
   });
   const resolvedPage = await resolved(owner), token = resolvedPage.next!;
@@ -189,7 +191,7 @@ test('Stop after synchronous folding still completes fresh post-authorization an
   } }, threads: { list: async ({ archived }: any) => archived ? [] : [{ id: threadId, projectId, providerId: 'pi' }],
     get: async () => ({ id: threadId, projectId, providerId: 'pi', environmentId }) },
     environments: { get: async () => ({ id: environmentId, hostId }) } } as any, async () => '{}', {
-    read: async () => { hostReturned = true; return { state: 'reading', next: 'host-token', contributions: [observation], linkedThreads: [threadId], invocations: 1, invocationSizes: [1], association: 'pending', omittedThreads: [], omittedInvocations: 0, reasons: [] }; },
+    read: async input => { if (input.kind === 'check') return currentDashboardEvidence(); hostReturned = true; return { state: 'reading', next: 'host-token', contributions: [observation], linkedThreads: [threadId], invocations: 1, invocationSizes: [1], association: 'pending', omittedThreads: [], omittedInvocations: 0, reasons: [] }; },
     stop: async () => ({ stopped: true }),
   });
   const page = await resolved(owner);

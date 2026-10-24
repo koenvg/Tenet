@@ -216,8 +216,10 @@ function sdk(calls: Counts, accessible = () => true): any {
 
 test('exported handlers preserve exact rows and coverage with fewer calls and fresh pre/post authorization', () => archive(async root => {
   await recordings(root); const host = dashboardHost(), calls = counts(), chunks: HostDashboardChunk[] = [];
+  let evidenceChecks = 0;
   try {
     const owner = dashboardHandlers(sdk(calls), async () => { calls.settings++; return JSON.stringify({ [hostId]: root }); }, { stop: token => host.stopDashboard({ token }), read: async (input, selectedHost) => {
+      if (input.kind === 'check') { evidenceChecks++; return host.readDashboard(input); }
       calls.host++; assert.equal(selectedHost, hostId); const chunk = await host.readDashboard(input); chunks.push(chunk); return chunk;
     } }, () => 100);
     const read = async (input: Parameters<typeof owner.dashboard>[0]) => { calls.owner++; return owner.dashboard(input); };
@@ -244,9 +246,10 @@ test('exported handlers preserve exact rows and coverage with fewer calls and fr
       [[0, 0, 'reading'], [0, 0, 'reading'], [32, 64, 'reading'], [32, 64, 'reading'], [32, 64, 'reading'], [4, 8, 'finished']]);
     let before = { ...calls };
     assert.deepEqual(await read({ kind: 'advance', token: replay!.token }), replay!.page);
-    assert.deepEqual(delta(calls, before), { owner: 1, host: 0, project: 1, thread: 8, environment: 1, settings: 1, list: 0 });
+    assert.deepEqual(delta(calls, before), { owner: 1, host: 0, project: 2, thread: 16, environment: 2, settings: 2, list: 0 });
     before = { ...calls }; assert.deepEqual(await read({ kind: 'results', token: page.run }), page);
-    assert.deepEqual(delta(calls, before), { owner: 1, host: 0, project: 1, thread: 8, environment: 1, settings: 1, list: 0 });
+    assert.deepEqual(delta(calls, before), { owner: 1, host: 0, project: 2, thread: 16, environment: 2, settings: 2, list: 0 });
+    assert.equal(evidenceChecks, 3);
     assert.equal(JSON.stringify([page, chunks]).includes(sentinel), false);
   } finally { await host.dispose(); }
 }));

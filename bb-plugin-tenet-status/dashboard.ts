@@ -6,7 +6,7 @@ import { dashboardMethods, dashboardHostMethods, type Coverage, type DashboardPa
 import { reduceDashboardContribution, type RetainedRule } from '../src/inspector/bb-dashboard.js';
 
 type Target = { threadId: string; projectId: string; label: string; hostId: string; environmentId: string; directory?: string; fingerprint: string };
-type Destination = { targets: Target[]; next?: string; linked: Set<string>; done: boolean };
+type Destination = { targets: Target[]; next?: string; qualification?: string; linked: Set<string>; done: boolean };
 type Lifecycle = { kind: 'discovering'; archived: boolean; offset: number; windows: number }
   | { kind: 'reading'; resolve: number; destination: number }
   | { kind: 'finished' | 'limited' | 'restart-required' };
@@ -102,6 +102,17 @@ export function dashboardHandlers(sdk: BbPluginApi['sdk'], directories: () => Pr
     }
     return retained(run) ? pass : false;
   }
+  async function evidenceCurrent(run: DashboardRun, destinations = run.destinations) {
+    try {
+      for (const destination of destinations) if (destination.qualification) {
+        const result = dashboardHostMethods.readDashboard.output.parse(await hosts.read({ kind: 'check', qualification: destination.qualification }, destination.targets[0]!.hostId));
+        if (result.state !== 'finished') throw Error('archive-evidence-changed');
+      }
+      return retained(run);
+    } catch {
+      run.rows.clear(); run.lifecycle = { kind: 'restart-required' }; void discard(run).catch(() => {}); return false;
+    }
+  }
   function cursor(run: DashboardRun, offset: number, rule?: string) {
     let oldest: string | undefined;
     let count = 0;
@@ -190,6 +201,8 @@ export function dashboardHandlers(sdk: BbPluginApi['sdk'], directories: () => Pr
           ...(selected.directory !== undefined ? { recordingDirectory: selected.directory } : {}) }, selected.hostId));
     } catch { chunk = { state: 'unavailable', next: destination.next ?? null, contributions: [], linkedThreads: [], invocations: 0, invocationSizes: [], association: 'partial', omittedThreads: [], omittedInvocations: 0, reasons: ['destination-unavailable'] }; }
     destination.next = chunk.next ?? undefined;
+    if (!['unavailable', 'restart-required'].includes(chunk.state) && !chunk.reasons.includes('host-run-limit'))
+      destination.qualification = hash([run.id, selected.hostId, selected.directory ?? null]);
     if (!canAcquire(run)) {
       if (destination.next) { dashboardHostMethods.stopDashboard.output.parse(await hosts.stop(destination.next, selected.hostId)); destination.next = undefined; }
       return;
@@ -270,14 +283,25 @@ export function dashboardHandlers(sdk: BbPluginApi['sdk'], directories: () => Pr
       const operation = selected.pending.then(async () => {
         const pass = await valid(selected);
         if (!pass) return invalidPage(selected);
-        if (request.kind === 'results') return page(selected, offset(selected, request.cursor));
+        if (request.kind === 'results') {
+          if (!await evidenceCurrent(selected) || !await valid(selected)) return invalidPage(selected);
+          return page(selected, offset(selected, request.cursor));
+        }
         const replay = selected.steps.get(request.token);
-        if (replay) return structuredClone(replay);
+        if (replay) {
+          if (!await evidenceCurrent(selected) || !await valid(selected)) return invalidPage(selected);
+          return structuredClone(replay);
+        }
         if (request.token !== selected.next) return invalidPage(selected);
-        if (!canAcquire(selected)) return page(selected);
+        if (!canAcquire(selected)) {
+          if (!await evidenceCurrent(selected) || !await valid(selected)) return invalidPage(selected);
+          return page(selected);
+        }
+        const completed = selected.destinations.filter(destination => destination.done);
         if (selected.replayBytes + 1024 * 1024 > 32 * 1024 * 1024) {
           reason(selected, 'owner-replay-limit'); selected.lifecycle = { kind: 'limited' };
         } else await advance(selected, pass);
+        if (!await evidenceCurrent(selected, completed)) return invalidPage(selected);
         if (!await valid(selected)) return invalidPage(selected);
         selected.next = randomUUID(); selected.revision++; selected.cursors.clear();
         const result = page(selected);
@@ -297,7 +321,7 @@ export function dashboardHandlers(sdk: BbPluginApi['sdk'], directories: () => Pr
       const run = runs.get(token);
       if (!run) return { state: 'restart-required' as const, items: [], next: null };
       const operation = run.pending.then(async () => {
-        if (!await valid(run) || expectedRevision !== run.revision) return { state: 'restart-required' as const, items: [], next: null };
+        if (!await valid(run) || expectedRevision !== run.revision || !await evidenceCurrent(run) || !await valid(run)) return { state: 'restart-required' as const, items: [], next: null };
         const rows = [...(run.rows.get(rule)?.contributions ?? [])].filter(c => c.state === 'failed').sort((a, b) => a.threadId.localeCompare(b.threadId) || b.timestamp - a.timestamp || a.callId.localeCompare(b.callId));
         const start = offset(run, after, rule);
         return { state: 'ready' as const, items: rows.slice(start, start + 50).map(c => {

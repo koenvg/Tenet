@@ -1,3 +1,4 @@
+import { currentDashboardEvidence } from './dashboard-host-fixture.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdtemp, realpath, mkdir, rm, rename, symlink, chmod, opendir, writeFile, link } from 'node:fs/promises';
@@ -193,7 +194,7 @@ test('per-step stage and input-byte budgets resume without dropping selected fac
 test('completed exact association search alone permits unknown coverage', async () => {
   for (const association of ['complete', 'partial', 'pending'] as const) {
     const calls = { project: 0, thread: 0, environment: 0 };
-    const owner = dashboardHandlers(sdk(calls), async () => '{}', { stop: async () => ({ stopped: true }), read: async () => ({ state: 'limited', next: null, contributions: [], linkedThreads: [], invocations: 0, invocationSizes: [], reasons: ['archive-work-limit'], association, omittedThreads: [], omittedInvocations: 0 }) });
+    const owner = dashboardHandlers(sdk(calls), async () => '{}', { stop: async () => ({ stopped: true }), read: async input => input.kind === 'check' ? currentDashboardEvidence() : ({ state: 'limited', next: null, contributions: [], linkedThreads: [], invocations: 0, invocationSizes: [], reasons: ['archive-work-limit'], association, omittedThreads: [], omittedInvocations: 0 }) });
     const page = await finishOwner(owner);
     assert.deepEqual([page.coverage.processed, page.coverage.unknown, page.coverage.unprocessed, page.coverage.partial], association === 'complete' ? [1, 1, 0, 0] : [0, 0, 1, 0]);
   }
@@ -339,7 +340,7 @@ test('one environment read per distinct environment in each pass, never shared a
   for (let n = 0; n < 2; n++) {
     Object.keys(calls).forEach(key => { calls[key as keyof typeof calls] = 0; });
     await owner.dashboard({ kind: 'results', token: page.run });
-    assert.deepEqual(calls, { project: 1, thread: 8, environment: 2, settings: 1 });
+    assert.deepEqual(calls, { project: 2, thread: 16, environment: 4, settings: 2 });
   }
 });
 test('only exact schema 3/4/5 Pi membership reaches the scoped host while current and historical trust remain interpretable', () => fixture(async root => {

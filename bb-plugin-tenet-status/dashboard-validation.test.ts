@@ -1,3 +1,4 @@
+import { currentDashboardEvidence } from '../test/dashboard-host-fixture.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dashboardHandlers } from './dashboard.js';
@@ -36,6 +37,7 @@ function validationFixture(environmentCount: number) {
   }, {
     stop: async (token, host) => { stops.push({ token, host }); return { stopped: true }; },
     read: async (input, host) => {
+      if (input.kind === 'check') return currentDashboardEvidence();
       assert.equal(host, hostId);
       if (calls.host === 0) {
         assert.equal(input.kind, 'start');
@@ -80,8 +82,8 @@ for (const environmentCount of [1, 2]) test(`validation shares reads across nine
       assert.deepEqual([page.rows[0]!.failed, page.coverage.invocations], [chunk, chunk]);
       const replayBefore = f.snapshot();
       assert.deepEqual(await f.owner.dashboard({ kind: 'advance', token }), page);
-      assert.deepEqual(f.snapshot(), { project: replayBefore.project + 1, settings: replayBefore.settings + 1,
-        threads: replayBefore.threads + 9, environments: replayBefore.environments + environmentCount, host: chunk });
+      assert.deepEqual(f.snapshot(), { project: replayBefore.project + 2, settings: replayBefore.settings + 2,
+        threads: replayBefore.threads + 18, environments: replayBefore.environments + 2 * environmentCount, host: chunk });
     }
     page = await f.owner.dashboard({ kind: 'advance', token: page.next! });
     assert.deepEqual([page.state, page.next, page.coverage.processed, page.coverage.unknown], ['finished', null, 9, 8]);
@@ -95,8 +97,8 @@ for (const environmentCount of [1, 2]) test(`validation shares reads across nine
       if ('items' in result) assert.deepEqual(result.items.map(item => item.callId),
         Array.from({ length: 11 }, (_, n) => (11 - n).toString(16).padStart(64, '0')));
       else assert.deepEqual(result.rows, page.rows);
-      assert.deepEqual(f.snapshot(), { project: before.project + 1, settings: before.settings + 1,
-        threads: before.threads + 9, environments: before.environments + environmentCount, host: 11 });
+      assert.deepEqual(f.snapshot(), { project: before.project + 2, settings: before.settings + 2,
+        threads: before.threads + 18, environments: before.environments + 2 * environmentCount, host: 11 });
     }
   } finally { await f.owner.dashboardStop({ token: page.run }); }
 });

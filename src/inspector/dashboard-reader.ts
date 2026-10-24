@@ -1,12 +1,12 @@
-import { lstat, opendir } from 'node:fs/promises';
+import { opendir } from 'node:fs/promises';
 import type { Dir } from 'node:fs';
 import { join } from 'node:path';
-import { directory, MAX_RECORD_BYTES, readPrivateFile } from '../recording/files.js';
-import { READER_SCHEMAS, validRecord, type ArchiveRecord } from '../recording/contract.js';
-import { recordInvocationKey, recordSessionKey, sessionKey } from '../recording/archive.js';
-import { captureHealth } from './view.js';
-import { sessionRuleStage, type SessionRuleStage } from './session-rules.js';
+import { MAX_RECORD_BYTES, readPrivateFile } from '../recording/files.js';
+import { sessionKey } from '../recording/archive.js';
+import type { SessionRuleStage } from './session-rules.js';
 import { projectDashboardInvocation, type RuleObservation } from './bb-dashboard.js';
+import { dashboardRecordFacts, DashboardRecordIssue, type DashboardRecordFacts, type DashboardFactSource } from './dashboard-facts.js';
+import { DashboardEvidence } from './dashboard-evidence.js';
 
 export type AssociationCompletion = 'pending' | 'complete' | 'partial';
 export type DashboardAcquisition = {
@@ -19,7 +19,6 @@ type InvocationFoldCursor = { iterator: MapIterator<InvocationEntry>; deferred?:
 const FOLD_OBSERVATIONS = 65;
 const FOLD_WORK = 128;
 const RETAINED_BYTES = 8 * 1024 * 1024;
-const identity = async (path: string) => { await directory(path); const s = await lstat(path); return `${s.dev}:${s.ino}`; };
 
 /** One private-file traversal retains selected rule facts and compact global latest-writer health only. */
 export class DashboardArchiveReader {
@@ -39,25 +38,29 @@ export class DashboardArchiveReader {
   private turns = 0;
   private omittedCount = 0;
   private reportedOmitted = 0;
-  constructor(private root: string, private threads: Set<string>, private qualification: string, private read = readPrivateFile) {}
+  private evidence: DashboardEvidence;
+  constructor(private root: string, private threads: Set<string>, private qualification: string, private read = readPrivateFile, private source?: DashboardFactSource) {
+    this.evidence = new DashboardEvidence(root);
+  }
+  current(keepChecking?: () => boolean) { return this.evidence.current(keepChecking); }
 
   private gap(reason: string) { this.complete = false; this.reasons.add(reason); }
-  private record(record: ArchiveRecord) {
-    const health = captureHealth([record])[0];
+  private record(record: DashboardRecordFacts) {
+    const health = record.health;
     if (health) {
-      const writer = sessionKey(record.writerId), previous = this.writers.get(writer);
-      if (record.sequence > (previous?.sequence ?? 0)) {
+      const writer = sessionKey(health.writer), previous = this.writers.get(writer);
+      if (health.sequence > (previous?.sequence ?? 0)) {
         if (!previous && this.writers.size >= 16384) this.reasons.add('writer-health-limit');
-        else this.writers.set(writer, { sequence: record.sequence, loss: !!(health.failed || health.dropped || health.drainTimeouts) });
+        else this.writers.set(writer, { sequence: health.sequence, loss: health.loss });
       }
     }
-    if (![3, 4, 5].includes(record.schemaVersion) || record.host !== 'pi' || !record.bbThreadId || !this.threads.has(record.bbThreadId)) return;
-    const thread = record.bbThreadId;
+    if (!record.thread || !this.threads.has(record.thread) || !record.stage) return;
+    const thread = record.thread;
     this.linked.add(thread);
-    const id = sessionKey(JSON.stringify([thread, recordSessionKey(record), recordInvocationKey(record)]));
+    const id = sessionKey(JSON.stringify([thread, record.session, record.invocation]));
     let group = this.groups.get(id);
     if (!group) {
-      const session = sessionKey(JSON.stringify([thread, recordSessionKey(record)])), tool = record.toolName.slice(0, 256);
+      const session = sessionKey(JSON.stringify([thread, record.session])), tool = record.tool;
       const overhead = Buffer.byteLength(JSON.stringify({ id, thread, session, tool })) + 256;
       if (this.admissionClosed || this.groups.size >= 10000 || this.bytes + overhead > RETAINED_BYTES) {
         // Without an admitted tombstone, later stages cannot safely resurrect an invocation whose earlier stages were omitted.
@@ -68,7 +71,7 @@ export class DashboardArchiveReader {
       this.groups.set(id, group); this.bytes += overhead;
     }
     if (group.omitted) return;
-    const stage = sessionRuleStage(record), cost = Buffer.byteLength(JSON.stringify(stage)) + 64;
+    const stage = record.stage, cost = Buffer.byteLength(JSON.stringify(stage)) + 64;
     if (stage.snapshot?.omitted || stage.assessment?.forbiddenOverflow || group.stages.length >= 256 || group.bytes + cost > 256 * 1024 || this.bytes + cost > RETAINED_BYTES) {
       this.reasons.add('oversized-invocation'); this.omitted.add(thread); this.omittedCount++;
       this.bytes -= group.bytes; group.bytes = 0; group.stages = []; group.omitted = true; return;
@@ -84,14 +87,14 @@ export class DashboardArchiveReader {
     await this.closeCursors(); this.groups.clear(); this.writers.clear(); this.folding = undefined; this.phase = 'finished';
   }
   async advance(): Promise<DashboardAcquisition> {
-    const current = await identity(this.root);
+    const current = await this.evidence.directory(this.root);
     if (this.rootIdentity && this.rootIdentity !== current) throw Error('archive-identity-changed');
     this.rootIdentity = current;
     const contributions: RuleObservation[] = [];
     const invocationSizes: number[] = [];
     if (this.phase === 'scanning') {
       this.rootCursor ??= await opendir(this.root);
-      if (this.session && await identity(this.session.path) !== this.session.identity) throw Error('session-identity-changed');
+      if (this.session && await this.evidence.directory(this.session.path) !== this.session.identity) throw Error('session-identity-changed');
       let roots = 0, stages = 0, bytes = 0;
       // Every loop consumes one of 512 filesystem-entry work slots, including directory EOFs.
       for (let work = 0; work < 512; work++) {
@@ -103,9 +106,9 @@ export class DashboardArchiveReader {
           if (!/^[a-f0-9]{64}$/.test(entry.name)) continue;
           const path = join(this.root, entry.name);
           try {
-            const id = await identity(path), cursor = await opendir(path);
+            const id = await this.evidence.directory(path), cursor = await opendir(path);
             this.session = { path, key: entry.name, identity: id, cursor };
-            if (await identity(path) !== id) throw Error('session-identity-changed');
+            if (await this.evidence.directory(path) !== id) throw Error('session-identity-changed');
           } catch (error) {
             if (this.session) throw error;
             this.gap('unsafe-session-directory');
@@ -116,7 +119,7 @@ export class DashboardArchiveReader {
         const file = session.deferred ?? (await session.cursor.read())?.name;
         session.deferred = undefined;
         if (!file) {
-          if (await identity(session.path) !== session.identity) throw Error('session-identity-changed');
+          if (await this.evidence.directory(session.path) !== session.identity) throw Error('session-identity-changed');
           await session.cursor.close(); this.session = undefined; continue;
         }
         if (file.endsWith('.tmp')) { this.gap('temporary-record'); continue; }
@@ -126,20 +129,22 @@ export class DashboardArchiveReader {
         let cost = MAX_RECORD_BYTES + 1;
         if (stages >= 256 || bytes + cost > 16 * 1024 * 1024) { session.deferred = file; break; }
         stages++;
-        let reason = 'unsafe-or-unreadable-record';
         try {
-          const text = await this.read(this.root, path);
-          cost = Math.min(MAX_RECORD_BYTES + 1, Buffer.byteLength(text));
-          reason = 'corrupt-record';
-          const record: unknown = JSON.parse(text);
-          if (record && typeof record === 'object' && 'schemaVersion' in record && !READER_SCHEMAS.includes(record.schemaVersion as typeof READER_SCHEMAS[number])) reason = 'unsupported-schema';
-          if (!validRecord(record) || recordSessionKey(record) !== session.key) throw Error('invalid-record');
+          const fingerprint = await this.evidence.file(path);
+          const load = () => dashboardRecordFacts(this.root, path, session.key, this.threads, this.read);
+          const record = this.source ? await this.source(path, fingerprint, this.threads, load) : await load();
+          cost = Math.min(MAX_RECORD_BYTES + 1, record.bytes);
+          await this.evidence.verify(path);
           this.record(record);
-        } catch { this.gap(reason); }
+        } catch (error) {
+          if (error instanceof DashboardRecordIssue) cost = Math.min(MAX_RECORD_BYTES + 1, error.bytes);
+          const reason = error instanceof Error && ['corrupt-record', 'unsupported-schema'].includes(error.message) ? error.message : 'unsafe-or-unreadable-record';
+          this.gap(reason);
+        }
         bytes += cost;
-        if (await identity(session.path) !== session.identity) throw Error('session-identity-changed');
+        if (await this.evidence.directory(session.path) !== session.identity) throw Error('session-identity-changed');
       }
-      if (this.session && await identity(this.session.path) !== this.session.identity) throw Error('session-identity-changed');
+      if (this.session && await this.evidence.directory(this.session.path) !== this.session.identity) throw Error('session-identity-changed');
       this.turns++;
       if (this.phase === 'scanning' && this.turns >= 128) {
         this.gap('archive-work-limit'); this.phase = 'folding';
@@ -151,11 +156,13 @@ export class DashboardArchiveReader {
         }
       }
       if (this.phase === 'folding') {
+        if (!await this.current()) throw Error('archive-evidence-changed');
         await this.closeCursors(); this.folding = { iterator: this.groups.entries() };
         if ([...this.writers.values()].some(w => w.loss)) this.reasons.add('writer-loss');
         this.writers.clear();
       }
     } else if (this.phase === 'folding') {
+      if (!await this.current()) throw Error('archive-evidence-changed');
       const cursor = this.folding!;
       for (let work = 0; work < FOLD_WORK; work++) {
         let entry = cursor.deferred;
@@ -175,7 +182,7 @@ export class DashboardArchiveReader {
         this.bytes -= group.bytes + group.overhead; group.stages = [];
       }
     }
-    if (await identity(this.root) !== this.rootIdentity) throw Error('archive-identity-changed');
+    if (await this.evidence.directory(this.root) !== this.rootIdentity) throw Error('archive-identity-changed');
     const omittedInvocations = this.omittedCount - this.reportedOmitted; this.reportedOmitted = this.omittedCount;
     return { finished: this.phase === 'finished', contributions, invocationSizes, invocations: invocationSizes.length, linkedThreads: [...this.linked],
       association: this.phase === 'scanning' ? 'pending' : this.complete ? 'complete' : 'partial',

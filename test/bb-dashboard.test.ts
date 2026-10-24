@@ -237,7 +237,7 @@ for (const loss of ['failed', 'dropped', 'drainTimeouts', 'recovered'] as const)
       };
       const owner = dashboardHandlers(sdk, async () => JSON.stringify({ [hostId]: root }), { stop: token => host.stopDashboard({ token }), read: async request => {
         const chunk = dashboardHostMethods.readDashboard.output.parse(await host.readDashboard(request));
-        hostReasons.push(chunk.reasons); return chunk;
+        if (request.kind !== 'check') hostReasons.push(chunk.reasons); return chunk;
       } });
       let page = await owner.dashboard({ kind: 'start', scope: { kind: 'project', projectId } });
       for (let n = 0; page.next && n < 100; n++) page = await owner.dashboard({ kind: 'advance', token: page.next });
