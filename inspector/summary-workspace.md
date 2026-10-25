@@ -12,17 +12,15 @@ Use Bun 1.3.14+, Node 22.19+, the [locked development dependencies](../CONTRIBUT
    bun run plugin:build
    ```
 
-   This rebuilds the React library, scoped CSS and TypeScript declarations in ignored `bb-plugin-tenet-status/.summary-workspace/`. React stays external so BB uses its existing React runtime. The command then runs `npm run build` in the plugin directory. Nothing is installed or reloaded.
+   This rebuilds the React library, scoped CSS and TypeScript declarations in ignored `bb-plugin-tenet-status/.summary-workspace/`. React stays external so BB uses its existing React runtime. The command then runs `bun run --cwd bb-plugin-tenet-status build`. Nothing is installed or reloaded.
 
 2. Check the library and React adapter:
 
    ```sh
    bun run inspector:check
    CI=1 bun run inspector:test:components
-   cd bb-plugin-tenet-status
-   ./node_modules/.bin/tsc --noEmit
-   ./node_modules/.bin/vitest run --config vitest.config.ts
-   cd ..
+   bun run --cwd bb-plugin-tenet-status typecheck
+   bun run --cwd bb-plugin-tenet-status test
    ```
 
 Success means each command exits zero. A missing or stale library stops the plugin build with `bun run summary:build` as the fix. Run that command from the root before importing the wrapper. The build stamp checks source content, not file modification times. Use the [full offline verification order](../CONTRIBUTING.md#check-a-change) for application and standalone workflow checks.

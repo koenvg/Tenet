@@ -12,7 +12,6 @@ Use Node 22.19+ for the Pi-backed fixtures and Bun 1.3.14+. SDK-only consumers h
 
    ```sh
    bun install --frozen-lockfile
-   npm ci --prefix bb-plugin-tenet-status
    bunx playwright install chromium
    ```
 

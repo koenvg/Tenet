@@ -4,6 +4,7 @@
   "license": "MIT",
   "private": true,
   "type": "module",
+  "workspaces": ["bb-plugin-tenet-status"],
   "packageManager": "bun@1.3.14",
   "engines": {
     "bun": ">=1.3.14",
@@ -30,7 +31,7 @@
     "inspector:build": "vite build inspector",
     "summary:build": "vite build --config inspector/vite.summary.config.ts && tsc -p inspector/tsconfig.summary.json && bun scripts/build-summary-types.ts",
     "summary:preview": "vite inspector --host 127.0.0.1",
-    "plugin:build": "bun run summary:build && cd bb-plugin-tenet-status && npm run build",
+    "plugin:build": "bun run summary:build && bun run --cwd bb-plugin-tenet-status build",
     "inspector:check": "tsc -p inspector/tsconfig.json",
     "inspector": "bun src/inspector/cli.ts",
     "inspector:serve": "bun src/inspector/serve-cli.ts",

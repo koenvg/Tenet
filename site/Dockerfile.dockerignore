@@ -1,6 +1,9 @@
 *
 !package.json
 !bun.lock
+!bb-plugin-tenet-status/
+bb-plugin-tenet-status/*
+!bb-plugin-tenet-status/package.json
 !site/
 !site/index.html
 !site/docs.html
