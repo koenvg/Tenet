@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { spawnSync } from 'node:child_process';
-import { copyFile, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -10,8 +10,11 @@ import { createFakePluginHost, experimental_scanPublicSdkOnly } from '@get-bb/pl
 const pluginRoot = fileURLToPath(new URL('./', import.meta.url));
 
 test('local-path manifest loads a current plugin-local server without the demonstrated import escapes', async () => {
-  const fixture = await mkdtemp(join(tmpdir(), 'tenet-server-boundary-'));
+  const workspace = await mkdtemp(join(tmpdir(), 'tenet-server-boundary-'));
+  const fixture = join(workspace, 'bb-plugin-tenet-status');
   try {
+    await mkdir(fixture);
+    await symlink(join(pluginRoot, '../node_modules'), join(workspace, 'node_modules'), 'dir');
     // Prove that the public SDK boundary scanner catches the five live reload errors.
     const forbidden = {
       'server.ts': "import { emptyOverview } from '../src/inspector/bb-summary.js';",
@@ -68,5 +71,5 @@ test('local-path manifest loads a current plugin-local server without the demons
       assert.equal(hostReads, 2);
       assert.ok(!JSON.stringify(before).includes(directory));
     } finally { await fake.harness.lifecycle.dispose(); }
-  } finally { await rm(fixture, { recursive: true, force: true }); }
+  } finally { await rm(workspace, { recursive: true, force: true }); }
 });

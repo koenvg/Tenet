@@ -94,11 +94,8 @@ checks() {
   bun run delivery:check
   bun run inspector:check
   bun run inspector:test
-  (
-    cd bb-plugin-tenet-status
-    ./node_modules/.bin/tsc --noEmit
-    ./node_modules/.bin/vitest run --config vitest.config.ts
-  )
+  bun run --cwd bb-plugin-tenet-status typecheck
+  bun run --cwd bb-plugin-tenet-status test
 }
 
 # Job control gives the complete worker tree a separate process group on macOS and Linux.

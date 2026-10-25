@@ -31,7 +31,6 @@ jobs:
       - run: python3 -B scripts/model-trial-monitors/test_watch.py
       - run: bun install --frozen-lockfile
       - run: bun run lint
-      - run: npm ci --prefix bb-plugin-tenet-status
       - run: bunx playwright install --with-deps chromium
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/playwright-browsers

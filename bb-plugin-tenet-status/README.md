@@ -240,7 +240,7 @@ Raw argument bags, private previews, submitted evidence, exact questions, provid
 
 The checkout includes one React summary library for both BB entry points. Its rule-first view shares status labels, icons and colours with the standalone inspector, which keeps a separate shell and private recorded-data view. The synthetic comparison checks the common call summary, not the private inspector layout.
 
-Before importing the mount or running its tests, build the ignored `.summary-workspace/` output with `bun run summary:build` from the repository root. `bun run plugin:build` rebuilds that output, then builds the plugin. Building files installs or reloads nothing. A missing or stale shared artifact stops `npm run build` with the required command.
+Before importing the mount or running its tests, build the ignored `.summary-workspace/` output with `bun run summary:build` from the repository root. `bun run plugin:build` rebuilds that output, then builds the plugin. Building files installs or reloads nothing. A missing or stale shared artifact stops `bun run build` with the required command.
 
 See the [checkout-only summary input, lifecycle and synthetic preview reference](../inspector/summary-workspace.md). Raw evidence stays outside the input. Recorded policy text can itself contain secrets; this is not a confidentiality boundary against same-user code.
 

@@ -14,8 +14,9 @@ Use this developer checkout to change Tenet and run offline checks. Use Bun 1.3.
 
    ```sh
    bun install --frozen-lockfile
-   npm ci --prefix bb-plugin-tenet-status
    ```
+
+   This installs both Bun workspaces from the root `bun.lock`. There is no separate plugin install. Use package scripts to find tools in the workspace dependency tree.
 
 2. Install disposable Chromium for the inspector tests:
 
@@ -122,7 +123,7 @@ The shared offline lane validates the summary build and runs `bun run build:serv
 bun run plugin:build
 ```
 
-This rebuilds the summary and runs `npm run build` in `bb-plugin-tenet-status`, including `bb plugin build .`. Packaging is separate from offline validation and does not authorize publication or an active-service restart.
+This rebuilds the summary and runs `bun run --cwd bb-plugin-tenet-status build`, including `bb plugin build .`. Packaging is separate from offline validation and does not authorize publication or an active-service restart.
 
 ### Check evidence, questions and reports
 

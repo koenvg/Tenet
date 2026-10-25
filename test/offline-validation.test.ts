@@ -16,7 +16,8 @@ const expected = [
   ['run', 'sdk:build'], ['run', 'inspector:build'], ['run', 'summary:build'], ['run', 'site:build'],
   ['../scripts/check-summary-build.ts'], ['run', 'build:server'], ['run', 'test'], ['run', 'typecheck'],
   ['run', 'delivery:check'],
-  ['run', 'inspector:check'], ['run', 'inspector:test'], ['tsc', '--noEmit'], ['vitest', 'run', '--config', 'vitest.config.ts'],
+  ['run', 'inspector:check'], ['run', 'inspector:test'],
+  ['run', '--cwd', 'bb-plugin-tenet-status', 'typecheck'], ['run', '--cwd', 'bb-plugin-tenet-status', 'test'],
 ];
 
 type RecordEntry = { args: string[]; cwd: string; home: string; root: string; env: Record<string, string>; regular: boolean; pid: number; probes?: unknown[] };
@@ -24,7 +25,7 @@ type RecordEntry = { args: string[]; cwd: string; home: string; root: string; en
 async function fixture(control: Record<string, unknown> = {}) {
   const root = await realpath(await mkdtemp('/tmp/tenet-lane-test-'));
   try {
-    for (const dir of ['scripts', 'bin', 'cache', 'nested', 'bb-plugin-tenet-status/node_modules/.bin']) await mkdir(join(root, dir), { recursive: true });
+    for (const dir of ['scripts', 'bin', 'cache', 'nested', 'bb-plugin-tenet-status']) await mkdir(join(root, dir), { recursive: true });
     await copyFile(join(repository, 'scripts/validate-offline.sh'), join(root, 'scripts/validate-offline.sh'));
     await writeFile(join(root, 'control.json'), JSON.stringify(control));
     const pkg = JSON.parse(await readFile(join(repository, 'package.json'), 'utf8'));
@@ -90,11 +91,6 @@ if(control.ownerDeath&&args.join(' ')==='run inspector:build'){
     const fakeBun = `#!/bin/bash\noptions=()\nif [[ "$1" == --no-env-file ]]; then options=(--no-env-file); shift; fi\ncase "$1" in run|../scripts/check-summary-build.ts) exec ${JSON.stringify(node)} ${JSON.stringify(join(root, 'record.cjs'))} "$@";; *) exec ${JSON.stringify(bun)} "\${options[@]}" "$@";; esac\n`;
     await writeFile(join(root, 'bin/bun'), fakeBun);
     await chmod(join(root, 'bin/bun'), 0o700);
-    for (const tool of ['tsc', 'vitest']) {
-      const path = join(root, 'bb-plugin-tenet-status/node_modules/.bin', tool);
-      await writeFile(path, `#!/bin/bash\nexec ${JSON.stringify(node)} ${JSON.stringify(join(root, 'record.cjs'))} ${tool} "$@"\n`);
-      await chmod(path, 0o700);
-    }
     const env: NodeJS.ProcessEnv = { ...process.env, PATH: `${root}/bin:${process.env.PATH}`, PLAYWRIGHT_BROWSERS_PATH: `${root}/cache`, BUN_OPTIONS: '--preload=missing-canary', HOME: `${root}/owner` };
     for (const key of poison) env[key] = 'inherited-canary';
     env.BASH_ENV = env.ENV = `${root}/startup-hook`;
@@ -126,7 +122,7 @@ for (const failure of [undefined, 'run test', 'run inspector:build', 'run delive
       const count = failure ? expected.findIndex(args => args.join(' ') === failure) + 1 : expected.length;
       assert.deepEqual(trace.map(entry => entry.args), expected.slice(0, count));
       for (const entry of trace) {
-        const plugin = ['../scripts/check-summary-build.ts', 'run build:server', 'tsc --noEmit', 'vitest run --config vitest.config.ts'].includes(entry.args.join(' '));
+        const plugin = ['../scripts/check-summary-build.ts', 'run build:server'].includes(entry.args.join(' '));
         assert.equal(entry.cwd, plugin ? `${f.root}/bb-plugin-tenet-status` : f.root);
         assert.match(entry.root, /^\/(?:private\/)?tmp\/tenet-offline\.[^/]+$/);
         assert.equal(entry.home, `${entry.root}/home`);
