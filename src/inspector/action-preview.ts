@@ -14,13 +14,14 @@ function recordedTextPreview(text: unknown): TextPreview {
   if (typeof text !== 'string') return { value: null, shortened: false };
   const display = text.replace(/\s+/gu, ' ').trim();
   if (!display) return { value: null, shortened: false };
-  let value = '', bytes = 0;
+  const characters: string[] = [];
+  let bytes = 0;
   for (const character of display) {
     const size = Buffer.byteLength(character, 'utf8');
-    if (bytes + size > 512) return { value, shortened: true };
-    value += character; bytes += size;
+    if (bytes + size > 512) return { value: characters.join(''), shortened: true };
+    characters.push(character); bytes += size;
   }
-  return { value, shortened: false };
+  return { value: characters.join(''), shortened: false };
 }
 
 export function recordedActionPreview(data: Record<string, unknown>): ActionPreview {
