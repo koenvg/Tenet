@@ -44,7 +44,7 @@ for(const width of [320,1280]) for(const javaScriptEnabled of [false,true]) test
       expect(mark.width).toBe(28);expect(mark.height).toBe(28);expect(target.height).toBeGreaterThanOrEqual(44);
       expect(target.width).toBeGreaterThanOrEqual(44);
       expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
-      if(route==='/docs.html') {await home.click();expect(await page.getByRole('heading',{name:'Some actions never land.'}).isVisible()).toBe(true);}
+      if(route==='/docs.html') {await home.click();await page.waitForURL(new URL('/index.html',origin).href,{waitUntil:'load'});expect(await page.getByRole('heading',{name:'Some actions never land.'}).isVisible()).toBe(true);}
     }
     expect(errors).toEqual([]);
   });
@@ -154,7 +154,8 @@ for(const width of [320,390,640,900,1280]) test(`local story examples are keyboa
 for(const width of [320,390,640,900,1280]) test(`story illustrations and captions do not move on hydration at ${width}px`,async()=> {
   await withPage(width,true,async page=> {
     let hydrate!:()=>void;const hydration=new Promise<void>(resolve=>{hydrate=resolve;});await page.route('**/*.js',async route=>{await hydration;await route.continue();});
-    await page.goto(origin,{waitUntil:'commit'});await page.locator('.fork-rule').waitFor();await page.evaluate(()=>document.fonts.ready);expect(await page.locator('.fork-control:visible').count()).toBe(0);
+    await page.goto(origin,{waitUntil:'commit'});await page.locator('.fork-rule').waitFor();await expect.poll(()=>page.locator('link[rel="stylesheet"]').evaluateAll(links=>links.length>0&&links.every(link=>(link as HTMLLinkElement).sheet!==null))).toBe(true);
+    await page.evaluate(()=>document.fonts.ready);expect(await page.locator('.fork-control:visible').count()).toBe(0);
     const selectors=['.fork-demonstration','.fork-stage','.fork-heading','.fork-outcomes'],before=await Promise.all(selectors.map(s=>page.locator(s).boundingBox()));hydrate();await page.locator('.fork-control').waitFor();
     const after=await Promise.all(selectors.map(s=>page.locator(s).boundingBox()));for(let i=0;i<before.length;i++) {expect(after[i]!.height).toBeCloseTo(before[i]!.height,1);expect(after[i]!.y-after[0]!.y).toBeCloseTo(before[i]!.y-before[0]!.y,1);}
   });
