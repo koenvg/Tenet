@@ -72,9 +72,9 @@ for(const width of [320,390,640,900,1280]) test(`static React pages work without
     await page.locator('.faq-item summary').filter({hasText:'Does evidence stay on my machine?'}).click();
     expect(await page.getByText(/Real assessments send policy, paths, tool evidence/).isVisible()).toBe(true);expect(await page.getByText(/Local recording is on by default/).isVisible()).toBe(true);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
-    await page.getByRole('link',{name:'Read the setup guide'}).click();expect(await page.getByRole('heading',{name:'Use TENET in Pi.'}).isVisible()).toBe(true);
+    await page.getByRole('link',{name:'Read the setup guide'}).click();await page.waitForURL(new URL('/docs.html#setup',origin).href,{waitUntil:'load'});expect(await page.getByRole('heading',{name:'Use TENET in Pi.'}).isVisible()).toBe(true);
     expect(await page.locator('.language-sh').textContent()).toContain('\ncd /absolute/path/to/project\n');
-    await page.getByRole('link',{name:'Back to TENET'}).click();expect(await page.locator('#headline').isVisible()).toBe(true);expect(errors).toEqual([]);
+    await page.getByRole('link',{name:'Back to TENET'}).click();await page.waitForURL(new URL('/index.html',origin).href,{waitUntil:'load'});expect(await page.locator('#headline').isVisible()).toBe(true);expect(errors).toEqual([]);
   });
 });
 for(const width of [1280,390]) test(`hydrated pages preserve layout, keyboard feedback and navigation at ${width}px`,async()=> {
@@ -102,7 +102,7 @@ for(const width of [1280,390]) test(`hydrated pages preserve layout, keyboard fe
     expect(caption.y).toBeGreaterThanOrEqual(hintBounds.y+hintBounds.height-1);expect(staticGap).toBeGreaterThanOrEqual(hintBounds.height);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await key.evaluate(e=>e.blur());
     for(let i=0;i<8;i++) await page.locator('.fork-control').click();await page.locator('.faq-item summary').first().click();
-    await docs.click();expect(await page.getByRole('heading',{name:'Use TENET in Pi.'}).isVisible()).toBe(true);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);expect(errors).toEqual([]);
+    await docs.click();await page.waitForURL(new URL('/docs.html#setup',origin).href,{waitUntil:'load'});expect(await page.getByRole('heading',{name:'Use TENET in Pi.'}).isVisible()).toBe(true);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);expect(errors).toEqual([]);
   });
 });
 for(const javaScriptEnabled of [false,true]) test(`hero composition fills tall screens at a larger scale with JavaScript ${javaScriptEnabled}`,async()=> {
@@ -128,8 +128,8 @@ for(const width of [320,390,640,900,1280]) test(`marketing story and native navi
     expect(await page.getByRole('link',{name:'Read the setup guide',exact:true}).getAttribute('href')).toBe('./docs.html#setup');
     expect(await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link').allTextContents()).toEqual(['How it works','FAQ','Docs']);
     await page.keyboard.press('Tab');expect(await page.getByRole('link',{name:'Skip to content'}).evaluate(e=>e===document.activeElement)).toBe(true);
-    await page.keyboard.press('Enter');expect(await page.locator('main').evaluate(e=>e===document.activeElement)).toBe(true);
-    await page.getByRole('navigation',{name:'Footer navigation'}).getByRole('link',{name:'FAQ',exact:true}).focus();await page.keyboard.press('Enter');expect(new URL(page.url()).hash).toBe('#faq');
+    await page.keyboard.press('Enter');await page.waitForURL(new URL('#content',origin).href,{waitUntil:'commit'});expect(await page.locator('main').evaluate(e=>e===document.activeElement)).toBe(true);
+    await page.getByRole('navigation',{name:'Footer navigation'}).getByRole('link',{name:'FAQ',exact:true}).focus();await page.keyboard.press('Enter');await page.waitForURL(new URL('#faq',origin).href,{waitUntil:'commit'});expect(new URL(page.url()).hash).toBe('#faq');
     const first=page.locator('.faq-item summary').first();await first.focus();await page.keyboard.press('Enter');expect(await page.locator('.faq-item').first().getAttribute('open')).toBe('');
     expect(await page.getByText('No. Observe is the default.',{exact:false}).isVisible()).toBe(true);await page.keyboard.press('Space');expect(await page.locator('.faq-item').first().getAttribute('open')).toBeNull();
     expect(await page.locator('.faq-item').count()).toBe(5);for(const summary of await page.locator('.faq-item summary').all()) {await summary.click();expect((await summary.boundingBox())!.height).toBeGreaterThanOrEqual(44);}
