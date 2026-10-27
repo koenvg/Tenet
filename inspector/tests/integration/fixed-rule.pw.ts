@@ -100,8 +100,10 @@ test('fixed selection history returns to a bare view without adopting the newest
     await page.locator('.rule-session-toggle').click();
     await page.locator(`input[value="${sessionKey(sessions[0]!)}"]`).click();
     await expect(page.locator('.fixed-rule-row > summary')).toContainText(wording);
+    const entries = await page.evaluate(() => history.length);
     await page.getByRole('button', { name: 'Back to all rules' }).click();
     await expect(page.getByRole('heading', { name: 'Did this session follow the rules?' })).toBeVisible();
+    expect(await page.evaluate(() => history.length) - entries).toBe(1);
     await page.goBack();
     await expect(page.locator('.fixed-rule-row > summary')).toContainText(wording);
     await page.goBack();
@@ -111,4 +113,37 @@ test('fixed selection history returns to a bare view without adopting the newest
     await expect(page.locator('.fixed-rule-row > summary')).toContainText(wording);
     expect(new URL(page.url()).searchParams.get('session')).toBe(sessionKey(sessions[0]!));
   }, { base: false, seed, path: '/?view=fixed-rule' });
+});
+
+for (const width of [1280, 390]) for (const destination of ['rule', 'action'] as const) test(`fixed ${destination} exit is one history entry at ${width}px`, async ({ withInspector }) => {
+  await withInspector(`fixed-${destination}-exit`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    if (destination === 'rule') {
+      await page.locator('.fixed-rule-row > summary').click();
+    } else {
+      await page.getByText('Recorded integrity diagnostics', { exact: true }).click();
+    }
+    const fixedUrl = page.url(), entries = await page.evaluate(() => history.length);
+    await page.getByRole('button', { name: destination === 'rule' ? 'Open full rule details' : 'View recorded action', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: destination === 'rule' ? 'Rule details' : 'Recorded action', exact: true });
+    await expect(dialog).toBeVisible();
+    expect(await page.evaluate(() => history.length) - entries).toBe(1);
+    const destinationUrl = page.url();
+    expect(new URL(destinationUrl).searchParams.has('view')).toBe(false);
+    await page.goBack();
+    expect(page.url()).toBe(fixedUrl);
+    await expect(page.locator('.fixed-rule-view')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Back to all rules' })).toBeVisible();
+    await expect(dialog).not.toBeVisible();
+    await page.goForward();
+    expect(page.url()).toBe(destinationUrl);
+    await expect(dialog).toBeVisible();
+  }, { base: false, path: `/?view=fixed-rule&session=${sessionKey('fixed-exit')}`, seed: async directory => {
+    const writer = new FixtureArchiveWriter({ enabled: true, directory });
+    const data = ruleRecording();
+    data.begin.policy.rules[0].text = wording;
+    if (destination === 'action') delete data.begin.integrity;
+    writeRuleRecording(writer, 'fixed-exit', 'fixed-exit-call', data);
+    await writer.complete();
+  } });
 });

@@ -229,15 +229,11 @@ export function createArchiveNavigation() {
     update({ fixedRule: state.session ? { kind: 'reading' } : { kind: 'choose-session' } });
     await selectSession(state.session);
   }
-  function closeFixedRule() {
-    update({ fixedRule: { kind: 'inactive' } }); closePanel();
-  }
   async function selectRule(rule: string, updateLink = true) {
     if (!lifetime || !state.session) return;
     navigation = {}; cancel('refresh'); cancel('panel'); cancel('rules');
-    update({ panel: { kind: 'rule', rule }, selected: null, checks: null, openRecords: {}, panelError: '', error: '' }); if (updateLink) link();
+    update({ fixedRule: { kind: 'inactive' }, panel: { kind: 'rule', rule }, selected: null, checks: null, openRecords: {}, panelError: '', error: '', panelBusy: true, rulesBusy: false, manualRefreshing: false }); if (updateLink) link();
     const request = begin('panel'); if (!request) return;
-    update({ panelBusy: true });
     try { const patch = await snapshot(request); if (patch) update(patch); }
     catch (e) { if (request.current()) update({ error: message(e) }); }
     finally { if (request.current()) update({ panelBusy: false }); request.finish(); }
@@ -261,12 +257,15 @@ export function createArchiveNavigation() {
   async function selectInvocation(invocation: string, updateLink = true, rule: string | null = state.panel.kind === 'closed' ? null : state.panel.rule) {
     if (!lifetime || !state.session) return;
     navigation = {};
+    const sourceRevision = state.rules?.revision ?? null;
     const previous = rule === null || (state.panel.kind !== 'closed' && state.panel.rule !== rule) ? {} : state.openRecords;
-    update({ panel: { kind: 'action', rule, invocation }, openRecords: previous }); if (updateLink) link();
+    if (rule === null) { cancel('panel'); cancel('refresh'); cancel('rules'); }
+    update({ panel: { kind: 'action', rule, invocation }, openRecords: previous,
+      ...(rule === null ? { fixedRule: { kind: 'inactive' }, selected: null, checks: null, panelError: '', panelBusy: false, rulesBusy: false, manualRefreshing: false,
+        openRecords: { [invocation]: { state: 'loading', sourceRevision } } } : {}) }); if (updateLink) link();
     if (state.openRecords[invocation]?.state === 'available') return;
     const request = begin('panel'); if (!request) return;
-    const sourceRevision = state.rules?.revision ?? null;
-    update({ openRecords: { ...state.openRecords, [invocation]: { state: 'loading', sourceRevision } }, panelBusy: false });
+    if (rule !== null) update({ openRecords: { ...state.openRecords, [invocation]: { state: 'loading', sourceRevision } }, panelBusy: false });
     try {
       if (sourceRevision !== null) {
         const patch = await snapshot(request);
@@ -290,7 +289,7 @@ export function createArchiveNavigation() {
   function closePanel() {
     if (!lifetime) return;
     navigation = {}; cancel('panel'); cancel('refresh'); cancel('rules');
-    update({ panel: { kind: 'closed' }, openRecords: {}, selected: null, checks: null, panelError: '', panelBusy: false, rulesBusy: false, manualRefreshing: false }); link();
+    update({ fixedRule: { kind: 'inactive' }, panel: { kind: 'closed' }, openRecords: {}, selected: null, checks: null, panelError: '', panelBusy: false, rulesBusy: false, manualRefreshing: false }); link();
   }
   async function restoreLink(initial = false) {
     const params = new URLSearchParams(location.search), session = params.get('session') ?? '', rule = params.get('rule') ?? '', invocation = params.get('invocation') ?? '';
@@ -330,7 +329,7 @@ export function createArchiveNavigation() {
       const timer = setInterval(() => refreshLive(), 2000);
       return () => { if (lifetime !== mount) return; lifetime = null; navigation = {}; for (const key of [...requests.keys()]) cancel(key); clearInterval(timer); window.removeEventListener('popstate', restore); };
     },
-    openFixedRule, closeFixedRule, loadSessions, loadRules, loadChecks, selectSession, selectRule, selectInvocation, closeInvocation, closePanel,
+    openFixedRule, loadSessions, loadRules, loadChecks, selectSession, selectRule, selectInvocation, closeInvocation, closePanel,
     filterProjects(project: string) { update({ project }); void selectSession(''); void loadSessions(); },
     refreshArchive: () => refreshLive(true),
   };
