@@ -272,22 +272,45 @@ test('session replacement and symlink changes between budgeted steps invalidate 
   } finally { await host.dispose(); await rm(saved.folder, { force: true }); await rename(moved, saved.folder); }
 }));
 
-test('selected retained-byte exhaustion omits whole invocations without erasing useful completed facts', () => fixture(async root => {
+for (const completedPosition of ['first', 'last']) test(`selected retained-byte exhaustion omits whole invocations without erasing useful completed facts, completed ${completedPosition}`, () => fixture(async root => {
+  const archive = join(root, 'ordered'); await mkdir(archive, { mode: 0o700 });
+  const sessions = new Map<string, string>();
+  for (let n = 0; n < 2; n++) {
+    const value = { ...record(n, true), sessionId: `budget-${n}` }, key = recordSessionKey(value);
+    sessions.set(key, value.sessionId); await mkdir(join(archive, key), { mode: 0o700 });
+  }
+  const order = await names(archive), completedIndex = completedPosition === 'first' ? 0 : 1;
+  assert.equal(order.length, 2);
+  await selected(archive, sessions.get(order[completedIndex]!)!);
   let metadataBytes = 0;
   for (let n = 0; n < 140; n++) {
     const data = ruleRecording({ rules: 8 }).begin; data.policy.source = '/' + 'x'.repeat(8000);
-    const value = record(n, true, data); metadataBytes += Buffer.byteLength(JSON.stringify(sessionRuleStage(value)));
-    await persist(root, value);
+    const value = { ...record(n, true, data), sessionId: sessions.get(order[1 - completedIndex]!)! }; metadataBytes += Buffer.byteLength(JSON.stringify(sessionRuleStage(value)));
+    await persist(archive, value);
   }
   assert.ok(metadataBytes > 8 * 1024 * 1024);
+  assert.deepEqual(await names(archive), order);
   const host = dashboardHost();
   try {
-    const result = await finishHost(host, root);
+    const result = await finishHost(host, archive);
     assert.equal(result.chunk.state, 'limited'); assert.equal(result.chunk.association, 'complete');
-    assert.ok(result.observations.length > 2 && result.observations.length < 140 * 9 + 2);
-    assert.equal(result.observations.filter(o => o.state === 'failed').length, 1);
-    assert.equal(result.observations.filter(o => o.state === 'passed').length, 1);
+    if (completedPosition === 'first') {
+      assert.ok(result.observations.length > 2 && result.observations.length < 140 * 9 + 2);
+      assert.equal(result.observations.filter(o => o.state === 'failed').length, 1);
+      assert.equal(result.observations.filter(o => o.state === 'passed').length, 1);
+    } else {
+      assert.equal(result.observations.filter(o => o.state === 'failed').length, 0);
+      assert.equal(result.observations.filter(o => o.state === 'passed').length, 0);
+      assert.ok(result.chunk.reasons.includes('invocation-limit'));
+    }
     assert.deepEqual(result.chunk.omittedThreads, [threadId]); assert.ok(result.chunk.reasons.includes('oversized-invocation'));
+    const contributions = new Map<string, number>();
+    for (const observation of result.observations) {
+      const key = JSON.stringify([observation.sessionId, observation.callId]);
+      contributions.set(key, (contributions.get(key) ?? 0) + 1);
+    }
+    assert.ok(contributions.size > 0);
+    for (const count of contributions.values()) assert.equal(count, 2);
   } finally { await host.dispose(); }
 }));
 test('a session unfinished at the terminal work cap cannot publish its otherwise trusted checks', () => fixture(async root => {
