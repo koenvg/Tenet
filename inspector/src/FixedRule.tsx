@@ -60,7 +60,7 @@ export default function FixedRule({ archive }: { archive: Archive }) {
           </article>)}
           {archive.checks?.next && <button disabled={archive.panelBusy} onClick={archive.loadChecks}>More recorded checks</button>}
           {!!archive.checks?.ruleCoverage.omittedChecks && <p>{archive.checks.ruleCoverage.omittedChecks} checks omitted by reader limits.</p>}
-          <button onClick={() => { const rule = state.rule; archive.closeFixedRule(); void archive.selectRule(rule); }}>Open full rule details</button>
+          <button onClick={() => void archive.selectRule(state.rule)}>Open full rule details</button>
         </div>
       </details>
     </>}

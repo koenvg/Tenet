@@ -11,6 +11,53 @@ function start(f = fixedRuleFixture(), search = `?view=fixed-rule&session=${sess
 }
 const availability = (f: ReturnType<typeof start>) => f.archive.getSnapshot().fixedRule;
 
+for (const destination of ['rule', 'action', 'all-rules'] as const) for (const pending of ['rules', 'panel', 'refresh'] as const) for (const status of [200, 503]) test(`${destination} exits fixed mode atomically and cancels pending ${pending} before late ${status}`, async () => {
+  const f = start();
+  await expect.poll(() => availability(f)).toEqual({ kind: 'ready', revision, rule });
+  await f.archive.selectInvocation(invocation);
+  const fixedUrl = location.href;
+  expect(availability(f)).toEqual({ kind: 'ready', revision, rule });
+  expect(new URL(fixedUrl).searchParams.get('view')).toBe('fixed-rule');
+
+  let release!: (response: Response) => void;
+  const held = new Promise<Response>(resolve => { release = resolve; });
+  let first = true;
+  f.intercept(url => {
+    if (first && url.pathname === '/api/sessions') { first = false; return held; }
+    return Promise.resolve(Response.json(f.fixedData(url)));
+  });
+  const loading = pending === 'rules' ? f.archive.loadRules() : pending === 'panel' ? f.archive.selectInvocation('e'.repeat(64)) : f.archive.refreshArchive();
+  const request = f.requests.at(-1)!;
+  expect(request.url.pathname).toBe('/api/sessions');
+  const published: ReturnType<typeof f.archive.getSnapshot>[] = [];
+  cleanups.push(f.archive.subscribe(() => published.push(f.archive.getSnapshot())));
+  const navigating = destination === 'rule' ? f.archive.selectRule(rule) : destination === 'action' ? f.archive.selectInvocation(invocation, true, null) : f.archive.closePanel();
+  const panel = destination === 'rule' ? { kind: 'rule', rule } : destination === 'action' ? { kind: 'action', rule: null, invocation } : { kind: 'closed' };
+  expect(request.signal.aborted).toBe(true);
+  expect(published[0]).toMatchObject({ fixedRule: { kind: 'inactive' }, panel, selected: null, checks: null, panelError: '', panelBusy: destination === 'rule', rulesBusy: false, manualRefreshing: false });
+  expect(published[0]?.openRecords).toEqual(destination === 'action' ? { [invocation]: { state: 'loading', sourceRevision: revision } } : {});
+  await navigating;
+  expect(published.map(state => ({ fixedRule: state.fixedRule, panel: state.panel }))).toEqual(published.map(() => ({ fixedRule: { kind: 'inactive' }, panel })));
+  const current = f.archive.getSnapshot(), url = new URL(location.href);
+  expect(url.searchParams.get('session')).toBe(session);
+  expect(url.searchParams.get('view')).toBeNull();
+  expect(url.searchParams.get('rule')).toBe(destination === 'rule' ? rule : null);
+  expect(url.searchParams.get('invocation')).toBe(destination === 'action' ? invocation : null);
+  release(status === 200 ? Response.json(f.fixedData(request.url)) : new Response('{}', { status }));
+  await loading;
+  expect(f.archive.getSnapshot()).toBe(current);
+  expect(location.href).toBe(url.href);
+});
+
+test('all-rules exit from a bare fixed view does not select a session', async () => {
+  const f = start(fixedRuleFixture(), '?view=fixed-rule');
+  await expect.poll(() => f.archive.getSnapshot().sessions.length).toBe(2);
+  expect(availability(f)).toEqual({ kind: 'choose-session' });
+  f.archive.closePanel();
+  expect(f.archive.getSnapshot()).toMatchObject({ fixedRule: { kind: 'inactive' }, panel: { kind: 'closed' }, session: '', selected: null, checks: null, openRecords: {} });
+  expect(location.search).toBe('');
+});
+
 for (const qualified of [false, true]) for (const recovery of ['manual', 'poll'] as const) test(`${qualified ? 'qualified' : 'bare'} fixed URL survives initial metadata failure and ${recovery} recovery`, async () => {
   let poll!: () => Promise<void>;
   vi.stubGlobal('setInterval', vi.fn(callback => { poll = callback; return 1; }));

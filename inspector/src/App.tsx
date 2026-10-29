@@ -18,13 +18,12 @@ function InspectorWorkspace({ active }: { active: boolean }) {
     : reader.indexing ? 'Indexing archive' : captureIssues ? 'Capture issues' : 'Supported records';
   const openAction = (id: string, element: HTMLElement) => {
     initiator.current = element;
-    if (archive.fixedRule.kind !== 'inactive') archive.closeFixedRule();
     void archive.selectInvocation(id, true, null);
   };
   return <div className="rule-app">
     <header className="rule-app-header"><div className="rule-brand"><RuleIcon kind="brand" />TENET</div><span>Read-only</span></header>
     <main className="rule-main">
-      <div className="fixed-navigation">{archive.fixedRule.kind === 'inactive' ? <button onClick={() => archive.openFixedRule()}>{archive.session ? "Review this session's delegation rule" : 'Review delegation rule'}</button> : <button onClick={archive.closeFixedRule}>Back to all rules</button>}</div>
+      <div className="fixed-navigation">{archive.fixedRule.kind === 'inactive' ? <button onClick={() => archive.openFixedRule()}>{archive.session ? "Review this session's delegation rule" : 'Review delegation rule'}</button> : <button onClick={archive.closePanel}>Back to all rules</button>}</div>
       <SessionPicker archive={archive} minimal={archive.fixedRule.kind !== 'inactive'} />
       {archive.fixedRule.kind !== 'inactive' ? <FixedRule archive={archive} /> : <>
       <h1>Did this session follow the rules?</h1>
