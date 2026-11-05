@@ -11,20 +11,32 @@ Choose the part you need:
 
 ## Shared contract
 
-`src/decision/history-selection.ts` owns admission, immutable snapshots and the single current group selector. Live/recovered `Observations.add` and SDK `addHistory` share it with these modules:
+Current assessments use `policy-rules-v9-scoped` and `judge-input-scopes-v1` within `applicability-v1`. `boundEvidence` calls `prepareJudgeScopes` in `src/decision/judge-evidence.ts` to freeze separate ordinary, exemption and policy-protection inputs.
+
+Each ordinary state has exactly `rule`, `thinkingTrace`, `previousToolCall` and `proposedToolCall`. Calls contain only `toolName` and `arguments`.
+
+Ordinary states exclude tool results, full transcripts, trajectory, history grammar, policy source metadata, cwd, host facts and sibling states. Retained results are not evidence submitted to an ordinary check.
+
+Preparation recovers the immediately preceding call by ingestion order, not timestamps or result text. Reliably known absence is `null`; an unrecoverable call is `{ "status": "unavailable" }`, not an older surviving call.
+
+Pi history and the Claude hook supply no thinking text. Thinking is unavailable unless already supplied at the pure preparation boundary. See [ordinary state and delivery limits](assessment-contract.md#ordinary-state).
+
+Exemption and policy-protection checks receive separate protected inputs, not the ordinary state with extra fields. Current policy uses `policy-sources-v1`, `policy-evidence-v2` and `policy-integrity-v2`. See [protected states](assessment-contract.md#protected-states) and [the source contract](policy.md#source-snapshot-contract) for their fields and safeguards.
+
+The state cap counts the exact UTF-8 JSON bytes of every prepared group, including repeated mandatory fields. Required rule, proposed-call or protected-input overflow returns conservative `BLOCK / insufficient-evidence` before judge transport. Preparation never drops a check or shortens required input to fit. Observe still permits independently of that counterfactual decision.
+
+### Retained history and historical submissions
+
+`src/decision/history-selection.ts` owns bounded history admission and immutable snapshots. Live and recovered `Observations.add` and SDK `addHistory` share it with these modules:
 
 - `history-envelope.ts` reads own data descriptors, validates primitive identities/timestamps and bounds envelopes before content access.
 - `history-content.ts` provides descriptor-only bounded normalization, excerpts, literal escaping and exact string pooling.
 
 Recovery adapters choose branch eligibility and provenance, not content selection. The SDK checks readiness/activation before replacing history.
 
-`boundEvidence` calls `prepareRequest` with the byte measurement of the exact `judgeState` projection. Policy, integrity, host context, pending arguments and current resolved facts are protected. Optional current tool description/schema can be removed under total-state pressure.
+Current preparation uses retained history to recover `previousToolCall`; it does not submit the retained trajectory or results. The grouping and representation sections below describe retained snapshots and historical shared-input payloads.
 
-Current policy uses `policy-sources-v1`. `policy-evidence-v2` records source metadata once and declaration origins as role/digest/line references. `policy-integrity-v2` protects every selected source, target and absent candidate. These mandatory fields count toward the same state cap; they are never omitted to fit history. Small caps that fitted a singular snapshot can now fail conservatively. See [the source contract](policy.md#source-snapshot-contract).
-
-Protected facts are never truncated. If they or the minimal history envelope cannot fit, `decide` returns conservative `BLOCK / insufficient-evidence` without calling the judge. Observe still permits independently of that counterfactual decision.
-
-See [current-evidence priority](action-resolution.md#fit-current-evidence-before-history) for metadata tiers, final-only omission counts and overflow behavior.
+Historical shared preparation measured `judgeState` and fitted history after protected current evidence. That shared state is not the current provider input.
 
 ### Check the budgets
 
@@ -32,7 +44,7 @@ See [current-evidence priority](action-resolution.md#fit-current-evidence-before
 | --- | --- |
 | Default recent events, `TENET_RECENT_EVENTS` | `12` |
 | Default serialized state, `TENET_EVIDENCE_MAX_BYTES` | `24576`, 24 KiB |
-| History allowance | `min(floor(maxBytes / 3), remaining bytes after protected current evidence)` |
+| Retained history allowance in scoped preparation | `floor(maxBytes / 3)`, separate from the submitted-group total |
 | Complete retained event `data` envelope | `floor(historyAllowance / 4)` |
 | Default maximum history / event | 8 KiB / 2 KiB |
 | Normalization per content root | 4,096 nodes, depth 64, 24 KiB structural material |
@@ -40,9 +52,11 @@ See [current-evidence priority](action-resolution.md#fit-current-evidence-before
 
 History bytes include the complete trajectory, observation envelopes, omission/excerpt metadata and selection summary. The event cap includes its complete `data`, not just text. Unused history capacity never enlarges an event.
 
-Admission applies the same one-third/one-quarter bounds before current evidence is available. Final preparation only tightens them. Selection bounds expanded content and escapes literals before pooling. It prefers newer recorded groups, keeps members distinct and restores ingestion order.
+Admission applies the same one-third/one-quarter bounds before current evidence is available. Selection bounds expanded content and escapes literals before pooling. It prefers newer recorded groups, keeps members distinct and restores ingestion order.
 
-Zero recent events reads no slots. It submits no observations or values pool, but retains the bounded envelope and aggregate omissions. If that envelope cannot fit a tiny cap, preparation fails conservatively.
+Historical shared-input preparation further tightened history to the bytes remaining after protected current evidence.
+
+Zero recent events reads no slots and retains only the bounded history envelope and aggregate omissions. Current scoped preparation never submits that envelope, observations or values pool. Historical shared preparation failed conservatively if its minimal envelope could not fit.
 
 Before copying, normalization visits only own data descriptors, never authored getters. Sparse, circular, image, unsupported and oversized structures receive explicit omissions. It uses current-action credential/configured-field redaction. Large strings can be excerpted without copying their full contents. Retained SDK/live/recovered data uses the same bounds.
 
@@ -141,7 +155,9 @@ Pooling adds no whole-trajectory structural admission/eviction cap. If escaped-i
 
 ### Read recorded representations unchanged
 
-Current identities are `bounded-history-v2`, `policy-rules-v8-source-set`, `evidence-context-v1`, schema 5 and `applicability-v1`. Historical `policy-rules-v7-evidence-selection` requests retain their recorded questions and meaning. Optional references complete v2's representation; there is no extra legacy mode.
+Current scoped records use `policy-rules-v9-scoped`, `judge-input-scopes-v1` and `evidence-context-v2`, with schema 5 and `applicability-v1` unchanged. `bounded-history-v2` describes retained history, not the ordinary submitted state.
+
+Historical shared-input schema-5 records use `policy-rules-v8-source-set`, `evidence-context-v1` and `bounded-history-v2`. Historical `policy-rules-v7-evidence-selection` requests retain their recorded questions and meaning. Optional references complete bounded-history-v2's representation; there is no extra legacy mode.
 
 TENET-23 inline payloads, zero savings and inline questions remain recorded. Readers do not decode or compact historical evidence for display. The evidence dock shows exact recorded references, pool and excerpts. Coverage shows recorded exact savings separately from shortened, dropped and prior-omitted history.
 
@@ -152,25 +168,31 @@ Preparation never rewrites pending arguments or current resolved facts. It canno
 `applicability-v1`, integrity, WARN, FAIL/UNKNOWN, outcome/evidence thresholds, INSUFFICIENT and applicability validation remain unchanged. Enforce still requires fresh policy and unchanged identity/arguments. ASK still needs trusted one-call approval. Observe permits independently of findings.
 
 ```text
-bounded admission --> immutable snapshot --> final protected-state fit
-                                                   |
-                                  submitted judgeState + owner EvidenceContext
-                                                   |
-                                   exact archived payload + recorded diagnostic
+bounded host inputs --> immutable ordinary / exemption / protection groups
+                                      |
+                           captured scope submissions
+                                      |
+                    exact archived inputs + owner EvidenceContext
 ```
 
 The owner diagnostic describes the final captured request. It stays outside evaluator evidence and cannot change a gate or authorize a call.
 
 ## Runtime evidence context
 
-`src/decision/evidence-context.ts` derives completed `EvidenceContext` once from the immutable final request. `boundEvidence` attaches it to the owner-facing wrapper. `judgeState` excludes it from evaluator evidence.
+`scopedEvidenceContext` in `src/decision/judge-evidence.ts` attaches the owner-facing diagnostic to the immutable prepared request. It uses `evidence-context-v2` with `selectionVersion: judge-input-scopes-v1`, per-scope `id`, `fields` and `stateBytes`, and `totalStateBytes`.
 
-Selection uses bounded recorded identities and ingestion order, not domain-specific hints. Questions explain only the versioned representation. There are no new gates, probability overrides or permission exemptions.
+`history` is null even when host history is retained. Resolution metadata describes preparation, not facts submitted to every check.
+
+The diagnostic stays outside evaluator evidence. Scope byte counts describe prepared UTF-8 JSON, not native tokens or proof that a provider processed a request. Provider errors, invalid responses and timeouts can follow completed preparation without producing a valid assessment.
+
+### Historical shared-input diagnostics
+
+`src/decision/evidence-context.ts` derives the historical `evidence-context-v1` shape from a shared request. Readers preserve its recorded selection identity and counters. The following table describes that diagnostic, not current scoped submissions.
 
 | Diagnostic | Meaning and bounds |
 | --- | --- |
 | `version: evidence-context-v1` | Owner diagnostic identity |
-| Selection / questions / assessment | Current `bounded-history-v2` / `policy-rules-v8-source-set` / `applicability-v1` |
+| Selection / questions / assessment | Historical `bounded-history-v2` / `policy-rules-v8-source-set` / `applicability-v1` |
 | TENET-22 schema 4 | Recorded `bounded-history-v1` / `policy-rules-v6-applicability` and original counter shape; no inferred v2 counters/caps |
 | `preparation` | `completed` only after required current evidence fits, independently of evaluator availability |
 | `resolution.status` | `unsupported`, `authenticated-partial`, `authenticated-complete` copy captured resolver status. With no resolver, status defaults to `unsupported`. `unavailable` means capture/preparation did not establish status. History never upgrades effect coverage. |
@@ -182,9 +204,11 @@ Selection uses bounded recorded identities and ingestion order, not domain-speci
 
 ### Validate diagnostic fields
 
-`validEvidenceContext` in `src/decision/evidence-context-contract.ts` rejects unknown fields and identities. Counts must be nonnegative safe integers. `maxBytes` must be positive, and `retainedEvents` must not exceed `recentEvents`. Unavailable preparation requires `history: null`. Completed preparation requires non-null `current`/`history` and a resolution status other than `unavailable`.
+`validEvidenceContext` in `src/decision/evidence-context-contract.ts` rejects unknown fields and identities. Counts must be nonnegative safe integers. Completed scoped `evidence-context-v2` requires `history: null`, non-null `current`, captured resolution status and nonempty scope metadata. Scope IDs and field names must be unique within their respective lists; `totalStateBytes` must equal the sum of scope `stateBytes`.
 
-For v2 history, it also checks:
+Historical `evidence-context-v1` uses selection identity `bounded-history-v1` or `bounded-history-v2`. Unavailable preparation requires `history: null`. Completed shared preparation requires non-null `current` and `history`, a resolution status other than `unavailable`, positive `maxBytes` and `retainedEvents <= recentEvents`.
+
+For historical `bounded-history-v2` diagnostics, it also checks:
 
 - `maxHistoryBytes <= floor(maxBytes / 3)`.
 - `retainedBytes <= maxHistoryBytes`.
@@ -192,7 +216,7 @@ For v2 history, it also checks:
 - `shortenedEvents <= retainedEvents`.
 - `omittedEvents === droppedEvents + priorOmittedEvents`.
 
-V2 adds `maxHistoryBytes`, `maxEventBytes`, `shortenedEvents`, `droppedEvents`, `priorOmittedEvents` and `exactCompactedBytes` to the recorded history. V1 keeps only its original `recentEvents`, `maxBytes`, `retainedEvents`, `retainedBytes`, `omittedEvents` and limitation fields. Missing v1 counters are not zero v2 counters.
+`bounded-history-v2` adds `maxHistoryBytes`, `maxEventBytes`, `shortenedEvents`, `droppedEvents`, `priorOmittedEvents` and `exactCompactedBytes` to the recorded history. V1 keeps only its original `recentEvents`, `maxBytes`, `retainedEvents`, `retainedBytes`, `omittedEvents` and limitation fields. Missing v1 counters are not zero v2 counters.
 
 Completed history also includes bounded captured limitations and private normalization gaps from retained events. Counters never claim complete external history, rule materiality or execution. A group is not an authenticated execution identity. Original sanitized evidence stays inspectable. Free-text source and limitation strings can retain secrets despite field redaction.
 
@@ -208,7 +232,7 @@ New schema-5 writes put the diagnostic on request, assessment, decision, permiss
 
 Schemas 1 through 4 keep original payloads, thresholds, questions and assessment identities. Missing historical context says `Not recorded`, not complete coverage. Readers older than schema 5 must report unsupported schema. Rollback never rewrites archives.
 
-APUS keeps the same canonical evidence capture and selection counters. Its separately recorded `apus-recording-v1` contract describes native rendering, transport mapping and deterministic selectors. Neither native token/cache counters nor NONE probability one authenticate coverage. See [the native recording contract](assessment-contract.md#native-recording-contract).
+APUS scoped capture uses `apus-recording-v2`; historical `apus-recording-v1` keeps its shared-input meaning. Prepared scopes and actual submissions are separate records. Missing, omitted, truncated or mismatched submissions stay unavailable, never reconstructed from preparation. Neither native token/cache counters nor NONE probability one authenticate coverage. See [prepared scoped capture and recorded inputs](assessment-contract.md#prepared-scoped-capture-and-recorded-inputs).
 
 ### Explain uncertainty conservatively
 
@@ -306,7 +330,7 @@ TMPDIR=/tmp bun --no-env-file test --isolate --max-concurrency=1 --timeout=30000
 git diff --exit-code -- eval/evidence-selection/fixtures.json eval/evidence-selection/report.json eval/evidence-selection/report.md
 ```
 
-To generate a current v8 source-set replay, choose an unused output directory outside the frozen inputs. Its parent must exist. The CLI creates the directory and writes new JSON and Markdown there; it does not update the historical campaign:
+To generate a historical v8 source-set replay, not a scoped-v9 comparison, choose an unused output directory outside the frozen inputs. Its parent must exist. The CLI creates the directory and writes new JSON and Markdown there; it does not update the historical campaign:
 
 ```sh
 OUTPUT_PARENT="$(mktemp -d /tmp/tenet-evidence-replay.XXXXXX)"
