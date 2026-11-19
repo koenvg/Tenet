@@ -41,7 +41,7 @@ export const BodySchema = Type.Union([
   ReportSchema,
 ]);
 const origin = Type.Union([
-  object({ kind: tag("pi-sdk"), hostVersion: tag("1.3.0"), notification: Type.Integer({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER }) }),
+  object({ kind: tag("pi-sdk"), hostVersion: Type.Union([tag("1.3.0"), tag("1.5.0")]), notification: Type.Integer({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER }) }),
   object({ kind: tag("caller-report"), reporter: label }),
   object({ kind: tag("collector") }),
 ]);

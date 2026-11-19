@@ -2,7 +2,7 @@ import { constants } from 'node:fs';
 import { access, open, realpath, stat } from 'node:fs/promises';
 import { delimiter, dirname, join } from 'node:path';
 
-export const TESTED_PI_VERSION = '1.3.0';
+export const TESTED_PI_VERSION = '1.5.0';
 const PI_PACKAGE = '@earendil-works/pi-coding-agent';
 export const DELIVERY_FILES = Object.freeze([
   'bun.lock', 'src/pi/extension.ts', 'src/inspector/serve-cli.ts',

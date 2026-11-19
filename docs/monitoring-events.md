@@ -1,6 +1,6 @@
 # Monitoring event capture
 
-This reference is for developers who need bounded observations of one Pi task and run. It covers the experimental checkout-only adapter in `src/monitoring/index.ts` for Pi 1.3.0. It is not a package export or an installed extension.
+This reference is for developers who need bounded observations of one Pi task and run. It covers the experimental checkout-only adapter in `src/monitoring/index.ts` for Pi 1.5.0. It is not a package export or an installed extension.
 
 The adapter observes a supplied idle `AgentSession`, accepts caller reports, and exports bytes for deterministic replay. It does not create a session, prompt a provider, discover owner configuration, read history, or interpret expectations.
 
@@ -43,7 +43,7 @@ Capture can retain secrets in visible text, declared arguments, and reported pat
 
 | Operation | Contract |
 | --- | --- |
-| `capturePiRun(session, options)` | Attaches to the supplied idle Pi 1.3.0 `AgentSession`. Required options are `taskId`, `runId`, `nativeSessionId`, and `reporter`. Optional `resumeFrom` contains an earlier terminal export. Invalid attachment or resume throws before returning a capture. |
+| `capturePiRun(session, options)` | Attaches to the supplied idle Pi 1.5.0 `AgentSession`. Required options are `taskId`, `runId`, `nativeSessionId`, and `reporter`. Optional `resumeFrom` contains an earlier terminal export. Invalid attachment or resume throws before returning a capture. |
 | `capture.observe(report)` | Copies a revision or permission report. Returns `recorded` with its collector `eventId`, or `rejected` with a reason. It does not request or grant permission. |
 | `capture.close()` | Seals an open capture with a disconnected gap and returns `Uint8Array` bytes. Already sealed captures return identical bytes in a new array. Closing does not abort or dispose the host. |
 | `replayCapture(bytes, expectedScope)` | Requires the expected task, run, and native session IDs. Returns `available` with immutable domain observations, or `unavailable` with a reason. |
