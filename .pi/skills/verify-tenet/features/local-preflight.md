@@ -12,7 +12,7 @@ Use the owner doctor command to distinguish local readiness, invalid settings, u
 
 - Checkout owners build the SDK, then run `node dist/cli/index.js doctor --project "$PWD"` from the repository root. Use the compiled CLI, not `src/cli/index.ts`.
 - Add `--json` for the machine-readable report.
-- Archive owners use `node "$TENET_DIR/dist/cli/index.js" doctor --project "$PWD"`. This map tests checkout fixtures, not an owner's installation.
+- Stable-checkout owners use `node "$TENET_DIR/dist/cli/index.js" doctor --project "$PWD"`, where `TENET_DIR` is the absolute built-checkout path. Compiled archive installations are retired. This map tests disposable checkout fixtures, not an owner's installation.
 
 ## Driving it with Bun
 

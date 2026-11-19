@@ -13,6 +13,7 @@ Check native Pi owner commands and the shared control file without changing the 
 
 - In Pi, use `/tenet status`, `/tenet off`, `/tenet on`, or bare `/tenet` for the findings view.
 - In an owner shell, use `bun src/claude/cli.ts status`, `off`, or `on`. The shared choice works without the prototype bridge running.
+- For a running prototype session, use `bun src/claude/cli.ts status SESSION_ID`. Replace `SESSION_ID` with that session's ID. Status without an ID does not select a session's readiness.
 
 ## Driving it with Bun
 
@@ -23,6 +24,7 @@ Preconditions:
 
 - **Drive both entries.** Run `python3 -I .pi/skills/verify-tenet/scripts/run.py control --browser-cache "$CACHE" --evidence "$PROOF"`. It runs `test/global-control.test.ts` and `test/owner-cli.test.ts`.
 - **Check native effects.** Require assertions for OFF/ON footer state, owner-only status, zero new judge requests and recordings while off. Require the enabled call's archived identities and data to remain unchanged after off and on, with new capture after on.
+- **Check pending work.** Require off to cancel pending assessments and invalidate pending native approval. Late judge responses or positive approval answers must not authorize the old call after on.
 - **Check shell effects.** Require real CLI stdout, failures, and persisted `{ version: 1, activation: 'on' }` assertions. Status reports corrupt content as unavailable. An explicit on/off write can repair safe corrupt content. Unsafe files must not produce a success claim.
 - **Retain proof.** Require exit zero, the command transcript, and scratch-removal confirmation.
 
