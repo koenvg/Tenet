@@ -46,7 +46,7 @@ try {
       }
       assert(html.includes('property="og:type" content="website"'), `${path}: accurate social metadata`);
     } else {
-      for (const text of ['Pi 1.3.0', 'alpha SDK without Pi', 'opt-in and unverified', 'one unchanged pending invocation']) {
+      for (const text of ['Pi 1.5.0', 'alpha SDK without Pi', 'opt-in and unverified', 'one unchanged pending invocation']) {
         assert(html.includes(text), `${path}: documented ${text}`);
       }
     }

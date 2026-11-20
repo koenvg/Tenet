@@ -42,7 +42,7 @@ export function capturePiRun(session: AgentSession, options: ExpectedScope & { r
     if (gap) append({ kind: "gap", reason: gap }, { kind: "collector" });
     append({ kind: "segment.closed", reason }, { kind: "collector" });
     state = { kind: "closed", bytes: encode(bundle) };
-    // Pi 1.3.0 iterates a live listener array. Splicing here skips the next listener.
+    // Pi 1.5.0 iterates a live listener array. Splicing here skips the next listener.
     queueMicrotask(() => { try { unsubscribe?.(); } catch {} });
   };
   const identityMatches = (): boolean => {
@@ -76,7 +76,7 @@ export function capturePiRun(session: AgentSession, options: ExpectedScope & { r
         const number = ++notification;
         const body = project(event, revision);
         if (!checkSource() || !body) return;
-        const observed = record(body, { kind: "pi-sdk", hostVersion: "1.3.0", notification: number });
+        const observed = record(body, { kind: "pi-sdk", hostVersion: "1.5.0", notification: number });
         if (!observed) return;
         if (body.kind === "tool.dispatched") revision = null;
         if (body.kind === "run.settled") terminate(body.aborted ? "aborted" : "settled");

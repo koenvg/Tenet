@@ -41,6 +41,7 @@ test("completed transformed output confirms a handoff without a later tool and p
   host.emit({ type: "agent_end", messages: [], willRetry: false });
   host.emit({ type: "agent_settled", aborted: false });
   const bytes = capture.close();
+  assert.equal((JSON.parse(new TextDecoder().decode(bytes)) as Fixture).events.find(event => event.origin.kind === "pi-sdk")?.origin.hostVersion, "1.5.0");
   const result = view(bytes);
   assert.equal(result.completion, "settled");
   assert.deepEqual(result.handoffs.map((handoff) => ({ text: handoff.text, evidenceThrough: handoff.evidenceThrough, boundary: handoff.boundary })), [

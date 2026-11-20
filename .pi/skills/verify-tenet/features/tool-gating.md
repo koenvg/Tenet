@@ -19,7 +19,7 @@ Verify that Tenet permits, withholds, or requests approval for a pending Pi tool
 
 Preconditions:
 
-- Complete Launch. Use the pinned Pi 1.3.0 dependency and disposable process HOME.
+- Complete Launch. Use the pinned Pi 1.5.0 dependency and disposable process HOME.
 - No live API key or personal policy is present.
 
 - **Drive dispatch and consent.** Run `python3 -I .pi/skills/verify-tenet/scripts/run.py guard --browser-cache "$CACHE" --evidence "$PROOF"`. The existing `test/pi-smoke.test.ts` loads Pi, drives proposed calls, resolves native consent, and checks executor invocation counts and arguments.

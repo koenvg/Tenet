@@ -2,7 +2,7 @@
 
 Tenet checks Pi tool calls against your rules and shows findings to you, not the agent. Observe is the default and never blocks a call or asks for approval, even when assessment is unavailable. Enforcement needs an explicit new process.
 
-Tenet is in alpha, with Pi 1.3.0 as the tested host. A judge can be wrong. Tenet is not an OS sandbox and does not cover actions outside the host's hooks.
+Tenet is in alpha, with Pi 1.5.0 as the tested host. A judge can be wrong. Tenet is not an OS sandbox and does not cover actions outside the host's hooks.
 
 ## Before you start
 
@@ -18,7 +18,7 @@ The inspector is read-only and unauthenticated on loopback. Do not expose or pro
 
 ## Start with a stable checkout
 
-This is the supported path for Pi owners. You need Git, repository access, Node 22.19+, Bun 1.3.14+ and a separate Pi 1.3.0 installation.
+This is the supported path for Pi owners. You need Git, repository access, Node 22.19+, Bun 1.3.14+ and a separate Pi 1.5.0 installation.
 
 1. [Install from a stable checkout](docs/INSTALL.md). Select a verified commit, install locked dependencies with Bun, and build the SDK and inspector before registering the path with Pi.
 2. [Write your first policy](docs/policy.md#write-a-first-rule) yourself, outside the guarded agent's intercepted path. The checkout's `TENET.md` is test data. Your project defaults to its own session `TENET.md`. `TENET_POLICY` can select another project file.

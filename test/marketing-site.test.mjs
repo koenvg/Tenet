@@ -168,7 +168,7 @@ test("the focused homepage retains setup, FAQ and factual safety limits", () => 
   expect(html).toContain('href="#faq">FAQ');
   expect(html).toContain('href="./docs.html#limits">Limits');
   expect(existsSync(new URL('../site/src/ModeScene.tsx', import.meta.url))).toBe(false);
-  for (const fact of ['Pi 1.3.0', 'alpha SDK without Pi', 'opt-in and unverified', 'one unchanged pending invocation', 'unencrypted', 'owner-restricted', 'not a complete audit log']) expect(page('docs.html')).toContain(fact);
+  for (const fact of ['Pi 1.5.0', 'alpha SDK without Pi', 'opt-in and unverified', 'one unchanged pending invocation', 'unencrypted', 'owner-restricted', 'not a complete audit log']) expect(page('docs.html')).toContain(fact);
 });
 
 test('the local animation is prerendered without removed sections or inert controls', () => {
@@ -267,7 +267,7 @@ test("owner setup uses the stable checkout and its offline compiled doctor", () 
   expect(setup).toBeDefined();
   for (const text of [
     "supported Pi owner path", "docs/INSTALL.md", "Node 22.19+",
-    "Bun 1.3.14+", "separate Pi 1.3.0 installation", "install locked dependencies with Bun",
+    "Bun 1.3.14+", "separate Pi 1.5.0 installation", "install locked dependencies with Bun",
     "build the SDK and inspector", "persistent checkout",
     "supported offline check", "Replace both paths", "No global <code>tenet</code> command is installed",
     "local prerequisites are valid, not verified hooks or provider connectivity",

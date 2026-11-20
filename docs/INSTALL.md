@@ -6,7 +6,7 @@ Choose a commit with passing application CI. Keep its checkout at a stable path 
 
 ## Install once in a stable directory
 
-You need Git, repository access, Node 22.19+, Bun 1.3.14+ and a separate Pi installation. The tested host is `@earendil-works/pi-coding-agent` 1.3.0. SDK-only use supports Node 22.12+ or Bun 1.3.14+ without Pi. Cloning and dependency installation need network access or cached data; the builds make no judge requests.
+You need Git, repository access, Node 22.19+, Bun 1.3.14+ and a separate Pi installation. The tested host is `@earendil-works/pi-coding-agent` 1.5.0. SDK-only use supports Node 22.12+ or Bun 1.3.14+ without Pi. Cloning and dependency installation need network access or cached data; the builds make no judge requests.
 
 Before installation, registration or installed extension replacement, obtain separate authorization. Live-capable Tenet sends full policy, paths and selected evidence to the selected judge. Strings can contain secrets despite redaction.
 
