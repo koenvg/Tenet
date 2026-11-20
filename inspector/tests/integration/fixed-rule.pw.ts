@@ -25,6 +25,7 @@ for (const width of [1280, 390, 320]) test(`fixed rule native evidence, paginati
     await page.setViewportSize({ width, height: 844 });
     const reads: string[] = []; page.on('request', request => { if (request.url().includes('/invocations/')) reads.push(request.url()); });
     const row = page.locator('.fixed-rule-row > summary');
+    await row.waitFor({ state: 'visible', timeout: 5_000 });
     await expect(row).toContainText(wording);
     await expect(row).toContainText('Violation found in recorded check');
     expect(await page.locator('.rule-list-section').count()).toBe(0);
