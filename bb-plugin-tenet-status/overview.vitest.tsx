@@ -1,7 +1,8 @@
 import { afterEach, expect, test, vi } from 'vitest';
-import { fireEvent, waitFor } from '@testing-library/react';
+import { fireEvent, waitFor, within } from '@testing-library/react';
 import { loadPluginApp } from '@get-bb/plugin-sdk/testing/app';
 import { renderSummarySlot as renderSlot, summaryCalls } from './summary-rpc.fixture';
+import { getNamedButton } from './summary-controls.fixture';
 import { OverviewAdapter } from './overview-adapter';
 import { rulesSyntheticRead } from './rules.preview-fixture';
 import { syntheticOverview, syntheticRead } from './overview.preview-fixture';
@@ -130,16 +131,17 @@ test('panel adapter reads scoped rule pages through overview only and resets pag
   try {
     fireEvent.click(await slot.findByRole('button', { name: 'Browse calls' }));
     await slot.findByText('synthetic-pass');
-    fireEvent.click(slot.getByRole('button', { name: 'Summary', hidden: true }));
+    const views = () => within(slot.getByRole('navigation', { name: 'Workspace views', hidden: true }));
+    fireEvent.click(views().getByRole('button', { name: 'Summary', hidden: true }));
     fireEvent.click(slot.getByText('Why this assessment')); fireEvent.click(slot.getByText(/^Browse all rules/));
-    fireEvent.click(slot.getByRole('button', { name: 'More rules' }));
+    fireEvent.click(getNamedButton(slot.container, 'More rules'));
     await slot.findByText('Recorded rules 17–19 of 19. At most 16 rules per page.');
     expect(slot.container.querySelectorAll('.rule-row')).toHaveLength(3);
     expect(read.mock.calls.at(-1)![0]).toMatchObject({ sessionId: syntheticOverview.sessionId, callId: '14'.padStart(64, '0'), ruleCursor: expect.any(String) });
-    fireEvent.click(slot.getByRole('button', { name: 'First rule page' }));
+    fireEvent.click(getNamedButton(slot.container, 'First rule page'));
     await slot.findByText('Recorded rules 1–16 of 19. At most 16 rules per page.');
     expect(read.mock.calls.at(-1)![0].ruleCursor).toBeUndefined();
-    fireEvent.click(slot.getByRole('button', { name: 'Calls', hidden: true }));
+    fireEvent.click(views().getByRole('button', { name: 'Calls', hidden: true }));
     fireEvent.click(slot.container.querySelector<HTMLButtonElement>(`[data-call-id="${'16'.padStart(64, '0')}"]`)!);
     await slot.findByText('synthetic-WARN');
     expect(read.mock.calls.at(-1)![0].ruleCursor).toBeUndefined();

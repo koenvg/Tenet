@@ -1,7 +1,8 @@
 import { expect, test, vi } from 'vitest';
-import { fireEvent } from '@testing-library/react';
+import { fireEvent, within } from '@testing-library/react';
 import { loadPluginApp } from '@get-bb/plugin-sdk/testing/app';
 import { renderSummarySlot } from './summary-rpc.fixture';
+import { getNamedButton } from './summary-controls.fixture';
 import { syntheticRead } from './overview.preview-fixture';
 
 test.each(['panel', 'main'])('default %s lists every recorded status before rule/check/call drilldown', async surface => {
@@ -121,30 +122,32 @@ test('rule and check pagination polls fresh first pages, preserves unchanged nod
     sdk: { threads: { get: async () => ({ id: 'thr_abcdefgh1234', providerId: 'pi' }) as any } }, rpc: { overview: read },
   });
   const settle = () => act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  const footer = () => within(slot.container.querySelector<HTMLElement>('.thread-rule-footer')!);
   try {
     await settle();
-    fireEvent.click(slot.getByRole('button', { name: 'More recorded rules' })); await settle();
+    fireEvent.click(getNamedButton(slot.container, 'More recorded rules')); await settle();
     expect(slot.getByRole('list', { name: 'Recorded rules' }).querySelectorAll('button')).toHaveLength(55);
-    const last = slot.getByRole('button', { name: /Recorded inventory rule 55/ }); last.focus();
+    const lastRow = slot.getByText('Recorded inventory rule 55.').closest('li')!;
+    const last = within(lastRow).getByRole('button', { name: /Recorded inventory rule 55/ }); last.focus();
     await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
     expect(read.mock.calls.at(-1)![0].query?.inventoryCursor).toBeUndefined();
     expect(document.activeElement).toBe(last);
     fireEvent.click(last); await settle();
-    fireEvent.click(slot.getByRole('button', { name: 'More recorded checks' })); await settle();
+    fireEvent.click(getNamedButton(slot.container, 'More recorded checks')); await settle();
     expect(slot.getAllByRole('button', { name: 'View recorded call' })).toHaveLength(55);
     await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
     expect(read.mock.calls.at(-1)![0].query.checkCursor).toBeUndefined();
     expect(slot.getAllByRole('button', { name: 'View recorded call' })).toHaveLength(55);
-    fireEvent.click(slot.getByRole('button', { name: 'Back to recorded rules' })); await settle();
-    fireEvent.click(slot.getByRole('button', { name: 'More recorded rules' })); await settle();
+    fireEvent.click(within(slot.getByRole('navigation', { name: 'Recorded rule navigation' })).getByRole('button', { name: 'Back to recorded rules' })); await settle();
+    fireEvent.click(getNamedButton(slot.container, 'More recorded rules')); await settle();
     revision = 'b'.repeat(64);
     await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
     expect(slot.getByRole('list', { name: 'Recorded rules' }).querySelectorAll('button')).toHaveLength(50);
-    stale = true; fireEvent.click(slot.getByRole('button', { name: 'More recorded rules' })); await settle();
+    stale = true; fireEvent.click(getNamedButton(slot.container, 'More recorded rules')); await settle();
     expect(slot.queryByText('Recorded inventory rule 1.')).toBeNull();
     const count = read.mock.calls.length;
     await act(async () => { await vi.advanceTimersByTimeAsync(30_000); }); expect(read).toHaveBeenCalledTimes(count);
-    stale = false; fireEvent.click(slot.getByRole('button', { name: 'Refresh from page one' })); await settle();
+    stale = false; fireEvent.click(footer().getByRole('button', { name: 'Refresh from page one' })); await settle();
     expect(slot.getByRole('list', { name: 'Recorded rules' }).querySelectorAll('button')).toHaveLength(50);
     unavailable = true; await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
     expect(slot.queryByText('Recorded inventory rule 1.')).toBeNull();

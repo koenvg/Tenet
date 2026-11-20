@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { act, cleanup, fireEvent, within } from '@testing-library/react';
 import { loadPluginApp } from '@get-bb/plugin-sdk/testing/app';
 import { renderSummarySlot, summaryCalls } from './summary-rpc.fixture';
+import { getNamedButton } from './summary-controls.fixture';
 import { OverviewAdapter } from './overview-adapter';
 import { MainPage } from './main-page';
 import { overviewPath } from './main-route';
@@ -52,7 +53,7 @@ for (const entry of ['panel', 'main'] as const) for (const behavior of ['history
     expect(slot.container.querySelectorAll('.call-row')).toHaveLength(70);
     fireEvent.click(slot.container.querySelector<HTMLButtonElement>(`[data-call-id="${liveId(2001)}"]`)!); await settle();
     fireEvent.click(detail().getByText('Why this assessment')); fireEvent.click(detail().getByText(/^Browse all rules/));
-    fireEvent.click(detail().getByRole('button', { name: 'More rules' })); await settle();
+    fireEvent.click(getNamedButton(slot.container, 'More rules')); await settle();
     fireEvent.click(rules().getByRole('button', { name: /Built-in integrity/ })); await settle();
     const selected = { sessionId: liveId(1054), callId: liveId(2001) };
     const readCount = summaryCalls(slot).length;
@@ -66,7 +67,7 @@ for (const entry of ['panel', 'main'] as const) for (const behavior of ['history
         slot.lifecycle.rerender(<MainPage subPath={overviewPath(liveThread, selected, liveProject)} />); await settle();
         expect(slot.container.querySelectorAll('.call-row')).toHaveLength(70);
         expect(detail().getByText('Recorded rules 1–16 of 19. At most 16 rules per page.')).toBeTruthy();
-        fireEvent.click(detail().getByRole('button', { name: 'More rules' })); await settle();
+        fireEvent.click(getNamedButton(slot.container, 'More rules')); await settle();
         fireEvent.click(rules().getByRole('button', { name: /Built-in integrity/ })); await settle();
         expect(rules().getByRole('button', { name: /Built-in integrity/ }).getAttribute('aria-pressed')).toBe('true');
       }
@@ -76,7 +77,7 @@ for (const entry of ['panel', 'main'] as const) for (const behavior of ['history
       expect(detail().getByText('Recorded rules 1–16 of 19. At most 16 rules per page.')).toBeTruthy();
       fireEvent.click(archive().getByRole('button', { name: 'More sessions' })); await settle();
       fireEvent.click(explorer().getByText('More invocations', { selector: 'button' })); await settle();
-      fireEvent.click(detail().getByRole('button', { name: 'More rules' })); await settle();
+      fireEvent.click(getNamedButton(slot.container, 'More rules')); await settle();
       fireEvent.click(rules().getByRole('button', { name: /Built-in integrity/ })); await settle();
       expect(slot.container.querySelectorAll('.call-row')).toHaveLength(71);
       expect(detail().getByText('live-1')).toBeTruthy();
