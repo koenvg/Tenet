@@ -14,6 +14,7 @@ Inspect the recorded proposal, policy, questions, and submitted evidence without
 - Open a rule's Rule details panel, then expand View recorded action for a recorded check.
 - Expand Recorded data, then Exact submitted evidence or Exact rule records and captured questions.
 - Paste the selected address into another inspector tab. Browser back/forward is a separate navigation entry.
+- Delegation review has a separate Recorded tool fields disclosure. Use Open full rule details to reach the exact-data path above. Follow [the separate delegation-review checks](session-rules.md#check-delegation-review-separately); the default proof does not drive that entry.
 
 ## Driving it with Playwright
 

@@ -8,6 +8,7 @@ Browse recorded session findings in Tenet's real read-only inspector. This devel
 - `rule-open` opens a rule with its recorded finding and checks.
 - `rule-pages` loads later recorded checks.
 - `rule-close` returns keyboard focus to the opening rule.
+- `rule-delegation` opens the separate delegation-rule review and its recorded tool fields.
 
 ## How to get to it (user POV)
 
@@ -15,6 +16,7 @@ Browse recorded session findings in Tenet's real read-only inspector. This devel
 - Open the native Session picker and choose a session.
 - Choose a rule under Rules in this session, or reopen its private address-bar link.
 - Choose More recorded checks inside Rule details.
+- Choose Review this session's delegation rule for the separate review. Its direct route is `/?view=fixed-rule&session=SESSION_KEY`, with the hashed session key in place of `SESSION_KEY`. Without a session key, `/?view=fixed-rule` asks you to choose a session.
 
 ## Driving it with Playwright
 
@@ -28,6 +30,16 @@ Preconditions:
 - **Load more.** Use `page.getByRole('button', { name: 'More recorded checks' }).click()`. Expect 55 rows without changing the selected rule.
 - **Close.** Press Escape or choose the exact Close button. Expect no open dialog and focus on the opening rule.
 - **Cover other entries when affected.** In the same fixture, click `.rule-session-toggle`, then select `input[value="${sessionKey(session)}"]`. The existing `inspector/tests/integration/session-rules.pw.ts` native-picker journey covers pointer, ArrowDown, Escape, and outside dismissal. Its panel journeys cover 1280px, 390px, and 320px widths, Close, outside dismissal, and browser history. Run them in the clean shell from the [test guide](../../../../inspector/tests/README.md), using `bun x playwright test --config inspector/playwright.config.ts inspector/tests/integration/session-rules.pw.ts`.
+
+## Check delegation review separately
+
+The default proof does not drive delegation review. For changes to this entry, use the synthetic [fixed-rule journeys](../../../../inspector/tests/integration/fixed-rule.pw.ts) with the isolated setup in the [test guide](../../../../inspector/tests/README.md). These journeys seed the recorded declaration `Do not directly use write/edit tools. Delegate those actions.`; do not change an owner's policy to reach it.
+
+1. Expand Evidence. Require 50 recorded checks, then 55 after More recorded checks.
+2. Expand Recorded tool fields. Check lazy reads, missing-stage labels, and keyboard focus through polls.
+3. Choose Open full rule details. Use Back and Forward to check the single-entry history transition. Back to all rules returns to Inspector; Operations remains a separate workspace.
+
+The review describes recorded checks of that declaration. Its stated scope is attempts to tools named `write` and `edit`, not shell commands or other side effects. It does not prove tool execution, delegation completion, or complete observation. Report this entry as unvisited when only the default proof ran.
 
 ## Gotchas
 

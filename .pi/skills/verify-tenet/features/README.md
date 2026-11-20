@@ -27,7 +27,7 @@ A command-handler test is not a visual Pi TUI run. Browser review of fictional r
 - [Local preflight](local-preflight.md) covers the offline doctor CLI and configuration readiness.
 - [Tool-call gating](tool-gating.md) covers Pi dispatch and one-call approval.
 - [Owner controls](owner-controls.md) covers native commands and the shared owner CLI.
-- [Session rules](session-rules.md) covers the inspector picker, rule details, and check pagination.
+- [Session rules](session-rules.md) covers the inspector picker, rule details, check pagination, and the separate delegation-review entry. Delegation journeys are separate from the default proof.
 - [Recorded data](recorded-data.md) covers exact evidence, private links, and keyboard return.
 - [Operations](operations.md) covers workspace navigation, unknown activity, empty telemetry, and timing/coverage disclosures. Populated runtime journeys are separate.
 
