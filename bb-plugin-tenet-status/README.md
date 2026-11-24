@@ -9,7 +9,7 @@ New capture needs the installed Tenet Pi extension, an owner policy and recordin
 Local recordings can contain secrets despite redaction. This read-only view is not a protection, approval or confidentiality boundary. Before enabling capture, read [capture and deletion limits](../docs/inspector.md#sensitive-local-storage).
 
 1. Complete the separate [Pi installation](../docs/INSTALL.md). Configure the policy and credentials before any real assessed action. Those actions disclose evidence to TypeSafe and use quota; installing this read-only plugin makes no evaluator request.
-2. Complete the [locked development setup](../CONTRIBUTING.md#set-up). From the root of a stable Tenet checkout, build and install the plugin:
+2. Complete the [locked development setup](../CONTRIBUTING.md#set-up). Use BB with Plugin SDK 0.6.157 or later. From the root of a stable Tenet checkout, build and install the plugin:
 
    ```sh
    bun run plugin:build
@@ -23,7 +23,7 @@ Local recordings can contain secrets despite redaction. This read-only view is n
    To update an existing local-path installation, rebuild from the same checkout, then run `bb plugin reload tenet-status --json`. A zero exit code and no failed-reload status in `bb plugin list --json` confirm activation. Do not remove and reinstall the plugin. Removal deletes its settings. A successful build alone does not prove activation.
 
 3. Start a fresh Pi process with the current extension and recording enabled. Do not set `TENET_RECORDING=off`.
-4. Open its BB Pi thread and select **TENET rule status** in the header, or **T** on compact viewports.
+4. Open the [overview beside the Pi conversation](#browse-calls-beside-a-conversation).
 
 Only new Pi records with a valid BB-provided `BB_THREAD_ID` link to the thread. This routing hint changes neither Pi session keys nor policy decisions. Historical unlinked records stay in [the standalone inspector](../docs/inspector.md). The plugin never guesses a thread from cwd, time or native session ID.
 
@@ -86,13 +86,15 @@ An environment, machine or owner archive change clears the old scope. Refresh fr
 
 ## Browse calls beside a conversation
 
-After the separate installation steps above, the thread action opens a flush overview tab beside the conversation. Repeating the same open requests focus of that tab. Controls respond to the panel width, even inside a wide window.
+1. Open a Pi thread and select the **TENET:** status button after **Open**. On a phone or in a narrow split pane, select the **TENET:** row in **Thread actions** instead.
 
-1. Open a Pi thread and select its **TENET rule status** header action. The overview defaults to **Recorded rules for this thread** in both the sidepanel and the main page.
+   **TENET overview** opens beside the conversation. Select the action again to focus the same tab. The overview opens to **Recorded rules for this thread**, as on the main page.
 2. Read every retained declaration across this exact thread's linked sessions. **Violation found** marks a recorded finding. **No violations found**, **Unclear** and **Not checked** retain their standalone meanings. Unknown inventory and partial coverage are never a pass.
 3. Select a rule to see its **Recorded checks**. Select **View recorded call** for the existing safe call summary. The back controls return to checks and the rule inventory.
 4. Use **More recorded rules** or **More recorded checks** for 50-item pages. The reader retains at most 1,024 aggregated rules and 4,096 checks per rule. Coverage, indexing, missing integrity and omission counts stay explicit. A finished page does not prove complete capture.
 5. Select **Browse calls** for the secondary session and call browser. Its **Linked session**, **Finding category**, **More sessions** and **More invocations** controls retain their existing behavior. A compact call browser offers **Calls** and **Summary**. **Back to recorded rules** restores the default hierarchy.
+
+The overview controls adapt to the width of the panel, even in a wide window.
 
 The default inventory loads no selected-call detail. Recorded policy identity and declaration ID keep historical versions distinct. Conflicting wording stays uncertain, and absent policy identity keeps invocations separate. This view never reconstructs rules from current policy files.
 
@@ -110,7 +112,9 @@ BB has no raw argument, Evidence or Response view. Use the [standalone inspector
 
 ## Read status
 
-The neutral header action is always available on Pi threads. A compact count appears only for validated recorded selected FAIL calls, including WARN and built-in integrity. No passing-call badge, toast, transcript message or agent tool is installed.
+The status action appears only on threads that use `pi` or `pi-subagents`. When archive coverage is partial, the count includes only validated recorded FAIL calls, including WARN and built-in integrity.
+
+**Review** can show **0 recorded FAIL** when checks are incomplete. Zero does not mean the thread passed. The plugin adds no passing-call badge, toast, transcript message, or agent tool.
 
 1. Select **View flagged rules** to open the selected thread's findings.
 2. Read each rule's loaded-call count and **Uncertain** marker, if present.
@@ -122,7 +126,7 @@ A short incomplete-coverage warning stays visible. Approval conditions and recor
 
 ### Read older calls or refresh
 
-The header and details page poll every ten seconds while mounted. The header polls even with its popover closed; details do not navigate away from the selected thread.
+The status action polls every ten seconds for each visible Pi thread, even when **Thread actions** is closed. The details page polls every ten seconds while open and stays on the selected thread.
 
 Group counts cover loaded calls only. Use **Load more findings** for older calls. After loading older pages, live reads check availability but preserve those calls. **Refresh findings** restarts at page one with updated calls.
 

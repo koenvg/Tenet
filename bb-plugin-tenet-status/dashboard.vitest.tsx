@@ -5,7 +5,7 @@ import { syntheticDashboard, syntheticDashboardPage } from './dashboard.preview-
 import { overviewPath } from './main-route';
 import { MainPage } from './main-page';
 import { loadPluginApp } from '@get-bb/plugin-sdk/testing/app';
-import { renderSummarySlot, summaryCalls } from './summary-rpc.fixture';
+import { overviewTab, renderSummarySlot, summaryCalls } from './summary-rpc.fixture';
 import { projectA, syntheticPicker } from './main.preview-fixture';
 import { readFileSync } from 'node:fs';
 afterEach(() => { cleanup(); vi.useRealTimers(); });
@@ -222,5 +222,5 @@ test('manifest and both registered panels resolve one transparent monochrome T a
   expect(xml.querySelector('path')?.getAttribute('fill')).toBe('currentColor');
   const app = await loadPluginApp(() => import('./app'));
   expect(app.navPanels[0]?.icon).toBe('tenet-status/tenet');
-  expect(app.threadPanelActions[0]?.icon).toBe('tenet-status/tenet');
+  expect(overviewTab(app).icon).toBe('tenet-status/tenet');
 });
