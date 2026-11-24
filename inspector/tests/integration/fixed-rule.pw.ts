@@ -83,6 +83,7 @@ test('fixed picker preserves all four recorded states with no success ticks and 
       await page.locator('.rule-session-toggle').click();
       expect(await page.locator('#rule-session-menu .rule-status').count()).toBe(0);
       await page.locator(`input[value="${sessionKey(session)}"]`).click();
+      await page.locator('.fixed-rule-row > summary').waitFor({ state: 'visible', timeout: 5_000 });
       await expect(page.locator('.fixed-rule-row > summary .fixed-finding')).toHaveText(labels[index]!);
       expect(await page.locator('.rule-session-toggle .rule-status').count()).toBe(0);
       expect(new URL(page.url()).searchParams.get('session')).toBe(sessionKey(session));
