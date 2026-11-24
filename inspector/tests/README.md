@@ -6,7 +6,7 @@ Use only synthetic archives and fixture actions. Never read or copy personal rec
 
 ## Set up and run all three lanes
 
-Use Node 22.19+ for the Pi-backed fixtures and Bun 1.3.14+. SDK-only consumers have a lower Node 22.12+ minimum; that is not the full inspector-test requirement. CI uses Node 22 and Bun 1.4.3.
+Use Node 22.19+ for the Pi-backed fixtures and Bun 1.3.14+. SDK-only consumers have a lower Node 22.12+ minimum; that is not the full inspector-test requirement. CI uses Node 22 and Bun 1.4.4.
 
 1. From the repository root, install locked dependencies and Chromium:
 

@@ -1,4 +1,4 @@
-FROM oven/bun:1.3.14-alpine AS build
+FROM oven/bun:1.4.4-alpine AS build
 WORKDIR /app
 COPY package.json bun.lock ./
 COPY bb-plugin-tenet-status/package.json ./bb-plugin-tenet-status/
