@@ -1,7 +1,7 @@
 import { expect, test, vi } from 'vitest';
 import { fireEvent, within } from '@testing-library/react';
 import { loadPluginApp } from '@get-bb/plugin-sdk/testing/app';
-import { renderSummarySlot } from './summary-rpc.fixture';
+import { overviewTab, renderSummarySlot } from './summary-rpc.fixture';
 import { getNamedButton } from './summary-controls.fixture';
 import { syntheticRead } from './overview.preview-fixture';
 
@@ -10,7 +10,7 @@ test.each(['panel', 'main'])('default %s lists every recorded status before rule
   const read = vi.fn((selection: any) => syntheticRead(selection));
   const options = { sdk: { threads: { get: async () => ({ id: 'thr_abcdefgh1234', providerId: 'pi', projectId: 'proj_synthetic0001' }) as any } }, rpc: { overview: read, pickerSelection: () => ({ state: 'ready', project: { id: 'proj_synthetic0001', label: 'Synthetic' }, thread: { id: 'thr_abcdefgh1234', label: 'Synthetic thread', status: 'idle', archived: false } }) } };
   const slot = surface === 'panel'
-    ? renderSummarySlot(app.threadPanelActions[0]!, { threadId: 'thr_abcdefgh1234', params: null }, options)
+    ? renderSummarySlot(overviewTab(app), { threadId: 'thr_abcdefgh1234', environment: null, params: null }, options)
     : renderSummarySlot(app.navPanels[0]!, { subPath: 'overview/thr_abcdefgh1234' }, options);
   try {
     expect(await slot.findByRole('heading', { name: 'Recorded rules for this thread' })).toBeTruthy();
@@ -42,7 +42,7 @@ test.each(['panel', 'main'])('default %s lists every recorded status before rule
 
 test('rule inventory reports real omissions without the repeated footer diagnostics', async () => {
   const app = await loadPluginApp(() => import('./app'));
-  const slot = renderSummarySlot(app.threadPanelActions[0]!, { threadId: 'thr_abcdefgh1234', params: null }, {
+  const slot = renderSummarySlot(overviewTab(app), { threadId: 'thr_abcdefgh1234', environment: null, params: null }, {
     sdk: { threads: { get: async () => ({ id: 'thr_abcdefgh1234', providerId: 'pi' }) as any } },
     rpc: { overview: (selection: any) => {
       const data = syntheticRead(selection);
@@ -64,7 +64,7 @@ test.each([
   [0, '1970-01-01T00:00:00.000Z'],
 ] as const)('recorded checks remain usable with timestamp %s', async (timestamp, expectedIso) => {
   const app = await loadPluginApp(() => import('./app'));
-  const slot = renderSummarySlot(app.threadPanelActions[0]!, { threadId: 'thr_abcdefgh1234', params: null }, {
+  const slot = renderSummarySlot(overviewTab(app), { threadId: 'thr_abcdefgh1234', environment: null, params: null }, {
     sdk: { threads: { get: async () => ({ id: 'thr_abcdefgh1234', providerId: 'pi' }) as any } },
     rpc: { overview: (selection: any) => {
       const data = syntheticRead(selection);
@@ -118,7 +118,7 @@ test('rule and check pagination polls fresh first pages, preserves unchanged nod
     }
     return data;
   });
-  const slot = renderSummarySlot(app.threadPanelActions[0]!, { threadId: 'thr_abcdefgh1234', params: null }, {
+  const slot = renderSummarySlot(overviewTab(app), { threadId: 'thr_abcdefgh1234', environment: null, params: null }, {
     sdk: { threads: { get: async () => ({ id: 'thr_abcdefgh1234', providerId: 'pi' }) as any } }, rpc: { overview: read },
   });
   const settle = () => act(async () => { await vi.advanceTimersByTimeAsync(0); });

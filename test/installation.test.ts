@@ -28,10 +28,10 @@ test('one root workspace install supplies the BB plugin and patched Zod', async 
   await assert.rejects(readFile(new URL('../bb-plugin-tenet-status/package-lock.json', import.meta.url)), { code: 'ENOENT' });
   await assert.rejects(readFile(new URL('../bb-plugin-tenet-status/bun.lock', import.meta.url)), { code: 'ENOENT' });
   const require = createRequire(new URL('../bb-plugin-tenet-status/package.json', import.meta.url));
-  assert.equal(require('zod/package.json').version, '4.6.6');
+  assert.equal(require('zod/package.json').version, '4.6.7');
   const sdk = JSON.parse(await readFile(new URL('../package.json', pathToFileURL(require.resolve('@get-bb/plugin-sdk'))), 'utf8'));
   assert.equal(sdk.name, '@get-bb/plugin-sdk');
-  assert.equal(sdk.version, '0.6.15');
+  assert.equal(sdk.version, '0.6.157');
 });
 
 test('checkout rollback prerequisites precede installation replacement', async () => {

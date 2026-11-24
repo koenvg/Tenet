@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { act, cleanup, fireEvent, within } from '@testing-library/react';
 import { loadPluginApp } from '@get-bb/plugin-sdk/testing/app';
-import { renderSummarySlot, summaryCalls } from './summary-rpc.fixture';
+import { overviewTab, renderSummarySlot, summaryCalls } from './summary-rpc.fixture';
 import { getNamedButton } from './summary-controls.fixture';
 import { OverviewAdapter } from './overview-adapter';
 import { MainPage } from './main-page';
@@ -36,7 +36,7 @@ for (const entry of ['panel', 'main'] as const) for (const behavior of ['history
   };
   const path = overviewPath(liveThread, {}, liveProject);
   const slot = entry === 'panel'
-    ? renderSummarySlot(app.threadPanelActions[0]!, { threadId: liveThread, params: null }, { rpc, sdk: { threads: { get: async ({ threadId }) => metadata(threadId) as any } } })
+    ? renderSummarySlot(overviewTab(app), { threadId: liveThread, environment: null, params: null }, { rpc, sdk: { threads: { get: async ({ threadId }) => metadata(threadId) as any } } })
     : renderSummarySlot(app.navPanels[0]!, { subPath: path }, { rpc, sdk: { threads: { get: async ({ threadId }) => metadata(threadId) as any } } });
   const view = within(slot.container);
   try {
@@ -138,7 +138,7 @@ test('adapter rejects cross-host merging, including explicit refresh, and manual
 test('metadata and summary transports receive scope-owned signals; unmount, timeout and switching ignore late reads', async () => {
   vi.useFakeTimers(); const app = await loadPluginApp(() => import('./app'));
   let finish!: (value: typeof syntheticOverview) => void;
-  const slot = renderSummarySlot(app.threadPanelActions[0]!, { threadId: liveThread, params: null }, {
+  const slot = renderSummarySlot(overviewTab(app), { threadId: liveThread, environment: null, params: null }, {
     rpc: { overview: () => new Promise(resolve => { finish = resolve; }) }, sdk: { threads: { get: async () => metadata(liveThread) as any } },
   });
   try {

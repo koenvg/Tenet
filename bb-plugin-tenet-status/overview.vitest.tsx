@@ -1,7 +1,7 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import { fireEvent, waitFor, within } from '@testing-library/react';
 import { loadPluginApp } from '@get-bb/plugin-sdk/testing/app';
-import { renderSummarySlot as renderSlot, summaryCalls } from './summary-rpc.fixture';
+import { overviewTab, renderSummarySlot as renderSlot, summaryCalls } from './summary-rpc.fixture';
 import { getNamedButton } from './summary-controls.fixture';
 import { OverviewAdapter } from './overview-adapter';
 import { rulesSyntheticRead } from './rules.preview-fixture';
@@ -12,28 +12,6 @@ afterEach(() => { vi.useRealTimers(); });
 const threadId = 'thr_abcdefgh1234';
 const tick = async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); };
 
-test('Pi header sends identical direct panel requests without inventing a FAIL count or opening a popup', async () => {
-  const app = await loadPluginApp(() => import('./app'));
-  expect(app.threadPanelActions[0]?.layout).toBe('flush');
-  const slot = renderSlot(app.threadHeaderActions[0]!, { threadId, projectId: 'project', isCompactViewport: false }, {
-    sdk: { threads: { get: async () => ({ providerId: 'pi' }) as any } },
-    openThreadPanel: () => true,
-    rpc: { status: () => ({ coverage: 'partial', linkedCalls: 3, failures: 0, issues: [], assessments: { completed: 1, unavailable: 2, pending: 0, dropped: 0, cancelled: 0, incomplete: 0, reasons: [{ code: 'provider-error', count: 2 }] } }) },
-  });
-  try {
-    for (let n = 0; n < 2; n++) fireEvent.click(await slot.findByRole('button', { name: 'TENET rule status' }));
-    expect(slot.inspection.navigateCalls).toEqual([
-      { method: 'openThreadPanel', options: { actionId: 'tenet-overview', title: 'TENET overview', params: null } },
-      { method: 'openThreadPanel', options: { actionId: 'tenet-overview', title: 'TENET overview', params: null } },
-    ]);
-    expect(slot.queryByLabelText(/recorded FAIL/)).toBeNull();
-    expect(slot.getByRole('button', { name: 'TENET rule status' }).textContent).toBe('T');
-    expect(slot.queryByRole('region')).toBeNull();
-    for (const name of ['Open thread overview', 'View flagged rules', 'Close TENET status']) {
-      expect(slot.queryByRole('button', { name })).toBeNull();
-    }
-  } finally { slot.lifecycle.unmount(); }
-});
 
 test('restored non-Pi panel reads no archive; forged params read no summaries', async () => {
   const app = await loadPluginApp(() => import('./app'));
@@ -44,7 +22,7 @@ test('restored non-Pi panel reads no archive; forged params read no summaries', 
     ['pi', { recordingDirectory: '/escape' }, 'Panel selection rejected. Close this tab and open the overview again.'],
     ['pi-subagents', { recordingDirectory: '/escape' }, 'Panel selection rejected. Close this tab and open the overview again.'],
   ] as const) {
-    const slot = renderSlot(app.threadPanelActions[0]!, { threadId, params }, {
+    const slot = renderSlot(overviewTab(app), { threadId, environment: null, params }, {
       sdk: { threads: { get: async () => ({ id: threadId, providerId }) as any } }, rpc: { overview: () => { throw new Error('must not read'); } },
     });
     try { expect(await slot.findByText(message)).toBeTruthy(); expect(summaryCalls(slot)).toHaveLength(0); }
@@ -55,7 +33,7 @@ test('restored non-Pi panel reads no archive; forged params read no summaries', 
 test.each(['pi', 'pi-subagents'])('real panel mounts shared safe summary, displays inert text, and clears stale data on disconnect for %s', async providerId => {
   const app = await loadPluginApp(() => import('./app'));
   let disconnected = false;
-  const slot = renderSlot(app.threadPanelActions[0]!, { threadId, params: null }, {
+  const slot = renderSlot(overviewTab(app), { threadId, environment: null, params: null }, {
     sdk: { threads: { get: async () => ({ id: threadId, providerId }) as any } },
     rpc: { overview: (selection: any) => {
       if (disconnected) return emptyOverview();
@@ -113,7 +91,7 @@ test('panel unmount stops its single ten-second reader and disposes the shared w
   vi.useFakeTimers();
   const app = await loadPluginApp(() => import('./app'));
   const read = vi.fn(() => structuredClone(syntheticOverview));
-  const slot = renderSlot(app.threadPanelActions[0]!, { threadId, params: null }, { sdk: { threads: { get: async () => ({ id: threadId, providerId: 'pi' }) as any } }, rpc: { overview: read } });
+  const slot = renderSlot(overviewTab(app), { threadId, environment: null, params: null }, { sdk: { threads: { get: async () => ({ id: threadId, providerId: 'pi' }) as any } }, rpc: { overview: read } });
   await vi.advanceTimersByTimeAsync(0);
   expect(read).toHaveBeenCalledOnce();
   await vi.advanceTimersByTimeAsync(10_000); expect(read).toHaveBeenCalledTimes(2);
@@ -125,7 +103,7 @@ test('panel unmount stops its single ten-second reader and disposes the shared w
 test('panel adapter reads scoped rule pages through overview only and resets pages on call change', async () => {
   const app = await loadPluginApp(() => import('./app'));
   const read = vi.fn((selection: any) => rulesSyntheticRead(selection));
-  const slot = renderSlot(app.threadPanelActions[0]!, { threadId, params: null }, {
+  const slot = renderSlot(overviewTab(app), { threadId, environment: null, params: null }, {
     sdk: { threads: { get: async () => ({ id: threadId, providerId: 'pi' }) as any } }, rpc: { overview: read },
   });
   try {

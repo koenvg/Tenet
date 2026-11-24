@@ -1,4 +1,4 @@
-import { renderSlot, type RenderedSlot, type RpcCall } from '@get-bb/plugin-sdk/testing/app';
+import { renderSlot, type CapturedPluginApp, type RenderedSlot, type RpcCall } from '@get-bb/plugin-sdk/testing/app';
 
 /** Exercise the official signal-capable SDK transport with authored RPC fixtures. */
 export const renderSummarySlot: typeof renderSlot = (registration, props, options = {}) => renderSlot(registration, props, {
@@ -15,3 +15,12 @@ export const renderSummarySlot: typeof renderSlot = (registration, props, option
 export const summaryCalls = (slot: RenderedSlot): RpcCall[] => slot.inspection.sdkCalls
   .filter(call => call.method === 'plugins.callRpc')
   .map(call => { const args = call.args[0] as { method: string; input: unknown }; return { method: args.method, input: args.input }; });
+
+export function overviewTab(app: CapturedPluginApp) {
+  type Tab = CapturedPluginApp['tabs'][number];
+  type OverviewTab = Extract<Tab, { context: { kind: 'thread' }; availability: 'action' }>;
+  const tab = app.tabs.find((tab): tab is OverviewTab =>
+    tab.id === 'tenet-overview' && tab.context.kind === 'thread' && tab.availability === 'action');
+  if (!tab) throw new Error('Missing TENET overview action tab');
+  return tab;
+}
