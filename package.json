@@ -5,7 +5,7 @@
   "private": true,
   "type": "module",
   "workspaces": ["bb-plugin-tenet-status"],
-  "packageManager": "bun@1.3.14",
+  "packageManager": "bun@1.4.4",
   "engines": {
     "bun": ">=1.3.14",
     "node": ">=22.12"
